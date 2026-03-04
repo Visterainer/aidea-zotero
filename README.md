@@ -138,6 +138,18 @@ Click any shortcut button (Summarize, Explain, etc.) for quick one-click actions
 
 ---
 
+## 🗺️ Roadmap
+
+Planned features for upcoming releases:
+
+- 🔤 **Highlight Translation** — Select text in the PDF reader to instantly translate highlighted passages in place
+- 📖 **One-Click Full Document Translation** — Translate the entire paper with a single click, generating a side-by-side bilingual view
+- 🗂️ **One-Click Architecture Diagram** — Automatically generate a structural diagram from the paper's content, visualizing the research framework at a glance
+
+> 💡 Have a feature request? Feel free to open an [Issue](https://github.com/zhile/zoteroAI/issues)!
+
+---
+
 ## 🛠️ Development
 
 ```bash
