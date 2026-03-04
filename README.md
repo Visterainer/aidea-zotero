@@ -5,7 +5,7 @@
 <h1 align="center">AIdea</h1>
 
 <p align="center">
-  <strong>A free, open-source AI assistant plugin for Zotero 7</strong>
+  <strong>A free, open-source AI assistant plugin for Zotero</strong>
 </p>
 
 <p align="center">
@@ -77,7 +77,7 @@ Full support for **English** and **Chinese** (中文) — switch languages in se
 ## 📦 Installation
 
 ### Requirements
-- **Zotero 7** (version 7.0+)
+- **Zotero 7 / 8** (version 7.0+)
 - **Node.js** (v18+) — required for the OAuth CLI tools
 
 ### Install the Plugin

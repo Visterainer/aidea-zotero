@@ -46,3 +46,6 @@ reference/
 # Internal plan docs
 doc/PLAN_*.md
 docs/refactor/
+
+# Local dev notes (not for GitHub)
+DEV_NOTES.md
