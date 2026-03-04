@@ -1,0 +1,169 @@
+<p align="center">
+  <img src="addon/content/icons/icon-96.png" alt="zoteroAI Logo" width="80" />
+</p>
+
+<h1 align="center">zoteroAI</h1>
+
+<p align="center">
+  <strong>免费开源的 Zotero 7 AI 助手插件</strong>
+</p>
+
+<p align="center">
+  <a href="./README.md">🇬🇧 English</a> &nbsp;|&nbsp;
+  <a href="#功能特性">功能特性</a> &nbsp;|&nbsp;
+  <a href="#安装">安装</a> &nbsp;|&nbsp;
+  <a href="#快速开始">快速开始</a> &nbsp;|&nbsp;
+  <a href="#许可证">许可证</a>
+</p>
+
+---
+
+## ✨ 功能特性
+
+### 💬 侧边栏 AI 对话
+在 Zotero 的侧边栏中直接与 AI 对话 —— **文库视图**和 **PDF 阅读器**中均可使用。提问、获取摘要，与你的研究资料无缝交互。
+
+<p align="center">
+  <img src="doc/screenshots/chat_cn.png" alt="侧边栏对话" width="800" />
+</p>
+
+### 📄 论文感知上下文
+阅读 PDF 时，zoteroAI 自动提取论文内容并提供给 AI 作为上下文。选中阅读器中的文本，即可针对特定段落进行精准提问。
+
+<p align="center">
+  <img src="doc/screenshots/add_text.png" alt="Add Text 弹窗" width="500" />
+</p>
+
+### ⚡ 快捷操作按钮
+一键触发常用任务：**总结**、**解释**、**翻译**等。完全可自定义 —— 添加、编辑、排序或删除快捷按钮，打造属于你的工作流。
+
+### 🖼️ 多模态支持
+在消息中附加图片（截图、图表、示意图）。支持拖拽、从剪贴板粘贴，或使用截图工具直接从 PDF 中捕获内容。
+
+### 🔐 OAuth 登录（无需 API Key）
+通过 OAuth 协议登录你的 OpenAI 账号 —— 无需手动管理 API Key。插件借助 Codex CLI 的 OAuth 流程实现无缝认证。
+
+### 🌐 多服务商支持
+- **OpenAI (ChatGPT)** — 通过 Codex OAuth 完整支持
+- **Google Gemini** — 即将推出
+
+### 📝 笔记导出
+一键将 AI 回复保存为 Zotero 笔记。回复以 Markdown 格式保存，完整支持 LaTeX 数学公式渲染。
+
+### 💾 持久化聊天记录
+所有对话保存在 Zotero 的本地数据库中。可在多个对话之间切换，随时继续之前的讨论，自由管理聊天历史。
+
+### 🧠 记忆系统
+AI 自动捕捉并回忆跨对话的重要信息，提供个性化、上下文感知的回复，且随着使用越来越智能。
+
+- **自动捕捉** —— 从自然对话中检测用户偏好、决策、事实和关键实体（如“我喜欢简洁的回答”、“我的研究方向是 NLP”）
+- **按文库隔离** —— 记忆以 Zotero 文库为单位存储，不同研究项目的记忆彼此独立
+- **智能去重** —— 使用 Jaccard 词元相似度（≥90% 阈值）防止存储重复记忆
+- **相关性排序检索** —— 多因子综合评分（词元重叠 × 0.65 + 子串包含 + 时间衰减 × 0.15 + 重要性 × 0.20）确保最相关的记忆被优先召回
+- **提示注入防护** —— 内置模式检测，防止恶意内容被存入记忆
+- **完全本地** —— 所有记忆存储在 Zotero 的 SQLite 数据库中，不会发送到任何外部服务器
+
+### 🎨 丰富的渲染效果
+- 完整的 **Markdown** 渲染（标题、列表、代码块、表格）
+- **LaTeX** 数学公式支持（由 KaTeX 驱动）
+- 代码块**语法高亮**
+- 流畅的**流式输出**体验
+
+### 🌍 双语界面
+完整支持**英文**和**中文** —— 可在设置中随时切换语言。
+
+---
+
+## 📦 安装
+
+### 环境要求
+- **Zotero 7**（7.0+ 版本）
+- **Node.js**（v18+）—— OAuth CLI 工具所需
+
+### 安装插件
+
+1. 从 [Releases](https://github.com/zhile/zoteroAI/releases) 下载最新的 `zoteroAI-x.x.x.xpi`
+2. 在 Zotero 中，进入 **工具 → 附加组件**
+3. 点击齿轮图标 ⚙️ → **从文件安装附加组件...**
+4. 选择下载的 `.xpi` 文件
+5. 重启 Zotero
+
+### 升级
+直接安装新版 `.xpi` 文件即可自动覆盖旧版本。**所有聊天记录和设置均会保留。**
+
+---
+
+## 🚀 快速开始
+
+### 1. 打开设置
+进入 **工具 → 附加组件 → zoteroAI → 设置**（或 **编辑 → 首选项 → zoteroAI**）
+
+<p align="center">
+  <img src="doc/screenshots/settings_cn.png" alt="设置页面" width="600" />
+</p>
+
+### 2. 自动配置环境
+点击**「自动配置环境」**，自动安装所需的 CLI 工具。首次运行时会弹出风险提示 —— 请仔细阅读后确认继续。
+
+### 3. OAuth 登录
+在 OpenAI 卡片中点击**「OAuth 登录」**，浏览器将打开进行身份验证。登录成功后，返回 Zotero 并点击**「刷新模型」**加载可用模型。
+
+### 4. 开始对话
+- **文库面板**：在文库中选择任意条目 —— 右侧边栏将出现 zoteroAI 面板
+- **PDF 阅读器**：打开任意 PDF —— 阅读器侧边栏将出现 zoteroAI 面板
+- 输入你的问题，点击**发送**或按 `Enter`
+
+### 5. 使用快捷操作
+点击快捷按钮（总结、解释等）即可一键执行常用操作。右键点击可编辑或删除快捷按钮。
+
+---
+
+## ⚙️ 配置选项
+
+| 设置项 | 说明 | 默认值 |
+|---|---|---|
+| **界面语言** | 界面语言（EN / CN） | EN |
+| **系统提示词** | 自定义 AI 指令 | 空（使用默认值） |
+| **显示 "Add Text"** | 在阅读器选择弹窗中显示 Add Text 选项 | ☑ 开启 |
+| **显示所有模型** | 显示全部模型 vs. 精选模型 | ☐ 关闭 |
+
+---
+
+## 🔒 隐私与安全
+
+- 🔑 OAuth 令牌**仅保存在本地** —— 绝不会发送至任何第三方服务器
+- 📡 所有 API 通信**直接发生在你与 AI 服务商之间**
+- 🚫 本插件**不收集任何用户数据**
+- 📖 完全**开源** —— 随时可查看源代码
+
+---
+
+## 🛠️ 开发
+
+```bash
+# 安装依赖
+npm install
+
+# 开发模式（支持热重载）
+npm start
+
+# 构建生产版 XPI
+npm run build
+
+# 运行测试
+npm run test:unit
+```
+
+---
+
+## 📄 许可证
+
+[AGPL-3.0-or-later](./LICENSE)
+
+本项目 fork 自 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero)（作者 Yile Wang）。完整的第三方声明请参阅 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+
+---
+
+<p align="center">
+  由 <strong>zhile</strong> 用 ❤️ 打造
+</p>
