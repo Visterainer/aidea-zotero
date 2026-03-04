@@ -66,8 +66,8 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const headerTop = createElement(doc, "div", "llm-header-top");
   const headerInfo = createElement(doc, "div", "llm-header-info");
   const headerIcon = createElement(doc, "img", "llm-header-icon", {
-    alt: "zoteroAI",
-    src: `chrome://zoteroai/content/icons/icon-96.png`,
+    alt: "AIdea",
+    src: `chrome://aidea/content/icons/icon-96.png`,
   }) as HTMLImageElement;
   headerIcon.style.width = "28px";
   headerIcon.style.height = "28px";

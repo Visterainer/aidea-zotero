@@ -1,24 +1,24 @@
 {
-  "name": "zotero-ai",
+  "name": "aidea-for-zotero",
   "type": "module",
   "version": "1.0.3",
-  "description": "zoteroAI: OAuth-only AI assistant for Zotero PDF reader side panel",
+  "description": "AIdea: Free AI assistant for Zotero — Chat with AI directly in Zotero's side panel",
   "config": {
-    "addonName": "zoteroAI",
-    "addonID": "zoteroai@local.zhile",
-    "addonRef": "zoteroai",
-    "addonInstance": "ZoteroAI",
-    "prefsPrefix": "extensions.zotero.zoteroai"
+    "addonName": "AIdea",
+    "addonID": "aidea@visterainer",
+    "addonRef": "aidea",
+    "addonInstance": "AIdea",
+    "prefsPrefix": "extensions.zotero.aidea"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Visterainer/zoteroAI.git"
+    "url": "git+https://github.com/Visterainer/aidea-zotero.git"
   },
   "author": "zhile",
   "bugs": {
-    "url": "https://github.com/Visterainer/zoteroAI/issues"
+    "url": "https://github.com/Visterainer/aidea-zotero/issues"
   },
-  "homepage": "https://github.com/Visterainer/zoteroAI#readme",
+  "homepage": "https://github.com/Visterainer/aidea-zotero#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "zotero-plugin serve",

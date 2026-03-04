@@ -157,7 +157,7 @@ export function ensureZoteroProxyFromSystem(): void {
         // bypass list not found, ignore
       }
 
-      ztoolkit?.log?.(`zoteroAI: Applied system proxy ${httpHost}:${httpPort} to Zotero`);
+      ztoolkit?.log?.(`AIdea: Applied system proxy ${httpHost}:${httpPort} to Zotero`);
     } catch {
       // registry read failed, ignore
     }
@@ -191,7 +191,7 @@ function removeFileIfExists(path: string): boolean {
     file.remove(false);
     return true;
   } catch (err) {
-    ztoolkit?.log?.("zoteroAI: removeFileIfExists failed", path, err);
+    ztoolkit?.log?.("AIdea: removeFileIfExists failed", path, err);
     return false;
   }
 }
@@ -340,13 +340,13 @@ export async function fetchAvailableModels(
               })
               .filter((m: ProviderModelOption) => m.id);
             if (rows.length > 0) {
-              ztoolkit?.log?.(`zoteroAI: Codex dynamic models: ${rows.map(r => r.id).join(", ")}`);
+              ztoolkit?.log?.(`AIdea: Codex dynamic models: ${rows.map(r => r.id).join(", ")}`);
               return dedupeModels(rows);
             }
           }
         }
       } catch (err) {
-        ztoolkit?.log?.("zoteroAI: Codex dynamic model fetch failed, using static list", err);
+        ztoolkit?.log?.("AIdea: Codex dynamic model fetch failed, using static list", err);
       }
       // Fallback: validate token via usage endpoint, then return static list
       try {
@@ -355,7 +355,7 @@ export async function fetchAvailableModels(
           headers,
         });
         if (!usageRes.ok) {
-          ztoolkit?.log?.("zoteroAI: Codex token validation failed, HTTP", usageRes.status);
+          ztoolkit?.log?.("AIdea: Codex token validation failed, HTTP", usageRes.status);
           return [];
         }
       } catch {
@@ -371,7 +371,7 @@ export async function fetchAvailableModels(
       headers: ensureProviderAuthHeaderInit(cred),
     });
     if (!res.ok) {
-      ztoolkit?.log?.("zoteroAI: Gemini model list HTTP", res.status, "- using static fallback");
+      ztoolkit?.log?.("AIdea: Gemini model list HTTP", res.status, "- using static fallback");
       return [...GEMINI_CLI_KNOWN_MODELS];
     }
     const data = (await res.json()) as {
@@ -396,7 +396,7 @@ export async function fetchAvailableModels(
       .filter((m) => m.id);
     return rows.length ? dedupeModels(rows) : [...GEMINI_CLI_KNOWN_MODELS];
   } catch (err) {
-    ztoolkit?.log?.("zoteroAI: fetchAvailableModels failed", provider, err);
+    ztoolkit?.log?.("AIdea: fetchAvailableModels failed", provider, err);
     // Return static fallback for Gemini on error
     if (provider === "google-gemini-cli") {
       return [...GEMINI_CLI_KNOWN_MODELS];

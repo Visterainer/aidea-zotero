@@ -91,7 +91,7 @@ function registerPrefsPane() {
   Zotero.PreferencePanes.register({
     pluginID: addon.data.config.addonID,
     src: `chrome://${addon.data.config.addonRef}/content/preferences.xhtml`,
-    label: "zoteroAI",
+    label: "AIdea",
     image: `chrome://${addon.data.config.addonRef}/content/icons/icon-20.png`,
   });
 }

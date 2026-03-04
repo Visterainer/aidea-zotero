@@ -455,7 +455,7 @@ function buildManualMultipartBody(params: {
   bytes: Uint8Array;
 }): { body: Uint8Array; contentType: string } {
   const encoder = new TextEncoder();
-  const boundary = `----zoteroai-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+  const boundary = `----aidea-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
   const safePurpose = toSafeMultipartToken(params.purpose);
   const safeFileName = toSafeMultipartToken(params.fileName);
   const safeMimeType = toSafeMultipartToken(params.mimeType);

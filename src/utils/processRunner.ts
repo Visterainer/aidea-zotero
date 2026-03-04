@@ -39,7 +39,7 @@ async function tryZoteroExec(command: string, args: string[]): Promise<ExecResul
     const raw = (await execFn(command, args)) as ZoteroExecResult;
     return normalizeExecResult(raw);
   } catch (err) {
-    ztoolkit?.log?.("zoteroAI: exec fallback", {
+    ztoolkit?.log?.("AIdea: exec fallback", {
       command,
       args,
       error: String(err),
@@ -137,8 +137,8 @@ export async function runShellCommand(command: string, options?: { hidden?: bool
     if (direct) return direct;
   }
 
-  const stdoutPath = makeTempFilePath("zoteroai-stdout");
-  const stderrPath = makeTempFilePath("zoteroai-stderr");
+  const stdoutPath = makeTempFilePath("aidea-stdout");
+  const stderrPath = makeTempFilePath("aidea-stderr");
   try {
     const wrapped = shellWrap(command, stdoutPath, stderrPath);
     const code = await runProcessAsync(wrapped.exe, wrapped.args, hidden);

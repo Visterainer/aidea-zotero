@@ -3701,7 +3701,7 @@ export function setupHandlers(
   void refreshGlobalHistoryHeader();
 
   // ── Draft input persistence ──
-  const DRAFT_PREF_PREFIX = "extensions.zoteroAI.draftInput.";
+  const DRAFT_PREF_PREFIX = "extensions.AIdea.draftInput.";
   let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   const saveDraftInput = () => {
@@ -3744,7 +3744,7 @@ export function setupHandlers(
   inputBox.addEventListener("input", scheduleDraftSave);
 
   // ── Compose state persistence (files, screenshots, papers) ──
-  const COMPOSE_PREF_PREFIX = "extensions.zoteroAI.composeState.";
+  const COMPOSE_PREF_PREFIX = "extensions.AIdea.composeState.";
   let composeStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   const saveComposeState = () => {

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="addon/content/icons/icon-96.png" alt="zoteroAI Logo" width="80" />
+  <img src="addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
 </p>
 
-<h1 align="center">zoteroAI</h1>
+<h1 align="center">AIdea</h1>
 
 <p align="center">
   <strong>A free, open-source AI assistant plugin for Zotero 7</strong>
@@ -82,7 +82,7 @@ Full support for **English** and **Chinese** (中文) — switch languages in se
 
 ### Install the Plugin
 
-1. Download the latest `zoteroAI-x.x.x.xpi` from [Releases](https://github.com/Visterainer/zoteroAI/releases)
+1. Download the latest `AIdea-x.x.x.xpi` from [Releases](https://github.com/Visterainer/aidea-zotero/releases)
 2. In Zotero, go to **Tools → Add-ons**
 3. Click the gear icon ⚙️ → **Install Add-on From File...**
 4. Select the downloaded `.xpi` file
@@ -96,7 +96,7 @@ Simply install the new `.xpi` file — it will automatically replace the old ver
 ## 🚀 Getting Started
 
 ### 1. Open Settings
-Go to **Tools → Add-ons → zoteroAI → Settings** (or **Edit → Settings → zoteroAI**)
+Go to **Tools → Add-ons → AIdea → Settings** (or **Edit → Settings → AIdea**)
 
 <p align="center">
   <img src="doc/screenshots/settings_en.png" alt="Settings page" width="600" />
@@ -109,8 +109,8 @@ Click **"Auto Configure Environment"** to automatically install the required CLI
 Click **"OAuth Login"** on the OpenAI card. Your browser will open for authentication. After signing in, return to Zotero and click **"Refresh Models"** to load available models.
 
 ### 4. Start Chatting
-- **Library Panel**: Select any item in your library — the zoteroAI panel appears in the right sidebar
-- **PDF Reader**: Open any PDF — the zoteroAI panel appears in the reader's side panel
+- **Library Panel**: Select any item in your library — the AIdea panel appears in the right sidebar
+- **PDF Reader**: Open any PDF — the AIdea panel appears in the reader's side panel
 - Type your question and press **Send** or hit `Enter`
 
 ### 5. Use Shortcuts
@@ -146,7 +146,7 @@ Planned features for upcoming releases:
 - 📖 **One-Click Full Document Translation** — Translate the entire paper with a single click, generating a side-by-side bilingual view
 - 🗂️ **One-Click Architecture Diagram** — Automatically generate a structural diagram from the paper's content, visualizing the research framework at a glance
 
-> 💡 Have a feature request? Feel free to open an [Issue](https://github.com/Visterainer/zoteroAI/issues)!
+> 💡 Have a feature request? Feel free to open an [Issue](https://github.com/Visterainer/aidea-zotero/issues)!
 
 ---
 

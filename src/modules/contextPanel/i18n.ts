@@ -53,7 +53,7 @@ declare const Zotero: any;
 export function getPanelLang(): PanelLang {
   try {
     const pref = String(
-      Zotero.Prefs.get("extensions.zotero.zoteroai.uiLanguage", true) || "",
+      Zotero.Prefs.get("extensions.zotero.aidea.uiLanguage", true) || "",
     ).trim();
     if (pref === "en-US") return "en-US";
   } catch {
@@ -66,7 +66,7 @@ export function getPanelI18n(): PanelI18n {
   const lang = getPanelLang();
   if (lang === "en-US") {
     return {
-      title: "zoteroAI",
+      title: "AIdea",
       clear: "Clear",
       history: "History",
       export: "Export",
@@ -114,7 +114,7 @@ export function getPanelI18n(): PanelI18n {
     };
   }
   return {
-    title: "zoteroAI",
+    title: "AIdea",
     clear: "清空",
     history: "历史",
     export: "导出",
