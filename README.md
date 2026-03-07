@@ -6,8 +6,7 @@
 
 <p align="center">
   <strong>A free, open-source AI assistant plugin for Zotero</strong><br/>
-  Log in with your ChatGPT account — No API key needed<br/>
-  Latest supported: <strong>ChatGPT 5.4</strong>
+  Log in with your ChatGPT account — No API key needed
 </p>
 
 <p align="center">

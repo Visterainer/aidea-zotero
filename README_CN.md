@@ -6,8 +6,7 @@
 
 <p align="center">
   <strong>免费开源的 Zotero AI 助手插件</strong><br/>
-  使用 ChatGPT 账号即可登录 — 无需 API Key<br/>
-  最新支持版本：<strong>ChatGPT 5.4</strong>
+  使用 ChatGPT 账号即可登录 — 无需 API Key
 </p>
 
 <p align="center">
