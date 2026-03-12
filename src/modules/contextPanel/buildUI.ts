@@ -90,10 +90,9 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "llm-history-new",
     type: "button",
     textContent: "",
-    title: "Start a new conversation",
+    title: i18n.newChat,
   });
-  historyNewBtn.setAttribute("aria-label", "Start a new conversation");
-  historyNewBtn.style.display = "none";
+  historyNewBtn.setAttribute("aria-label", i18n.newChat);
   const historyToggleBtn = createElement(doc, "button", "llm-history-toggle", {
     id: "llm-history-toggle",
     type: "button",

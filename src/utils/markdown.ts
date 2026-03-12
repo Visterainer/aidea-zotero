@@ -84,6 +84,20 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (m) => HTML_ESCAPE_MAP[m]);
 }
 
+/** Escape text for use in an HTML attribute (encode quotes and ampersands) */
+function escapeAttr(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** Generate the copy button HTML for code/math blocks */
+function blockCopyButton(rawText: string): string {
+  return `<span role="button" tabindex="0" class="llm-block-copy-btn" data-copy-text="${escapeAttr(rawText)}" aria-label="Copy"></span>`;
+}
+
 /** Count non-overlapping occurrences of a pattern */
 function countOccurrences(text: string, pattern: string | RegExp): number {
   const regex =
@@ -548,7 +562,9 @@ function renderCodeBlock(code: string, raw: string): string {
   const langMatch = raw.match(/^```(\w*)/);
   const lang = langMatch?.[1] || "";
   const langClass = lang ? ` class="lang-${lang}"` : "";
-  return `<pre${langClass}><code>${escapeHtml(code.trim())}</code></pre>`;
+  const trimmedCode = code.trim();
+  const copyBtn = zoteroNoteMode ? "" : blockCopyButton(trimmedCode);
+  return `<pre${langClass}>${copyBtn}<code>${escapeHtml(trimmedCode)}</code></pre>`;
 }
 
 /** Render display math block */
@@ -569,7 +585,8 @@ function renderMathBlock(content: string): string {
   }
 
   const rendered = renderDisplayLatex(math);
-  return `<div class="math-display">${rendered}</div>`;
+  const copyBtn = blockCopyButton(`$$${math}$$`);
+  return `<div class="math-display">${copyBtn}${rendered}</div>`;
 }
 
 /** Render header */

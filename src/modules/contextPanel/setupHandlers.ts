@@ -5203,6 +5203,27 @@ export function setupHandlers(
 
   if (chatBox) {
     chatBox.addEventListener("click", (e: Event) => {
+      // Copy code block or math block content
+      const blockCopyTarget = (e.target as Element | null)?.closest(
+        ".llm-block-copy-btn",
+      ) as HTMLElement | null;
+      if (blockCopyTarget) {
+        e.preventDefault();
+        e.stopPropagation();
+        const textToCopy = blockCopyTarget.dataset.copyText || "";
+        if (!textToCopy) return;
+        void copyTextToClipboard(body, textToCopy).then(() => {
+          blockCopyTarget.classList.add("copied");
+          const win = body.ownerDocument?.defaultView;
+          if (win) {
+            win.setTimeout(() => {
+              blockCopyTarget.classList.remove("copied");
+            }, 1500);
+          }
+        });
+        return;
+      }
+
       // Copy single message
       const copyTarget = (e.target as Element | null)?.closest(
         ".llm-msg-copy-btn",

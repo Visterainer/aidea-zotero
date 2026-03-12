@@ -1,4 +1,4 @@
-﻿export type PanelLang = "zh-CN" | "en-US";
+export type PanelLang = "zh-CN" | "en-US";
 
 export type PanelI18n = {
   title: string;
@@ -46,6 +46,7 @@ export type PanelI18n = {
   chatHistory: string;
   deleteAllConfirm: string;
   noHistoryYet: string;
+  newChat: string;
 };
 
 declare const Zotero: any;
@@ -111,6 +112,7 @@ export function getPanelI18n(): PanelI18n {
       chatHistory: "Chat History",
       deleteAllConfirm: "All conversations deleted",
       noHistoryYet: "No history yet",
+      newChat: "New Chat",
     };
   }
   return {
@@ -159,5 +161,6 @@ export function getPanelI18n(): PanelI18n {
     chatHistory: "聊天记录",
     deleteAllConfirm: "已删除所有对话",
     noHistoryYet: "暂无历史记录",
+    newChat: "新建对话",
   };
 }
