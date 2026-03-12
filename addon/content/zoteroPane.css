@@ -1810,12 +1810,12 @@
 /* Display math block */
 .llm-bubble.assistant .math-display {
   display: block;
-  text-align: left;
+  text-align: center;
   width: auto;
   max-width: 100%;
   min-width: 0;
   margin: 16px 0;
-  padding: 12px 16px;
+  padding: 14px 16px 18px;
   background: rgba(0, 0, 0, 0.04);
   border-radius: 8px;
   overflow-x: auto;
@@ -1842,8 +1842,9 @@
 .llm-bubble.assistant .katex-display {
   margin: 0 !important;
   width: auto;
-  max-width: 100%;
+  max-width: none;
   min-width: 0;
+  text-align: center;
 }
 
 .llm-bubble.assistant .math-display > .katex-display {
@@ -1852,12 +1853,10 @@
 
 .llm-bubble.assistant .math-display > .katex-display > .katex {
   display: inline-block;
-  max-width: 100%;
+  max-width: none;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  text-align: left;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
+  text-align: center;
 }
 
 /* Math error styling */
@@ -1890,6 +1889,7 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  padding-bottom: 4px;
   -webkit-overflow-scrolling: touch;
 }
 
