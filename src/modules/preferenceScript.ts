@@ -668,21 +668,27 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         // Show OAuth risk warning on first click only
         const alreadyAccepted = getPref("oauthRiskAccepted") === "true";
         if (!alreadyAccepted) {
-          const riskMessage =
-            "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
-            "This will start the Device Code OAuth flow:\n" +
-            "1. A verification URL and code will be displayed\n" +
-            "2. Open your browser to authorize the application\n\n" +
-            "Please note:\n" +
-            "\u2022 OAuth tokens are stored locally on your device only\n" +
-            "\u2022 This plugin uses OAuth tokens which is not officially endorsed \u2014 theoretical risk of account restrictions\n" +
-            "\u2022 Using AI services may incur charges\n" +
-            "\u2022 This plugin is free, open-source, and collects no user data\n\n" +
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n" +
-            "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
-            "\u5c06\u542f\u52a8 Device Code OAuth \u6d41\u7a0b\uff0cOAuth \u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\u3002\n" +
-            "\u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\u3002\n\n" +
-            "Do you wish to continue? / \u662f\u5426\u7ee7\u7eed\uff1f";
+          const riskMessage = lang === "zh-CN"
+            ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
+              "\u5c06\u542f\u52a8 Device Code OAuth \u6d41\u7a0b\uff1a\n" +
+              "1. \u7a0d\u540e\u4f1a\u663e\u793a\u9a8c\u8bc1\u7f51\u5740\u548c\u6388\u6743\u7801\n" +
+              "2. \u6253\u5f00\u6d4f\u89c8\u5668\u5b8c\u6210\u6388\u6743\n\n" +
+              "\u8bf7\u6ce8\u610f\uff1a\n" +
+              "\u2022 OAuth \u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\u8bbe\u5907\n" +
+              "\u2022 \u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
+              "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\n" +
+              "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
+              "\u662f\u5426\u7ee7\u7eed\uff1f"
+            : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
+              "This will start the Device Code OAuth flow:\n" +
+              "1. A verification URL and code will be displayed\n" +
+              "2. Open your browser to authorize the application\n\n" +
+              "Please note:\n" +
+              "\u2022 OAuth tokens are stored locally on your device only\n" +
+              "\u2022 This plugin uses OAuth tokens which is not officially endorsed \u2014 theoretical risk of account restrictions\n" +
+              "\u2022 Using AI services may incur charges\n" +
+              "\u2022 This plugin is free, open-source, and collects no user data\n\n" +
+              "Do you wish to continue?";
           const accepted = win.confirm(riskMessage);
           if (!accepted) return;
           setPref("oauthRiskAccepted", "true");
@@ -726,38 +732,31 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         // Show OAuth risk warning on first click only
         const alreadyAccepted = getPref("oauthRiskAccepted") === "true";
         if (!alreadyAccepted) {
-          const riskMessage =
-            "\u26a0\ufe0f OAuth Authorization Notice\n" +
-            "\n" +
-            "\"Install Environment\" will perform the following:\n" +
-            "1. Install Node.js runtime (if not already installed)\n" +
-            "2. Install the CLI tool for this provider\n" +
-            "3. Open your browser via OAuth to sign in\n" +
-            "\n" +
-            "Please note:\n" +
-            "\u2022 OAuth tokens are stored locally on your device only and are never sent to any third-party server\n" +
-            "\u2022 The plugin communicates directly with the AI provider's official API\n" +
-            "\u2022 This plugin uses OAuth tokens which is not an officially endorsed usage \u2014 there is a theoretical risk of account restrictions\n" +
-            "\u2022 Using AI services may incur charges depending on your account billing plan\n" +
-            "\u2022 This plugin is completely free, open-source, and does not collect any user data\n" +
-            "\n" +
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n" +
-            "\n" +
-            "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n" +
-            "\n" +
-            "\u201c\u5b89\u88c5\u73af\u5883\u201d\u5c06\u6267\u884c\u4ee5\u4e0b\u64cd\u4f5c\uff1a\n" +
-            "1. \u5b89\u88c5 Node.js \u8fd0\u884c\u73af\u5883\uff08\u5982\u5c1a\u672a\u5b89\u88c5\uff09\n" +
-            "2. \u5b89\u88c5\u5bf9\u5e94\u63d0\u4f9b\u5546\u7684 CLI \u5de5\u5177\n" +
-            "3. \u901a\u8fc7 OAuth \u534f\u8bae\u6253\u5f00\u6d4f\u89c8\u5668\u767b\u5f55\n" +
-            "\n" +
-            "\u8bf7\u6ce8\u610f\uff1a\n" +
-            "\u2022 OAuth \u767b\u5f55\u751f\u6210\u7684\u8bbf\u95ee\u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\uff0c\u4e0d\u4f1a\u4e0a\u4f20\u81f3\u4efb\u4f55\u7b2c\u4e09\u65b9\u670d\u52a1\u5668\n" +
-            "\u2022 \u63d2\u4ef6\u76f4\u63a5\u8c03\u7528 AI \u670d\u52a1\u5546\u7684\u5b98\u65b9 API\n" +
-            "\u2022 \u672c\u63d2\u4ef6\u501f\u52a9 CLI \u7684 OAuth \u4ee4\u724c\u8c03\u7528 API\uff0c\u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
-            "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\uff0c\u5177\u4f53\u53d6\u51b3\u4e8e\u60a8\u7684\u8d26\u53f7\u8ba1\u8d39\u65b9\u5f0f\n" +
-            "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n" +
-            "\n" +
-            "Do you wish to continue? / \u662f\u5426\u7ee7\u7eed\uff1f";
+          const riskMessage = lang === "zh-CN"
+            ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
+              "\u201c\u5b89\u88c5\u73af\u5883\u201d\u5c06\u6267\u884c\u4ee5\u4e0b\u64cd\u4f5c\uff1a\n" +
+              "1. \u5b89\u88c5 Node.js \u8fd0\u884c\u73af\u5883\uff08\u5982\u5c1a\u672a\u5b89\u88c5\uff09\n" +
+              "2. \u5b89\u88c5\u5bf9\u5e94\u63d0\u4f9b\u5546\u7684 CLI \u5de5\u5177\n" +
+              "3. \u901a\u8fc7 OAuth \u534f\u8bae\u6253\u5f00\u6d4f\u89c8\u5668\u767b\u5f55\n\n" +
+              "\u8bf7\u6ce8\u610f\uff1a\n" +
+              "\u2022 OAuth \u767b\u5f55\u751f\u6210\u7684\u8bbf\u95ee\u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\uff0c\u4e0d\u4f1a\u4e0a\u4f20\u81f3\u4efb\u4f55\u7b2c\u4e09\u65b9\u670d\u52a1\u5668\n" +
+              "\u2022 \u63d2\u4ef6\u76f4\u63a5\u8c03\u7528 AI \u670d\u52a1\u5546\u7684\u5b98\u65b9 API\n" +
+              "\u2022 \u672c\u63d2\u4ef6\u501f\u52a9 CLI \u7684 OAuth \u4ee4\u724c\u8c03\u7528 API\uff0c\u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
+              "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\uff0c\u5177\u4f53\u53d6\u51b3\u4e8e\u60a8\u7684\u8d26\u53f7\u8ba1\u8d39\u65b9\u5f0f\n" +
+              "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
+              "\u662f\u5426\u7ee7\u7eed\uff1f"
+            : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
+              "\"Install Environment\" will perform the following:\n" +
+              "1. Install Node.js runtime (if not already installed)\n" +
+              "2. Install the CLI tool for this provider\n" +
+              "3. Open your browser via OAuth to sign in\n\n" +
+              "Please note:\n" +
+              "\u2022 OAuth tokens are stored locally on your device only and are never sent to any third-party server\n" +
+              "\u2022 The plugin communicates directly with the AI provider's official API\n" +
+              "\u2022 This plugin uses OAuth tokens which is not an officially endorsed usage \u2014 there is a theoretical risk of account restrictions\n" +
+              "\u2022 Using AI services may incur charges depending on your account billing plan\n" +
+              "\u2022 This plugin is completely free, open-source, and does not collect any user data\n\n" +
+              "Do you wish to continue?";
           const accepted = win.confirm(riskMessage);
           if (!accepted) return;
           setPref("oauthRiskAccepted", "true");

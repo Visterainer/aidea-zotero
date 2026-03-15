@@ -5,6 +5,65 @@ declare const ztoolkit: any;
 declare const Cc: any;
 declare const Ci: any;
 
+type OAuthUiLang = "zh-CN" | "en-US";
+
+/** Read the UI language preference (same logic as preferenceScript.getLang). */
+function getUiLang(): OAuthUiLang {
+  try {
+    const saved = String(
+      Zotero.Prefs.get("extensions.zotero.aidea.uiLanguage", true) || "",
+    ).trim();
+    if (saved === "en-US") return "en-US";
+    if (saved === "zh-CN") return "zh-CN";
+    return /^zh/i.test(String((Zotero as any)?.locale || "")) ? "zh-CN" : "en-US";
+  } catch {
+    return "en-US";
+  }
+}
+
+/** Copy plain text to the system clipboard via XPCOM. */
+function copyToClipboard(text: string): void {
+  try {
+    const svc = Cc["@mozilla.org/widget/clipboardhelper;1"]?.getService(
+      Ci.nsIClipboardHelper,
+    ) as { copyString: (v: string) => void } | undefined;
+    if (svc) svc.copyString(text);
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: clipboard copy failed", err);
+  }
+}
+
+/** Show a brief floating toast in the main Zotero window. Auto-fades after ~2 s. */
+function showCopiedToast(lang: OAuthUiLang): void {
+  try {
+    const win = Zotero.getMainWindow?.() as Window | null;
+    if (!win?.document) return;
+    const doc = win.document;
+    const toast = doc.createElementNS("http://www.w3.org/1999/xhtml", "div") as HTMLDivElement;
+    toast.textContent = lang === "zh-CN" ? "\u2705 \u5df2\u590d\u5236\u6388\u6743\u7801" : "\u2705 Code copied";
+    Object.assign(toast.style, {
+      position: "fixed",
+      top: "18px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: "#1f2937",
+      color: "#f9fafb",
+      padding: "10px 24px",
+      borderRadius: "8px",
+      fontSize: "14px",
+      fontWeight: "600",
+      zIndex: "99999",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+      opacity: "1",
+      transition: "opacity 0.4s ease",
+      pointerEvents: "none",
+    });
+    (doc.documentElement ?? doc.body)?.appendChild(toast);
+    win.setTimeout(() => { toast.style.opacity = "0"; }, 1600);
+    win.setTimeout(() => { try { toast.remove(); } catch { /* */ } }, 2200);
+  } catch { /* best-effort */ }
+}
+
 export type OAuthProviderId = "openai-codex" | "google-gemini-cli" | "qwen" | "github-copilot";
 
 export type OAuthCredential = {
@@ -1080,11 +1139,17 @@ async function loginQwenDeviceCode(): Promise<{ ok: boolean; message: string }> 
     const expiresIn = Number(dcJson.expires_in) || 300;
     if (!deviceCode || !userCode) throw new Error("Qwen device code response missing fields");
 
-    // Show dialog to user
+    // Show dialog to user with i18n and copy-to-clipboard
     const win = Zotero.getMainWindow?.();
-    const msg = `Qwen OAuth Login\n\nPlease visit:\n${verificationUri}\n\nAnd enter this code:\n${userCode}\n\nWaiting for authorization...`;
-    win?.alert?.(msg);
-    // Open browser
+    const lang = getUiLang();
+    const msg = lang === "zh-CN"
+      ? `Qwen OAuth 登录\n\n您的授权码：\n${userCode}\n\n点击「确定」将自动复制授权码并在浏览器中打开授权页面。\n请在浏览器页面中粘贴此授权码完成授权。`
+      : `Qwen OAuth Login\n\nYour authorization code:\n${userCode}\n\nClick OK to copy the code and open the authorization page in your browser.\nPaste this code on the browser page to complete authorization.`;
+    const accepted = win?.confirm?.(msg);
+    if (!accepted) return { ok: false, message: lang === "zh-CN" ? "用户取消了授权" : "Authorization cancelled by user" };
+    // Copy user code to clipboard, show toast, and open browser
+    copyToClipboard(userCode);
+    showCopiedToast(lang);
     try { (Zotero as any).launchURL?.(verificationUri); } catch { /* ignore */ }
 
     // Poll for token
@@ -1161,10 +1226,16 @@ async function loginCopilotDeviceCode(): Promise<{ ok: boolean; message: string 
     const expiresIn = Number(dcJson.expires_in) || 900;
     if (!deviceCode || !userCode) throw new Error("GitHub device code response missing fields");
 
-    // Show dialog to user
+    // Show dialog to user with i18n and copy-to-clipboard
     const win = Zotero.getMainWindow?.();
-    const msg = `GitHub Copilot OAuth Login\n\nPlease visit:\n${verificationUri}\n\nAnd enter this code:\n${userCode}\n\nWaiting for authorization...`;
-    win?.alert?.(msg);
+    const lang = getUiLang();
+    const msg = lang === "zh-CN"
+      ? `GitHub Copilot OAuth 登录\n\n您的授权码：\n${userCode}\n\n点击「确定」将自动复制授权码并在浏览器中打开授权页面。\n请在浏览器页面中粘贴此授权码完成授权。`
+      : `GitHub Copilot OAuth Login\n\nYour authorization code:\n${userCode}\n\nClick OK to copy the code and open the authorization page in your browser.\nPaste this code on the browser page to complete authorization.`;
+    const accepted = win?.confirm?.(msg);
+    if (!accepted) return { ok: false, message: lang === "zh-CN" ? "用户取消了授权" : "Authorization cancelled by user" };
+    copyToClipboard(userCode);
+    showCopiedToast(lang);
     try { (Zotero as any).launchURL?.(verificationUri); } catch { /* ignore */ }
 
     // Poll for access token
