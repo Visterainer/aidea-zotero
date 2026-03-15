@@ -6,11 +6,18 @@
 
 <p align="center">
   <strong>A free, open-source AI assistant plugin for Zotero</strong><br/>
-  Log in with your ChatGPT account — No API key needed
+  Log in with your ChatGPT / Gemini / Qwen / Copilot account — No API key needed
 </p>
 
 <p align="center">
   🎉🎊 <strong>Now supporting ChatGPT 5.4!</strong> 🚀✨
+</p>
+
+<p align="center">
+  🟢 <strong>OpenAI (ChatGPT)</strong><br/>
+  🔵 <strong>Google Gemini</strong><br/>
+  🟣 <strong>Qwen (通义千问)</strong><br/>
+  ⚫ <strong>GitHub Copilot</strong>
 </p>
 
 <p align="center">
@@ -45,14 +52,16 @@ One-click shortcut buttons for common tasks like **Summarize**, **Explain**, **T
 ### 🖼️ Multimodal Support
 Attach images (screenshots, figures, charts) to your messages. Drag & drop, paste from clipboard, or use the screenshot tool to capture content directly from your PDFs.
 
-### 🔐 ChatGPT Account Login (No API Key Required)
-Sign in with your **ChatGPT account** via OAuth — no need for an API key or subscription to the API platform. If you have a free or paid ChatGPT account, you're good to go. The plugin leverages the Codex CLI OAuth flow for seamless authentication.
+### 🔐 OAuth Account Login (No API Key Required)
+Sign in with your **existing account** via OAuth — no need for an API key or subscription to the API platform. The plugin supports multiple providers with different OAuth flows for seamless authentication.
 
 > **Latest supported version: ChatGPT 5.4**
 
 ### 🌐 Multi-Provider Support
-- **OpenAI (ChatGPT)** — Full support via Codex OAuth
-- **Google Gemini** — Coming soon
+- **OpenAI (ChatGPT)** — OAuth via Codex CLI (requires Node.js)
+- **Google Gemini** — In-plugin OAuth (Authorization Code + PKCE, requires Gemini CLI installed)
+- **Qwen (通义千问)** — In-plugin OAuth (Device Code flow, no extra install needed)
+- **GitHub Copilot** — In-plugin OAuth (Device Code flow, no extra install needed)
 
 ### 📝 Note Export
 Save AI responses as Zotero notes with one click. Responses are formatted in Markdown with full LaTeX math rendering support.
@@ -85,7 +94,7 @@ Full support for **English** and **Chinese** (中文) — switch languages in se
 
 ### Requirements
 - **Zotero 7 / 8** (version 7.0+)
-- **Node.js** (v18+) — required for the OAuth CLI tools
+- **Node.js** (v18+) — required for OpenAI Codex and Gemini CLI tools (Qwen and GitHub Copilot do not require Node.js)
 
 ### Install the Plugin
 
@@ -113,7 +122,11 @@ Go to **Tools → Add-ons → AIdea → Settings** (or **Edit → Settings → A
 Click **"Auto Configure Environment"** to automatically install the required CLI tools. A risk notice will appear on the first run — read it carefully and confirm to proceed.
 
 ### 3. OAuth Login
-Click **"OAuth Login"** on the OpenAI card. Your browser will open for authentication — **just sign in with your regular ChatGPT account** (no API key required). After signing in, return to Zotero and click **"Refresh Models"** to load available models.
+Click **"OAuth Login"** on any provider card to start authentication:
+- **OpenAI / Gemini**: Your browser will open for authentication — sign in with your account
+- **Qwen / GitHub Copilot**: A dialog will show your authorization code, click OK to copy it and open the browser, then paste the code to complete authorization
+
+After signing in, return to Zotero and click **"Refresh Models"** to load available models.
 
 ### 4. Start Chatting
 - **Library Panel**: Select any item in your library — the AIdea panel appears in the right sidebar
