@@ -104,6 +104,7 @@ export type GlobalConversationSummary = {
   title?: string;
   lastActivityAt: number;
   userTurnCount: number;
+  isPinned?: boolean;
 };
 
 export type GlobalPortalItem = {

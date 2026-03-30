@@ -226,6 +226,24 @@ export async function initChatStore(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS ${PAPER_CONVERSATIONS_ITEM_INDEX}
        ON ${PAPER_CONVERSATIONS_TABLE} (parent_item_id, created_at DESC, conversation_key DESC)`,
     );
+
+    // ── Schema migrations: is_pinned column ──
+    const globalColumns = (await Zotero.DB.queryAsync(
+      `PRAGMA table_info(${GLOBAL_CONVERSATIONS_TABLE})`,
+    )) as Array<{ name?: unknown }> | undefined;
+    if (!globalColumns?.some((c) => c?.name === "is_pinned")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${GLOBAL_CONVERSATIONS_TABLE} ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
+    const paperColumns = (await Zotero.DB.queryAsync(
+      `PRAGMA table_info(${PAPER_CONVERSATIONS_TABLE})`,
+    )) as Array<{ name?: unknown }> | undefined;
+    if (!paperColumns?.some((c) => c?.name === "is_pinned")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${PAPER_CONVERSATIONS_TABLE} ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
   });
 }
 
@@ -743,6 +761,7 @@ type GlobalConversationSummaryRow = {
   title?: unknown;
   lastActivityAt?: unknown;
   userTurnCount?: unknown;
+  isPinned?: unknown;
 };
 
 function toGlobalConversationSummary(
@@ -770,6 +789,7 @@ function toGlobalConversationSummary(
     userTurnCount: Number.isFinite(userTurnCount)
       ? Math.max(0, Math.floor(userTurnCount))
       : 0,
+    isPinned: Number(row.isPinned) === 1,
   };
 }
 
@@ -816,15 +836,16 @@ export async function listGlobalConversations(
             gc.library_id AS libraryID,
             gc.created_at AS createdAt,
             gc.title AS title,
+            gc.is_pinned AS isPinned,
             COALESCE(MAX(m.timestamp), gc.created_at) AS lastActivityAt,
             SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) AS userTurnCount
      FROM ${GLOBAL_CONVERSATIONS_TABLE} gc
      LEFT JOIN ${CHAT_MESSAGES_TABLE} m
        ON m.conversation_key = gc.conversation_key
      WHERE gc.library_id = ?
-     GROUP BY gc.conversation_key, gc.library_id, gc.created_at, gc.title
+     GROUP BY gc.conversation_key, gc.library_id, gc.created_at, gc.title, gc.is_pinned
      ${includeEmpty ? "" : "HAVING SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) > 0"}
-     ORDER BY lastActivityAt DESC, gc.conversation_key DESC
+     ORDER BY gc.is_pinned DESC, lastActivityAt DESC, gc.conversation_key DESC
      LIMIT ?`,
     [normalizedLibraryID, normalizedLimit],
   )) as GlobalConversationSummaryRow[] | undefined;
@@ -838,6 +859,7 @@ export async function listGlobalConversations(
   }
   return out;
 }
+
 
 export async function getGlobalConversationUserTurnCount(
   conversationKey: number,
@@ -992,6 +1014,7 @@ export type PaperConversationSummary = {
   title?: string;
   lastActivityAt: number;
   userTurnCount: number;
+  isPinned?: boolean;
 };
 
 export async function createPaperConversation(
@@ -1068,6 +1091,11 @@ export async function listPaperConversations(
       [key],
     )) as number | false;
 
+    const isPinned = (await Zotero.DB.valueQueryAsync(
+      `SELECT is_pinned FROM ${PAPER_CONVERSATIONS_TABLE} WHERE conversation_key = ?`,
+      [key],
+    )) as number | false;
+
     results.push({
       conversationKey: key,
       parentItemId: normalizedParent,
@@ -1075,11 +1103,13 @@ export async function listPaperConversations(
       title: typeof title === "string" && title ? title : undefined,
       lastActivityAt: Math.floor(Number(lastActivityAt) || Number(createdAt) || 0),
       userTurnCount: Math.floor(Number(userTurnCount) || 0),
+      isPinned: Number(isPinned) === 1,
     });
   }
-  // Sort by lastActivityAt DESC (keys were ordered by created_at, re-sort by activity)
+  // Sort pinned first, then by lastActivityAt DESC
   results.sort(
     (a, b) =>
+      (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) ||
       b.lastActivityAt - a.lastActivityAt ||
       b.conversationKey - a.conversationKey,
   );
@@ -1138,4 +1168,62 @@ export async function getPaperConversationUserTurnCount(
     [normalizedKey],
   )) as number | false;
   return Math.floor(Number(cnt) || 0);
+}
+
+// =============================================================================
+// Rename (force-overwrite title regardless of existing value)
+// =============================================================================
+
+export async function renameGlobalConversation(
+  conversationKey: number,
+  newTitle: string,
+): Promise<void> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return;
+  const title = normalizeConversationTitleSeed(newTitle);
+  await Zotero.DB.queryAsync(
+    `UPDATE ${GLOBAL_CONVERSATIONS_TABLE} SET title = ? WHERE conversation_key = ?`,
+    [title || null, normalizedKey],
+  );
+}
+
+export async function renamePaperConversation(
+  conversationKey: number,
+  newTitle: string,
+): Promise<void> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return;
+  const title = normalizeConversationTitleSeed(newTitle);
+  await Zotero.DB.queryAsync(
+    `UPDATE ${PAPER_CONVERSATIONS_TABLE} SET title = ? WHERE conversation_key = ?`,
+    [title || null, normalizedKey],
+  );
+}
+
+// =============================================================================
+// Pin / Unpin
+// =============================================================================
+
+export async function pinGlobalConversation(
+  conversationKey: number,
+  pinned: boolean,
+): Promise<void> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return;
+  await Zotero.DB.queryAsync(
+    `UPDATE ${GLOBAL_CONVERSATIONS_TABLE} SET is_pinned = ? WHERE conversation_key = ?`,
+    [pinned ? 1 : 0, normalizedKey],
+  );
+}
+
+export async function pinPaperConversation(
+  conversationKey: number,
+  pinned: boolean,
+): Promise<void> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return;
+  await Zotero.DB.queryAsync(
+    `UPDATE ${PAPER_CONVERSATIONS_TABLE} SET is_pinned = ? WHERE conversation_key = ?`,
+    [pinned ? 1 : 0, normalizedKey],
+  );
 }

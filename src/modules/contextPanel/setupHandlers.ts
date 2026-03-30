@@ -136,6 +136,10 @@ import {
   listPaperConversations,
   touchGlobalConversationTitle,
   touchPaperConversationTitle,
+  renameGlobalConversation,
+  renamePaperConversation,
+  pinGlobalConversation,
+  pinPaperConversation,
 } from "../../utils/chatStore";
 import {
   ATTACHMENT_GC_MIN_AGE_MS,
@@ -2036,6 +2040,7 @@ export function setupHandlers(
         isDraft: pc.userTurnCount === 0,
         isPendingDelete: false,
         lastActivityAt: pc.lastActivityAt || 0,
+        isPinned: pc.isPinned ?? false,
       });
     }
     return entries;
@@ -2060,6 +2065,45 @@ export function setupHandlers(
       "M3.333 4v9.333a1.333 1.333 0 0 0 1.334 1.334h6.666a1.333 1.333 0 0 0 1.334-1.334V4",
       "M6.667 7.333v4",
       "M9.333 7.333v4",
+    ];
+    for (const d of paths) {
+      const path = doc.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    }
+    return svg;
+  };
+
+  const createPinIcon = (doc: Document): Element => {
+    const svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    // Diagonal pushpin — same stroke style as the trash icon
+    // Three paths: diamond head, needle, and through-pin skewer
+    const paths = [
+      // Parallelogram head (the flat wings of the pushpin)
+      "M10 1.5 L14.5 6 L12.5 8 L8 3.5 Z",
+      // Needle: from the left corner of the head to the tip
+      "M8 3.5 L3 14",
+      // Skewer line across the head (the metal pin going through)
+      "M10 1.5 L12.5 8",
+    ];
+    for (const d of paths) {
+      const path = doc.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    }
+    return svg;
+  };
+
+  const createEditIcon = (doc: Document): Element => {
+    const svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    // Clean pencil icon — same stroke style as the trash icon
+    const paths = [
+      // Pencil body (parallelogram)
+      "M11 2 L14 5 L5.5 13.5 L2.5 13.5 L2.5 10.5 Z",
+      // Tip detail line
+      "M9 4 L12 7",
     ];
     for (const d of paths) {
       const path = doc.createElementNS(SVG_NS, "path");
@@ -2112,9 +2156,25 @@ export function setupHandlers(
         ) as HTMLDivElement;
         row.dataset.conversationKey = `${entry.conversationKey}`;
         row.dataset.historyKind = entry.kind;
+        if (entry.isPinned) {
+          row.classList.add("pinned");
+        }
         if (isHistoryEntryActive(entry)) {
           row.classList.add("active");
         }
+
+        // ── Pin indicator chip (left of title) ──
+        if (entry.isPinned) {
+          const pinChip = createElement(
+            body.ownerDocument as Document,
+            "span",
+            "llm-history-pin-chip",
+            { title: i18n.unpinConversation },
+          );
+          pinChip.textContent = "📌";
+          row.appendChild(pinChip);
+        }
+
         const rowMain = createElement(
           body.ownerDocument as Document,
           "button",
@@ -2124,7 +2184,7 @@ export function setupHandlers(
           },
         ) as HTMLButtonElement;
         rowMain.dataset.action = "switch";
-        const title = createElement(
+        const titleEl = createElement(
           body.ownerDocument as Document,
           "span",
           "llm-history-row-title",
@@ -2142,14 +2202,49 @@ export function setupHandlers(
             title: entry.timestampText,
           },
         );
-        rowMain.append(title, meta);
+        rowMain.append(titleEl, meta);
         row.appendChild(rowMain);
+
+        // ── Action buttons ──
+        // Rename button
+        const renameBtn = createElement(
+          body.ownerDocument as Document,
+          "button",
+          "llm-history-row-action llm-history-row-rename",
+          {
+            type: "button",
+            title: i18n.renameConversation,
+          },
+        ) as HTMLButtonElement;
+        renameBtn.appendChild(createEditIcon(body.ownerDocument as Document));
+        renameBtn.setAttribute("aria-label", `Rename ${entry.title}`);
+        renameBtn.dataset.action = "rename";
+        row.appendChild(renameBtn);
+
+        // Pin toggle button
+        const pinBtn = createElement(
+          body.ownerDocument as Document,
+          "button",
+          "llm-history-row-action llm-history-row-pin",
+          {
+            type: "button",
+            title: entry.isPinned ? i18n.unpinConversation : i18n.pinConversation,
+          },
+        ) as HTMLButtonElement;
+        pinBtn.classList.toggle("is-pinned", entry.isPinned);
+        pinBtn.appendChild(createPinIcon(body.ownerDocument as Document));
+        pinBtn.setAttribute(
+          "aria-label",
+          entry.isPinned ? `Unpin ${entry.title}` : `Pin ${entry.title}`,
+        );
+        pinBtn.dataset.action = "pin";
+        row.appendChild(pinBtn);
 
         if (entry.deletable) {
           const deleteBtn = createElement(
             body.ownerDocument as Document,
             "button",
-            "llm-history-row-delete",
+            "llm-history-row-action llm-history-row-delete",
             {
               type: "button",
               title: "Delete conversation",
@@ -2190,6 +2285,7 @@ export function setupHandlers(
       historyMenu.append(divider, deleteAllBtn);
     }
   };
+
 
   const refreshGlobalHistoryHeader = async () => {
     if (!historyBar || !titleStatic || !item) {
@@ -2259,6 +2355,7 @@ export function setupHandlers(
           lastActivityAt: Number.isFinite(lastActivity)
             ? Math.floor(lastActivity)
             : 0,
+          isPinned: entry.isPinned ?? false,
         });
       }
 
@@ -2639,45 +2736,49 @@ export function setupHandlers(
     if (status) setStatus(status, "Conversation deleted. Undo available.", "ready");
   };
 
-  const deleteAllVisibleHistory = async () => {
+  /** Core batch-delete logic shared by "delete unpinned" and "delete all" */
+  const executeBatchDelete = async (entriesToDelete: ConversationHistoryEntry[]) => {
     if (!item) return;
     const libraryID = getCurrentLibraryID();
-    if (!libraryID) {
-      if (status) setStatus(status, "No active library for deletion", "error");
-      return;
-    }
+    if (!libraryID) return;
 
-    // Finalize any pending single-item deletion first
     if (pendingHistoryDeletion) {
       await finalizePendingHistoryDeletion("superseded");
     }
 
-    const deletableEntries = latestConversationHistory.filter(
-      (entry) => entry.deletable && !entry.isPendingDelete,
-    );
-    if (!deletableEntries.length) return;
+    if (!entriesToDelete.length) return;
 
-    // Separate global and paper entries
-    const globalEntries = deletableEntries.filter((e) => e.kind === "global");
-    const paperEntries = deletableEntries.filter((e) => e.kind === "paper");
+    const globalEntries = entriesToDelete.filter((e) => e.kind === "global");
+    const paperEntries = entriesToDelete.filter((e) => e.kind === "paper");
 
-    // Batch delete global conversations via DB
     if (globalEntries.length) {
-      let deletedKeys: number[] = [];
-      try {
-        deletedKeys = await deleteAllGlobalConversationsByLibrary(libraryID);
-      } catch (err) {
-        ztoolkit.log("LLM: Failed to batch delete global conversations", err);
+      if (globalEntries.length === latestConversationHistory.filter((e) => e.kind === "global" && e.deletable).length) {
+        // All globals — use fast batch delete (but we need to exclude pinned ones that are kept)
+        // Since we only call this for entries we want to delete, do individual deletes to handle partial
+        for (const entry of globalEntries) {
+          clearPendingDeletionCaches(entry.conversationKey);
+          try { await clearStoredConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
+          try { await clearOwnerAttachmentRefs("conversation", entry.conversationKey); } catch (_err) { /* best-effort */ }
+          try { await removeConversationAttachmentFiles(entry.conversationKey); } catch (_err) { /* best-effort */ }
+          try { await deleteGlobalConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
+          if (activeGlobalConversationByLibrary.get(libraryID) === entry.conversationKey) {
+            activeGlobalConversationByLibrary.delete(libraryID);
+          }
+        }
+      } else {
+        for (const entry of globalEntries) {
+          clearPendingDeletionCaches(entry.conversationKey);
+          try { await clearStoredConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
+          try { await clearOwnerAttachmentRefs("conversation", entry.conversationKey); } catch (_err) { /* best-effort */ }
+          try { await removeConversationAttachmentFiles(entry.conversationKey); } catch (_err) { /* best-effort */ }
+          try { await deleteGlobalConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
+          if (activeGlobalConversationByLibrary.get(libraryID) === entry.conversationKey) {
+            activeGlobalConversationByLibrary.delete(libraryID);
+          }
+        }
       }
-      for (const key of deletedKeys) {
-        clearPendingDeletionCaches(key);
-        try { await clearOwnerAttachmentRefs("conversation", key); } catch (_err) { /* best-effort */ }
-        try { await removeConversationAttachmentFiles(key); } catch (_err) { /* best-effort */ }
-      }
-      activeGlobalConversationByLibrary.delete(libraryID);
     }
 
-    // Delete paper conversations one by one
     for (const entry of paperEntries) {
       clearPendingDeletionCaches(entry.conversationKey);
       try { await clearStoredConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
@@ -2687,7 +2788,7 @@ export function setupHandlers(
     }
     scheduleAttachmentGc();
 
-    // Create a fresh conversation and switch to it
+    // Switch to a fresh conversation
     if (tabType === "reader" && item) {
       let newKey = 0;
       try { newKey = await createPaperConversation(item.id); } catch (_err) { /* */ }
@@ -2695,11 +2796,16 @@ export function setupHandlers(
         await switchPaperConversation(newKey);
       }
     } else {
-      let newKey = 0;
-      try { newKey = await createGlobalConversation(libraryID); } catch (_err) { /* */ }
-      if (newKey > 0) {
-        activeGlobalConversationByLibrary.set(libraryID, newKey);
-        await switchGlobalConversation(newKey);
+      const remaining = await listGlobalConversations(libraryID, 1, false);
+      if (remaining.length > 0) {
+        await switchGlobalConversation(remaining[0].conversationKey);
+      } else {
+        let newKey = 0;
+        try { newKey = await createGlobalConversation(libraryID); } catch (_err) { /* */ }
+        if (newKey > 0) {
+          activeGlobalConversationByLibrary.set(libraryID, newKey);
+          await switchGlobalConversation(newKey);
+        }
       }
     }
 
@@ -2708,6 +2814,211 @@ export function setupHandlers(
     await refreshGlobalHistoryHeader();
     if (status) setStatus(status, i18n.deleteAllConfirm, "ready");
   };
+
+  /** Show a three-option confirmation inside the history menu */
+  const deleteAllVisibleHistory = async () => {
+    if (!item) return;
+    if (!historyMenu) return;
+
+    const deletable = latestConversationHistory.filter(
+      (e) => e.deletable && !e.isPendingDelete,
+    );
+    if (!deletable.length) return;
+
+    const unpinnedCount = deletable.filter((e) => !e.isPinned).length;
+    const hasPinned = deletable.some((e) => e.isPinned);
+
+    // Build the inline confirm panel
+    const confirmPanel = createElement(
+      body.ownerDocument as Document,
+      "div",
+      "llm-history-delete-confirm",
+    ) as HTMLDivElement;
+
+    const confirmTitle = createElement(
+      body.ownerDocument as Document,
+      "div",
+      "llm-history-delete-confirm-title",
+      { textContent: i18n.confirmDeleteTitle },
+    );
+    confirmPanel.appendChild(confirmTitle);
+
+    const btnRow = createElement(
+      body.ownerDocument as Document,
+      "div",
+      "llm-history-delete-confirm-btns",
+    );
+
+    // Option 1: Delete unpinned (only shown if there are pinned items)
+    if (hasPinned && unpinnedCount > 0) {
+      const unpinnedBtn = createElement(
+        body.ownerDocument as Document,
+        "button",
+        "llm-history-confirm-btn llm-history-confirm-btn--warn",
+        {
+          type: "button",
+          textContent: i18n.deleteUnpinned,
+        },
+      ) as HTMLButtonElement;
+      unpinnedBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        confirmPanel.remove();
+        void executeBatchDelete(deletable.filter((entry) => !entry.isPinned));
+      });
+      btnRow.appendChild(unpinnedBtn);
+    }
+
+    // Option 2: Delete all
+    const deleteAllBtn2 = createElement(
+      body.ownerDocument as Document,
+      "button",
+      "llm-history-confirm-btn llm-history-confirm-btn--danger",
+      {
+        type: "button",
+        textContent: i18n.deleteAllHistory,
+      },
+    ) as HTMLButtonElement;
+    deleteAllBtn2.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmPanel.remove();
+      void executeBatchDelete(deletable);
+    });
+    btnRow.appendChild(deleteAllBtn2);
+
+    // Option 3: Cancel
+    const cancelBtn2 = createElement(
+      body.ownerDocument as Document,
+      "button",
+      "llm-history-confirm-btn llm-history-confirm-btn--cancel",
+      {
+        type: "button",
+        textContent: i18n.cancelAction,
+      },
+    ) as HTMLButtonElement;
+    cancelBtn2.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmPanel.remove();
+    });
+    btnRow.appendChild(cancelBtn2);
+
+    confirmPanel.appendChild(btnRow);
+
+    // Replace delete-all button with the confirm panel
+    const existingDeleteAll = historyMenu.querySelector(".llm-history-delete-all");
+    if (existingDeleteAll) {
+      existingDeleteAll.replaceWith(confirmPanel);
+    } else {
+      historyMenu.appendChild(confirmPanel);
+    }
+  };
+
+  /** Toggle pin for a conversation */
+  const togglePinConversation = async (
+    historyKind: "paper" | "global",
+    conversationKey: number,
+  ) => {
+    const entry = findHistoryEntryByKey(historyKind, conversationKey);
+    if (!entry) return;
+    const nextPinned = !entry.isPinned;
+    try {
+      if (historyKind === "global") {
+        await pinGlobalConversation(conversationKey, nextPinned);
+      } else {
+        await pinPaperConversation(conversationKey, nextPinned);
+      }
+    } catch (err) {
+      ztoolkit.log("LLM: Failed to toggle pin", err);
+    }
+    await refreshGlobalHistoryHeader();
+  };
+
+  /** Start inline rename for a conversation */
+  const startInlineRename = (
+    historyKind: "paper" | "global",
+    conversationKey: number,
+    rowEl: HTMLDivElement,
+  ) => {
+    const entry = findHistoryEntryByKey(historyKind, conversationKey);
+    if (!entry) return;
+
+    // Prevent double-open
+    if (rowEl.querySelector(".llm-history-rename-input")) return;
+
+    const doc = body.ownerDocument as Document;
+    const rowMain = rowEl.querySelector(".llm-history-menu-row-main") as HTMLButtonElement | null;
+    if (!rowMain) return;
+
+    // Build inline input overlay
+    const renameWrapper = createElement(doc, "div", "llm-history-rename-wrapper");
+    const input = createElement(doc, "input", "llm-history-rename-input", {
+      type: "text",
+      value: entry.title,
+      placeholder: "Conversation name…",
+      maxLength: 64,
+    }) as HTMLInputElement;
+
+    const confirmRename = async () => {
+      const newTitle = input.value.trim();
+      if (newTitle && newTitle !== entry.title) {
+        try {
+          if (historyKind === "global") {
+            await renameGlobalConversation(conversationKey, newTitle);
+          } else {
+            await renamePaperConversation(conversationKey, newTitle);
+          }
+        } catch (err) {
+          ztoolkit.log("LLM: Failed to rename conversation", err);
+        }
+      }
+      renameWrapper.remove();
+      rowMain.style.display = "";
+      await refreshGlobalHistoryHeader();
+    };
+
+    input.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void confirmRename();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        renameWrapper.remove();
+        rowMain.style.display = "";
+      }
+    });
+    input.addEventListener("blur", () => {
+      // Small delay to allow click on confirm button
+      getWindowTimeout(() => {
+        if (renameWrapper.isConnected) {
+          void confirmRename();
+        }
+      }, 150);
+    });
+
+    const okBtn = createElement(doc, "button", "llm-history-rename-ok", {
+      type: "button",
+      textContent: "✓",
+      title: "Confirm rename",
+    }) as HTMLButtonElement;
+    okBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void confirmRename();
+    });
+
+    renameWrapper.append(input, okBtn);
+    rowMain.style.display = "none";
+    // Insert after rowMain
+    rowMain.insertAdjacentElement("afterend", renameWrapper);
+    // Use a timeout to focus after DOM paint
+    getWindowTimeout(() => {
+      input.focus();
+      input.select();
+    }, 30);
+  };
+
 
   // ── Paper conversation switching (Reader multi-history) ──
   const switchPaperConversation = async (nextPaperKey: number) => {
@@ -3004,6 +3315,38 @@ export function setupHandlers(
         return;
       }
 
+      // Pin toggle button
+      const pinBtn = target.closest(
+        ".llm-history-row-pin",
+      ) as HTMLButtonElement | null;
+      if (pinBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const row = pinBtn.closest(".llm-history-menu-row") as HTMLDivElement | null;
+        if (!row) return;
+        const parsedKey = Number.parseInt(row.dataset.conversationKey || "", 10);
+        if (!Number.isFinite(parsedKey) || parsedKey <= 0) return;
+        const hKind = row.dataset.historyKind === "paper" ? "paper" : "global";
+        void togglePinConversation(hKind, parsedKey);
+        return;
+      }
+
+      // Rename button
+      const renameBtn = target.closest(
+        ".llm-history-row-rename",
+      ) as HTMLButtonElement | null;
+      if (renameBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const row = renameBtn.closest(".llm-history-menu-row") as HTMLDivElement | null;
+        if (!row) return;
+        const parsedKey = Number.parseInt(row.dataset.conversationKey || "", 10);
+        if (!Number.isFinite(parsedKey) || parsedKey <= 0) return;
+        const hKind = row.dataset.historyKind === "paper" ? "paper" : "global";
+        startInlineRename(hKind, parsedKey, row);
+        return;
+      }
+
       const deleteAllBtn = target.closest(
         ".llm-history-delete-all",
       ) as HTMLButtonElement | null;
@@ -3054,6 +3397,7 @@ export function setupHandlers(
       })();
     });
   }
+
 
   // Model selection is delegated to modelSelectionController.ts
   const getSelectedModelInfo = () => getSelectedModelInfoFromController(item?.id ?? null);

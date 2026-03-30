@@ -47,6 +47,13 @@ export type PanelI18n = {
   deleteAllConfirm: string;
   noHistoryYet: string;
   newChat: string;
+  pinConversation: string;
+  unpinConversation: string;
+  renameConversation: string;
+  deleteUnpinned: string;
+  deleteAllHistory: string;
+  cancelAction: string;
+  confirmDeleteTitle: string;
 };
 
 declare const Zotero: any;
@@ -57,10 +64,13 @@ export function getPanelLang(): PanelLang {
       Zotero.Prefs.get("extensions.zotero.aidea.uiLanguage", true) || "",
     ).trim();
     if (pref === "en-US") return "en-US";
+    if (pref === "zh-CN") return "zh-CN";
+    // No explicit preference set — auto-detect from Zotero's own locale
+    const locale = String((Zotero as any)?.locale || "");
+    return /^zh/i.test(locale) ? "zh-CN" : "en-US";
   } catch {
-    // ignore
+    return "en-US";
   }
-  return "zh-CN";
 }
 
 export function getPanelI18n(): PanelI18n {
@@ -113,6 +123,13 @@ export function getPanelI18n(): PanelI18n {
       deleteAllConfirm: "All conversations deleted",
       noHistoryYet: "No history yet",
       newChat: "New Chat",
+      pinConversation: "Pin conversation",
+      unpinConversation: "Unpin conversation",
+      renameConversation: "Rename",
+      deleteUnpinned: "Delete unpinned",
+      deleteAllHistory: "Delete all",
+      cancelAction: "Cancel",
+      confirmDeleteTitle: "Delete conversations",
     };
   }
   return {
@@ -162,5 +179,12 @@ export function getPanelI18n(): PanelI18n {
     deleteAllConfirm: "已删除所有对话",
     noHistoryYet: "暂无历史记录",
     newChat: "新建对话",
+    pinConversation: "置顶对话",
+    unpinConversation: "取消置顶",
+    renameConversation: "重命名",
+    deleteUnpinned: "清理非置顶",
+    deleteAllHistory: "全部清理",
+    cancelAction: "取消",
+    confirmDeleteTitle: "删除对话",
   };
 }

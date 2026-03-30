@@ -13,6 +13,7 @@ export type ConversationHistoryEntry = {
   isDraft: boolean;
   isPendingDelete: boolean;
   lastActivityAt: number;
+  isPinned: boolean;
 };
 
 export type HistorySwitchTarget =
