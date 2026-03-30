@@ -737,6 +737,101 @@ async function inspectNpmEnvironment(
   };
 }
 
+type ReportFn = ((event: {
+  phase: "start" | "done" | "info";
+  step: string;
+  ok?: boolean;
+  output?: string;
+}) => void) | undefined;
+type AppendFn = (title: string, text: string) => void;
+
+/**
+ * Windows: locate or install winget (App Installer).
+ * First checks %LOCALAPPDATA%\Microsoft\WindowsApps (winget is often there
+ * but not on PATH). If that fails, downloads the latest .msixbundle from
+ * the winget-cli GitHub releases and installs it with Add-AppxPackage.
+ * Returns true when winget is available after the attempt.
+ */
+async function tryInstallWinget(
+  report: ReportFn,
+  append: AppendFn,
+): Promise<boolean> {
+  const step = "Install winget (Windows App Installer)";
+  report?.({ phase: "start", step });
+
+  // 1. winget might already exist in WindowsApps but not be on PATH.
+  const localAppData = getEnv("LOCALAPPDATA");
+  if (localAppData) {
+    const appsDir = joinPath(localAppData, "Microsoft", "WindowsApps");
+    const wingetExe = joinPath(appsDir, "winget.exe");
+    if (pathExists(wingetExe)) {
+      prependProcessPathEntries([appsDir]);
+      const msg = "Found winget in WindowsApps and added to PATH.";
+      append(step, msg);
+      report?.({ phase: "done", step, ok: true, output: msg });
+      return true;
+    }
+  }
+
+  // 2. Download the latest msixbundle from GitHub and install it.
+  const script = [
+    "$progressPreference = 'silentlyContinue'",
+    "try {",
+    "  $rel = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -TimeoutSec 30",
+    "  $msix = $rel.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1",
+    "  if (-not $msix) { throw 'No .msixbundle found in winget-cli release' }",
+    "  $tmp = Join-Path $env:TEMP ('winget-' + [System.IO.Path]::GetRandomFileName() + '.msixbundle')",
+    "  Invoke-WebRequest -Uri $msix.browser_download_url -OutFile $tmp -TimeoutSec 180",
+    "  Add-AppxPackage -Path $tmp -ErrorAction Stop",
+    "  'winget installed successfully'",
+    "} catch { 'ERROR: ' + $_.Exception.Message }",
+  ].join("; ");
+
+  const result = await runShellCommand(script, { hidden: true });
+  const output =
+    [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
+    "(no output)";
+  append(step, output);
+  const ok = result.code === 0 && !output.startsWith("ERROR:");
+  report?.({ phase: "done", step, ok, output });
+  return ok;
+}
+
+/**
+ * macOS / Linux: install Homebrew using the official install script.
+ * NONINTERACTIVE=1 suppresses all prompts so no user input is required.
+ * After a successful install, /opt/homebrew/bin (Apple Silicon) and
+ * /usr/local/bin (Intel) are prepended to the process PATH.
+ */
+async function tryInstallHomebrew(
+  report: ReportFn,
+  append: AppendFn,
+): Promise<boolean> {
+  const step = "Install Homebrew";
+  report?.({ phase: "start", step });
+
+  const command =
+    `NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`;
+  const result = await runShellCommand(command, { hidden: true });
+  const output =
+    [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
+    "(no output)";
+  append(step, output);
+  report?.({ phase: "done", step, ok: result.code === 0, output });
+
+  if (result.code === 0) {
+    // Apple Silicon installs to /opt/homebrew/bin; Intel to /usr/local/bin;
+    // Linuxbrew to /home/linuxbrew/.linuxbrew/bin.
+    const brewDirs = [
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/home/linuxbrew/.linuxbrew/bin",
+    ].filter(isDirectoryPath);
+    if (brewDirs.length) prependProcessPathEntries(brewDirs);
+  }
+  return result.code === 0;
+}
+
 async function tryInstallNodeRuntime(
   report: ((event: {
     phase: "start" | "done" | "info";
@@ -829,17 +924,61 @@ async function tryInstallNodeRuntime(
   }
 
   if (!plans.length) {
-    append(
-      "Install Node.js/npm",
-      `No supported package manager found for ${platform}.`,
-    );
+    // No package manager found — try to bootstrap one, then rebuild plans.
     report?.({
-      phase: "done",
-      step: "Install Node.js/npm",
-      ok: false,
-      output: `No supported package manager found for ${platform}.`,
+      phase: "info",
+      step: "No package manager found",
+      output: `No supported package manager detected on ${platform}. Attempting to install one automatically…`,
     });
-    return false;
+
+    if (platform === "windows") {
+      const ok = await tryInstallWinget(report, append);
+      if (ok) {
+        const wingetPath =
+          (await locateExecutableViaShell("winget")) ||
+          resolveExecutablePath("winget");
+        if (wingetPath) {
+          plans.push({
+            step: "Install Node.js via winget",
+            command:
+              "winget install --id OpenJS.NodeJS.LTS -e --source winget " +
+              "--accept-package-agreements --accept-source-agreements --silent --scope user",
+          });
+        }
+      }
+    } else if (platform === "macos") {
+      const ok = await tryInstallHomebrew(report, append);
+      if (ok) {
+        const brewPath =
+          (await locateExecutableViaShell("brew")) ||
+          resolveExecutablePath("brew");
+        if (brewPath) {
+          plans.push({
+            step: "Install Node.js via Homebrew",
+            command: "brew install node",
+          });
+        }
+      }
+    }
+    // Linux: system package managers (apt-get, dnf, …) are OS components
+    // that cannot themselves be installed programmatically — leave plans empty.
+
+    if (!plans.length) {
+      const hint =
+        platform === "windows"
+          ? "winget (built into Windows 10/11) could not be installed. Please install Node.js manually from https://nodejs.org or install winget/choco/scoop first."
+          : platform === "macos"
+            ? "Homebrew could not be installed automatically. Please install it from https://brew.sh or install Node.js manually."
+            : "No supported package manager found. Please install Node.js/npm via your system package manager (apt, dnf, yum, pacman…) and retry.";
+      append("Install Node.js/npm", hint);
+      report?.({
+        phase: "done",
+        step: "Install Node.js/npm",
+        ok: false,
+        output: hint,
+      });
+      return false;
+    }
   }
 
   for (const plan of plans) {
