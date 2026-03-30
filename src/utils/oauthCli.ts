@@ -1,4 +1,4 @@
-import { runShellCommand, currentPlatform } from "./processRunner";
+import { runShellCommand, currentPlatform, escapeShellArg } from "./processRunner";
 
 declare const Zotero: any;
 declare const ztoolkit: any;
@@ -87,6 +87,97 @@ export type ProviderAccountSummary = {
   account: string;
   status: string;
 };
+
+type SupportedPlatform = "windows" | "macos" | "linux";
+
+type ProviderCliSpec = {
+  packageName: string;
+  executableName: string;
+  versionArg: string;
+};
+
+type NpmEnvironmentState = {
+  platform: SupportedPlatform;
+  nodePath: string | null;
+  npmPath: string | null;
+  nodeVersion: string;
+  npmReportedVersion: string;
+  npmPackageVersion: string;
+  latestNpmVersion: string;
+  prefix: string;
+  globalRoot: string;
+  globalBinDir: string;
+};
+
+const PROVIDER_CLI_SPECS: Partial<Record<OAuthProviderId, ProviderCliSpec>> = {
+  "openai-codex": {
+    packageName: "@openai/codex",
+    executableName: "codex",
+    versionArg: "--version",
+  },
+  "google-gemini-cli": {
+    packageName: "@google/gemini-cli",
+    executableName: "gemini",
+    versionArg: "--version",
+  },
+};
+
+export function normalizeVersionText(raw: string | null | undefined): string {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  const match = text.match(/\d+(?:\.\d+){0,3}(?:[-+][A-Za-z0-9._-]+)?/);
+  return match ? match[0] : "";
+}
+
+export function derivePreferredUserNpmPrefix(
+  platform: SupportedPlatform,
+  home: string,
+): string {
+  const base = String(home || "").trim();
+  if (!base) return "";
+  if (platform === "windows") {
+    const appData = getEnv("APPDATA") || joinPath(base, "AppData", "Roaming");
+    return joinPath(appData, "npm");
+  }
+  return joinPath(base, ".npm-global");
+}
+
+export function deriveNpmGlobalRootFromPrefix(
+  prefix: string,
+  platform: SupportedPlatform,
+): string {
+  const normalized = String(prefix || "").trim();
+  if (!normalized) return "";
+  return platform === "windows"
+    ? joinPath(normalized, "node_modules")
+    : joinPath(normalized, "lib", "node_modules");
+}
+
+export function deriveNpmGlobalBinDirFromPrefix(
+  prefix: string,
+  platform: SupportedPlatform,
+): string {
+  const normalized = String(prefix || "").trim();
+  if (!normalized) return "";
+  return platform === "windows" ? normalized : joinPath(normalized, "bin");
+}
+
+export function shouldInstallLatestPackageVersion(
+  installedVersion: string | null | undefined,
+  latestVersion: string | null | undefined,
+): boolean {
+  const installed = normalizeVersionText(installedVersion);
+  const latest = normalizeVersionText(latestVersion);
+  if (!installed) return true;
+  if (!latest) return false;
+  return installed !== latest;
+}
+
+export function getProviderCliSpec(
+  provider: OAuthProviderId,
+): ProviderCliSpec | null {
+  return PROVIDER_CLI_SPECS[provider] || null;
+}
 
 const PROVIDER_MARKER_PREFIX = "oauth://";
 
@@ -241,6 +332,579 @@ function joinPath(...parts: string[]): string {
       return part.replace(/^[\\/]+|[\\/]+$/g, "");
     })
     .join(sep);
+}
+
+function initLocalFile(path: string) {
+  try {
+    if (!path) return null;
+    const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(path);
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+function pathExists(path: string): boolean {
+  try {
+    return Boolean(initLocalFile(path)?.exists());
+  } catch {
+    return false;
+  }
+}
+
+function isDirectoryPath(path: string): boolean {
+  try {
+    const file = initLocalFile(path);
+    return Boolean(file?.exists() && file.isDirectory());
+  } catch {
+    return false;
+  }
+}
+
+function ensureDirectoryExists(path: string): { ok: boolean; message: string } {
+  const normalized = String(path || "").trim();
+  if (!normalized) {
+    return { ok: false, message: "Directory path is empty" };
+  }
+
+  const file = initLocalFile(normalized);
+  if (!file) {
+    return { ok: false, message: `Invalid directory path: ${normalized}` };
+  }
+  if (file.exists()) {
+    return file.isDirectory()
+      ? { ok: true, message: `Directory ready: ${normalized}` }
+      : { ok: false, message: `Path exists but is not a directory: ${normalized}` };
+  }
+
+  const parentPath = file.parent?.path || "";
+  if (parentPath && !pathExists(parentPath)) {
+    const parentResult = ensureDirectoryExists(parentPath);
+    if (!parentResult.ok) return parentResult;
+  }
+
+  try {
+    file.create(Ci.nsIFile.DIRECTORY_TYPE, 0o755);
+    return { ok: true, message: `Created directory: ${normalized}` };
+  } catch (err) {
+    return { ok: false, message: `Failed to create directory ${normalized}: ${String(err)}` };
+  }
+}
+
+function splitPathEntries(
+  value: string,
+  platform: SupportedPlatform = currentPlatform(),
+): string[] {
+  const separator = platform === "windows" ? ";" : ":";
+  return String(value || "")
+    .split(separator)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function dedupePathEntries(
+  entries: string[],
+  platform: SupportedPlatform = currentPlatform(),
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of entries) {
+    const value = String(raw || "").trim();
+    if (!value) continue;
+    const key = platform === "windows" ? value.toLowerCase() : value;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function setProcessEnv(name: string, value: string): boolean {
+  try {
+    const env = Cc["@mozilla.org/process/environment;1"].getService(Ci.nsIEnvironment) as {
+      set?: (k: string, v: string) => void;
+    };
+    if (typeof env.set !== "function") return false;
+    env.set(name, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function prependProcessPathEntries(entries: string[]): string[] {
+  const platform = currentPlatform();
+  const separator = platform === "windows" ? ";" : ":";
+  const currentEntries = splitPathEntries(getEnv("PATH"), platform);
+  const merged = dedupePathEntries([...entries, ...currentEntries], platform);
+  if (merged.join(separator) !== currentEntries.join(separator)) {
+    setProcessEnv("PATH", merged.join(separator));
+  }
+  return merged;
+}
+
+function getCommonExecutableDirs(platform: SupportedPlatform): string[] {
+  const home = homeDir();
+  if (platform === "windows") {
+    const appData = getEnv("APPDATA") || joinPath(home, "AppData", "Roaming");
+    const localAppData = getEnv("LOCALAPPDATA") || joinPath(home, "AppData", "Local");
+    const programFiles = getEnv("ProgramFiles");
+    const programFilesX86 = getEnv("ProgramFiles(x86)");
+    return dedupePathEntries(
+      [
+        joinPath(appData, "npm"),
+        joinPath(localAppData, "Programs", "nodejs"),
+        programFiles ? joinPath(programFiles, "nodejs") : "",
+        programFilesX86 ? joinPath(programFilesX86, "nodejs") : "",
+      ],
+      platform,
+    ).filter(isDirectoryPath);
+  }
+
+  return dedupePathEntries(
+    [
+      "/usr/local/bin",
+      "/usr/bin",
+      "/opt/homebrew/bin",
+      home ? joinPath(home, ".local", "bin") : "",
+      home ? joinPath(home, ".npm-global", "bin") : "",
+    ],
+    platform,
+  ).filter(isDirectoryPath);
+}
+
+function getExecutableFileNames(
+  baseName: string,
+  platform: SupportedPlatform,
+): string[] {
+  const normalized = String(baseName || "").trim();
+  if (!normalized) return [];
+  if (/[\\/]/.test(normalized) || /\.[a-z0-9]+$/i.test(normalized)) {
+    return [normalized];
+  }
+  if (platform === "windows") {
+    return [
+      `${normalized}.cmd`,
+      `${normalized}.exe`,
+      `${normalized}.bat`,
+      `${normalized}.ps1`,
+      normalized,
+    ];
+  }
+  return [normalized];
+}
+
+function resolveExecutablePath(
+  baseName: string,
+  extraDirs: string[] = [],
+): string | null {
+  const platform = currentPlatform();
+  const trimmed = String(baseName || "").trim();
+  if (!trimmed) return null;
+  if (pathExists(trimmed)) {
+    const directDir = initLocalFile(trimmed)?.parent?.path || "";
+    if (directDir) prependProcessPathEntries([directDir]);
+    return trimmed;
+  }
+
+  const searchDirs = dedupePathEntries(
+    [
+      ...extraDirs,
+      ...splitPathEntries(getEnv("PATH"), platform),
+      ...getCommonExecutableDirs(platform),
+    ],
+    platform,
+  );
+
+  for (const dir of searchDirs) {
+    for (const fileName of getExecutableFileNames(trimmed, platform)) {
+      const candidatePath = joinPath(dir, fileName);
+      if (!pathExists(candidatePath)) continue;
+      prependProcessPathEntries([dir]);
+      return candidatePath;
+    }
+  }
+  return null;
+}
+
+async function locateExecutableViaShell(baseName: string): Promise<string | null> {
+  const platform = currentPlatform();
+  const trimmed = String(baseName || "").trim();
+  if (!trimmed) return null;
+  const command =
+    platform === "windows"
+      ? `where.exe ${trimmed}`
+      : `command -v ${escapeShellArg(trimmed)} 2>/dev/null || which ${escapeShellArg(trimmed)} 2>/dev/null`;
+  try {
+    const result = await runShellCommand(command, { hidden: true });
+    if (result.code !== 0) return null;
+    const firstLine = String([result.stdout, result.stderr].join("\n"))
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find(Boolean);
+    if (!firstLine || !pathExists(firstLine)) return null;
+    const dir = initLocalFile(firstLine)?.parent?.path || "";
+    if (dir) prependProcessPathEntries([dir]);
+    return firstLine;
+  } catch {
+    return null;
+  }
+}
+
+function buildExecutableCommand(executablePath: string, args: string[] = []): string {
+  const exe = escapeShellArg(executablePath);
+  const argText = args.map((arg) => escapeShellArg(arg)).join(" ");
+  if (currentPlatform() === "windows") {
+    return `& ${exe}${argText ? ` ${argText}` : ""}`;
+  }
+  return `${exe}${argText ? ` ${argText}` : ""}`;
+}
+
+async function runExecutableCommand(
+  executablePath: string,
+  args: string[],
+): Promise<{
+  code: number;
+  stdout: string;
+  stderr: string;
+  output: string;
+}> {
+  const result = await runShellCommand(buildExecutableCommand(executablePath, args), {
+    hidden: true,
+  });
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  return { ...result, output };
+}
+
+async function queryRegistryPackageVersion(
+  npmExecutablePath: string,
+  packageName: string,
+): Promise<string> {
+  if (!npmExecutablePath || !packageName) return "";
+  try {
+    const result = await runExecutableCommand(npmExecutablePath, [
+      "view",
+      packageName,
+      "version",
+      "--silent",
+    ]);
+    return normalizeVersionText(result.output);
+  } catch {
+    return "";
+  }
+}
+
+function getPackageJsonPath(globalRoot: string, packageName: string): string {
+  const segments = packageName
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return joinPath(globalRoot, ...segments, "package.json");
+}
+
+async function readGlobalPackageVersion(
+  globalRoot: string,
+  packageName: string,
+): Promise<string> {
+  if (!globalRoot || !packageName) return "";
+  const data = await readJsonFile(getPackageJsonPath(globalRoot, packageName));
+  return normalizeVersionText(data?.version);
+}
+
+function looksLikePermissionError(text: string): boolean {
+  const normalized = String(text || "").toLowerCase();
+  return (
+    normalized.includes("eacces") ||
+    normalized.includes("permission denied") ||
+    normalized.includes("access is denied") ||
+    normalized.includes("operation not permitted") ||
+    normalized.includes("sudo")
+  );
+}
+
+async function persistBinDirToUserPath(binDir: string): Promise<string> {
+  const normalized = String(binDir || "").trim();
+  if (!normalized) return "Skipped PATH persistence: empty bin dir";
+
+  const platform = currentPlatform();
+  if (platform === "windows") {
+    const script = [
+      `$dir = ${escapeShellArg(normalized)}`,
+      "$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')",
+      "if ($null -eq $userPath) { $userPath = '' }",
+      "$parts = @($userPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })",
+      "if ($parts -contains $dir) { 'User PATH already contains npm bin dir' }",
+      "else {",
+      "  $next = @($parts + $dir) | Select-Object -Unique",
+      "  [Environment]::SetEnvironmentVariable('Path', ($next -join ';'), 'User')",
+      "  'Added npm bin dir to user PATH'",
+      "}",
+    ].join("; ");
+    const result = await runShellCommand(script, { hidden: true });
+    return [result.stdout, result.stderr].filter(Boolean).join("\n").trim() || "PATH persistence finished";
+  }
+
+  const home = homeDir();
+  if (!home) return "Skipped PATH persistence: home directory not found";
+  const profileTargets =
+    platform === "macos"
+      ? [joinPath(home, ".zprofile"), joinPath(home, ".bash_profile"), joinPath(home, ".profile")]
+      : [joinPath(home, ".bash_profile"), joinPath(home, ".profile")];
+  const line = `export PATH=${escapeShellArg(normalized)}:$PATH`;
+  const quotedTargets = profileTargets
+    .filter(Boolean)
+    .map((target) => escapeShellArg(target))
+    .join(" ");
+  const script =
+    `for file in ${quotedTargets}; do ` +
+    `[ -f "$file" ] || touch "$file"; ` +
+    `grep -F ${escapeShellArg(line)} "$file" >/dev/null 2>&1 || printf '\\n%s\\n' ${escapeShellArg(line)} >> "$file"; ` +
+    "done";
+  const result = await runShellCommand(script, { hidden: true });
+  return [result.stdout, result.stderr].filter(Boolean).join("\n").trim() || "Shell profile PATH updated";
+}
+
+async function inspectNpmEnvironment(
+  queryLatest = true,
+): Promise<NpmEnvironmentState> {
+  const platform = currentPlatform();
+  prependProcessPathEntries(getCommonExecutableDirs(platform));
+
+  const nodePath =
+    (await locateExecutableViaShell("node")) || resolveExecutablePath("node");
+  const npmPath =
+    (await locateExecutableViaShell("npm")) || resolveExecutablePath("npm");
+
+  let nodeVersion = "";
+  if (nodePath) {
+    const nodeResult = await runExecutableCommand(nodePath, ["--version"]);
+    nodeVersion = normalizeVersionText(nodeResult.output);
+  }
+
+  let npmReportedVersion = "";
+  let prefix = "";
+  let globalRoot = "";
+  if (npmPath) {
+    const npmVersionResult = await runExecutableCommand(npmPath, ["--version"]);
+    npmReportedVersion = normalizeVersionText(npmVersionResult.output);
+
+    const prefixResult = await runExecutableCommand(npmPath, ["config", "get", "prefix"]);
+    prefix = String(prefixResult.output || "")
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find(Boolean) || "";
+
+    const rootResult = await runExecutableCommand(npmPath, ["root", "-g"]);
+    globalRoot = String(rootResult.output || "")
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find(Boolean) || "";
+  }
+
+  if (!globalRoot && prefix) {
+    globalRoot = deriveNpmGlobalRootFromPrefix(prefix, platform);
+  }
+  if (!prefix && globalRoot) {
+    const suffix = platform === "windows" ? "\\node_modules" : "/lib/node_modules";
+    prefix = globalRoot.endsWith(suffix)
+      ? globalRoot.slice(0, -suffix.length)
+      : "";
+  }
+
+  const globalBinDir = deriveNpmGlobalBinDirFromPrefix(prefix, platform);
+  if (globalBinDir) {
+    prependProcessPathEntries([globalBinDir]);
+  }
+
+  const npmPackageVersion = globalRoot
+    ? await readGlobalPackageVersion(globalRoot, "npm")
+    : "";
+  const latestNpmVersion =
+    queryLatest && npmPath ? await queryRegistryPackageVersion(npmPath, "npm") : "";
+
+  return {
+    platform,
+    nodePath,
+    npmPath,
+    nodeVersion,
+    npmReportedVersion,
+    npmPackageVersion,
+    latestNpmVersion,
+    prefix,
+    globalRoot,
+    globalBinDir,
+  };
+}
+
+async function tryInstallNodeRuntime(
+  report: ((event: {
+    phase: "start" | "done" | "info";
+    step: string;
+    ok?: boolean;
+    output?: string;
+  }) => void) | undefined,
+  append: (title: string, text: string) => void,
+): Promise<boolean> {
+  const platform = currentPlatform();
+  const plans: Array<{ step: string; command: string }> = [];
+
+  if (platform === "windows") {
+    const wingetPath =
+      (await locateExecutableViaShell("winget")) || resolveExecutablePath("winget");
+    const chocoPath =
+      (await locateExecutableViaShell("choco")) || resolveExecutablePath("choco");
+    const scoopPath =
+      (await locateExecutableViaShell("scoop")) || resolveExecutablePath("scoop");
+    if (wingetPath) {
+      plans.push({
+        step: "Install Node.js via winget",
+        command:
+          "winget install --id OpenJS.NodeJS.LTS -e --source winget " +
+          "--accept-package-agreements --accept-source-agreements --silent --scope user",
+      });
+    }
+    if (chocoPath) {
+      plans.push({
+        step: "Install Node.js via Chocolatey",
+        command: "choco install nodejs-lts -y",
+      });
+    }
+    if (scoopPath) {
+      plans.push({
+        step: "Install Node.js via Scoop",
+        command: "scoop install nodejs-lts",
+      });
+    }
+  } else if (platform === "macos") {
+    const brewPath =
+      (await locateExecutableViaShell("brew")) || resolveExecutablePath("brew");
+    if (brewPath) {
+      plans.push({
+        step: "Install Node.js via Homebrew",
+        command: "brew install node",
+      });
+    }
+  } else {
+    const aptPath =
+      (await locateExecutableViaShell("apt-get")) || resolveExecutablePath("apt-get");
+    const dnfPath =
+      (await locateExecutableViaShell("dnf")) || resolveExecutablePath("dnf");
+    const yumPath =
+      (await locateExecutableViaShell("yum")) || resolveExecutablePath("yum");
+    const pacmanPath =
+      (await locateExecutableViaShell("pacman")) || resolveExecutablePath("pacman");
+    if (aptPath) {
+      plans.push({
+        step: "Install Node.js/npm via apt-get",
+        command:
+          "if [ \"$(id -u)\" -eq 0 ]; then apt-get update && apt-get install -y nodejs npm; " +
+          "else sudo -n apt-get update && sudo -n apt-get install -y nodejs npm; fi",
+      });
+    }
+    if (dnfPath) {
+      plans.push({
+        step: "Install Node.js/npm via dnf",
+        command:
+          "if [ \"$(id -u)\" -eq 0 ]; then dnf install -y nodejs npm; " +
+          "else sudo -n dnf install -y nodejs npm; fi",
+      });
+    }
+    if (yumPath) {
+      plans.push({
+        step: "Install Node.js/npm via yum",
+        command:
+          "if [ \"$(id -u)\" -eq 0 ]; then yum install -y nodejs npm; " +
+          "else sudo -n yum install -y nodejs npm; fi",
+      });
+    }
+    if (pacmanPath) {
+      plans.push({
+        step: "Install Node.js/npm via pacman",
+        command:
+          "if [ \"$(id -u)\" -eq 0 ]; then pacman -Sy --noconfirm nodejs npm; " +
+          "else sudo -n pacman -Sy --noconfirm nodejs npm; fi",
+      });
+    }
+  }
+
+  if (!plans.length) {
+    append(
+      "Install Node.js/npm",
+      `No supported package manager found for ${platform}.`,
+    );
+    report?.({
+      phase: "done",
+      step: "Install Node.js/npm",
+      ok: false,
+      output: `No supported package manager found for ${platform}.`,
+    });
+    return false;
+  }
+
+  for (const plan of plans) {
+    report?.({ phase: "start", step: plan.step });
+    const result = await runShellCommand(plan.command, { hidden: true });
+    const output =
+      [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
+      "(no output)";
+    append(plan.step, `${plan.command}\n\n${output}`);
+    report?.({
+      phase: "done",
+      step: plan.step,
+      ok: result.code === 0,
+      output,
+    });
+    if (result.code === 0) {
+      prependProcessPathEntries(getCommonExecutableDirs(platform));
+      return true;
+    }
+  }
+  return false;
+}
+
+async function setNpmPrefix(
+  npmExecutablePath: string,
+  prefix: string,
+): Promise<{
+  ok: boolean;
+  output: string;
+}> {
+  const result = await runExecutableCommand(npmExecutablePath, [
+    "config",
+    "set",
+    "prefix",
+    prefix,
+  ]);
+  return { ok: result.code === 0, output: result.output || "(no output)" };
+}
+
+async function verifyExecutable(
+  executableName: string,
+  versionArg: string,
+  extraDirs: string[] = [],
+): Promise<{
+  ok: boolean;
+  path: string;
+  output: string;
+}> {
+  const located =
+    (await locateExecutableViaShell(executableName)) ||
+    resolveExecutablePath(executableName, extraDirs) ||
+    "";
+  if (!located) {
+    return {
+      ok: false,
+      path: "",
+      output: `${executableName} was not found on PATH`,
+    };
+  }
+  const result = await runExecutableCommand(located, [versionArg]);
+  return {
+    ok: result.code === 0,
+    path: located,
+    output: result.output || "(no output)",
+  };
 }
 
 function removeFileIfExists(path: string): boolean {
@@ -787,17 +1451,76 @@ export const GEMINI_CODE_ASSIST_STREAM_URL =
   `${GEMINI_CODE_ASSIST_API_BASE}:streamGenerateContent?alt=sse`;
 
 /** Extract client_id and client_secret from the installed Gemini CLI. */
-function extractGeminiCliCredentials(): { clientId: string; clientSecret: string } | null {
+async function getNpmGlobalRootCandidates(): Promise<string[]> {
+  const platform = currentPlatform();
+  const home = homeDir();
+  const roots = new Set<string>();
+  const npmPath =
+    (await locateExecutableViaShell("npm")) || resolveExecutablePath("npm");
+
+  if (npmPath) {
+    const rootResult = await runExecutableCommand(npmPath, ["root", "-g"]);
+    const rootOut = String(rootResult.output || "")
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find(Boolean);
+    if (rootOut) roots.add(rootOut);
+
+    const prefixResult = await runExecutableCommand(npmPath, ["config", "get", "prefix"]);
+    const prefixOut = String(prefixResult.output || "")
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find(Boolean);
+    if (prefixOut) {
+      roots.add(deriveNpmGlobalRootFromPrefix(prefixOut, platform));
+    }
+  }
+
+  if (platform === "windows") {
+    const appData = getEnv("APPDATA") || joinPath(home, "AppData", "Roaming");
+    roots.add(joinPath(appData, "npm", "node_modules"));
+  } else {
+    roots.add("/usr/local/lib/node_modules");
+    roots.add("/opt/homebrew/lib/node_modules");
+    if (home) {
+      roots.add(joinPath(home, ".npm-global", "lib", "node_modules"));
+    }
+  }
+
+  return Array.from(roots).filter(Boolean);
+}
+
+async function extractGeminiCliCredentials(): Promise<{ clientId: string; clientSecret: string } | null> {
   try {
-    const home = homeDir();
-    const platform = currentPlatform();
-    const npmRoot = platform === "windows"
-      ? `${home}\\AppData\\Roaming\\npm\\node_modules`
-      : "/usr/local/lib/node_modules";
-    const sep = platform === "windows" ? "\\" : "/";
+    const roots = await getNpmGlobalRootCandidates();
     const candidates = [
-      [npmRoot, "@google", "gemini-cli", "node_modules", "@google", "gemini-cli-core", "dist", "src", "code_assist", "oauth2.js"].join(sep),
-      [npmRoot, "@google", "gemini-cli", "node_modules", "@google", "gemini-cli-core", "dist", "code_assist", "oauth2.js"].join(sep),
+      ...roots.map((root) =>
+        joinPath(
+          root,
+          "@google",
+          "gemini-cli",
+          "node_modules",
+          "@google",
+          "gemini-cli-core",
+          "dist",
+          "src",
+          "code_assist",
+          "oauth2.js",
+        ),
+      ),
+      ...roots.map((root) =>
+        joinPath(
+          root,
+          "@google",
+          "gemini-cli",
+          "node_modules",
+          "@google",
+          "gemini-cli-core",
+          "dist",
+          "code_assist",
+          "oauth2.js",
+        ),
+      ),
     ];
     let content: string | null = null;
     for (const p of candidates) {
@@ -838,7 +1561,7 @@ function generateGeminiPkce(): { verifier: string; challenge: string } {
 
 async function loginGeminiInPlugin(): Promise<{ ok: boolean; message: string }> {
   try {
-    const creds = extractGeminiCliCredentials();
+    const creds = await extractGeminiCliCredentials();
     if (!creds) {
       return { ok: false, message: "Gemini CLI not found. Install it first: npm install -g @google/gemini-cli" };
     }
@@ -902,9 +1625,12 @@ setTimeout(() => { server.close(); process.exit(1); }, 120000);
     }
 
     // Start the Node.js server in the background (hidden)
-    const nodeCmd = currentPlatform() === "windows"
-      ? `node "${serverScriptPath}"`
-      : `node '${serverScriptPath}'`;
+    const nodePath =
+      (await locateExecutableViaShell("node")) || resolveExecutablePath("node");
+    if (!nodePath) {
+      return { ok: false, message: "Node.js not found. Install/Update Env first." };
+    }
+    const nodeCmd = buildExecutableCommand(nodePath, [serverScriptPath]);
     const serverProcess = runShellCommand(nodeCmd, { hidden: true });
 
     // Give the server a moment to start
@@ -1287,33 +2013,46 @@ export async function runProviderOAuthLogin(
 
 
   // Codex uses external CLI tool (hidden mode)
-  const candidates = ["codex login"];
+  const spec = getProviderCliSpec(provider);
+  if (!spec) {
+    return { ok: false, message: `No CLI login command is defined for ${provider}` };
+  }
+
+  const cliPath =
+    (await locateExecutableViaShell(spec.executableName)) ||
+    resolveExecutablePath(spec.executableName);
+  if (!cliPath) {
+    return {
+      ok: false,
+      message: `${spec.executableName} was not found. Please run Install/Update Env first.`,
+    };
+  }
+
   let last = "";
-  for (const command of candidates) {
-    try {
-      const result = await runShellCommand(command, { hidden: true });
-      last = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
-      const cred = await readProviderOAuthCredential(provider);
-      if (cred) {
-        return { ok: true, message: `${getProviderLabel(provider)} OAuth ready` };
-      }
-      if (result.code === 0) {
-        return {
-          ok: true,
-          message:
-            last ||
-            `${command} executed. Complete browser authorization, then refresh model list/status.`,
-        };
-      }
-    } catch (err) {
-      last = String(err);
+  try {
+    const command = buildExecutableCommand(cliPath, ["login"]);
+    const result = await runShellCommand(command, { hidden: true });
+    last = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+    const cred = await readProviderOAuthCredential(provider);
+    if (cred) {
+      return { ok: true, message: `${getProviderLabel(provider)} OAuth ready` };
     }
+    if (result.code === 0) {
+      return {
+        ok: true,
+        message:
+          last ||
+          `${spec.executableName} login executed. Complete browser authorization, then refresh model list/status.`,
+      };
+    }
+  } catch (err) {
+    last = String(err);
   }
   return {
     ok: false,
     message:
       last ||
-      `Failed to execute ${provider === "openai-codex" ? "codex login" : "gemini auth login"}`,
+      `Failed to execute ${spec.executableName} login`,
   };
 }
 
@@ -1378,51 +2117,315 @@ export async function autoConfigureEnvironment(params?: {
     logs.push(`## ${title}\n${body || "(no output)"}`);
   };
   const report = params?.onProgress;
+  const platform = currentPlatform();
+  const home = homeDir();
+  const preferredUserPrefix = derivePreferredUserNpmPrefix(platform, home);
+  report?.({
+    phase: "info",
+    step: "Detected platform",
+    output: platform,
+  });
+  append("Detected platform", platform);
 
-  let npmReady = false;
-  try {
-    report?.({ phase: "start", step: "Check npm" });
-    const npmCheck = await runShellCommand("npm --version", { hidden: true });
-    const npmOut = [npmCheck.stdout, npmCheck.stderr].filter(Boolean).join("\n");
-    append("npm --version", npmOut);
-    npmReady = npmCheck.code === 0;
-    report?.({ phase: "done", step: "Check npm", ok: npmReady, output: npmOut });
-  } catch (err) {
-    const msg = String(err);
-    append("npm --version", msg);
-    report?.({ phase: "done", step: "Check npm", ok: false, output: msg });
+  const formatNpmState = (state: NpmEnvironmentState): string =>
+    [
+      `platform: ${state.platform}`,
+      `nodePath: ${state.nodePath || "-"}`,
+      `nodeVersion: ${state.nodeVersion || "-"}`,
+      `npmPath: ${state.npmPath || "-"}`,
+      `npmReportedVersion: ${state.npmReportedVersion || "-"}`,
+      `npmPackageVersion: ${state.npmPackageVersion || "-"}`,
+      `latestNpmVersion: ${state.latestNpmVersion || "-"}`,
+      `prefix: ${state.prefix || "-"}`,
+      `globalRoot: ${state.globalRoot || "-"}`,
+      `globalBinDir: ${state.globalBinDir || "-"}`,
+    ].join("\n");
+
+  const ensureNpmDirectories = async (
+    state: NpmEnvironmentState,
+  ): Promise<boolean> => {
+    const dirs = dedupePathEntries(
+      [state.prefix, state.globalRoot, state.globalBinDir].filter(Boolean),
+      state.platform,
+    );
+    let ok = true;
+    for (const dir of dirs) {
+      report?.({ phase: "start", step: `Ensure directory ${dir}` });
+      const result = ensureDirectoryExists(dir);
+      append(`Ensure directory ${dir}`, result.message);
+      report?.({
+        phase: "done",
+        step: `Ensure directory ${dir}`,
+        ok: result.ok,
+        output: result.message,
+      });
+      if (!result.ok) ok = false;
+    }
+    if (state.globalBinDir) {
+      prependProcessPathEntries([state.globalBinDir]);
+      report?.({
+        phase: "info",
+        step: "Refresh runtime PATH",
+        output: `Prepended ${state.globalBinDir}`,
+      });
+      append("Refresh runtime PATH", `Prepended ${state.globalBinDir}`);
+      const persisted = await persistBinDirToUserPath(state.globalBinDir);
+      append("Persist npm bin PATH", persisted);
+      report?.({
+        phase: "done",
+        step: "Persist npm bin PATH",
+        ok: true,
+        output: persisted,
+      });
+    }
+    return ok;
+  };
+
+  const switchNpmPrefixToPreferred = async (
+    state: NpmEnvironmentState,
+    reason: string,
+  ): Promise<NpmEnvironmentState> => {
+    if (!state.npmPath || !preferredUserPrefix || state.prefix === preferredUserPrefix) {
+      return state;
+    }
+    report?.({
+      phase: "start",
+      step: "Switch npm prefix",
+    });
+    append("Switch npm prefix", `Reason: ${reason}\nTarget: ${preferredUserPrefix}`);
+    const dirResult = ensureDirectoryExists(preferredUserPrefix);
+    append("Ensure preferred npm prefix", dirResult.message);
+    if (!dirResult.ok) {
+      report?.({
+        phase: "done",
+        step: "Switch npm prefix",
+        ok: false,
+        output: dirResult.message,
+      });
+      return state;
+    }
+    const setResult = await setNpmPrefix(state.npmPath, preferredUserPrefix);
+    append("npm config set prefix", setResult.output);
+    report?.({
+      phase: "done",
+      step: "Switch npm prefix",
+      ok: setResult.ok,
+      output: setResult.output,
+    });
+    const nextState = await inspectNpmEnvironment(false);
+    await ensureNpmDirectories(nextState);
+    append("npm environment after prefix switch", formatNpmState(nextState));
+    return nextState;
+  };
+
+  let npmState = await inspectNpmEnvironment(false);
+  append("Initial npm environment", formatNpmState(npmState));
+
+  if (!npmState.nodePath || !npmState.npmPath) {
+    const installed = await tryInstallNodeRuntime(report, append);
+    npmState = await inspectNpmEnvironment(false);
+    append("npm environment after Node.js install attempt", formatNpmState(npmState));
+    if (!installed && (!npmState.nodePath || !npmState.npmPath)) {
+      report?.({
+        phase: "info",
+        step: "Node.js/npm not ready",
+        output:
+          platform === "windows"
+            ? "Install Node.js manually or make sure winget/choco/scoop is available, then retry."
+            : "Install Node.js/npm manually or via your system package manager, then retry.",
+      });
+      return {
+        ok: false,
+        logs:
+          logs.join("\n\n") +
+          "\n\nNode.js/npm is still unavailable after auto-setup.",
+      };
+    }
   }
 
-  if (!npmReady) {
+  if (!npmState.prefix && preferredUserPrefix && npmState.npmPath) {
+    npmState = await switchNpmPrefixToPreferred(
+      npmState,
+      "npm config get prefix returned an empty value",
+    );
+  }
+
+  const dirsOk = await ensureNpmDirectories(npmState);
+  if (!dirsOk && preferredUserPrefix && npmState.npmPath && npmState.prefix !== preferredUserPrefix) {
+    npmState = await switchNpmPrefixToPreferred(
+      npmState,
+      "npm global directories were missing or not writable",
+    );
+  }
+
+  npmState = await inspectNpmEnvironment(true);
+  append("Prepared npm environment", formatNpmState(npmState));
+
+  const npmVersionMismatch =
+    Boolean(npmState.npmReportedVersion) &&
+    Boolean(npmState.npmPackageVersion) &&
+    npmState.npmReportedVersion !== npmState.npmPackageVersion;
+  const shouldUpdateNpm =
+    shouldInstallLatestPackageVersion(
+      npmState.npmPackageVersion || npmState.npmReportedVersion,
+      npmState.latestNpmVersion,
+    ) || npmVersionMismatch;
+
+  if (shouldUpdateNpm && npmState.npmPath) {
+    const targetVersion = normalizeVersionText(npmState.latestNpmVersion);
+    const installTarget = targetVersion ? `npm@${targetVersion}` : "npm@latest";
+    report?.({ phase: "start", step: `Update npm (${installTarget})` });
+    let updateResult = await runExecutableCommand(npmState.npmPath, [
+      "install",
+      "-g",
+      installTarget,
+    ]);
+    append(`Update npm (${installTarget})`, updateResult.output);
+    if (updateResult.code !== 0 && looksLikePermissionError(updateResult.output)) {
+      npmState = await switchNpmPrefixToPreferred(
+        npmState,
+        "npm update failed with a permissions error",
+      );
+      if (npmState.npmPath) {
+        updateResult = await runExecutableCommand(npmState.npmPath, [
+          "install",
+          "-g",
+          installTarget,
+        ]);
+        append(`Retry update npm (${installTarget})`, updateResult.output);
+      }
+    }
+    report?.({
+      phase: "done",
+      step: `Update npm (${installTarget})`,
+      ok: updateResult.code === 0,
+      output: updateResult.output,
+    });
+  } else {
     report?.({
       phase: "info",
-      step: "npm not found",
-      output: "Please install Node.js/npm manually, then retry Auto Configure.",
+      step: "npm version check",
+      output: npmState.latestNpmVersion
+        ? `npm is already current (${npmState.npmPackageVersion || npmState.npmReportedVersion})`
+        : "Latest npm version could not be determined; skipping npm update.",
     });
+  }
+
+  npmState = await inspectNpmEnvironment(true);
+  append("Final npm environment", formatNpmState(npmState));
+
+  if (!npmState.npmPath) {
     return {
       ok: false,
-      logs:
-        logs.join("\n\n") +
-        "\n\nnpm not found. To avoid hanging inside Zotero, automatic Node.js installation is skipped.",
+      logs: logs.join("\n\n"),
     };
   }
 
-  const providerCmdMap: Partial<Record<OAuthProviderId, string>> = {
-    "openai-codex": "npm i -g @openai/codex",
-    "google-gemini-cli": "npm install -g @google/gemini-cli",
-    // qwen and github-copilot don't need CLI installation
-  };
-  const installCmds = params?.provider
-    ? (providerCmdMap[params.provider] ? [providerCmdMap[params.provider]!] : [])
-    : Object.values(providerCmdMap).filter(Boolean) as string[];
+  const targetProviders = params?.provider
+    ? [params.provider]
+    : (Object.keys(PROVIDER_CLI_SPECS) as OAuthProviderId[]);
   let allOk = true;
-  for (const cmd of installCmds) {
-    report?.({ phase: "start", step: cmd });
-    const result = await runShellCommand(cmd, { hidden: true });
-    const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
-    append(cmd, output);
-    report?.({ phase: "done", step: cmd, ok: result.code === 0, output });
-    if (result.code !== 0) allOk = false;
+
+  for (const provider of targetProviders) {
+    const spec = getProviderCliSpec(provider);
+    if (!spec) continue;
+    const npmExecutablePath = npmState.npmPath;
+    if (!npmExecutablePath) {
+      allOk = false;
+      append(
+        `Install ${spec.packageName}`,
+        "npm executable path is unavailable after environment preparation.",
+      );
+      continue;
+    }
+
+    const installedVersion = npmState.globalRoot
+      ? await readGlobalPackageVersion(npmState.globalRoot, spec.packageName)
+      : "";
+    const latestVersion = await queryRegistryPackageVersion(
+      npmExecutablePath,
+      spec.packageName,
+    );
+    const needsInstall =
+      !installedVersion ||
+      shouldInstallLatestPackageVersion(installedVersion, latestVersion);
+
+    if (needsInstall) {
+      const targetPackage = latestVersion
+        ? `${spec.packageName}@${latestVersion}`
+        : spec.packageName;
+      report?.({
+        phase: "start",
+        step: `Install ${spec.packageName}`,
+      });
+      let installResult = await runExecutableCommand(npmExecutablePath, [
+        "install",
+        "-g",
+        targetPackage,
+      ]);
+      append(`Install ${spec.packageName}`, installResult.output);
+      if (installResult.code !== 0 && looksLikePermissionError(installResult.output)) {
+        npmState = await switchNpmPrefixToPreferred(
+          npmState,
+          `${spec.packageName} install failed with a permissions error`,
+        );
+        if (npmState.npmPath) {
+          installResult = await runExecutableCommand(npmState.npmPath, [
+            "install",
+            "-g",
+            targetPackage,
+          ]);
+          append(`Retry install ${spec.packageName}`, installResult.output);
+        }
+      }
+      report?.({
+        phase: "done",
+        step: `Install ${spec.packageName}`,
+        ok: installResult.code === 0,
+        output: installResult.output,
+      });
+      if (installResult.code !== 0) {
+        allOk = false;
+      }
+    } else {
+      report?.({
+        phase: "info",
+        step: `Skip ${spec.packageName}`,
+        output: `${spec.packageName} is already current (${installedVersion})`,
+      });
+      append(
+        `Skip ${spec.packageName}`,
+        `${spec.packageName} is already current (${installedVersion})`,
+      );
+    }
+
+    npmState = await inspectNpmEnvironment(false);
+    await ensureNpmDirectories(npmState);
+
+    report?.({
+      phase: "start",
+      step: `Verify ${spec.executableName}`,
+    });
+    const verification = await verifyExecutable(spec.executableName, spec.versionArg, [
+      npmState.globalBinDir,
+      ...getCommonExecutableDirs(npmState.platform),
+    ]);
+    append(
+      `Verify ${spec.executableName}`,
+      [
+        `path: ${verification.path || "-"}`,
+        verification.output,
+      ].join("\n"),
+    );
+    report?.({
+      phase: "done",
+      step: `Verify ${spec.executableName}`,
+      ok: verification.ok,
+      output: verification.output,
+    });
+    if (!verification.ok) {
+      allOk = false;
+    }
   }
 
   return { ok: allOk, logs: logs.join("\n\n") };
