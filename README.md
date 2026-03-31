@@ -206,7 +206,13 @@ This project is a fork of [llm-for-zotero](https://github.com/yilewang/llm-for-z
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date)](https://star-history.com/#Visterainer/aidea-zotero&Date)
+<a href="https://star-history.com/#Visterainer/aidea-zotero&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date" />
+ </picture>
+</a>
 
 ---
 
