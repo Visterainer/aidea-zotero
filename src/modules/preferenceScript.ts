@@ -25,6 +25,7 @@ import {
 import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n } from "./contextPanel/i18n";
+import { getPrimaryConnectionMode } from "./contextPanel/prefHelpers";
 
 type PrefKey =
   | "apiBase"
@@ -47,18 +48,30 @@ type PrefKey =
   | "oauthModelSelectionCache"
   | "oauthSetupLog"
   | "oauthRiskAccepted"
+  | "primaryConnectionMode"
   | "uiLanguage";
 
 type Lang = "zh-CN" | "en-US";
-const PROVIDERS: OAuthProviderId[] = ["openai-codex", "google-gemini-cli", "qwen", "github-copilot"];
-const PROFILE_KEYS = ["Primary", "Secondary", "Tertiary", "Quaternary"] as const;
+const PROVIDERS: OAuthProviderId[] = [
+  "openai-codex",
+  "google-gemini-cli",
+  "qwen",
+  "github-copilot",
+];
+const PROFILE_KEYS = [
+  "Primary",
+  "Secondary",
+  "Tertiary",
+  "Quaternary",
+] as const;
 
 const pref = (key: PrefKey) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: PrefKey): string => {
   const value = Zotero.Prefs.get(pref(key), true);
   return typeof value === "string" ? value : "";
 };
-const setPref = (key: PrefKey, value: string) => Zotero.Prefs.set(pref(key), value, true);
+const setPref = (key: PrefKey, value: string) =>
+  Zotero.Prefs.set(pref(key), value, true);
 
 function getLang(): Lang {
   const saved = (getPref("uiLanguage") || "").trim();
@@ -66,7 +79,9 @@ function getLang(): Lang {
   if (saved === "zh-CN") return "zh-CN";
   // Auto-detect from Zotero locale
   try {
-    const detected: Lang = /^zh/i.test(String((Zotero as any)?.locale || "")) ? "zh-CN" : "en-US";
+    const detected: Lang = /^zh/i.test(String((Zotero as any)?.locale || ""))
+      ? "zh-CN"
+      : "en-US";
     // Persist the detected language so future opens don't re-detect
     setPref("uiLanguage", detected);
     return detected;
@@ -99,18 +114,23 @@ const I18N = {
     status: "状态",
     modelId: "模型 ID",
     source: "来源",
-    internalNote: "只有勾选的模型会出现在侧边栏对话框中。前 4 个勾选模型会同步到配置槽位。",
+    internalNote:
+      "只有勾选的模型会出现在侧边栏对话框中。前 4 个勾选模型会同步到配置槽位。",
     systemPrompt: "自定义系统提示词（可选）",
     systemPromptHint: "覆盖默认系统提示词（留空使用默认值）",
     showAddText: "在阅读器选择弹窗显示 Add Text",
-    showAddTextHint: "如果不想在 Zotero 文本选择弹出菜单中显示 Add Text 选项，请关闭此开关。",
+    showAddTextHint:
+      "如果不想在 Zotero 文本选择弹出菜单中显示 Add Text 选项，请关闭此开关。",
     showAllModels: "在下拉菜单中显示所有模型",
-    showAllModelsHint: "开启后显示所有可用模型。关闭时仅显示每个提供商的精选模型。",
+    showAllModelsHint:
+      "开启后显示所有可用模型。关闭时仅显示每个提供商的精选模型。",
     restoreDefaults: "恢复默认",
-    restoreDefaultsConfirm: "确定要恢复所有配置到默认值吗？\n\n这将重置所有模型配置、系统提示词等设置。",
+    restoreDefaultsConfirm:
+      "确定要恢复所有配置到默认值吗？\n\n这将重置所有模型配置、系统提示词等设置。",
     restoreDefaultsDone: "已恢复默认配置",
     clearAllHistory: "清空历史",
-    clearAllHistoryConfirm: "确定要清空所有聊天记录吗？\n\n此操作不可撤销，所有对话历史将被永久删除。",
+    clearAllHistoryConfirm:
+      "确定要清空所有聊天记录吗？\n\n此操作不可撤销，所有对话历史将被永久删除。",
     clearAllHistoryDone: "已清空全部聊天记录",
     clearAllHistoryRunning: "正在清空...",
     developing: "此功能正在开发中，敬请期待！",
@@ -132,24 +152,31 @@ const I18N = {
     refreshModels: "Refresh Models",
     loggingIn: "Starting OAuth login...",
     refreshingModels: "Refreshing model list...",
-    noModels: "No models yet (complete OAuth login and refresh model list first)",
+    noModels:
+      "No models yet (complete OAuth login and refresh model list first)",
     provider: "Provider",
     account: "Account",
     status: "Status",
     modelId: "Model ID",
     source: "Source",
-    internalNote: "Only checked models appear in the sidebar dropdown. The first four checked models are synced to profile slots.",
+    internalNote:
+      "Only checked models appear in the sidebar dropdown. The first four checked models are synced to profile slots.",
     systemPrompt: "Custom System Prompt (Optional)",
-    systemPromptHint: "Override the default system prompt (leave empty to use default)",
-    showAddText: "Show \"Add Text\" in reader selection popup",
-    showAddTextHint: "Disable this if you prefer not to show the Add Text option in Zotero's text selection popup menu.",
+    systemPromptHint:
+      "Override the default system prompt (leave empty to use default)",
+    showAddText: 'Show "Add Text" in reader selection popup',
+    showAddTextHint:
+      "Disable this if you prefer not to show the Add Text option in Zotero's text selection popup menu.",
     showAllModels: "Show all models in dropdown",
-    showAllModelsHint: "When enabled, shows all available models. When disabled, only the best models per provider are shown.",
+    showAllModelsHint:
+      "When enabled, shows all available models. When disabled, only the best models per provider are shown.",
     restoreDefaults: "Restore Defaults",
-    restoreDefaultsConfirm: "Are you sure you want to restore all settings to defaults?\n\nThis will reset all model configurations, system prompt, etc.",
+    restoreDefaultsConfirm:
+      "Are you sure you want to restore all settings to defaults?\n\nThis will reset all model configurations, system prompt, etc.",
     restoreDefaultsDone: "Default configuration restored",
     clearAllHistory: "Clear History",
-    clearAllHistoryConfirm: "Are you sure you want to clear ALL chat history?\n\nThis action cannot be undone. All conversation history will be permanently deleted.",
+    clearAllHistoryConfirm:
+      "Are you sure you want to clear ALL chat history?\n\nThis action cannot be undone. All conversation history will be permanently deleted.",
     clearAllHistoryDone: "All chat history cleared",
     clearAllHistoryRunning: "Clearing...",
     developing: "This feature is under development. Stay tuned!",
@@ -159,25 +186,36 @@ const I18N = {
 type Dict = Record<string, string>;
 const tt = (l: Lang): Dict => I18N[l] as unknown as Dict;
 
-function createNode<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, style?: string, text?: string) {
+function createNode<K extends keyof HTMLElementTagNameMap>(
+  doc: Document,
+  tag: K,
+  style?: string,
+  text?: string,
+) {
   const el = doc.createElementNS(HTML_NS, tag) as HTMLElementTagNameMap[K];
   if (style) el.setAttribute("style", style);
   if (text !== undefined) el.textContent = text;
   return el;
 }
 
-function parseModelCache(): Partial<Record<OAuthProviderId, ProviderModelOption[]>> {
+function parseModelCache(): Partial<
+  Record<OAuthProviderId, ProviderModelOption[]>
+> {
   const raw = (getPref("oauthModelListCache") || "").trim();
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Partial<Record<OAuthProviderId, ProviderModelOption[]>>;
+    const parsed = JSON.parse(raw) as Partial<
+      Record<OAuthProviderId, ProviderModelOption[]>
+    >;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
 }
 
-function saveModelCache(cache: Partial<Record<OAuthProviderId, ProviderModelOption[]>>) {
+function saveModelCache(
+  cache: Partial<Record<OAuthProviderId, ProviderModelOption[]>>,
+) {
   setPref("oauthModelListCache", JSON.stringify(cache));
 }
 
@@ -192,7 +230,7 @@ function saveModelSelectionState(selectionCache: ProviderModelSelectionCache) {
   );
 }
 
-function syncSidebarModelPrefsFromSelection(
+export function syncSidebarModelPrefsFromSelection(
   cache: Partial<Record<OAuthProviderId, ProviderModelOption[]>>,
   selectionCache: ProviderModelSelectionCache,
 ) {
@@ -216,15 +254,20 @@ function syncSidebarModelPrefsFromSelection(
 
   PROFILE_KEYS.forEach((suffix, idx) => {
     const entry = flattened[idx];
-    setPref(`apiBase${suffix}` as PrefKey, entry ? providerToMarker(entry.provider) : "");
+    setPref(
+      `apiBase${suffix}` as PrefKey,
+      entry ? providerToMarker(entry.provider) : "",
+    );
     setPref(`apiKey${suffix}` as PrefKey, "");
     setPref(`model${suffix}` as PrefKey, entry ? entry.model : "");
   });
 
   const first = flattened[0];
-  setPref("apiBase", first ? providerToMarker(first.provider) : "");
-  setPref("apiKey", "");
-  setPref("model", first ? first.model : "");
+  if (getPrimaryConnectionMode() !== "custom") {
+    setPref("apiBase", first ? providerToMarker(first.provider) : "");
+    setPref("apiKey", "");
+    setPref("model", first ? first.model : "");
+  }
 }
 
 /**
@@ -232,7 +275,9 @@ function syncSidebarModelPrefsFromSelection(
  * This allows changes made in the settings page (e.g. Restore Defaults) to take
  * effect immediately without requiring the user to switch tabs.
  */
-function refreshAllSidebarShortcuts(log?: (msg: string, color?: string) => void): void {
+function refreshAllSidebarShortcuts(
+  log?: (msg: string, color?: string) => void,
+): void {
   try {
     const allDocs = new Set<Document>();
 
@@ -242,17 +287,23 @@ function refreshAllSidebarShortcuts(log?: (msg: string, color?: string) => void)
       for (const w of wins) {
         if (w?.document) allDocs.add(w.document);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Strategy 2: Zotero.getMainWindow()
     try {
       const mainWin: Window | null = Zotero.getMainWindow?.() || null;
       if (mainWin?.document) allDocs.add(mainWin.document);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Strategy 3: Services.wm
     try {
-      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(Ci.nsIWindowMediator);
+      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
+        Ci.nsIWindowMediator,
+      );
       if (wm) {
         const enumerator = wm.getEnumerator("navigator:browser");
         while (enumerator.hasMoreElements()) {
@@ -260,7 +311,9 @@ function refreshAllSidebarShortcuts(log?: (msg: string, color?: string) => void)
           if (w?.document) allDocs.add(w.document);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     log?.(`Panel refresh: found ${allDocs.size} window(s)`, "#374151");
 
@@ -276,14 +329,22 @@ function refreshAllSidebarShortcuts(log?: (msg: string, color?: string) => void)
         void renderShortcuts(body, item);
 
         // Update input placeholder
-        const input = body.querySelector("#llm-input") as HTMLTextAreaElement | null;
+        const input = body.querySelector(
+          "#llm-input",
+        ) as HTMLTextAreaElement | null;
         if (input) {
-          const hasItem = body.querySelector(".llm-user-selected-text") || body.getAttribute("data-item-id");
-          input.placeholder = hasItem ? panelI18n.placeholderPaper : panelI18n.placeholderGlobal;
+          const hasItem =
+            body.querySelector(".llm-user-selected-text") ||
+            body.getAttribute("data-item-id");
+          input.placeholder = hasItem
+            ? panelI18n.placeholderPaper
+            : panelI18n.placeholderGlobal;
         }
 
         // Update status bar
-        const statusBar = body.querySelector("#llm-status") as HTMLElement | null;
+        const statusBar = body.querySelector(
+          "#llm-status",
+        ) as HTMLElement | null;
         if (statusBar) {
           const text = statusBar.textContent?.trim() || "";
           // Only update recognizable status strings
@@ -299,7 +360,10 @@ function refreshAllSidebarShortcuts(log?: (msg: string, color?: string) => void)
         refreshed++;
       }
     }
-    log?.(`Panel refresh: ${panelsFound} panel(s) found, ${refreshed} refreshed`, refreshed > 0 ? "#065f46" : "#b45309");
+    log?.(
+      `Panel refresh: ${panelsFound} panel(s) found, ${refreshed} refreshed`,
+      refreshed > 0 ? "#065f46" : "#b45309",
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log?.(`Panel refresh failed: ${msg}`, "#991b1b");
@@ -322,49 +386,86 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     saveModelSelectionState(selectionCache);
   }
 
-  const modelSections = doc.querySelector(`#${config.addonRef}-model-sections`) as HTMLDivElement | null;
+  const modelSections = doc.querySelector(
+    `#${config.addonRef}-model-sections`,
+  ) as HTMLDivElement | null;
   if (!modelSections) return;
   modelSections.innerHTML = "";
 
-  const root = createNode(doc, "div", "display:flex; flex-direction:column; gap:14px;");
+  const root = createNode(
+    doc,
+    "div",
+    "display:flex; flex-direction:column; gap:14px;",
+  );
   modelSections.appendChild(root);
 
-  const langBox = createNode(doc, "div", "border:1px solid #ddd; border-radius:8px; padding:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;");
-  const langLabel = createNode(doc, "label", "font-weight:700; font-size:13px;");
+  const langBox = createNode(
+    doc,
+    "div",
+    "border:1px solid #ddd; border-radius:8px; padding:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;",
+  );
+  const langLabel = createNode(
+    doc,
+    "label",
+    "font-weight:700; font-size:13px;",
+  );
 
   // Custom dropdown — native <select> shows a bullet on the selected <option> in Gecko
   const LANG_OPTIONS: { value: Lang; label: string }[] = [
     { value: "zh-CN", label: "CN" },
     { value: "en-US", label: "EN" },
   ];
-  const dropdownWrap = createNode(doc, "div", "position:relative; display:inline-block;");
+  const dropdownWrap = createNode(
+    doc,
+    "div",
+    "position:relative; display:inline-block;",
+  );
   const dropdownBtn = createNode(
-    doc, "button",
+    doc,
+    "button",
     "padding:6px 12px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-weight:600; background:#fff; cursor:pointer; min-width:80px; display:flex; align-items:center; justify-content:space-between; gap:8px;",
   ) as HTMLButtonElement;
   dropdownBtn.type = "button";
-  const dropdownBtnLabel = createNode(doc, "span", "", LANG_OPTIONS.find(o => o.value === lang)?.label ?? lang);
-  const dropdownBtnArrow = createNode(doc, "span", "font-size:10px; color:#666;", "\u25be");
+  const dropdownBtnLabel = createNode(
+    doc,
+    "span",
+    "",
+    LANG_OPTIONS.find((o) => o.value === lang)?.label ?? lang,
+  );
+  const dropdownBtnArrow = createNode(
+    doc,
+    "span",
+    "font-size:10px; color:#666;",
+    "\u25be",
+  );
   dropdownBtn.append(dropdownBtnLabel, dropdownBtnArrow);
 
   const dropdownList = createNode(
-    doc, "div",
+    doc,
+    "div",
     "position:absolute; top:calc(100% + 2px); left:0; min-width:100%; border:1px solid #ccc; border-radius:6px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,.12); z-index:9999; overflow:hidden; display:none;",
   );
 
-  const dropdownItems = LANG_OPTIONS.map(opt => {
+  const dropdownItems = LANG_OPTIONS.map((opt) => {
     const item = createNode(
-      doc, "div",
+      doc,
+      "div",
       "padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; background:#fff; color:#111; white-space:nowrap;",
       opt.label,
     );
-    item.addEventListener("mouseenter", () => { item.style.background = "#f3f4f6"; });
-    item.addEventListener("mouseleave", () => { item.style.background = lang === opt.value ? "#eff6ff" : "#fff"; });
+    item.addEventListener("mouseenter", () => {
+      item.style.background = "#f3f4f6";
+    });
+    item.addEventListener("mouseleave", () => {
+      item.style.background = lang === opt.value ? "#eff6ff" : "#fff";
+    });
     item.addEventListener("click", () => {
       switchLang(opt.value);
       dropdownBtnLabel.textContent = opt.label;
       dropdownList.style.display = "none";
-      dropdownItems.forEach(i => { i.style.background = "#fff"; });
+      dropdownItems.forEach((i) => {
+        i.style.background = "#fff";
+      });
       item.style.background = "#eff6ff";
     });
     if (opt.value === lang) item.style.background = "#eff6ff";
@@ -374,9 +475,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
   dropdownBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    dropdownList.style.display = dropdownList.style.display === "none" ? "block" : "none";
+    dropdownList.style.display =
+      dropdownList.style.display === "none" ? "block" : "none";
   });
-  doc.addEventListener("click", () => { dropdownList.style.display = "none"; });
+  doc.addEventListener("click", () => {
+    dropdownList.style.display = "none";
+  });
 
   dropdownWrap.append(dropdownBtn, dropdownList);
 
@@ -392,51 +496,115 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   langBox.append(langLabel, dropdownWrap);
   root.appendChild(langBox);
 
-
-  const envBox = createNode(doc, "div", "border:1px dashed #bbb; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:10px;");
+  const envBox = createNode(
+    doc,
+    "div",
+    "border:1px dashed #bbb; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:10px;",
+  );
   const envTitle = createNode(doc, "div", "font-weight:700; font-size:14px;");
-  const envActionRow = createNode(doc, "div", "display:flex; gap:10px; align-items:center; flex-wrap:wrap;");
-  const commonBtnStyle = "padding:10px 16px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-align:center; font-weight:600; line-height:1;";
-  const refreshAllBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #666; background:#fff; color:#111;`) as HTMLButtonElement;
+  const envActionRow = createNode(
+    doc,
+    "div",
+    "display:flex; gap:10px; align-items:center; flex-wrap:wrap;",
+  );
+  const commonBtnStyle =
+    "padding:10px 16px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-align:center; font-weight:600; line-height:1;";
+  const refreshAllBtn = createNode(
+    doc,
+    "button",
+    `${commonBtnStyle} border:1px solid #666; background:#fff; color:#111;`,
+  ) as HTMLButtonElement;
   refreshAllBtn.type = "button";
-  const restoreDefaultsBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #d97706; background:#fff; color:#b45309;`) as HTMLButtonElement;
+  const restoreDefaultsBtn = createNode(
+    doc,
+    "button",
+    `${commonBtnStyle} border:1px solid #d97706; background:#fff; color:#b45309;`,
+  ) as HTMLButtonElement;
   restoreDefaultsBtn.type = "button";
-  const clearAllHistoryBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #dc2626; background:#fff; color:#b91c1c;`) as HTMLButtonElement;
+  const clearAllHistoryBtn = createNode(
+    doc,
+    "button",
+    `${commonBtnStyle} border:1px solid #dc2626; background:#fff; color:#b91c1c;`,
+  ) as HTMLButtonElement;
   clearAllHistoryBtn.type = "button";
-  const dangerStatus = createNode(doc, "span", "font-size:12px; color:#555; white-space:pre-wrap;");
-  envActionRow.append(refreshAllBtn, restoreDefaultsBtn, clearAllHistoryBtn, dangerStatus);
-  const progressText = createNode(doc, "span", "font-size:12px; color:#555; white-space:pre-wrap;");
-  const progressList = createNode(doc, "div", "border:1px solid #e5e7eb; border-radius:8px; padding:8px; max-height:140px; overflow:auto; background:#fafafa; font-size:12px; line-height:1.4;");
-  const logsBox = createNode(doc, "textarea", "width:100%; min-height:120px; padding:8px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; font-size:12px;") as HTMLTextAreaElement;
+  const dangerStatus = createNode(
+    doc,
+    "span",
+    "font-size:12px; color:#555; white-space:pre-wrap;",
+  );
+  envActionRow.append(
+    refreshAllBtn,
+    restoreDefaultsBtn,
+    clearAllHistoryBtn,
+    dangerStatus,
+  );
+  const progressText = createNode(
+    doc,
+    "span",
+    "font-size:12px; color:#555; white-space:pre-wrap;",
+  );
+  const progressList = createNode(
+    doc,
+    "div",
+    "border:1px solid #e5e7eb; border-radius:8px; padding:8px; max-height:140px; overflow:auto; background:#fafafa; font-size:12px; line-height:1.4;",
+  );
+  const logsBox = createNode(
+    doc,
+    "textarea",
+    "width:100%; min-height:120px; padding:8px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; font-size:12px;",
+  ) as HTMLTextAreaElement;
   logsBox.readOnly = true;
   logsBox.value = getPref("oauthSetupLog") || "";
 
   envBox.append(envTitle, envActionRow, progressText, progressList, logsBox);
   root.appendChild(envBox);
 
-  const authCards = createNode(doc, "div", "display:flex; flex-direction:column; gap:12px;");
+  const authCards = createNode(
+    doc,
+    "div",
+    "display:flex; flex-direction:column; gap:12px;",
+  );
   root.appendChild(authCards);
 
-  const accountsBox = createNode(doc, "div", "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;");
-  const accountsTitle = createNode(doc, "div", "font-weight:700; font-size:14px;");
+  const accountsBox = createNode(
+    doc,
+    "div",
+    "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;",
+  );
+  const accountsTitle = createNode(
+    doc,
+    "div",
+    "font-weight:700; font-size:14px;",
+  );
   const accountsTable = createNode(doc, "div", "font-size:12px;");
   accountsBox.append(accountsTitle, accountsTable);
   root.appendChild(accountsBox);
 
-  const modelsBox = createNode(doc, "div", "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;");
-  const modelsTitle = createNode(doc, "div", "font-weight:700; font-size:14px;");
+  const modelsBox = createNode(
+    doc,
+    "div",
+    "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;",
+  );
+  const modelsTitle = createNode(
+    doc,
+    "div",
+    "font-weight:700; font-size:14px;",
+  );
   const modelsTable = createNode(doc, "div", "font-size:12px;");
   const note = createNode(doc, "div", "font-size:12px; color:#555;");
   modelsBox.append(modelsTitle, modelsTable, note);
   root.appendChild(modelsBox);
 
-  const providerCards = new Map<OAuthProviderId, {
-    status: HTMLSpanElement;
-    setupBtn: HTMLButtonElement;
-    loginBtn: HTMLButtonElement;
-    refreshBtn: HTMLButtonElement;
-    deleteBtn: HTMLButtonElement;
-  }>();
+  const providerCards = new Map<
+    OAuthProviderId,
+    {
+      status: HTMLSpanElement;
+      setupBtn: HTMLButtonElement;
+      loginBtn: HTMLButtonElement;
+      refreshBtn: HTMLButtonElement;
+      deleteBtn: HTMLButtonElement;
+    }
+  >();
 
   const renderStaticText = () => {
     L = tt(lang);
@@ -479,7 +647,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     progressList.scrollTop = progressList.scrollHeight;
   };
 
-  const flushUi = () => new Promise<void>((resolve) => win.setTimeout(resolve, 0));
+  const flushUi = () =>
+    new Promise<void>((resolve) => win.setTimeout(resolve, 0));
 
   const persistSelectionState = () => {
     const reconciled = reconcileModelSelectionCache(cache, selectionCache);
@@ -513,13 +682,29 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
   const renderAccounts = async () => {
     accountsTable.innerHTML = "";
-    const header = createNode(doc, "div", "display:grid; grid-template-columns:2fr 1fr 2fr; gap:8px; font-weight:700; margin-bottom:6px;");
-    header.append(createNode(doc, "div", "", L.provider), createNode(doc, "div", "", L.account), createNode(doc, "div", "", L.status));
+    const header = createNode(
+      doc,
+      "div",
+      "display:grid; grid-template-columns:2fr 1fr 2fr; gap:8px; font-weight:700; margin-bottom:6px;",
+    );
+    header.append(
+      createNode(doc, "div", "", L.provider),
+      createNode(doc, "div", "", L.account),
+      createNode(doc, "div", "", L.status),
+    );
     accountsTable.appendChild(header);
     for (const provider of PROVIDERS) {
       const s = await getProviderAccountSummary(provider);
-      const row = createNode(doc, "div", "display:grid; grid-template-columns:2fr 1fr 2fr; gap:8px; padding:6px 0; border-top:1px solid #f0f0f0;");
-      row.append(createNode(doc, "div", "", s.label), createNode(doc, "div", "", s.account), createNode(doc, "div", "", s.status));
+      const row = createNode(
+        doc,
+        "div",
+        "display:grid; grid-template-columns:2fr 1fr 2fr; gap:8px; padding:6px 0; border-top:1px solid #f0f0f0;",
+      );
+      row.append(
+        createNode(doc, "div", "", s.label),
+        createNode(doc, "div", "", s.account),
+        createNode(doc, "div", "", s.status),
+      );
       accountsTable.appendChild(row);
     }
   };
@@ -559,9 +744,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "font-weight:700; font-size:13px;",
         getProviderLabel(provider),
       );
-      const summaryText = lang === "zh-CN"
-        ? `已勾选 ${selectedCount}/${providerModels.length}`
-        : `Selected ${selectedCount}/${providerModels.length}`;
+      const summaryText =
+        lang === "zh-CN"
+          ? `已勾选 ${selectedCount}/${providerModels.length}`
+          : `Selected ${selectedCount}/${providerModels.length}`;
       const summary = createNode(
         doc,
         "div",
@@ -658,12 +844,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         );
         if (row.label && row.label !== id) {
           textBox.append(
-            createNode(
-              doc,
-              "div",
-              "font-size:11px; color:#6b7280;",
-              row.label,
-            ),
+            createNode(doc, "div", "font-size:11px; color:#6b7280;", row.label),
           );
         }
         line.append(checkbox, textBox);
@@ -673,7 +854,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       modelsTable.appendChild(section);
     }
     if (!count) {
-      modelsTable.appendChild(createNode(doc, "div", "padding:8px 0; color:#6b7280;", L.noModels));
+      modelsTable.appendChild(
+        createNode(doc, "div", "padding:8px 0; color:#6b7280;", L.noModels),
+      );
     }
   };
 
@@ -691,58 +874,103 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     if (refs) {
       const s = await getProviderAccountSummary(provider);
       refs.status.textContent = s.status;
-      refs.status.style.color = /logged in/i.test(s.status) ? "green" : "#b45309";
+      refs.status.style.color = /logged in/i.test(s.status)
+        ? "green"
+        : "#b45309";
     }
     progressText.textContent = "";
   };
 
   for (const provider of PROVIDERS) {
-    const card = createNode(doc, "div", "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;");
-    const title = createNode(doc, "div", "font-weight:700; font-size:13px;", getProviderLabel(provider));
-    const row = createNode(doc, "div", "display:flex; gap:8px; align-items:center; flex-wrap:wrap;");
-    const perProviderSetupBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #059669; background:#059669; color:#fff;`) as HTMLButtonElement;
+    const card = createNode(
+      doc,
+      "div",
+      "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;",
+    );
+    const title = createNode(
+      doc,
+      "div",
+      "font-weight:700; font-size:13px;",
+      getProviderLabel(provider),
+    );
+    const row = createNode(
+      doc,
+      "div",
+      "display:flex; gap:8px; align-items:center; flex-wrap:wrap;",
+    );
+    const perProviderSetupBtn = createNode(
+      doc,
+      "button",
+      `${commonBtnStyle} border:1px solid #059669; background:#059669; color:#fff;`,
+    ) as HTMLButtonElement;
     perProviderSetupBtn.type = "button";
-    const loginBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #2563eb; background:#2563eb; color:#fff;`) as HTMLButtonElement;
+    const loginBtn = createNode(
+      doc,
+      "button",
+      `${commonBtnStyle} border:1px solid #2563eb; background:#2563eb; color:#fff;`,
+    ) as HTMLButtonElement;
     loginBtn.type = "button";
-    const refreshBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #666; background:#fff; color:#111;`) as HTMLButtonElement;
+    const refreshBtn = createNode(
+      doc,
+      "button",
+      `${commonBtnStyle} border:1px solid #666; background:#fff; color:#111;`,
+    ) as HTMLButtonElement;
     refreshBtn.type = "button";
-    const deleteBtn = createNode(doc, "button", `${commonBtnStyle} border:1px solid #dc2626; background:#fff; color:#b91c1c;`) as HTMLButtonElement;
+    const deleteBtn = createNode(
+      doc,
+      "button",
+      `${commonBtnStyle} border:1px solid #dc2626; background:#fff; color:#b91c1c;`,
+    ) as HTMLButtonElement;
     deleteBtn.type = "button";
-    const status = createNode(doc, "span", "font-size:12px; color:#555; white-space:pre-wrap;") as HTMLSpanElement;
+    const status = createNode(
+      doc,
+      "span",
+      "font-size:12px; color:#555; white-space:pre-wrap;",
+    ) as HTMLSpanElement;
     row.append(perProviderSetupBtn, loginBtn, refreshBtn, deleteBtn, status);
     card.append(title, row);
     authCards.appendChild(card);
-    providerCards.set(provider, { status, setupBtn: perProviderSetupBtn, loginBtn, refreshBtn, deleteBtn });
+    providerCards.set(provider, {
+      status,
+      setupBtn: perProviderSetupBtn,
+      loginBtn,
+      refreshBtn,
+      deleteBtn,
+    });
 
     // Qwen and Copilot use in-plugin Device Code flows — no CLI needed
     if (provider === "qwen" || provider === "github-copilot") {
-      perProviderSetupBtn.setAttribute("style", perProviderSetupBtn.getAttribute("style") + "display:none;");
+      perProviderSetupBtn.setAttribute(
+        "style",
+        perProviderSetupBtn.getAttribute("style") + "display:none;",
+      );
 
       loginBtn.addEventListener("click", async () => {
         // Show OAuth risk warning on first click only
         const alreadyAccepted = getPref("oauthRiskAccepted") === "true";
         if (!alreadyAccepted) {
-          const riskMessage = lang === "zh-CN"
-            ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
-              "\u5c06\u542f\u52a8 Device Code OAuth \u6d41\u7a0b\uff1a\n" +
-              "1. \u7a0d\u540e\u4f1a\u663e\u793a\u9a8c\u8bc1\u7f51\u5740\u548c\u6388\u6743\u7801\n" +
-              "2. \u6253\u5f00\u6d4f\u89c8\u5668\u5b8c\u6210\u6388\u6743\n\n" +
-              "\u8bf7\u6ce8\u610f\uff1a\n" +
-              "\u2022 OAuth \u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\u8bbe\u5907\n" +
-              "\u2022 \u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
-              "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\n" +
-              "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
-              "\u662f\u5426\u7ee7\u7eed\uff1f"
-            : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
-              "This will start the Device Code OAuth flow:\n" +
-              "1. A verification URL and code will be displayed\n" +
-              "2. Open your browser to authorize the application\n\n" +
-              "Please note:\n" +
-              "\u2022 OAuth tokens are stored locally on your device only\n" +
-              "\u2022 This plugin uses OAuth tokens which is not officially endorsed \u2014 theoretical risk of account restrictions\n" +
-              "\u2022 Using AI services may incur charges\n" +
-              "\u2022 This plugin is free, open-source, and collects no user data\n\n" +
-              "Do you wish to continue?";
+          const riskMessage =
+            lang === "zh-CN"
+              ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
+                "\u5c06\u542f\u52a8 Device Code OAuth \u6d41\u7a0b\uff1a\n" +
+                "1. \u7a0d\u540e\u4f1a\u663e\u793a\u9a8c\u8bc1\u7f51\u5740\u548c\u6388\u6743\u7801\n" +
+                "2. \u6253\u5f00\u6d4f\u89c8\u5668\u5b8c\u6210\u6388\u6743\n\n" +
+                "\u8bf7\u6ce8\u610f\uff1a\n" +
+                "\u2022 OAuth \u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\u8bbe\u5907\n" +
+                "\u2022 \u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
+                "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\n" +
+                "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
+                "\u662f\u5426\u7ee7\u7eed\uff1f"
+              : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
+                "This will start the Device Code OAuth flow:\n" +
+                "1. A verification URL and code will be displayed\n" +
+                "2. Open your browser to authorize the application\n\n" +
+                "Please note:\n" +
+                "\u2022 OAuth tokens are stored locally on your device only\n" +
+                "\u2022 This plugin uses OAuth tokens which is not officially endorsed \u2014 theoretical risk of account restrictions\n" +
+                "\u2022 Using AI services may incur charges\n" +
+                "\u2022 This plugin is free, open-source, and collects no user data\n\n" +
+                "Do you wish to continue?";
           const accepted = win.confirm(riskMessage);
           if (!accepted) return;
           setPref("oauthRiskAccepted", "true");
@@ -754,7 +982,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         const result = await runProviderOAuthLogin(provider);
         status.textContent = result.message;
         status.style.color = result.ok ? "green" : "red";
-        appendProgress(`[${getProviderLabel(provider)}] ${result.message}`, result.ok ? "#065f46" : "#991b1b");
+        appendProgress(
+          `[${getProviderLabel(provider)}] ${result.message}`,
+          result.ok ? "#065f46" : "#991b1b",
+        );
         if (result.ok) {
           await refreshOneProvider(provider);
         } else {
@@ -786,31 +1017,32 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         // Show OAuth risk warning on first click only
         const alreadyAccepted = getPref("oauthRiskAccepted") === "true";
         if (!alreadyAccepted) {
-          const riskMessage = lang === "zh-CN"
-            ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
-              "\u201c\u5b89\u88c5\u73af\u5883\u201d\u5c06\u6267\u884c\u4ee5\u4e0b\u64cd\u4f5c\uff1a\n" +
-              "1. \u5b89\u88c5 Node.js \u8fd0\u884c\u73af\u5883\uff08\u5982\u5c1a\u672a\u5b89\u88c5\uff09\n" +
-              "2. \u5b89\u88c5\u5bf9\u5e94\u63d0\u4f9b\u5546\u7684 CLI \u5de5\u5177\n" +
-              "3. \u901a\u8fc7 OAuth \u534f\u8bae\u6253\u5f00\u6d4f\u89c8\u5668\u767b\u5f55\n\n" +
-              "\u8bf7\u6ce8\u610f\uff1a\n" +
-              "\u2022 OAuth \u767b\u5f55\u751f\u6210\u7684\u8bbf\u95ee\u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\uff0c\u4e0d\u4f1a\u4e0a\u4f20\u81f3\u4efb\u4f55\u7b2c\u4e09\u65b9\u670d\u52a1\u5668\n" +
-              "\u2022 \u63d2\u4ef6\u76f4\u63a5\u8c03\u7528 AI \u670d\u52a1\u5546\u7684\u5b98\u65b9 API\n" +
-              "\u2022 \u672c\u63d2\u4ef6\u501f\u52a9 CLI \u7684 OAuth \u4ee4\u724c\u8c03\u7528 API\uff0c\u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
-              "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\uff0c\u5177\u4f53\u53d6\u51b3\u4e8e\u60a8\u7684\u8d26\u53f7\u8ba1\u8d39\u65b9\u5f0f\n" +
-              "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
-              "\u662f\u5426\u7ee7\u7eed\uff1f"
-            : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
-              "\"Install Environment\" will perform the following:\n" +
-              "1. Install Node.js runtime (if not already installed)\n" +
-              "2. Install the CLI tool for this provider\n" +
-              "3. Open your browser via OAuth to sign in\n\n" +
-              "Please note:\n" +
-              "\u2022 OAuth tokens are stored locally on your device only and are never sent to any third-party server\n" +
-              "\u2022 The plugin communicates directly with the AI provider's official API\n" +
-              "\u2022 This plugin uses OAuth tokens which is not an officially endorsed usage \u2014 there is a theoretical risk of account restrictions\n" +
-              "\u2022 Using AI services may incur charges depending on your account billing plan\n" +
-              "\u2022 This plugin is completely free, open-source, and does not collect any user data\n\n" +
-              "Do you wish to continue?";
+          const riskMessage =
+            lang === "zh-CN"
+              ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
+                "\u201c\u5b89\u88c5\u73af\u5883\u201d\u5c06\u6267\u884c\u4ee5\u4e0b\u64cd\u4f5c\uff1a\n" +
+                "1. \u5b89\u88c5 Node.js \u8fd0\u884c\u73af\u5883\uff08\u5982\u5c1a\u672a\u5b89\u88c5\uff09\n" +
+                "2. \u5b89\u88c5\u5bf9\u5e94\u63d0\u4f9b\u5546\u7684 CLI \u5de5\u5177\n" +
+                "3. \u901a\u8fc7 OAuth \u534f\u8bae\u6253\u5f00\u6d4f\u89c8\u5668\u767b\u5f55\n\n" +
+                "\u8bf7\u6ce8\u610f\uff1a\n" +
+                "\u2022 OAuth \u767b\u5f55\u751f\u6210\u7684\u8bbf\u95ee\u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\uff0c\u4e0d\u4f1a\u4e0a\u4f20\u81f3\u4efb\u4f55\u7b2c\u4e09\u65b9\u670d\u52a1\u5668\n" +
+                "\u2022 \u63d2\u4ef6\u76f4\u63a5\u8c03\u7528 AI \u670d\u52a1\u5546\u7684\u5b98\u65b9 API\n" +
+                "\u2022 \u672c\u63d2\u4ef6\u501f\u52a9 CLI \u7684 OAuth \u4ee4\u724c\u8c03\u7528 API\uff0c\u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
+                "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\uff0c\u5177\u4f53\u53d6\u51b3\u4e8e\u60a8\u7684\u8d26\u53f7\u8ba1\u8d39\u65b9\u5f0f\n" +
+                "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
+                "\u662f\u5426\u7ee7\u7eed\uff1f"
+              : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
+                '"Install Environment" will perform the following:\n' +
+                "1. Install Node.js runtime (if not already installed)\n" +
+                "2. Install the CLI tool for this provider\n" +
+                "3. Open your browser via OAuth to sign in\n\n" +
+                "Please note:\n" +
+                "\u2022 OAuth tokens are stored locally on your device only and are never sent to any third-party server\n" +
+                "\u2022 The plugin communicates directly with the AI provider's official API\n" +
+                "\u2022 This plugin uses OAuth tokens which is not an officially endorsed usage \u2014 there is a theoretical risk of account restrictions\n" +
+                "\u2022 Using AI services may incur charges depending on your account billing plan\n" +
+                "\u2022 This plugin is completely free, open-source, and does not collect any user data\n\n" +
+                "Do you wish to continue?";
           const accepted = win.confirm(riskMessage);
           if (!accepted) return;
           setPref("oauthRiskAccepted", "true");
@@ -824,9 +1056,25 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         const result = await autoConfigureEnvironment({
           provider,
           onProgress: (event) => {
-            const prefix = event.phase === "start" ? "▶" : event.phase === "done" ? (event.ok ? "✔" : "✖") : "•";
-            const output = event.output ? `\n${event.output.slice(0, 220)}` : "";
-            appendProgress(`${prefix} ${event.step}${output}`, event.phase === "done" ? (event.ok ? "#065f46" : "#991b1b") : "#374151");
+            const prefix =
+              event.phase === "start"
+                ? "▶"
+                : event.phase === "done"
+                  ? event.ok
+                    ? "✔"
+                    : "✖"
+                  : "•";
+            const output = event.output
+              ? `\n${event.output.slice(0, 220)}`
+              : "";
+            appendProgress(
+              `${prefix} ${event.step}${output}`,
+              event.phase === "done"
+                ? event.ok
+                  ? "#065f46"
+                  : "#991b1b"
+                : "#374151",
+            );
           },
         });
         logsBox.value = result.logs;
@@ -844,7 +1092,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         const result = await runProviderOAuthLogin(provider);
         status.textContent = result.message;
         status.style.color = result.ok ? "green" : "red";
-        appendProgress(`[${getProviderLabel(provider)}] ${result.message}`, result.ok ? "#065f46" : "#991b1b");
+        appendProgress(
+          `[${getProviderLabel(provider)}] ${result.message}`,
+          result.ok ? "#065f46" : "#991b1b",
+        );
         if (result.ok) {
           await refreshOneProvider(provider);
         } else {
@@ -889,6 +1140,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
     // Reset all model profile prefs to factory defaults
     const defaults: Record<string, string> = {
+      primaryConnectionMode: "oauth",
       apiBase: "oauth://openai-codex",
       apiKey: "",
       model: "",
@@ -915,8 +1167,16 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     }
     // Advanced params
     for (const suffix of PROFILE_KEYS) {
-      Zotero.Prefs.set(`${config.prefsPrefix}.temperature${suffix}`, "0.3", true);
-      Zotero.Prefs.set(`${config.prefsPrefix}.maxTokens${suffix}`, "4096", true);
+      Zotero.Prefs.set(
+        `${config.prefsPrefix}.temperature${suffix}`,
+        "0.3",
+        true,
+      );
+      Zotero.Prefs.set(
+        `${config.prefsPrefix}.maxTokens${suffix}`,
+        "4096",
+        true,
+      );
     }
     Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, true, true);
     Zotero.Prefs.set(`${config.prefsPrefix}.showAllModels`, false, true);
@@ -936,8 +1196,11 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     const verifyResults: string[] = [];
     for (const key of shortcutPrefsToClear) {
       const readBack = Zotero.Prefs.get(`${config.prefsPrefix}.${key}`, true);
-      const isEmpty = readBack === "" || readBack === undefined || readBack === null;
-      verifyResults.push(`${key}=${isEmpty ? "✓cleared" : `"${String(readBack).slice(0, 40)}"` }`);
+      const isEmpty =
+        readBack === "" || readBack === undefined || readBack === null;
+      verifyResults.push(
+        `${key}=${isEmpty ? "✓cleared" : `"${String(readBack).slice(0, 40)}"`}`,
+      );
     }
     appendProgress(`Pref verify: ${verifyResults.join(", ")}`, "#374151");
 
@@ -984,20 +1247,36 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   await renderAccounts();
   persistSelectionState();
 
-  const systemPromptInput = doc.querySelector(`#${config.addonRef}-system-prompt`) as HTMLTextAreaElement | null;
+  const systemPromptInput = doc.querySelector(
+    `#${config.addonRef}-system-prompt`,
+  ) as HTMLTextAreaElement | null;
   if (systemPromptInput) {
     systemPromptInput.value = getPref("systemPrompt") || "";
-    systemPromptInput.addEventListener("input", () => setPref("systemPrompt", systemPromptInput.value));
+    systemPromptInput.addEventListener("input", () =>
+      setPref("systemPrompt", systemPromptInput.value),
+    );
   }
-  const popupInput = doc.querySelector(`#${config.addonRef}-popup-add-text-enabled`) as HTMLInputElement | null;
+  const popupInput = doc.querySelector(
+    `#${config.addonRef}-popup-add-text-enabled`,
+  ) as HTMLInputElement | null;
   if (popupInput) {
-    const prefValue = Zotero.Prefs.get(`${config.prefsPrefix}.showPopupAddText`, true);
-    popupInput.checked = prefValue !== false && `${prefValue || ""}`.toLowerCase() !== "false";
+    const prefValue = Zotero.Prefs.get(
+      `${config.prefsPrefix}.showPopupAddText`,
+      true,
+    );
+    popupInput.checked =
+      prefValue !== false && `${prefValue || ""}`.toLowerCase() !== "false";
     popupInput.addEventListener("change", () => {
-      Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, popupInput.checked, true);
+      Zotero.Prefs.set(
+        `${config.prefsPrefix}.showPopupAddText`,
+        popupInput.checked,
+        true,
+      );
     });
   }
-  const showAllModelsInput = doc.querySelector(`#${config.addonRef}-show-all-models`) as HTMLInputElement | null;
+  const showAllModelsInput = doc.querySelector(
+    `#${config.addonRef}-show-all-models`,
+  ) as HTMLInputElement | null;
   if (showAllModelsInput) {
     const section = showAllModelsInput.closest("div");
     if (section) {
