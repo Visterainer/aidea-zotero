@@ -686,6 +686,20 @@ async function inspectNpmEnvironment(
   queryLatest = true,
 ): Promise<NpmEnvironmentState> {
   const platform = currentPlatform();
+
+  // Always inject the preferred user npm bin dir into the process PATH.
+  // On macOS/Linux, Zotero is a GUI app launched from Dock/Finder that does
+  // NOT read shell profiles (.zprofile, .bash_profile), so persistBinDirToUserPath
+  // alone is insufficient.  We must ensure the bin dir is reachable in every
+  // Zotero session, even before the directory physically exists (it will be
+  // created by ensureNpmDirectories later in the install flow).
+  const _home = homeDir();
+  const preferredPrefix = derivePreferredUserNpmPrefix(platform, _home);
+  const preferredBin = deriveNpmGlobalBinDirFromPrefix(preferredPrefix, platform);
+  if (preferredBin) {
+    prependProcessPathEntries([preferredBin]);
+  }
+
   prependProcessPathEntries(getCommonExecutableDirs(platform));
 
   const nodePath =
@@ -1649,35 +1663,38 @@ async function getNpmGlobalRootCandidates(): Promise<string[]> {
 async function extractGeminiCliCredentials(): Promise<{ clientId: string; clientSecret: string } | null> {
   try {
     const roots = await getNpmGlobalRootCandidates();
-    const candidates = [
-      ...roots.map((root) =>
-        joinPath(
-          root,
-          "@google",
-          "gemini-cli",
-          "node_modules",
-          "@google",
-          "gemini-cli-core",
-          "dist",
-          "src",
-          "code_assist",
-          "oauth2.js",
-        ),
-      ),
-      ...roots.map((root) =>
-        joinPath(
-          root,
-          "@google",
-          "gemini-cli",
-          "node_modules",
-          "@google",
-          "gemini-cli-core",
-          "dist",
-          "code_assist",
-          "oauth2.js",
-        ),
-      ),
-    ];
+
+    // Build candidate paths for the oauth2 credentials file.
+    // npm v7+ may "hoist" @google/gemini-cli-core to the top-level
+    // node_modules instead of nesting it under gemini-cli/node_modules.
+    // We also check an alternative path (oauth2-provider.js) for newer
+    // Gemini CLI versions that reorganised the dist layout.
+    const candidates: string[] = [];
+    for (const root of roots) {
+      // 1. Nested layout (npm v6 / non-hoisted):
+      //    <root>/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js
+      candidates.push(
+        joinPath(root, "@google", "gemini-cli", "node_modules", "@google", "gemini-cli-core",
+          "dist", "src", "code_assist", "oauth2.js"),
+      );
+      // 2. Hoisted layout (npm v7+ default):
+      //    <root>/@google/gemini-cli-core/dist/src/code_assist/oauth2.js
+      candidates.push(
+        joinPath(root, "@google", "gemini-cli-core",
+          "dist", "src", "code_assist", "oauth2.js"),
+      );
+      // 3. Alternative path (newer Gemini CLI versions):
+      //    <root>/@google/gemini-cli-core/dist/src/agents/auth-provider/oauth2-provider.js
+      candidates.push(
+        joinPath(root, "@google", "gemini-cli", "node_modules", "@google", "gemini-cli-core",
+          "dist", "src", "agents", "auth-provider", "oauth2-provider.js"),
+      );
+      candidates.push(
+        joinPath(root, "@google", "gemini-cli-core",
+          "dist", "src", "agents", "auth-provider", "oauth2-provider.js"),
+      );
+    }
+
     let content: string | null = null;
     for (const p of candidates) {
       try {
