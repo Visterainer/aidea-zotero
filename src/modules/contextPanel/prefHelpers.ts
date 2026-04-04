@@ -14,11 +14,14 @@ import {
   CUSTOM_SHORTCUT_ID_PREFIX,
   type ModelProfileKey,
 } from "./constants";
-import type {
-  ApiProfile,
-  CustomShortcut,
-} from "./types";
+import type { ApiProfile, CustomShortcut } from "./types";
 import { selectedModelCache, panelFontScalePercent } from "./state";
+
+export type PrimaryConnectionMode = "oauth" | "custom";
+
+const PRIMARY_CONNECTION_MODE_PREF_KEY = "primaryConnectionMode";
+const OAUTH_MARKER_PREFIX = "oauth://";
+const DEFAULT_PRIMARY_MODEL = "gpt-4o-mini";
 
 export function getStringPref(key: string): string {
   const value = Zotero.Prefs.get(`${config.prefsPrefix}.${key}`, true);
@@ -41,7 +44,11 @@ export function getLastUsedModelProfileKey(): ModelProfileKey | null {
 
 export function setLastUsedModelProfileKey(key: ModelProfileKey): void {
   if (!MODEL_PROFILE_KEYS.has(key)) return;
-  Zotero.Prefs.set(`${config.prefsPrefix}.${LAST_MODEL_PROFILE_PREF_KEY}`, key, true);
+  Zotero.Prefs.set(
+    `${config.prefsPrefix}.${LAST_MODEL_PROFILE_PREF_KEY}`,
+    key,
+    true,
+  );
 }
 
 function normalizeTemperaturePref(raw: string): number {
@@ -52,13 +59,56 @@ function normalizeMaxTokensPref(raw: string): number {
   return normalizeMaxTokens(raw);
 }
 
-export function getApiProfiles(): Record<ModelProfileKey, ApiProfile> {
-  const primary: ApiProfile = {
+function isOAuthMarker(apiBase: string): boolean {
+  return apiBase.trim().startsWith(OAUTH_MARKER_PREFIX);
+}
+
+export function migratePrimaryConnectionMode(): PrimaryConnectionMode {
+  const currentMode = getStringPref(PRIMARY_CONNECTION_MODE_PREF_KEY).trim();
+  if (currentMode === "oauth" || currentMode === "custom") {
+    return currentMode;
+  }
+
+  const apiBase = getStringPref("apiBase").trim();
+  const nextMode: PrimaryConnectionMode =
+    apiBase && !isOAuthMarker(apiBase) ? "custom" : "oauth";
+  Zotero.Prefs.set(
+    `${config.prefsPrefix}.${PRIMARY_CONNECTION_MODE_PREF_KEY}`,
+    nextMode,
+    true,
+  );
+  return nextMode;
+}
+
+export function getPrimaryConnectionMode(): PrimaryConnectionMode {
+  const currentMode = getStringPref(PRIMARY_CONNECTION_MODE_PREF_KEY).trim();
+  if (currentMode === "oauth" || currentMode === "custom") {
+    return currentMode;
+  }
+  return migratePrimaryConnectionMode();
+}
+
+function getPrimaryApiProfile(): ApiProfile {
+  if (getPrimaryConnectionMode() === "custom") {
+    return {
+      apiBase: getStringPref("apiBase") || "",
+      apiKey: getStringPref("apiKey") || "",
+      model: getStringPref("model") || DEFAULT_PRIMARY_MODEL,
+    };
+  }
+
+  return {
     apiBase: getStringPref("apiBasePrimary") || getStringPref("apiBase") || "",
     apiKey: getStringPref("apiKeyPrimary") || getStringPref("apiKey") || "",
     model:
-      getStringPref("modelPrimary") || getStringPref("model") || "gpt-4o-mini",
+      getStringPref("modelPrimary") ||
+      getStringPref("model") ||
+      DEFAULT_PRIMARY_MODEL,
   };
+}
+
+export function getApiProfiles(): Record<ModelProfileKey, ApiProfile> {
+  const primary = getPrimaryApiProfile();
 
   const profiles: Record<ModelProfileKey, ApiProfile> = {
     primary: {
@@ -121,7 +171,10 @@ export function getSelectedProfileForItem(itemId: number): {
   }
 
   // Normal profile key lookup
-  const preferredKey: ModelProfileKey = (cachedValue as ModelProfileKey) || getLastUsedModelProfileKey() || "primary";
+  const preferredKey: ModelProfileKey =
+    (cachedValue as ModelProfileKey) ||
+    getLastUsedModelProfileKey() ||
+    "primary";
   const selectedKey =
     preferredKey !== "primary" && profiles[preferredKey].model
       ? preferredKey

@@ -12,6 +12,7 @@ declare namespace _ZoteroTypes {
       "apiBase": string;
       "apiKey": string;
       "model": string;
+      "primaryConnectionMode": string;
       "apiBasePrimary": string;
       "apiKeyPrimary": string;
       "modelPrimary": string;
