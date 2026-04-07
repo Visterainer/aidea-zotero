@@ -27,7 +27,7 @@
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test",
-    "test:unit": "npx tsx node_modules/mocha/bin/mocha.js --timeout 10000 --ignore test/startup.test.ts \"test/**/*.test.ts\"",
+    "test:unit": "npx tsx node_modules/mocha/bin/mocha --timeout 10000 --ignore test/startup.test.ts \"test/**/*.test.ts\"",
     "update-deps": "npm update --save"
   },
   "dependencies": {

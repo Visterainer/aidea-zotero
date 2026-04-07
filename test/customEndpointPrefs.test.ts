@@ -161,6 +161,18 @@ describe("custom endpoint primary connection mode", function () {
     assert.equal(config.model, "custom-model");
   });
 
+  it("throws when llmClient config is missing model in custom mode", function () {
+    setPluginPref("primaryConnectionMode", "custom");
+    setPluginPref("apiBase", "https://custom.example/v1/");
+    setPluginPref("apiKey", "custom-key");
+    setPluginPref("model", " ");
+
+    assert.throws(
+      () => llmClient.getApiConfig(),
+      "Model is required in custom mode",
+    );
+  });
+
   it("resolves llmClient config from the OAuth primary slot in oauth mode", function () {
     setPluginPref("primaryConnectionMode", "oauth");
     setPluginPref("apiBase", "https://custom.example/v1");

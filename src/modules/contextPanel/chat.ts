@@ -96,6 +96,7 @@ import { positionMenuAtPointer } from "./menuPositioning";
 import {
   getSelectedProfileForItem,
   getApiProfiles,
+  getPrimaryConnectionMode,
   getAdvancedModelParamsForProfile,
   getStringPref,
   loadPersistedFileAttachmentIds,
@@ -665,14 +666,18 @@ export function resolveEffectiveRequestConfig(params: {
   apiKey?: string;
   advanced?: AdvancedModelParams;
 }): EffectiveRequestConfig {
+  const primaryConnectionMode = getPrimaryConnectionMode();
   const fallbackProfile = getSelectedProfileForItem(params.item.id);
   const primaryProfile = getApiProfiles().primary;
+  const modelFallback =
+    primaryConnectionMode === "custom"
+      ? getStringPref("model")
+      : getStringPref("model") || "gpt-4o-mini";
   const model = (
     params.model ||
     fallbackProfile.model ||
     primaryProfile.model ||
-    getStringPref("model") ||
-    "gpt-4o-mini"
+    modelFallback
   ).trim();
   let apiBase = (params.apiBase ?? fallbackProfile.apiBase ?? "").trim();
   const apiKey = (
@@ -681,6 +686,17 @@ export function resolveEffectiveRequestConfig(params: {
     primaryProfile.apiKey ??
     ""
   ).trim();
+
+  if (primaryConnectionMode === "custom") {
+    const missing: string[] = [];
+    if (!apiBase) missing.push("API Base URL");
+    if (!model) missing.push("Model");
+    if (missing.length > 0) {
+      throw new Error(
+        `Custom mode requires ${missing.join(" and ")} before sending`,
+      );
+    }
+  }
 
   if (model && shouldRewriteApiBaseForDetectedProvider(apiBase)) {
     const detectedProvider = detectProviderForModel(model);
@@ -1847,13 +1863,22 @@ export async function retryLatestAssistantResponse(
     return;
   }
 
-  const effectiveRequestConfig = resolveEffectiveRequestConfig({
-    item,
-    model,
-    apiBase,
-    apiKey,
-    advanced,
-  });
+  let effectiveRequestConfig: EffectiveRequestConfig;
+  try {
+    effectiveRequestConfig = resolveEffectiveRequestConfig({
+      item,
+      model,
+      apiBase,
+      apiKey,
+      advanced,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    setStatusSafely(errMsg, "error");
+    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return;
+  }
 
   const assistantMessage = retryPair.assistantMessage;
   const assistantSnapshot = takeAssistantSnapshot(assistantMessage);
@@ -2056,13 +2081,22 @@ export async function sendQuestion(
   const history = chatHistory.get(conversationKey)!;
   const historyForLLM = history.slice(-MAX_HISTORY_MESSAGES);
   const requestFileAttachments = normalizeModelFileAttachments(attachments);
-  const effectiveRequestConfig = resolveEffectiveRequestConfig({
-    item,
-    model,
-    apiBase,
-    apiKey,
-    advanced,
-  });
+  let effectiveRequestConfig: EffectiveRequestConfig;
+  try {
+    effectiveRequestConfig = resolveEffectiveRequestConfig({
+      item,
+      model,
+      apiBase,
+      apiKey,
+      advanced,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    setStatusSafely(errMsg, "error");
+    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return;
+  }
   const shownQuestion = displayQuestion || question;
   const selectedTextsForMessage = normalizeSelectedTexts(selectedTexts);
   const selectedTextSourcesForMessage = normalizeSelectedTextSources(

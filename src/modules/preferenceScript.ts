@@ -690,7 +690,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const customApiBaseInput = createNode(
     doc,
     "input",
-    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;",
+    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; color:#111; caret-color:#111;",
   ) as HTMLInputElement;
   customApiBaseInput.id = `${config.addonRef}-custom-api-base`;
   customApiBaseInput.type = "text";
@@ -719,7 +719,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const customApiKeyInput = createNode(
     doc,
     "input",
-    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;",
+    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; color:#111; caret-color:#111;",
   ) as HTMLInputElement;
   customApiKeyInput.id = `${config.addonRef}-custom-api-key`;
   customApiKeyInput.type = "password";
@@ -748,7 +748,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const customModelInput = createNode(
     doc,
     "input",
-    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;",
+    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; color:#111; caret-color:#111;",
   ) as HTMLInputElement;
   customModelInput.id = `${config.addonRef}-custom-model`;
   customModelInput.type = "text";
@@ -785,6 +785,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   ) => {
     input.style.borderColor = missing ? "#dc2626" : "#ccc";
     input.style.background = missing ? "#fef2f2" : "#fff";
+    input.style.color = "#111";
+    input.style.caretColor = "#111";
   };
 
   const updateCustomModeUi = () => {

@@ -120,4 +120,34 @@ describe("custom endpoint request resolution", function () {
     assert.equal(config.apiKey, "custom-key");
     assert.equal(config.model, "custom-model");
   });
+
+  it("throws when custom mode is missing model", function () {
+    setPluginPref("primaryConnectionMode", "custom");
+    setPluginPref("apiBase", "https://custom.example/v1");
+    setPluginPref("apiKey", "custom-key");
+    setPluginPref("model", "   ");
+
+    assert.throws(
+      () =>
+        chatModule.resolveEffectiveRequestConfig({
+          item: makeItem(),
+        }),
+      "Custom mode requires Model before sending",
+    );
+  });
+
+  it("throws when custom mode is missing API Base URL", function () {
+    setPluginPref("primaryConnectionMode", "custom");
+    setPluginPref("apiBase", "");
+    setPluginPref("apiKey", "custom-key");
+    setPluginPref("model", "custom-model");
+
+    assert.throws(
+      () =>
+        chatModule.resolveEffectiveRequestConfig({
+          item: makeItem(),
+        }),
+      "Custom mode requires API Base URL before sending",
+    );
+  });
 });

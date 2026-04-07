@@ -93,7 +93,7 @@ function getPrimaryApiProfile(): ApiProfile {
     return {
       apiBase: getStringPref("apiBase") || "",
       apiKey: getStringPref("apiKey") || "",
-      model: getStringPref("model") || DEFAULT_PRIMARY_MODEL,
+      model: getStringPref("model") || "",
     };
   }
 

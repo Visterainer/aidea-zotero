@@ -200,11 +200,12 @@ function getPrimaryApiPrefConfig(): {
   apiKey: string;
   model: string;
 } {
-  if (getPrimaryConnectionMode() === "custom") {
+  const connectionMode = getPrimaryConnectionMode();
+  if (connectionMode === "custom") {
     return {
       apiBase: String(getPref("apiBase") || ""),
       apiKey: String(getPref("apiKey") || ""),
-      model: String(getPref("model") || DEFAULT_MODEL),
+      model: String(getPref("model") || ""),
     };
   }
 
@@ -220,6 +221,7 @@ export function getApiConfig(overrides?: {
   apiKey?: string;
   model?: string;
 }) {
+  const connectionMode = getPrimaryConnectionMode();
   const primaryConfig = getPrimaryApiPrefConfig();
   const apiBase = (overrides?.apiBase || primaryConfig.apiBase)
     .trim()
@@ -231,6 +233,9 @@ export function getApiConfig(overrides?: {
 
   if (!apiBase) {
     throw new Error("API URL is missing in preferences");
+  }
+  if (connectionMode === "custom" && !model) {
+    throw new Error("Model is required in custom mode");
   }
 
   return {
