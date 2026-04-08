@@ -164,6 +164,8 @@ When answering questions:
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+const PRIMARY_CONNECTION_MODE_PREF_KEY = "primaryConnectionMode";
+const OAUTH_MARKER_PREFIX = "oauth://";
 
 // =============================================================================
 // Utilities
@@ -172,27 +174,68 @@ const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 const prefKey = (key: string) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: string) => Zotero.Prefs.get(prefKey(key), true) as string;
 
-function getApiConfig(overrides?: {
+type PrimaryConnectionMode = "oauth" | "custom";
+
+function isOAuthMarker(apiBase: string): boolean {
+  return apiBase.trim().startsWith(OAUTH_MARKER_PREFIX);
+}
+
+function getPrimaryConnectionMode(): PrimaryConnectionMode {
+  const currentMode = String(getPref(PRIMARY_CONNECTION_MODE_PREF_KEY) || "")
+    .trim()
+    .toLowerCase();
+  if (currentMode === "oauth" || currentMode === "custom") {
+    return currentMode;
+  }
+
+  const apiBase = String(getPref("apiBase") || "").trim();
+  const nextMode: PrimaryConnectionMode =
+    apiBase && !isOAuthMarker(apiBase) ? "custom" : "oauth";
+  Zotero.Prefs.set(prefKey(PRIMARY_CONNECTION_MODE_PREF_KEY), nextMode, true);
+  return nextMode;
+}
+
+function getPrimaryApiPrefConfig(): {
+  apiBase: string;
+  apiKey: string;
+  model: string;
+} {
+  const connectionMode = getPrimaryConnectionMode();
+  if (connectionMode === "custom") {
+    return {
+      apiBase: String(getPref("apiBase") || ""),
+      apiKey: String(getPref("apiKey") || ""),
+      model: String(getPref("model") || ""),
+    };
+  }
+
+  return {
+    apiBase: String(getPref("apiBasePrimary") || getPref("apiBase") || ""),
+    apiKey: String(getPref("apiKeyPrimary") || getPref("apiKey") || ""),
+    model: String(getPref("modelPrimary") || getPref("model") || DEFAULT_MODEL),
+  };
+}
+
+export function getApiConfig(overrides?: {
   apiBase?: string;
   apiKey?: string;
   model?: string;
 }) {
-  const prefApiBase = getPref("apiBasePrimary") || getPref("apiBase") || "";
-  const apiBase = (overrides?.apiBase || prefApiBase).trim().replace(/\/$/, "");
-  const apiKey = (
-    overrides?.apiKey ||
-    getPref("apiKeyPrimary") ||
-    getPref("apiKey") ||
-    ""
-  ).trim();
-  const modelPrimary =
-    getPref("modelPrimary") || getPref("model") || DEFAULT_MODEL;
-  const model = (overrides?.model || modelPrimary).trim();
+  const connectionMode = getPrimaryConnectionMode();
+  const primaryConfig = getPrimaryApiPrefConfig();
+  const apiBase = (overrides?.apiBase || primaryConfig.apiBase)
+    .trim()
+    .replace(/\/$/, "");
+  const apiKey = (overrides?.apiKey || primaryConfig.apiKey || "").trim();
+  const model = (overrides?.model || primaryConfig.model).trim();
   const embeddingModel = getPref("embeddingModel") || DEFAULT_EMBEDDING_MODEL;
   const customSystemPrompt = getPref("systemPrompt") || "";
 
   if (!apiBase) {
     throw new Error("API URL is missing in preferences");
+  }
+  if (connectionMode === "custom" && !model) {
+    throw new Error("Model is required in custom mode");
   }
 
   return {
@@ -1615,7 +1658,8 @@ function xhrStream(params: {
   onDelta: (delta: string) => void;
   onReasoning?: (event: ReasoningEvent) => void;
 }): Promise<string> {
-  const { XHRCtor, url, apiKey, payload, signal, onDelta, onReasoning } = params;
+  const { XHRCtor, url, apiKey, payload, signal, onDelta, onReasoning } =
+    params;
   return new Promise<string>((resolve, reject) => {
     const xhr = new XHRCtor();
     xhr.open("POST", url, true);
@@ -1805,13 +1849,19 @@ export async function callLLMStream(
 
   if (XHRCtor) {
     // Apply cached temperature policy if available
-    const policyKey = getTemperaturePolicyKey(url, buildPayload(params.reasoning));
+    const policyKey = getTemperaturePolicyKey(
+      url,
+      buildPayload(params.reasoning),
+    );
     const cachedPolicy = temperaturePolicyCache.get(policyKey);
 
     // Build payload with reasoning and temperature policies applied
     let currentReasoning = params.reasoning;
     let payload = buildPayload(currentReasoning);
-    if (cachedPolicy && Object.prototype.hasOwnProperty.call(payload, "temperature")) {
+    if (
+      cachedPolicy &&
+      Object.prototype.hasOwnProperty.call(payload, "temperature")
+    ) {
       payload = applyTemperaturePolicy(payload, cachedPolicy);
     }
 
@@ -1851,7 +1901,10 @@ export async function callLLMStream(
               attemptedReasoningKeys.add(nextKey);
               currentReasoning = recovered;
               payload = buildPayload(currentReasoning);
-              if (cachedPolicy && Object.prototype.hasOwnProperty.call(payload, "temperature")) {
+              if (
+                cachedPolicy &&
+                Object.prototype.hasOwnProperty.call(payload, "temperature")
+              ) {
                 payload = applyTemperaturePolicy(payload, cachedPolicy);
               }
               retries += 1;

@@ -3,6 +3,7 @@ pref("input", "This is input");
 pref("apiBase", "oauth://openai-codex");
 pref("apiKey", "");
 pref("model", "");
+pref("primaryConnectionMode", "oauth");
 pref("apiBasePrimary", "oauth://openai-codex");
 pref("apiKeyPrimary", "");
 pref("modelPrimary", "");

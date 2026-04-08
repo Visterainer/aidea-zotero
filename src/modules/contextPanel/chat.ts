@@ -95,16 +95,19 @@ import {
 import { positionMenuAtPointer } from "./menuPositioning";
 import {
   getSelectedProfileForItem,
+  getApiProfiles,
+  getPrimaryConnectionMode,
   getAdvancedModelParamsForProfile,
   getStringPref,
   loadPersistedFileAttachmentIds,
 } from "./prefHelpers";
 import { buildContext, ensurePDFTextCached } from "./pdfContext";
-import { buildSupplementalPaperContext, buildSinglePaperContext } from "./paperContext";
-import { formatPaperCitationLabel } from "./paperAttribution";
 import {
-  resolveContextSourceItem,
-} from "./contextResolution";
+  buildSupplementalPaperContext,
+  buildSinglePaperContext,
+} from "./paperContext";
+import { formatPaperCitationLabel } from "./paperAttribution";
+import { resolveContextSourceItem } from "./contextResolution";
 import { buildChatHistoryNotePayload } from "./notes";
 import { extractManagedBlobHash } from "./attachmentStorage";
 import { toFileUrl } from "../../utils/pathFileUrl";
@@ -221,9 +224,13 @@ function normalizeSelectedTextPaperContextsByIndex(
   selectedTextPaperContexts: unknown,
   count: number,
 ): (PaperContextRef | undefined)[] {
-  return normalizeSelectedTextPaperContextEntries(selectedTextPaperContexts, count, {
-    sanitizeText,
-  });
+  return normalizeSelectedTextPaperContextEntries(
+    selectedTextPaperContexts,
+    count,
+    {
+      sanitizeText,
+    },
+  );
 }
 
 function normalizePaperContexts(paperContexts: unknown): PaperContextRef[] {
@@ -432,7 +439,7 @@ export async function ensureConversationLoaded(
         const parentTitle =
           (item.parentItem?.getField?.("title") as string) || "";
         conversationContextPool.set(conversationKey, {
-          basePdfContext: "",  // Lazy: rebuilt on next send.
+          basePdfContext: "", // Lazy: rebuilt on next send.
           basePdfItemId: item.id,
           basePdfTitle: parentTitle || "Active Document",
           basePdfRemoved: false,
@@ -444,9 +451,17 @@ export async function ensureConversationLoaded(
       }
 
       // Phase 5: Restore file attachments from the last user message.
-      restoreFileAttachmentsFromMessages(item.id, conversationKey, storedMessages);
+      restoreFileAttachmentsFromMessages(
+        item.id,
+        conversationKey,
+        storedMessages,
+      );
       // Phase 6: Restore paper context chips from the last user message.
-      restorePaperContextsFromMessages(item.id, conversationKey, storedMessages);
+      restorePaperContextsFromMessages(
+        item.id,
+        conversationKey,
+        storedMessages,
+      );
       // Phase 7: Restore screenshots from the last user message.
       restoreScreenshotsFromMessages(item.id, storedMessages);
       // Phase 8: Restore selected text contexts from the last user message.
@@ -639,33 +654,55 @@ type EffectiveRequestConfig = {
   advanced: AdvancedModelParams;
 };
 
-function resolveEffectiveRequestConfig(params: {
+function shouldRewriteApiBaseForDetectedProvider(apiBase: string): boolean {
+  const normalized = apiBase.trim();
+  return !normalized || normalized.startsWith("oauth://");
+}
+
+export function resolveEffectiveRequestConfig(params: {
   item: Zotero.Item;
   model?: string;
   apiBase?: string;
   apiKey?: string;
   advanced?: AdvancedModelParams;
 }): EffectiveRequestConfig {
+  const primaryConnectionMode = getPrimaryConnectionMode();
   const fallbackProfile = getSelectedProfileForItem(params.item.id);
+  const primaryProfile = getApiProfiles().primary;
+  const modelFallback =
+    primaryConnectionMode === "custom"
+      ? getStringPref("model")
+      : getStringPref("model") || "gpt-4o-mini";
   const model = (
     params.model ||
     fallbackProfile.model ||
-    getStringPref("modelPrimary") ||
-    getStringPref("model") ||
-    "gpt-4o-mini"
+    primaryProfile.model ||
+    modelFallback
   ).trim();
-  let apiBase = (params.apiBase || fallbackProfile.apiBase).trim();
-  const apiKey = (params.apiKey || fallbackProfile.apiKey).trim();
+  let apiBase = (params.apiBase ?? fallbackProfile.apiBase ?? "").trim();
+  const apiKey = (
+    params.apiKey ??
+    fallbackProfile.apiKey ??
+    primaryProfile.apiKey ??
+    ""
+  ).trim();
 
-  // Auto-detect OAuth provider from model name.
-  // Case 1: apiBase is not an OAuth marker — detect from cache and set apiBase.
-  // Case 2: apiBase is an OAuth marker, but the model belongs to a DIFFERENT
-  //         provider (e.g. user selected a Qwen model while profile points to Codex).
-  if (model) {
+  if (primaryConnectionMode === "custom") {
+    const missing: string[] = [];
+    if (!apiBase) missing.push("API Base URL");
+    if (!model) missing.push("Model");
+    if (missing.length > 0) {
+      throw new Error(
+        `Custom mode requires ${missing.join(" and ")} before sending`,
+      );
+    }
+  }
+
+  if (model && shouldRewriteApiBaseForDetectedProvider(apiBase)) {
     const detectedProvider = detectProviderForModel(model);
     if (detectedProvider) {
       const correctMarker = `oauth://${detectedProvider}`;
-      if (!apiBase.startsWith("oauth://") || apiBase !== correctMarker) {
+      if (apiBase !== correctMarker) {
         apiBase = correctMarker;
       }
     }
@@ -688,7 +725,11 @@ function detectProviderForModel(modelName: string): string | null {
     for (const [providerKey, models] of Object.entries(cache)) {
       if (!Array.isArray(models)) continue;
       for (const m of models) {
-        if (String(m.id || "").trim().toLowerCase() === normalized) {
+        if (
+          String(m.id || "")
+            .trim()
+            .toLowerCase() === normalized
+        ) {
           return providerKey;
         }
       }
@@ -792,9 +833,13 @@ async function buildCombinedContextForRequest(params: {
           },
         );
         pool.basePdfContext = pdfContext;
-        ztoolkit.log(`LLM context: rebuilt basePdfContext from stored ID ${pool.basePdfItemId} (${pdfContext.length} chars)`);
+        ztoolkit.log(
+          `LLM context: rebuilt basePdfContext from stored ID ${pool.basePdfItemId} (${pdfContext.length} chars)`,
+        );
       } else {
-        ztoolkit.log(`LLM context: stored basePdfItemId=${pool.basePdfItemId} no longer exists`);
+        ztoolkit.log(
+          `LLM context: stored basePdfItemId=${pool.basePdfItemId} no longer exists`,
+        );
         pool.basePdfItemId = null;
       }
     } catch (err) {
@@ -809,7 +854,7 @@ async function buildCombinedContextForRequest(params: {
       const ctxItem = contextSource.contextItem;
       ztoolkit.log(
         `LLM context: item=${ctxItem.id}, isAttachment=${ctxItem.isAttachment()}, ` +
-        `contentType=${ctxItem.attachmentContentType || "N/A"}, hasCachedText=${pdfTextCache.has(ctxItem.id)}`,
+          `contentType=${ctxItem.attachmentContentType || "N/A"}, hasCachedText=${pdfTextCache.has(ctxItem.id)}`,
       );
       await ensurePDFTextCached(ctxItem);
       const cached = pdfTextCache.get(ctxItem.id);
@@ -845,7 +890,9 @@ async function buildCombinedContextForRequest(params: {
       } catch (_e) {
         pool.basePdfTitle = "Document";
       }
-      ztoolkit.log(`LLM context: pdfContext length=${pdfContext.length} (cached to pool)`);
+      ztoolkit.log(
+        `LLM context: pdfContext length=${pdfContext.length} (cached to pool)`,
+      );
     } else {
       ztoolkit.log(
         `LLM context: no contextItem resolved. statusText="${contextSource.statusText}"`,
@@ -858,13 +905,14 @@ async function buildCombinedContextForRequest(params: {
   // Filter out any supplemental paper that is the same as the base PDF
   // to avoid injecting the same document content twice.
   const rawPaperRefs = params.paperContexts;
-  const currentPaperRefs = pool.basePdfItemId !== null && !pool.basePdfRemoved
-    ? rawPaperRefs.filter(
-        (ref) =>
-          ref.contextItemId !== pool.basePdfItemId &&
-          ref.itemId !== pool.basePdfItemId,
-      )
-    : rawPaperRefs;
+  const currentPaperRefs =
+    pool.basePdfItemId !== null && !pool.basePdfRemoved
+      ? rawPaperRefs.filter(
+          (ref) =>
+            ref.contextItemId !== pool.basePdfItemId &&
+            ref.itemId !== pool.basePdfItemId,
+        )
+      : rawPaperRefs;
   const currentRefIds = new Set(
     currentPaperRefs.map((ref) => ref.contextItemId),
   );
@@ -872,7 +920,9 @@ async function buildCombinedContextForRequest(params: {
   for (const existingId of pool.supplementalContexts.keys()) {
     if (!currentRefIds.has(existingId)) {
       pool.supplementalContexts.delete(existingId);
-      ztoolkit.log(`LLM context: removed unpinned supplemental paper contextItemId=${existingId}`);
+      ztoolkit.log(
+        `LLM context: removed unpinned supplemental paper contextItemId=${existingId}`,
+      );
     }
   }
   // Build newly added papers or rebuild DB-restored ones with empty content.
@@ -982,7 +1032,7 @@ function restoreContextPoolFromStoredMessages(
   if (!latestContextRefs) return;
 
   const pool: ConversationContextPoolEntry = {
-    basePdfContext: "",  // Will be rebuilt lazily on next send.
+    basePdfContext: "", // Will be rebuilt lazily on next send.
     basePdfItemId: latestContextRefs.basePdf?.contextItemId ?? null,
     basePdfTitle: latestContextRefs.basePdf?.title ?? "",
     basePdfRemoved: latestContextRefs.basePdf?.removed ?? false,
@@ -995,7 +1045,7 @@ function restoreContextPoolFromStoredMessages(
       if (!ref || !ref.contextItemId) continue;
       pool.supplementalContexts.set(ref.contextItemId, {
         ref,
-        builtContext: "",  // Lazy: rebuilt on next send.
+        builtContext: "", // Lazy: rebuilt on next send.
         addedAtTurn: index + 1,
       });
     }
@@ -1008,7 +1058,10 @@ function restoreContextPoolFromStoredMessages(
     typeof latestContextRefs.compactedSummary === "string" &&
     latestContextRefs.compactedSummary.trim()
   ) {
-    zoneBSummaryCache.set(conversationKey, latestContextRefs.compactedSummary.trim());
+    zoneBSummaryCache.set(
+      conversationKey,
+      latestContextRefs.compactedSummary.trim(),
+    );
     ztoolkit.log(
       `LLM: Restored Zone B summary from DB (${latestContextRefs.compactedSummary.length} chars)`,
     );
@@ -1016,7 +1069,7 @@ function restoreContextPoolFromStoredMessages(
 
   ztoolkit.log(
     `LLM: Restored context pool from DB refs for conversation ${conversationKey}. ` +
-    `basePdf=${pool.basePdfItemId}, supplementals=${pool.supplementalContexts.size}, removed=${pool.basePdfRemoved}`,
+      `basePdf=${pool.basePdfItemId}, supplementals=${pool.supplementalContexts.size}, removed=${pool.basePdfRemoved}`,
   );
 }
 
@@ -1078,7 +1131,9 @@ function restoreFileAttachmentsFromMessages(
       selectedFileAttachmentCache.set(itemId, validAttachments);
       ztoolkit.log(
         `LLM: Restored ${validAttachments.length} file attachment(s) for item ${itemId}` +
-        (persistedIdSet ? ` (filtered by ${persistedIds!.length} persisted IDs)` : " (from message)"),
+          (persistedIdSet
+            ? ` (filtered by ${persistedIds!.length} persisted IDs)`
+            : " (from message)"),
       );
     }
     break; // Only check the last user message
@@ -1113,13 +1168,14 @@ function restorePaperContextsFromMessages(
     if (!paperContexts.length) continue;
 
     // Filter out the base PDF to avoid duplicate chips.
-    const supplementalOnly = basePdfItemId !== null
-      ? paperContexts.filter(
-          (ref) =>
-            ref.contextItemId !== basePdfItemId &&
-            ref.itemId !== basePdfItemId,
-        )
-      : paperContexts;
+    const supplementalOnly =
+      basePdfItemId !== null
+        ? paperContexts.filter(
+            (ref) =>
+              ref.contextItemId !== basePdfItemId &&
+              ref.itemId !== basePdfItemId,
+          )
+        : paperContexts;
 
     if (supplementalOnly.length) {
       selectedPaperContextCache.set(itemId, supplementalOnly);
@@ -1300,7 +1356,9 @@ async function compactConversationHistory(params: {
     return buildLLMHistoryMessages(params.historyForLLM);
   }
 
-  const { zoneBMessages, zoneCMessages } = buildZoneBCSplit(params.historyForLLM);
+  const { zoneBMessages, zoneCMessages } = buildZoneBCSplit(
+    params.historyForLLM,
+  );
 
   // If nothing to compress (all messages are in Zone C), return as-is.
   if (!zoneBMessages.length && !cachedSummary) {
@@ -1319,7 +1377,7 @@ async function compactConversationHistory(params: {
     try {
       ztoolkit.log(
         `LLM: Compacting ${zoneBMessages.length} old messages into Zone B summary ` +
-        `(total estimate: ${totalEstimate} chars, threshold: ${CONTEXT_COMPACTION_THRESHOLD})`,
+          `(total estimate: ${totalEstimate} chars, threshold: ${CONTEXT_COMPACTION_THRESHOLD})`,
       );
       const summary = await callLLM({
         prompt: COMPACTION_SUMMARY_PROMPT + summaryInput,
@@ -1330,10 +1388,15 @@ async function compactConversationHistory(params: {
       if (summary && summary.trim().length > 20) {
         zoneBSummary = summary.trim();
         zoneBSummaryCache.set(params.conversationKey, zoneBSummary);
-        ztoolkit.log(`LLM: Zone B summary generated (${zoneBSummary.length} chars)`);
+        ztoolkit.log(
+          `LLM: Zone B summary generated (${zoneBSummary.length} chars)`,
+        );
       }
     } catch (err) {
-      ztoolkit.log("LLM: Failed to generate Zone B summary, falling back to truncation", err);
+      ztoolkit.log(
+        "LLM: Failed to generate Zone B summary, falling back to truncation",
+        err,
+      );
       // Fallback: just use Zone C without summary.
       if (!cachedSummary) {
         return buildLLMHistoryMessages(zoneCMessages);
@@ -1346,8 +1409,7 @@ async function compactConversationHistory(params: {
   if (zoneBSummary) {
     result.push({
       role: "user",
-      content:
-        `[Previous conversation summary — for context only, do not respond to this directly]\n\n${zoneBSummary}`,
+      content: `[Previous conversation summary — for context only, do not respond to this directly]\n\n${zoneBSummary}`,
     });
     result.push({
       role: "assistant",
@@ -1357,7 +1419,6 @@ async function compactConversationHistory(params: {
   result.push(...buildLLMHistoryMessages(zoneCMessages));
   return result;
 }
-
 
 async function autoCaptureRequestMemories(params: {
   item: Zotero.Item;
@@ -1406,9 +1467,7 @@ export type LatestRetryPair = {
 
 type AssistantMessageSnapshot = Pick<
   Message,
-  | "text"
-  | "timestamp"
-  | "modelName"
+  "text" | "timestamp" | "modelName"
 >;
 
 export function findLatestRetryPair(
@@ -1730,7 +1789,8 @@ export async function editLatestUserMessageAndRetry(
       selectedText: retryPair.userMessage.selectedText,
       selectedTexts: retryPair.userMessage.selectedTexts,
       selectedTextSources: retryPair.userMessage.selectedTextSources,
-      selectedTextPaperContexts: retryPair.userMessage.selectedTextPaperContexts,
+      selectedTextPaperContexts:
+        retryPair.userMessage.selectedTextPaperContexts,
       screenshotImages: retryPair.userMessage.screenshotImages,
       paperContexts: retryPair.userMessage.paperContexts,
       attachments: retryPair.userMessage.attachments,
@@ -1803,13 +1863,22 @@ export async function retryLatestAssistantResponse(
     return;
   }
 
-  const effectiveRequestConfig = resolveEffectiveRequestConfig({
-    item,
-    model,
-    apiBase,
-    apiKey,
-    advanced,
-  });
+  let effectiveRequestConfig: EffectiveRequestConfig;
+  try {
+    effectiveRequestConfig = resolveEffectiveRequestConfig({
+      item,
+      model,
+      apiBase,
+      apiKey,
+      advanced,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    setStatusSafely(errMsg, "error");
+    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return;
+  }
 
   const assistantMessage = retryPair.assistantMessage;
   const assistantSnapshot = takeAssistantSnapshot(assistantMessage);
@@ -2012,13 +2081,22 @@ export async function sendQuestion(
   const history = chatHistory.get(conversationKey)!;
   const historyForLLM = history.slice(-MAX_HISTORY_MESSAGES);
   const requestFileAttachments = normalizeModelFileAttachments(attachments);
-  const effectiveRequestConfig = resolveEffectiveRequestConfig({
-    item,
-    model,
-    apiBase,
-    apiKey,
-    advanced,
-  });
+  let effectiveRequestConfig: EffectiveRequestConfig;
+  try {
+    effectiveRequestConfig = resolveEffectiveRequestConfig({
+      item,
+      model,
+      apiBase,
+      apiKey,
+      advanced,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    setStatusSafely(errMsg, "error");
+    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return;
+  }
   const shownQuestion = displayQuestion || question;
   const selectedTextsForMessage = normalizeSelectedTexts(selectedTexts);
   const selectedTextSourcesForMessage = normalizeSelectedTextSources(
@@ -2053,8 +2131,8 @@ export async function sendQuestion(
     selectedTextSources: selectedTextSourcesForMessage.length
       ? selectedTextSourcesForMessage
       : undefined,
-    selectedTextPaperContexts: selectedTextPaperContextsForMessage.some((entry) =>
-      Boolean(entry),
+    selectedTextPaperContexts: selectedTextPaperContextsForMessage.some(
+      (entry) => Boolean(entry),
     )
       ? selectedTextPaperContextsForMessage
       : undefined,
@@ -2316,10 +2394,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         msg.selectedTextSources,
         selectedTexts.length,
       );
-      const selectedTextPaperContexts = normalizeSelectedTextPaperContextsByIndex(
-        msg.selectedTextPaperContexts,
-        selectedTexts.length,
-      );
+      const selectedTextPaperContexts =
+        normalizeSelectedTextPaperContextsByIndex(
+          msg.selectedTextPaperContexts,
+          selectedTexts.length,
+        );
       const hasScreenshotContext = screenshotImages.length > 0;
       const hasSelectedTextContext = selectedTexts.length > 0;
       hasUserContext = hasScreenshotContext || hasSelectedTextContext;
@@ -2497,7 +2576,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             paperContext.firstCreator || "",
             paperContext.year || "",
           ].filter(Boolean);
-          paperMeta.textContent = metaParts.join(" 閻?") || "Supplemental paper";
+          paperMeta.textContent =
+            metaParts.join(" 閻?") || "Supplemental paper";
           paperMeta.title = paperMeta.textContent;
           paperItem.append(paperTitle, paperMeta);
           papersList.appendChild(paperItem);
@@ -2691,7 +2771,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         selectedTexts.forEach((selectedText, contextIndex) => {
           const selectedSource = selectedTextSources[contextIndex] || "pdf";
-          const selectedTextPaperContext = selectedTextPaperContexts[contextIndex];
+          const selectedTextPaperContext =
+            selectedTextPaperContexts[contextIndex];
           const selectedTextPaperLabel =
             isGlobalConversation &&
             selectedSource === "pdf" &&
@@ -2961,4 +3042,3 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
     cancelFollowBottomStabilization(win, conversationKey);
   }
 }
-
