@@ -5,6 +5,10 @@
  */
 
 import { config } from "../../package.json";
+import {
+  getPrimaryConnectionMode,
+  getApiProfiles,
+} from "../modules/contextPanel/prefHelpers";
 // llmDefaults values are used via ./normalization
 import {
   getAnthropicReasoningProfileForModel,
@@ -164,8 +168,6 @@ When answering questions:
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-const PRIMARY_CONNECTION_MODE_PREF_KEY = "primaryConnectionMode";
-const OAUTH_MARKER_PREFIX = "oauth://";
 
 // =============================================================================
 // Utilities
@@ -174,60 +176,18 @@ const OAUTH_MARKER_PREFIX = "oauth://";
 const prefKey = (key: string) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: string) => Zotero.Prefs.get(prefKey(key), true) as string;
 
-type PrimaryConnectionMode = "oauth" | "custom";
-
-function isOAuthMarker(apiBase: string): boolean {
-  return apiBase.trim().startsWith(OAUTH_MARKER_PREFIX);
-}
-
-function getPrimaryConnectionMode(): PrimaryConnectionMode {
-  const currentMode = String(getPref(PRIMARY_CONNECTION_MODE_PREF_KEY) || "")
-    .trim()
-    .toLowerCase();
-  if (currentMode === "oauth" || currentMode === "custom") {
-    return currentMode;
-  }
-
-  const apiBase = String(getPref("apiBase") || "").trim();
-  const nextMode: PrimaryConnectionMode =
-    apiBase && !isOAuthMarker(apiBase) ? "custom" : "oauth";
-  Zotero.Prefs.set(prefKey(PRIMARY_CONNECTION_MODE_PREF_KEY), nextMode, true);
-  return nextMode;
-}
-
-function getPrimaryApiPrefConfig(): {
-  apiBase: string;
-  apiKey: string;
-  model: string;
-} {
-  const connectionMode = getPrimaryConnectionMode();
-  if (connectionMode === "custom") {
-    return {
-      apiBase: String(getPref("apiBase") || ""),
-      apiKey: String(getPref("apiKey") || ""),
-      model: String(getPref("model") || ""),
-    };
-  }
-
-  return {
-    apiBase: String(getPref("apiBasePrimary") || getPref("apiBase") || ""),
-    apiKey: String(getPref("apiKeyPrimary") || getPref("apiKey") || ""),
-    model: String(getPref("modelPrimary") || getPref("model") || DEFAULT_MODEL),
-  };
-}
-
 export function getApiConfig(overrides?: {
   apiBase?: string;
   apiKey?: string;
   model?: string;
 }) {
   const connectionMode = getPrimaryConnectionMode();
-  const primaryConfig = getPrimaryApiPrefConfig();
-  const apiBase = (overrides?.apiBase || primaryConfig.apiBase)
+  const primaryProfile = getApiProfiles().primary;
+  const apiBase = (overrides?.apiBase || primaryProfile.apiBase)
     .trim()
-    .replace(/\/$/, "");
-  const apiKey = (overrides?.apiKey || primaryConfig.apiKey || "").trim();
-  const model = (overrides?.model || primaryConfig.model).trim();
+    .replace(/\/+$/, "");
+  const apiKey = (overrides?.apiKey || primaryProfile.apiKey || "").trim();
+  const model = (overrides?.model || primaryProfile.model).trim();
   const embeddingModel = getPref("embeddingModel") || DEFAULT_EMBEDDING_MODEL;
   const customSystemPrompt = getPref("systemPrompt") || "";
 

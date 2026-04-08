@@ -1509,9 +1509,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     if (popupInput) popupInput.checked = true;
     oauthModeRadio.checked = true;
     customModeRadio.checked = false;
-    customApiBaseInput.value = defaults.apiBase;
-    customApiKeyInput.value = defaults.apiKey;
-    customModelInput.value = defaults.model;
+    // Clear custom endpoint UI fields — don't show OAuth markers in these inputs
+    customApiBaseInput.value = "";
+    customApiKeyInput.value = "";
+    customModelInput.value = "";
     updateCustomModeUi();
     dangerStatus.textContent = L.restoreDefaultsDone;
     dangerStatus.style.color = "#065f46";
