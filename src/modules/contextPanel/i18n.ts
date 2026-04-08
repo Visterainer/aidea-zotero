@@ -36,6 +36,8 @@ export type PanelI18n = {
   cancelled: string;
   retry: string;
   addText: string;
+  addTextPopupTitle: string;
+  addTextTitle: string;
   screenshots: string;
   translate: string;
   summarize: string;
@@ -112,6 +114,8 @@ export function getPanelI18n(): PanelI18n {
       cancelled: "Cancelled",
       retry: "Retry",
       addText: "Add Text",
+      addTextPopupTitle: "Add selected text to LLM panel",
+      addTextTitle: "Include selected reader text",
       screenshots: "Screenshots",
       translate: "Translate",
       summarize: "Summarize",
@@ -168,6 +172,8 @@ export function getPanelI18n(): PanelI18n {
     cancelled: "已取消",
     retry: "重试",
     addText: "添加文本",
+    addTextPopupTitle: "将选中文本添加到 LLM 面板",
+    addTextTitle: "添加选中的阅读器文本",
     screenshots: "截图",
     translate: "翻译",
     summarize: "摘要",

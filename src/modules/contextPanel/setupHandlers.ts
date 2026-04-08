@@ -338,7 +338,9 @@ export function setupHandlers(
   // Compute conversation key early so all closures can reference it.
   let conversationKey = item ? getConversationKey(item) : null;
   const getTextContextConversationKey = (): number | null =>
-    item ? item.id : null;
+    Number.isFinite(conversationKey) && (conversationKey as number) > 0
+      ? (conversationKey as number)
+      : null;
   const syncConversationIdentity = () => {
     conversationKey = item ? getConversationKey(item) : null;
     panelRoot.dataset.itemId =
@@ -1173,11 +1175,14 @@ export function setupHandlers(
     setSelectedTextContexts(itemId, []);
     setSelectedTextExpandedIndex(itemId, null);
   };
-  const clearTransientComposeStateForItem = (itemId: number) => {
+  const clearTransientComposeStateForItem = (
+    itemId: number,
+    textContextKey: number = itemId,
+  ) => {
     clearSelectedImageState(itemId);
     clearSelectedPaperState(itemId);
     clearSelectedFileState(itemId);
-    clearSelectedTextState(itemId);
+    clearSelectedTextState(textContextKey);
   };
   const runWithChatScrollGuard = (fn: () => void) => {
     withScrollGuard(chatBox, conversationKey, fn);
@@ -1956,7 +1961,9 @@ export function setupHandlers(
 
   const updateSelectedTextPreview = () => {
     if (!item) return;
-    applySelectedTextPreview(body, item.id);
+    const textContextKey = getTextContextConversationKey();
+    if (!textContextKey) return;
+    applySelectedTextPreview(body, textContextKey);
     if (composeHook.save) composeHook.save();
   };
   const updatePaperPreviewPreservingScroll = () => {
@@ -3075,7 +3082,7 @@ export function setupHandlers(
         const turnCount = await getPaperConversationUserTurnCount(currentPaperKey);
         if (turnCount === 0) {
           // Already an empty conversation — just clear compose state and refocus.
-          clearTransientComposeStateForItem(currentItemId);
+          clearTransientComposeStateForItem(currentItemId, currentPaperKey);
           resetComposePreviewUI();
           clearDraftInput();
           clearComposeState();
@@ -3100,7 +3107,10 @@ export function setupHandlers(
       return;
     }
 
-    clearTransientComposeStateForItem(currentItemId);
+    clearTransientComposeStateForItem(
+      currentItemId,
+      currentPaperKey || currentItemId,
+    );
     resetComposePreviewUI();
     closeHistoryMenu();
     closeExportMenu();
@@ -3727,7 +3737,7 @@ export function setupHandlers(
       );
       setActionButtonLabel(
         selectTextBtn,
-        SELECT_TEXT_EXPANDED_LABEL,
+        i18n.addText,
         SELECT_TEXT_COMPACT_LABEL,
         "full",
       );
@@ -4120,7 +4130,10 @@ export function setupHandlers(
       const papers = normalizePaperContextEntries(
         selectedPaperContextCache.get(item.id) || [],
       );
-      const textContexts = getSelectedTextContextEntries(item.id);
+      const textContextKey = getTextContextConversationKey();
+      const textContexts = textContextKey
+        ? getSelectedTextContextEntries(textContextKey)
+        : [];
       const snapshot = JSON.stringify({ files, screenshots, papers, textContexts });
       Zotero.Prefs.set(`${COMPOSE_PREF_PREFIX}${conversationKey}`, snapshot);
     } catch (_) { /* non-critical */ }
@@ -4159,8 +4172,13 @@ export function setupHandlers(
         if (Array.isArray(snapshot.papers) && snapshot.papers.length) {
           selectedPaperContextCache.set(item.id, snapshot.papers);
         }
-        if (Array.isArray(snapshot.textContexts) && snapshot.textContexts.length) {
-          setSelectedTextContextEntries(item.id, snapshot.textContexts);
+        const textContextKey = getTextContextConversationKey();
+        if (
+          textContextKey &&
+          Array.isArray(snapshot.textContexts) &&
+          snapshot.textContexts.length
+        ) {
+          setSelectedTextContextEntries(textContextKey, snapshot.textContexts);
         }
       }
     } catch (_) { /* ignore parse errors */ }
@@ -6135,7 +6153,7 @@ export function setupHandlers(
       const conversationToClear = getConversationKey(item);
       const currentItemId = item.id;
       const libraryID = getCurrentLibraryID();
-      clearTransientComposeStateForItem(currentItemId);
+      clearTransientComposeStateForItem(currentItemId, conversationToClear);
       resetComposePreviewUI();
       void (async () => {
         chatHistory.delete(conversationToClear);

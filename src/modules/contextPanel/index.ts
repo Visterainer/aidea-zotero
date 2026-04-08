@@ -55,6 +55,7 @@ import {
 import { resolvePaperContextRefFromAttachment } from "./paperAttribution";
 import { getSharedLibraryPanelHost } from "./libraryPanel";
 import { getSharedReaderPanelHostForItem } from "./readerPanel";
+import { getPanelI18n } from "./i18n";
 
 // =============================================================================
 // Public API
@@ -283,6 +284,7 @@ export function registerReaderSelectionTracking() {
   const handler: _ZoteroTypes.Reader.EventHandler<
     "renderTextSelectionPopup"
   > = (event) => {
+    const i18n = getPanelI18n();
     const selectedText = (() => {
       const fromAnnotation = normalizeSelectedText(
         event.params?.annotation?.text || "",
@@ -634,8 +636,8 @@ export function registerReaderSelectionTracking() {
             "button",
           ) as HTMLButtonElement;
           addTextBtn.type = "button";
-          addTextBtn.textContent = "Add Text";
-          addTextBtn.title = "Add selected text to LLM panel";
+          addTextBtn.textContent = i18n.addText;
+          addTextBtn.title = i18n.addTextPopupTitle;
           addTextBtn.style.cssText = [
             "display:block",
             "width:100%",

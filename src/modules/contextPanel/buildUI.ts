@@ -507,7 +507,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     {
       id: "llm-select-text",
       textContent: "",
-      title: "Include selected reader text",
+      title: i18n.addTextTitle,
       disabled: !hasItem,
     },
   );

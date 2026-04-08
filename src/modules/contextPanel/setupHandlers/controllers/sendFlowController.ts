@@ -140,7 +140,10 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
 
     const textContextConversationKey = deps.getConversationKey(item);
     const text = deps.inputBox.value.trim();
-    const selectedContexts = deps.getSelectedTextContextEntries(item.id);
+    const selectedContexts =
+      textContextConversationKey > 0
+        ? deps.getSelectedTextContextEntries(textContextConversationKey)
+        : [];
     const selectedTexts = selectedContexts.map((entry) => entry.text);
     const selectedTextSources = selectedContexts.map((entry) => entry.source);
     const selectedTextPaperContexts = selectedContexts.map(
@@ -292,7 +295,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       // they persist across turns until the user explicitly removes them.
       deps.updateImagePreviewPreservingScroll();
       if (primarySelectedText) {
-        deps.clearSelectedTextState(item.id);
+        deps.clearSelectedTextState(textContextConversationKey);
         deps.updateSelectedTextPreviewPreservingScroll();
       }
       deps.setActiveEditSession(null);
@@ -307,7 +310,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
     // they persist across turns until the user explicitly removes them.
     deps.updateImagePreviewPreservingScroll();
     if (primarySelectedText) {
-      deps.clearSelectedTextState(item.id);
+      deps.clearSelectedTextState(textContextConversationKey);
       deps.updateSelectedTextPreviewPreservingScroll();
     }
 

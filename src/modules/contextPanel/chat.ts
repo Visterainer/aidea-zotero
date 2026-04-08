@@ -450,7 +450,7 @@ export async function ensureConversationLoaded(
       // Phase 7: Restore screenshots from the last user message.
       restoreScreenshotsFromMessages(item.id, storedMessages);
       // Phase 8: Restore selected text contexts from the last user message.
-      restoreSelectedTextsFromMessages(item.id, storedMessages);
+      restoreSelectedTextsFromMessages(conversationKey, storedMessages);
     } catch (err) {
       ztoolkit.log("LLM: Failed to load chat history", err);
       if (!chatHistory.has(conversationKey)) {
@@ -1164,11 +1164,11 @@ function restoreScreenshotsFromMessages(
  * Mirrors the pattern used by restoreScreenshotsFromMessages and restoreFileAttachmentsFromMessages.
  */
 function restoreSelectedTextsFromMessages(
-  itemId: number,
+  conversationKey: number,
   storedMessages: StoredChatMessage[],
 ): void {
-  // Don't overwrite if cache already has entries for this item.
-  if (selectedTextCache.has(itemId)) return;
+  // Don't overwrite if cache already has entries for this conversation.
+  if (selectedTextCache.has(conversationKey)) return;
 
   // Walk backwards to find the last user message with selected texts.
   for (let i = storedMessages.length - 1; i >= 0; i--) {
@@ -1197,9 +1197,9 @@ function restoreSelectedTextsFromMessages(
       paperContext: paperContexts[idx],
     }));
 
-    selectedTextCache.set(itemId, contexts);
+    selectedTextCache.set(conversationKey, contexts);
     ztoolkit.log(
-      `LLM: Restored ${contexts.length} selected text(s) for item ${itemId} from DB`,
+      `LLM: Restored ${contexts.length} selected text(s) for conversation ${conversationKey} from DB`,
     );
     break; // Only check the last user message
   }
