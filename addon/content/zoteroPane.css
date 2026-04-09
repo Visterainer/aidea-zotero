@@ -1,5 +1,161 @@
 /* LLM Panel Styles */
 
+/* ═══════════════════════════════════════════════════════════
+   Tab Navigation
+   ═══════════════════════════════════════════════════════════ */
+.llm-tab-nav {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  background: var(--fill-quinary);
+  border-radius: 8px;
+  padding: 2px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.llm-tab-btn {
+  appearance: none;
+  -moz-appearance: none;
+  padding: 4px 2px;
+  font-size: var(--llm-fs-10);
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fill-secondary);
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: inherit;
+}
+
+.llm-tab-btn:hover {
+  color: var(--fill-primary);
+  background: color-mix(in srgb, var(--fill-quinary) 60%, var(--color-accent10));
+}
+
+.llm-tab-btn.active {
+  background: var(--color-accent);
+  color: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tab Content Wrapper (upper shared container)
+   ═══════════════════════════════════════════════════════════ */
+.llm-tab-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: 100vh;
+  height: 50vh;
+  overflow: hidden;
+  resize: vertical;
+  position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tab Bottom Wrapper (lower shared container)
+   ═══════════════════════════════════════════════════════════ */
+.llm-tab-bottom-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 28vh;
+  min-height: 20vh;
+  max-height: 50vh;
+  overflow: hidden;
+  resize: vertical;
+  position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tab Panels & Bottoms (visibility toggle)
+   ═══════════════════════════════════════════════════════════ */
+.llm-tab-panel {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.llm-tab-panel.visible {
+  display: flex;
+}
+
+.llm-tab-bottom {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.llm-tab-bottom.visible {
+  display: flex;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tab Placeholder
+   ═══════════════════════════════════════════════════════════ */
+.llm-tab-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--fill-tertiary);
+  font-size: var(--llm-fs-14);
+  padding: 40px 20px;
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Setting Panel
+   ═══════════════════════════════════════════════════════════ */
+.llm-setting-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+.llm-setting-console {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 8px;
+  gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tab Spacers (mirror Discussion layout in Setting tab)
+   ═══════════════════════════════════════════════════════════ */
+.llm-tab-spacer {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* Mirrors .llm-header height (~28px icon + 4px gap + optional bar) */
+.llm-header-spacer {
+  min-height: 28px;
+}
+
+/* Mirrors .llm-shortcuts height (2px padding + 30px button + 2px padding) */
+.llm-shortcuts-spacer {
+  min-height: 34px;
+}
+
 .llm-panel {
   --llm-font-scale: 1;
   --llm-fs-10: calc(10px * var(--llm-font-scale));
@@ -313,10 +469,9 @@
 }
 
 /* Messages Area */
-.llm-chat-shell,
-.llm-input {
-  resize: vertical;
-}
+/* resize: vertical is now on the shared wrappers
+   (.llm-tab-content-wrapper and .llm-tab-bottom-wrapper),
+   not on individual elements. */
 
 .llm-chat-shell {
   position: relative;
@@ -324,9 +479,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  height: 50vh;
-  min-height: 320px;
-  max-height: 100vh;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -2223,8 +2376,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex-shrink: 0;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   padding: 10px;
   border-radius: 16px;
   border: 1px solid var(--stroke-secondary);
@@ -2575,8 +2729,8 @@
 
 .llm-input {
   width: 100%;
-  min-height: 96px;
-  max-height: 50vh;
+  flex: 1 1 auto;
+  min-height: 60px;
   font: inherit;
   font-size: var(--llm-fs-12);
   padding: 12px 14px;
@@ -2586,9 +2740,6 @@
   background: var(--fill-quaternary);
   color: var(--fill-primary);
   transition: border-color 0.15s;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 2L2 10' stroke='%239CA3AF' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M10 6L6 10' stroke='%239CA3AF' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: bottom 6px right 6px;
 }
 
 .llm-input:focus {

@@ -56,6 +56,8 @@ export type PanelI18n = {
   deleteAllHistory: string;
   cancelAction: string;
   confirmDeleteTitle: string;
+  tabDiscussion: string;
+  tabSetting: string;
 };
 
 declare const Zotero: any;
@@ -134,6 +136,8 @@ export function getPanelI18n(): PanelI18n {
       deleteAllHistory: "Delete all",
       cancelAction: "Cancel",
       confirmDeleteTitle: "Delete conversations",
+      tabDiscussion: "Discussion",
+      tabSetting: "Setting",
     };
   }
   return {
@@ -192,5 +196,7 @@ export function getPanelI18n(): PanelI18n {
     deleteAllHistory: "全部清理",
     cancelAction: "取消",
     confirmDeleteTitle: "删除对话",
+    tabDiscussion: "对话",
+    tabSetting: "设置",
   };
 }
