@@ -136,10 +136,11 @@ export function derivePreferredUserNpmPrefix(
   const base = String(home || "").trim();
   if (!base) return "";
   if (platform === "windows") {
-    const appData = getEnv("APPDATA") || joinPath(base, "AppData", "Roaming");
-    return joinPath(appData, "npm");
+    const appData =
+      getEnv("APPDATA") || joinPath(base, "AppData", "Roaming", platform);
+    return joinPath(appData, "npm", platform);
   }
-  return joinPath(base, ".npm-global");
+  return joinPath(base, ".npm-global", platform);
 }
 
 export function deriveNpmGlobalRootFromPrefix(
@@ -149,8 +150,8 @@ export function deriveNpmGlobalRootFromPrefix(
   const normalized = String(prefix || "").trim();
   if (!normalized) return "";
   return platform === "windows"
-    ? joinPath(normalized, "node_modules")
-    : joinPath(normalized, "lib", "node_modules");
+    ? joinPath(normalized, "node_modules", platform)
+    : joinPath(normalized, "lib", "node_modules", platform);
 }
 
 export function deriveNpmGlobalBinDirFromPrefix(
@@ -159,7 +160,7 @@ export function deriveNpmGlobalBinDirFromPrefix(
 ): string {
   const normalized = String(prefix || "").trim();
   if (!normalized) return "";
-  return platform === "windows" ? normalized : joinPath(normalized, "bin");
+  return platform === "windows" ? normalized : joinPath(normalized, "bin", platform);
 }
 
 export function shouldInstallLatestPackageVersion(
@@ -322,10 +323,21 @@ function homeDir(): string {
   return getEnv("USERPROFILE") || getEnv("HOME") || "";
 }
 
-function joinPath(...parts: string[]): string {
-  const win = currentPlatform() === "windows";
+function joinPath(...parts: Array<string | SupportedPlatform>): string {
+  let platform: SupportedPlatform | undefined;
+  let pathParts = parts as string[];
+  const maybePlatform = parts[parts.length - 1];
+  if (
+    maybePlatform === "windows" ||
+    maybePlatform === "macos" ||
+    maybePlatform === "linux"
+  ) {
+    platform = maybePlatform;
+    pathParts = parts.slice(0, -1) as string[];
+  }
+  const win = (platform || currentPlatform()) === "windows";
   const sep = win ? "\\" : "/";
-  return parts
+  return pathParts
     .filter(Boolean)
     .map((part, idx) => {
       if (idx === 0) return part.replace(/[\\/]+$/g, "");
@@ -1604,6 +1616,62 @@ function dedupeModels(models: ProviderModelOption[]): ProviderModelOption[] {
   }
   out.sort((a, b) => a.id.localeCompare(b.id));
   return out;
+}
+
+/**
+ * Fetch the model list from a custom OpenAI-compatible endpoint.
+ * Calls `GET {apiBase}/models` with an optional Bearer token and parses the
+ * standard `{ data: [{ id, ... }] }` response shape.
+ */
+export async function fetchCustomEndpointModels(
+  apiBase: string,
+  apiKey?: string,
+): Promise<ProviderModelOption[]> {
+  const base = String(apiBase || "").trim().replace(/\/+$/, "");
+  if (!base) return [];
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (apiKey?.trim()) {
+    headers.Authorization = `Bearer ${apiKey.trim()}`;
+  }
+  try {
+    const res = await getFetch()(`${base}/models`, {
+      method: "GET",
+      headers,
+    });
+    if (!res.ok) {
+      throw new Error(`Custom endpoint models HTTP ${res.status}`);
+    }
+    const json = (await res.json()) as unknown;
+    // Standard OpenAI shape: { data: [{ id, ... }] }
+    // Some endpoints return a plain array.
+    const entries = (() => {
+      if (json && typeof json === "object" && "data" in json && Array.isArray((json as any).data)) {
+        return (json as any).data as any[];
+      }
+      if (Array.isArray(json)) return json;
+      // Ollama /v1/models wraps in { models: [...] }
+      if (json && typeof json === "object" && "models" in json && Array.isArray((json as any).models)) {
+        return (json as any).models as any[];
+      }
+      return [];
+    })();
+    const rows: ProviderModelOption[] = entries
+      .map((m: any) => {
+        const id = String(m?.id || m?.model || m?.name || "").trim();
+        const label = String(m?.name || m?.id || "").trim() || id;
+        return { id, label };
+      })
+      .filter((m: ProviderModelOption) => m.id);
+    if (rows.length > 0) {
+      ztoolkit?.log?.(
+        `AIdea: Custom endpoint models (${rows.length}): ${rows.slice(0, 10).map((r) => r.id).join(", ")}${rows.length > 10 ? "..." : ""}`,
+      );
+    }
+    return dedupeModels(rows);
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: fetchCustomEndpointModels failed", err);
+    throw err;
+  }
 }
 
 // ─── Gemini in-plugin OAuth (Authorization Code + PKCE) ───

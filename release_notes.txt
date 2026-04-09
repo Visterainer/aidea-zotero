@@ -1,0 +1,9 @@
+## ✨ What's Changed
+
+- 🔧 **OAuth & Login**: Fixed an initialization failure where Gemini CLI v0.36.0+ could not be detected, resolving the OAuth login blockage for new users (@merlin-light).
+- 👁️ **Reader UI**: Localized the "Add Text" popup option and its tooltip in the PDF reader to support seamless bilingual (English/Chinese) display based on language preferences (@sdyalong123-beep).
+
+## 📝 更新内容
+
+- 🔧 **登录与授权**：修复了因目录结构更改导致 Gemini CLI v0.36.0 及以上版本无法被正确检测的问题，彻底解决了新用户在首次尝试 OAuth 授权时卡在“未找到 CLI”异常的 Bug (@merlin-light)。
+- 👁️ **阅读器界面**：对 PDF 中划词弹出的 "Add Text"（添加文本）快捷选项及其悬浮提示进行了深度的国际化支持，现在可根据用户的环境偏好自动进行中英文的动态切换展示 (@sdyalong123-beep)。

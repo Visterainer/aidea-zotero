@@ -3,6 +3,7 @@ import { HTML_NS } from "../utils/domHelpers";
 import {
   autoConfigureEnvironment,
   fetchAvailableModels,
+  fetchCustomEndpointModels,
   getProviderAccountSummary,
   getProviderLabel,
   providerToMarker,
@@ -110,6 +111,11 @@ const I18N = {
     customModel: "Model *",
     customModelPlaceholder: "例如：gpt-4.1-mini 或 llama3.1:8b",
     customModelHint: "自定义模式请求成功至少需要 API Base URL 和 Model。",
+    fetchModels: "获取模型列表",
+    fetchModelsRunning: "正在获取模型列表...",
+    fetchModelsDone: "已获取 {n} 个模型",
+    fetchModelsFailed: "获取模型列表失败，请检查 API Base URL 和 API Key",
+    fetchModelsEmpty: "未找到可用模型",
     customModeDisabled:
       "当前使用 OAuth 提供商模式；已保存的自定义值会保留，切回自定义模式即可继续使用。",
     customModeMissing:
@@ -178,6 +184,11 @@ const I18N = {
     customModelPlaceholder: "Example: gpt-4.1-mini or llama3.1:8b",
     customModelHint:
       "A successful custom-mode request requires API Base URL and Model.",
+    fetchModels: "Fetch Models",
+    fetchModelsRunning: "Fetching models...",
+    fetchModelsDone: "{n} models found",
+    fetchModelsFailed: "Failed to fetch models. Check API Base URL and API Key.",
+    fetchModelsEmpty: "No models found",
     customModeDisabled:
       "OAuth provider mode is active. Saved custom values are retained; switch back to custom mode to use them.",
     customModeMissing:
@@ -752,12 +763,28 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   ) as HTMLInputElement;
   customModelInput.id = `${config.addonRef}-custom-model`;
   customModelInput.type = "text";
+  // datalist for model autocomplete
+  const customModelDatalist = doc.createElementNS(HTML_NS, "datalist") as HTMLDataListElement;
+  customModelDatalist.id = `${config.addonRef}-custom-model-list`;
+  customModelInput.setAttribute("list", customModelDatalist.id);
+  const customModelInputRow = createNode(
+    doc,
+    "div",
+    "display:flex; gap:6px; align-items:center;",
+  );
+  const fetchModelsBtn = createNode(
+    doc,
+    "button",
+    "padding:8px 12px; font-size:12px; border:1px solid #0284c7; background:#0284c7; color:#fff; border-radius:6px; cursor:pointer; white-space:nowrap; flex-shrink:0;",
+  ) as HTMLButtonElement;
+  fetchModelsBtn.type = "button";
+  customModelInputRow.append(customModelInput, fetchModelsBtn);
   const customModelHint = createNode(
     doc,
     "span",
     "font-size:11px; color:#666; line-height:1.5;",
   );
-  customModelField.append(customModelLabel, customModelInput, customModelHint);
+  customModelField.append(customModelLabel, customModelInputRow, customModelDatalist, customModelHint);
 
   const customModeStatus = createNode(
     doc,
@@ -911,6 +938,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     customModelLabel.textContent = L.customModel;
     customModelInput.placeholder = L.customModelPlaceholder;
     customModelHint.textContent = L.customModelHint;
+    fetchModelsBtn.textContent = L.fetchModels;
     for (const provider of PROVIDERS) {
       const refs = providerCards.get(provider);
       if (!refs) continue;
@@ -1575,6 +1603,58 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   customApiKeyInput.addEventListener("blur", persistCustomApiKey);
   customModelInput.addEventListener("change", persistCustomModel);
   customModelInput.addEventListener("blur", persistCustomModel);
+
+  // ── Fetch Models button handler ──
+  let fetchModelsBusy = false;
+  fetchModelsBtn.addEventListener("click", async () => {
+    if (fetchModelsBusy) return;
+    const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
+    if (!apiBase) {
+      customModelHint.textContent = L.fetchModelsFailed;
+      customModelHint.style.color = "#dc2626";
+      return;
+    }
+    fetchModelsBusy = true;
+    fetchModelsBtn.disabled = true;
+    const prevText = fetchModelsBtn.textContent;
+    fetchModelsBtn.textContent = L.fetchModelsRunning;
+    customModelHint.textContent = L.fetchModelsRunning;
+    customModelHint.style.color = "#6b7280";
+    try {
+      const apiKey = customApiKeyInput.value.trim();
+      const models = await fetchCustomEndpointModels(apiBase, apiKey || undefined);
+      // Populate datalist
+      while (customModelDatalist.firstChild) {
+        customModelDatalist.removeChild(customModelDatalist.firstChild);
+      }
+      for (const m of models) {
+        const opt = doc.createElementNS(HTML_NS, "option") as HTMLOptionElement;
+        opt.value = m.id;
+        if (m.label && m.label !== m.id) opt.textContent = m.label;
+        customModelDatalist.appendChild(opt);
+      }
+      if (models.length > 0) {
+        customModelHint.textContent = L.fetchModelsDone.replace("{n}", String(models.length));
+        customModelHint.style.color = "#065f46";
+        // If model field is empty, auto-select the first model
+        if (!customModelInput.value.trim() && models.length > 0) {
+          customModelInput.value = models[0].id;
+          persistCustomModel();
+        }
+      } else {
+        customModelHint.textContent = L.fetchModelsEmpty;
+        customModelHint.style.color = "#b45309";
+      }
+    } catch (err) {
+      customModelHint.textContent = L.fetchModelsFailed;
+      customModelHint.style.color = "#dc2626";
+      ztoolkit?.log?.("AIdea: Fetch models button error", err);
+    } finally {
+      fetchModelsBusy = false;
+      fetchModelsBtn.disabled = false;
+      fetchModelsBtn.textContent = prevText || L.fetchModels;
+    }
+  });
 
   renderStaticText();
   renderModels();
