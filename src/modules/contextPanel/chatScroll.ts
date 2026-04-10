@@ -53,6 +53,14 @@ export function isScrollUpdateSuspended(): boolean {
   return _scrollUpdatesSuspended;
 }
 
+export function suspendScrollUpdates(): void {
+  _scrollUpdatesSuspended = true;
+}
+
+export function resumeScrollUpdates(): void {
+  _scrollUpdatesSuspended = false;
+}
+
 // ---------------------------------------------------------------------------
 // Low-level helpers
 // ---------------------------------------------------------------------------

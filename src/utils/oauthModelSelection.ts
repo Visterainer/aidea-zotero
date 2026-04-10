@@ -29,14 +29,7 @@ export function parseModelSelectionCache(
         .filter((entry): entry is string => typeof entry === "string")
         .map((entry) => entry.trim())
         .filter(Boolean);
-      if (
-        provider === "openai-codex" ||
-        provider === "google-gemini-cli" ||
-        provider === "qwen" ||
-        provider === "github-copilot"
-      ) {
-        out[provider] = dedupeModelIds(ids);
-      }
+      out[provider as OAuthProviderId] = dedupeModelIds(ids);
     }
     return out;
   } catch {
@@ -189,16 +182,17 @@ export function getSelectedProviderModels(
 }
 
 export function reconcileModelSelectionCache(
-  modelCache: Partial<Record<OAuthProviderId, ProviderModelOption[]>>,
+  modelCache: Partial<Record<string, ProviderModelOption[]>>,
   selectionCache: ProviderModelSelectionCache,
 ): { cache: ProviderModelSelectionCache; changed: boolean } {
   const next: ProviderModelSelectionCache = {};
-  const providers: OAuthProviderId[] = [
+  const providers = Array.from(new Set([
     "openai-codex",
     "google-gemini-cli",
     "qwen",
     "github-copilot",
-  ];
+    ...Object.keys(modelCache)
+  ])) as OAuthProviderId[];
 
   for (const provider of providers) {
     const models = modelCache[provider] || [];
@@ -223,12 +217,14 @@ function sameSelectionCache(
   left: ProviderModelSelectionCache,
   right: ProviderModelSelectionCache,
 ): boolean {
-  const providers = new Set<OAuthProviderId>([
+  const providers = new Set([
     "openai-codex",
     "google-gemini-cli",
     "qwen",
     "github-copilot",
-  ]);
+    ...Object.keys(left),
+    ...Object.keys(right)
+  ]) as Set<OAuthProviderId>;
 
   for (const provider of providers) {
     const leftHas = hasOwn(left, provider);

@@ -272,14 +272,31 @@ function createNode<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+/** Create an element with CSS class names (space-separated) instead of inline styles. */
+function createEl<K extends keyof HTMLElementTagNameMap>(
+  doc: Document,
+  tag: K,
+  className?: string,
+  text?: string,
+) {
+  const el = doc.createElementNS(HTML_NS, tag) as HTMLElementTagNameMap[K];
+  if (className) {
+    for (const c of className.split(/\s+/)) {
+      if (c) el.classList.add(c);
+    }
+  }
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
 function parseModelCache(): Partial<
-  Record<OAuthProviderId, ProviderModelOption[]>
+  Record<string, ProviderModelOption[]>
 > {
   const raw = (getPref("oauthModelListCache") || "").trim();
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as Partial<
-      Record<OAuthProviderId, ProviderModelOption[]>
+      Record<string, ProviderModelOption[]>
     >;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -288,7 +305,7 @@ function parseModelCache(): Partial<
 }
 
 function saveModelCache(
-  cache: Partial<Record<OAuthProviderId, ProviderModelOption[]>>,
+  cache: Partial<Record<string, ProviderModelOption[]>>,
 ) {
   setPref("oauthModelListCache", JSON.stringify(cache));
 }
@@ -305,22 +322,24 @@ function saveModelSelectionState(selectionCache: ProviderModelSelectionCache) {
 }
 
 export function syncSidebarModelPrefsFromSelection(
-  cache: Partial<Record<OAuthProviderId, ProviderModelOption[]>>,
+  cache: Partial<Record<string, ProviderModelOption[]>>,
   selectionCache: ProviderModelSelectionCache,
 ) {
-  const flattened: Array<{ provider: OAuthProviderId; model: string }> = [];
-  for (const provider of PROVIDERS) {
+  const flattened: Array<{ provider: string; model: string; apiBase?: string; apiKey?: string }> = [];
+  const activeProviders = Array.from(new Set([...PROVIDERS, ...Object.keys(cache)]));
+
+  for (const provider of activeProviders) {
     const selected = new Set(
       reconcileProviderModelSelection(
-        provider,
-        cache[provider] || [],
+        provider as OAuthProviderId,
+        cache[provider as OAuthProviderId] || [],
         selectionCache,
       ).map(normalizeModelId),
     );
-    for (const row of cache[provider] || []) {
+    for (const row of cache[provider as OAuthProviderId] || []) {
       const id = String(row.id || "").trim();
       if (!id || !selected.has(normalizeModelId(id))) continue;
-      flattened.push({ provider, model: id });
+      flattened.push({ provider, model: id, apiBase: row.apiBase, apiKey: row.apiKey });
       if (flattened.length >= 4) break;
     }
     if (flattened.length >= 4) break;
@@ -328,18 +347,28 @@ export function syncSidebarModelPrefsFromSelection(
 
   PROFILE_KEYS.forEach((suffix, idx) => {
     const entry = flattened[idx];
-    setPref(
-      `apiBase${suffix}` as PrefKey,
-      entry ? providerToMarker(entry.provider) : "",
-    );
-    setPref(`apiKey${suffix}` as PrefKey, "");
+    if (entry && entry.apiBase) {
+      setPref(`apiBase${suffix}` as PrefKey, entry.apiBase);
+      setPref(`apiKey${suffix}` as PrefKey, entry.apiKey || "");
+    } else {
+      setPref(
+        `apiBase${suffix}` as PrefKey,
+        entry ? providerToMarker(entry.provider as OAuthProviderId) : "",
+      );
+      setPref(`apiKey${suffix}` as PrefKey, "");
+    }
     setPref(`model${suffix}` as PrefKey, entry ? entry.model : "");
   });
 
   const first = flattened[0];
   if (getPrimaryConnectionMode() !== "custom") {
-    setPref("apiBase", first ? providerToMarker(first.provider) : "");
-    setPref("apiKey", "");
+    if (first && first.apiBase) {
+      setPref("apiBase", first.apiBase);
+      setPref("apiKey", first.apiKey || "");
+    } else {
+      setPref("apiBase", first ? providerToMarker(first.provider as OAuthProviderId) : "");
+      setPref("apiKey", "");
+    }
     setPref("model", first ? first.model : "");
   }
 }
@@ -444,10 +473,9 @@ function refreshAllSidebarShortcuts(
   }
 }
 
-export async function registerPrefsScripts(_window: Window | undefined | null) {
-  if (!_window) return;
-  const win = _window;
-  const doc = win.document;
+export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLElement, consoleContainer: HTMLElement) {
+  const win = doc.defaultView;
+  if (!win) return;
   await new Promise((r) => setTimeout(r, 80));
 
   let lang = getLang();
@@ -460,89 +488,49 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     saveModelSelectionState(selectionCache);
   }
 
-  const modelSections = doc.querySelector(
-    `#${config.addonRef}-model-sections`,
-  ) as HTMLDivElement | null;
-  if (!modelSections) return;
-  modelSections.innerHTML = "";
+  const root = createEl(doc, "div", "llm-settings-root");
+  scrollContainer.appendChild(root);
 
-  const root = createNode(
-    doc,
-    "div",
-    "display:flex; flex-direction:column; gap:14px;",
-  );
-  modelSections.appendChild(root);
-
-  const langBox = createNode(
-    doc,
-    "div",
-    "border:1px solid #ddd; border-radius:8px; padding:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;",
-  );
-  const langLabel = createNode(
-    doc,
-    "label",
-    "font-weight:700; font-size:13px;",
-  );
+  const langBox = createEl(doc, "div", "llm-set-card llm-set-card--inline");
+  const langLabel = createEl(doc, "label", "llm-set-label");
 
   // Custom dropdown — native <select> shows a bullet on the selected <option> in Gecko
   const LANG_OPTIONS: { value: Lang; label: string }[] = [
     { value: "zh-CN", label: "CN" },
     { value: "en-US", label: "EN" },
   ];
-  const dropdownWrap = createNode(
-    doc,
-    "div",
-    "position:relative; display:inline-block;",
-  );
-  const dropdownBtn = createNode(
-    doc,
-    "button",
-    "padding:6px 12px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-weight:600; background:#fff; cursor:pointer; min-width:80px; display:flex; align-items:center; justify-content:space-between; gap:8px;",
-  ) as HTMLButtonElement;
+  const dropdownWrap = createEl(doc, "div", "llm-set-dropdown-wrap");
+  const dropdownBtn = createEl(doc, "button", "llm-set-dropdown-btn") as HTMLButtonElement;
   dropdownBtn.type = "button";
-  const dropdownBtnLabel = createNode(
-    doc,
-    "span",
-    "",
+  const dropdownBtnLabel = createEl(
+    doc, "span", "",
     LANG_OPTIONS.find((o) => o.value === lang)?.label ?? lang,
   );
-  const dropdownBtnArrow = createNode(
-    doc,
-    "span",
-    "font-size:10px; color:#666;",
-    "\u25be",
-  );
+  const dropdownBtnArrow = createEl(doc, "span", "llm-set-dropdown-arrow", "\u25be");
   dropdownBtn.append(dropdownBtnLabel, dropdownBtnArrow);
 
-  const dropdownList = createNode(
-    doc,
-    "div",
-    "position:absolute; top:calc(100% + 2px); left:0; min-width:100%; border:1px solid #ccc; border-radius:6px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,.12); z-index:9999; overflow:hidden; display:none;",
-  );
+  const dropdownList = createEl(doc, "div", "llm-set-dropdown-list");
 
   const dropdownItems = LANG_OPTIONS.map((opt) => {
-    const item = createNode(
-      doc,
-      "div",
-      "padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; background:#fff; color:#111; white-space:nowrap;",
-      opt.label,
-    );
+    const item = createEl(doc, "div", "llm-set-dropdown-item", opt.label);
     item.addEventListener("mouseenter", () => {
       item.style.background = "#f3f4f6";
     });
     item.addEventListener("mouseleave", () => {
-      item.style.background = lang === opt.value ? "#eff6ff" : "#fff";
+      item.classList.toggle("llm-set-dropdown-item--active", lang === opt.value);
+      item.style.background = "";
     });
     item.addEventListener("click", () => {
       switchLang(opt.value);
       dropdownBtnLabel.textContent = opt.label;
       dropdownList.style.display = "none";
       dropdownItems.forEach((i) => {
-        i.style.background = "#fff";
+        i.classList.remove("llm-set-dropdown-item--active");
+        i.style.background = "";
       });
-      item.style.background = "#eff6ff";
+      item.classList.add("llm-set-dropdown-item--active");
     });
-    if (opt.value === lang) item.style.background = "#eff6ff";
+    if (opt.value === lang) item.classList.add("llm-set-dropdown-item--active");
     dropdownList.appendChild(item);
     return item;
   });
@@ -552,7 +540,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     dropdownList.style.display =
       dropdownList.style.display === "none" ? "block" : "none";
   });
-  doc.addEventListener("click", () => {
+  // Scope the "click outside to close" listener to the settings scroll area
+  // instead of the entire Zotero document to avoid a permanent global listener leak.
+  scrollContainer.addEventListener("click", () => {
     dropdownList.style.display = "none";
   });
 
@@ -570,96 +560,43 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   langBox.append(langLabel, dropdownWrap);
   root.appendChild(langBox);
 
-  const envBox = createNode(
-    doc,
-    "div",
-    "border:1px dashed #bbb; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:10px;",
-  );
-  const envTitle = createNode(doc, "div", "font-weight:700; font-size:14px;");
-  const envActionRow = createNode(
-    doc,
-    "div",
-    "display:flex; gap:10px; align-items:center; flex-wrap:wrap;",
-  );
-  const commonBtnStyle =
-    "padding:10px 16px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-align:center; font-weight:600; line-height:1;";
-  const refreshAllBtn = createNode(
-    doc,
-    "button",
-    `${commonBtnStyle} border:1px solid #666; background:#fff; color:#111;`,
-  ) as HTMLButtonElement;
+  const envBox = createEl(doc, "div", "llm-set-card llm-set-card--dashed");
+  const envTitle = createEl(doc, "div", "llm-set-title");
+  const envActionRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+  const refreshAllBtn = createEl(doc, "button", "llm-set-btn") as HTMLButtonElement;
   refreshAllBtn.type = "button";
-  const restoreDefaultsBtn = createNode(
-    doc,
-    "button",
-    `${commonBtnStyle} border:1px solid #d97706; background:#fff; color:#b45309;`,
-  ) as HTMLButtonElement;
+  const restoreDefaultsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--warn") as HTMLButtonElement;
   restoreDefaultsBtn.type = "button";
-  const clearAllHistoryBtn = createNode(
-    doc,
-    "button",
-    `${commonBtnStyle} border:1px solid #dc2626; background:#fff; color:#b91c1c;`,
-  ) as HTMLButtonElement;
+  const clearAllHistoryBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--danger") as HTMLButtonElement;
   clearAllHistoryBtn.type = "button";
-  const dangerStatus = createNode(
-    doc,
-    "span",
-    "font-size:12px; color:#555; white-space:pre-wrap;",
-  );
+  const dangerStatus = createEl(doc, "span", "llm-set-status");
   envActionRow.append(
     refreshAllBtn,
     restoreDefaultsBtn,
     clearAllHistoryBtn,
     dangerStatus,
   );
-  const progressText = createNode(
-    doc,
-    "span",
-    "font-size:12px; color:#555; white-space:pre-wrap;",
-  );
-  const progressList = createNode(
-    doc,
-    "div",
-    "border:1px solid #e5e7eb; border-radius:8px; padding:8px; max-height:140px; overflow:auto; background:#fafafa; font-size:12px; line-height:1.4;",
-  );
-  const logsBox = createNode(
-    doc,
-    "textarea",
-    "width:100%; min-height:120px; padding:8px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; font-size:12px;",
-  ) as HTMLTextAreaElement;
+  const progressText = createEl(doc, "span", "llm-set-status");
+  const progressList = createEl(doc, "div", "llm-set-progress-list");
+  const logsBox = createEl(doc, "textarea", "llm-set-logs-area") as HTMLTextAreaElement;
   logsBox.readOnly = true;
   logsBox.value = getPref("oauthSetupLog") || "";
 
-  envBox.append(envTitle, envActionRow, progressText, progressList, logsBox);
+  envBox.append(envTitle, envActionRow, progressText);
   root.appendChild(envBox);
 
-  const connectionModeBox = createNode(
-    doc,
-    "div",
-    "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:10px;",
-  );
-  const connectionModeTitle = createNode(
-    doc,
-    "div",
-    "font-weight:700; font-size:14px;",
-  );
-  const connectionModeHint = createNode(
-    doc,
-    "div",
-    "font-size:12px; color:#555; line-height:1.5;",
-  );
-  const connectionModeRow = createNode(
-    doc,
-    "div",
-    "display:flex; gap:16px; align-items:center; flex-wrap:wrap;",
-  );
+  // Console section — inline in scroll area between Environment and Connection Mode
+  const consoleCard = createEl(doc, "div", "llm-set-card");
+  consoleCard.append(progressList, logsBox);
+  root.appendChild(consoleCard);
+
+  const connectionModeBox = createEl(doc, "div", "llm-set-card");
+  const connectionModeTitle = createEl(doc, "div", "llm-set-title");
+  const connectionModeHint = createEl(doc, "div", "llm-set-hint");
+  const connectionModeRow = createEl(doc, "div", "llm-set-row llm-set-gap-lg");
   const connectionModeGroupName = `${config.addonRef}-primary-connection-mode`;
-  const oauthModeOption = createNode(
-    doc,
-    "label",
-    "display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;",
-  );
-  const oauthModeRadio = createNode(doc, "input") as HTMLInputElement;
+  const oauthModeOption = createEl(doc, "label", "llm-set-radio-label");
+  const oauthModeRadio = createEl(doc, "input") as HTMLInputElement;
   oauthModeRadio.type = "radio";
   oauthModeRadio.name = connectionModeGroupName;
   oauthModeRadio.id = `${config.addonRef}-primary-connection-mode-oauth`;
@@ -680,122 +617,135 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   customModeOption.append(customModeRadio, customModeText);
   connectionModeRow.append(oauthModeOption, customModeOption);
 
-  const customFieldsBox = createNode(
-    doc,
-    "div",
-    "display:flex; flex-direction:column; gap:10px; padding-top:6px; border-top:1px solid #f3f4f6;",
-  );
+  const customFieldsBox = createEl(doc, "div", "llm-set-custom-fields");
   customFieldsBox.id = `${config.addonRef}-custom-openai-fields`;
 
-  const customApiBaseField = createNode(
-    doc,
-    "div",
-    "display:flex; flex-direction:column; gap:4px;",
-  );
-  const customApiBaseLabel = createNode(
-    doc,
-    "label",
-    "font-weight:600; font-size:13px;",
-  );
+  const customApiBaseField = createEl(doc, "div", "llm-set-field");
+  const customApiBaseLabel = createEl(doc, "label", "llm-set-label");
   customApiBaseLabel.setAttribute("for", `${config.addonRef}-custom-api-base`);
-  const customApiBaseInput = createNode(
-    doc,
-    "input",
-    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; color:#111; caret-color:#111;",
-  ) as HTMLInputElement;
+  const customApiBaseInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
   customApiBaseInput.id = `${config.addonRef}-custom-api-base`;
   customApiBaseInput.type = "text";
-  const customApiBaseHint = createNode(
-    doc,
-    "span",
-    "font-size:11px; color:#666; line-height:1.5;",
-  );
-  customApiBaseField.append(
-    customApiBaseLabel,
-    customApiBaseInput,
-    customApiBaseHint,
-  );
+  const customApiBaseHint = createEl(doc, "span", "llm-set-hint");
+  customApiBaseField.append(customApiBaseLabel, customApiBaseInput, customApiBaseHint);
 
-  const customApiKeyField = createNode(
-    doc,
-    "div",
-    "display:flex; flex-direction:column; gap:4px;",
-  );
-  const customApiKeyLabel = createNode(
-    doc,
-    "label",
-    "font-weight:600; font-size:13px;",
-  );
+  const customApiKeyField = createEl(doc, "div", "llm-set-field");
+  const customApiKeyLabel = createEl(doc, "label", "llm-set-label");
   customApiKeyLabel.setAttribute("for", `${config.addonRef}-custom-api-key`);
-  const customApiKeyInput = createNode(
-    doc,
-    "input",
-    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; color:#111; caret-color:#111;",
-  ) as HTMLInputElement;
+  const customApiKeyInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
   customApiKeyInput.id = `${config.addonRef}-custom-api-key`;
   customApiKeyInput.type = "password";
-  const customApiKeyHint = createNode(
-    doc,
-    "span",
-    "font-size:11px; color:#666; line-height:1.5;",
-  );
-  customApiKeyField.append(
-    customApiKeyLabel,
-    customApiKeyInput,
-    customApiKeyHint,
-  );
+  const customApiKeyHint = createEl(doc, "span", "llm-set-hint");
+  customApiKeyField.append(customApiKeyLabel, customApiKeyInput, customApiKeyHint);
 
-  const customModelField = createNode(
-    doc,
-    "div",
-    "display:flex; flex-direction:column; gap:4px;",
-  );
-  const customModelLabel = createNode(
-    doc,
-    "label",
-    "font-weight:600; font-size:13px;",
-  );
+  const customModelField = createEl(doc, "div", "llm-set-field");
+  const customModelLabel = createEl(doc, "label", "llm-set-label");
   customModelLabel.setAttribute("for", `${config.addonRef}-custom-model`);
-  const customModelInput = createNode(
-    doc,
-    "input",
-    "width:100%; padding:8px 12px; font-size:13px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; color:#111; caret-color:#111;",
-  ) as HTMLInputElement;
+  const customModelInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
   customModelInput.id = `${config.addonRef}-custom-model`;
   customModelInput.type = "text";
-  // datalist for model autocomplete
   const customModelDatalist = doc.createElementNS(HTML_NS, "datalist") as HTMLDataListElement;
   customModelDatalist.id = `${config.addonRef}-custom-model-list`;
   customModelInput.setAttribute("list", customModelDatalist.id);
-  const customModelInputRow = createNode(
-    doc,
-    "div",
-    "display:flex; gap:6px; align-items:center;",
-  );
-  const fetchModelsBtn = createNode(
-    doc,
-    "button",
-    "padding:8px 12px; font-size:12px; border:1px solid #0284c7; background:#0284c7; color:#fff; border-radius:6px; cursor:pointer; white-space:nowrap; flex-shrink:0;",
-  ) as HTMLButtonElement;
+  const customModelInputRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+  const fetchModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--accent") as HTMLButtonElement;
   fetchModelsBtn.type = "button";
   customModelInputRow.append(customModelInput, fetchModelsBtn);
-  const customModelHint = createNode(
-    doc,
-    "span",
-    "font-size:11px; color:#666; line-height:1.5;",
-  );
+  const customModelHint = createEl(doc, "span", "llm-set-hint");
   customModelField.append(customModelLabel, customModelInputRow, customModelDatalist, customModelHint);
 
-  const customModeStatus = createNode(
-    doc,
-    "div",
-    "font-size:12px; line-height:1.5; color:#6b7280;",
-  );
+  const fetchedModelsBox = createEl(doc, "div", "llm-set-fetched-panel");
+  const fetchedModelsHeader = createEl(doc, "div", "llm-set-row llm-set-row--spread");
+  const fetchedModelsLabelRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+  const fetchedModelsLabelText = createEl(doc, "label", "llm-set-label");
+  const fetchedModelsLabelInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  fetchedModelsLabelInput.style.width = "auto";
+  fetchedModelsLabelInput.style.minWidth = "120px";
+  fetchedModelsLabelInput.value = "custom api";
+  fetchedModelsLabelInput.type = "text";
+  fetchedModelsLabelRow.append(fetchedModelsLabelText, fetchedModelsLabelInput);
+  const fetchedModelsHeaderRight = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+  const addCustomModelBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill");
+  const saveModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--success llm-set-btn--pill");
+  fetchedModelsHeaderRight.append(addCustomModelBtn, saveModelsBtn);
+  fetchedModelsHeader.append(fetchedModelsLabelRow, fetchedModelsHeaderRight);
+  const fetchedModelsList = createEl(doc, "div", "llm-set-fetched-list");
+  fetchedModelsBox.append(fetchedModelsHeader, fetchedModelsList);
+  
+  let lastFetchedModels: { id: string; label: string; checked: boolean }[] = [];
+
+  const renderFetchedModels = () => {
+    fetchedModelsList.innerHTML = "";
+    for (const m of lastFetchedModels) {
+      const row = createEl(doc, "label", "llm-set-fetched-row");
+      const cb = createEl(doc, "input") as HTMLInputElement;
+      cb.type = "checkbox";
+      cb.checked = m.checked;
+      cb.addEventListener("change", () => { m.checked = cb.checked; });
+      const textLabel = createNode(doc, "span", "word-break:break-all;", m.label || m.id);
+      row.append(cb, textLabel);
+      fetchedModelsList.append(row);
+    }
+  };
+
+  addCustomModelBtn.addEventListener("click", () => {
+    const newId = win.prompt(lang === "zh-CN" ? "请输入自定义模型名称 (ID):" : "Enter custom model ID:");
+    if (!newId) return;
+    const trimmed = newId.trim();
+    if (!trimmed) return;
+    if (!lastFetchedModels.find(m => m.id === trimmed)) {
+      lastFetchedModels.unshift({ id: trimmed, label: trimmed, checked: true });
+      renderFetchedModels();
+    }
+  });
+
+  saveModelsBtn.addEventListener("click", () => {
+    const label = fetchedModelsLabelInput.value.trim() || "custom api";
+    const selected = lastFetchedModels.filter(m => m.checked);
+    const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
+    const apiKey = customApiKeyInput.value.trim();
+    
+    // Issue 4 fix: If a different label already has models with the same apiBase,
+    // remove that old entry to prevent duplicate provider groups.
+    if (apiBase) {
+      for (const existingLabel of Object.keys(cache)) {
+        if (existingLabel === label) continue;
+        const existingModels = cache[existingLabel as OAuthProviderId] || [];
+        const hasMatchingBase = existingModels.some(m => m.apiBase === apiBase);
+        if (hasMatchingBase) {
+          delete cache[existingLabel as OAuthProviderId];
+          // Also clean selection cache for the old label
+          if (selectionCache[existingLabel as OAuthProviderId] !== undefined) {
+            delete selectionCache[existingLabel as OAuthProviderId];
+          }
+        }
+      }
+    }
+    
+    const existing = cache[label as OAuthProviderId] || [];
+    const newModels = selected.map(m => ({ id: m.id, label: m.label, apiBase, apiKey }));
+    
+    const mergedMap = new Map();
+    for (const m of existing) mergedMap.set(m.id, m);
+    for (const m of newModels) mergedMap.set(m.id, m);
+    
+    cache = { ...cache, [label as OAuthProviderId]: Array.from(mergedMap.values()) };
+    saveModelCache(cache);
+    persistSelectionState();
+    renderModels();
+    
+    fetchedModelsBox.style.display = "none";
+    customModelHint.textContent = lang === "zh-CN" ? "模型已保存" : "Models saved";
+    customModelHint.style.color = "#059669";
+  });
+
+  const customModeStatus = createEl(doc, "div", "llm-set-status");
   customModeStatus.id = `${config.addonRef}-custom-openai-status`;
   customFieldsBox.append(
     customApiBaseField,
     customApiKeyField,
     customModelField,
+    fetchedModelsBox,
     customModeStatus,
   );
   connectionModeBox.append(
@@ -810,10 +760,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     input: HTMLInputElement,
     missing: boolean,
   ) => {
-    input.style.borderColor = missing ? "#dc2626" : "#ccc";
-    input.style.background = missing ? "#fef2f2" : "#fff";
-    input.style.color = "#111";
-    input.style.caretColor = "#111";
+    input.classList.toggle("llm-set-input--error", missing);
   };
 
   const updateCustomModeUi = () => {
@@ -867,39 +814,19 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   oauthModeRadio.checked = initialMode !== "custom";
   customModeRadio.checked = initialMode === "custom";
 
-  const authCards = createNode(
-    doc,
-    "div",
-    "display:flex; flex-direction:column; gap:12px;",
-  );
+  const authCards = createEl(doc, "div", "llm-settings-root");
   root.appendChild(authCards);
 
-  const accountsBox = createNode(
-    doc,
-    "div",
-    "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;",
-  );
-  const accountsTitle = createNode(
-    doc,
-    "div",
-    "font-weight:700; font-size:14px;",
-  );
-  const accountsTable = createNode(doc, "div", "font-size:12px;");
+  const accountsBox = createEl(doc, "div", "llm-set-card");
+  const accountsTitle = createEl(doc, "div", "llm-set-title");
+  const accountsTable = createEl(doc, "div", "llm-set-table");
   accountsBox.append(accountsTitle, accountsTable);
   root.appendChild(accountsBox);
 
-  const modelsBox = createNode(
-    doc,
-    "div",
-    "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;",
-  );
-  const modelsTitle = createNode(
-    doc,
-    "div",
-    "font-weight:700; font-size:14px;",
-  );
-  const modelsTable = createNode(doc, "div", "font-size:12px;");
-  const note = createNode(doc, "div", "font-size:12px; color:#555;");
+  const modelsBox = createEl(doc, "div", "llm-set-card");
+  const modelsTitle = createEl(doc, "div", "llm-set-title");
+  const modelsTable = createEl(doc, "div", "llm-set-table");
+  const note = createEl(doc, "div", "llm-set-hint");
   modelsBox.append(modelsTitle, modelsTable, note);
   root.appendChild(modelsBox);
 
@@ -939,6 +866,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     customModelInput.placeholder = L.customModelPlaceholder;
     customModelHint.textContent = L.customModelHint;
     fetchModelsBtn.textContent = L.fetchModels;
+    fetchedModelsLabelText.textContent = lang === "zh-CN" ? "提供商标签:" : "Provider Label:";
+    addCustomModelBtn.textContent = lang === "zh-CN" ? "➕ 添加自定义模型" : "➕ Add Custom";
+    saveModelsBtn.textContent = lang === "zh-CN" ? "💾 保存勾选模型" : "💾 Save Models";
     for (const provider of PROVIDERS) {
       const refs = providerCards.get(provider);
       if (!refs) continue;
@@ -978,6 +908,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     selectionCache = reconciled.cache;
     saveModelSelectionState(selectionCache);
     syncSidebarModelPrefsFromSelection(cache, selectionCache);
+    // Notify all open Discussion tabs to refresh their model menus
+    try { doc.dispatchEvent(new Event("llm-models-changed")); } catch { /* ignore */ }
   };
 
   const setProviderSelection = (
@@ -1005,28 +937,20 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
   const renderAccounts = async () => {
     accountsTable.innerHTML = "";
-    const header = createNode(
-      doc,
-      "div",
-      "display:grid; grid-template-columns:2fr 1fr 2fr; gap:8px; font-weight:700; margin-bottom:6px;",
-    );
+    const header = createEl(doc, "div", "llm-set-table-header");
     header.append(
-      createNode(doc, "div", "", L.provider),
-      createNode(doc, "div", "", L.account),
-      createNode(doc, "div", "", L.status),
+      createEl(doc, "div", "", L.provider),
+      createEl(doc, "div", "", L.account),
+      createEl(doc, "div", "", L.status),
     );
     accountsTable.appendChild(header);
     for (const provider of PROVIDERS) {
       const s = await getProviderAccountSummary(provider);
-      const row = createNode(
-        doc,
-        "div",
-        "display:grid; grid-template-columns:2fr 1fr 2fr; gap:8px; padding:6px 0; border-top:1px solid #f0f0f0;",
-      );
+      const row = createEl(doc, "div", "llm-set-table-row");
       row.append(
-        createNode(doc, "div", "", s.label),
-        createNode(doc, "div", "", s.account),
-        createNode(doc, "div", "", s.status),
+        createEl(doc, "div", "", s.label),
+        createEl(doc, "div", "", s.account),
+        createEl(doc, "div", "", s.status),
       );
       accountsTable.appendChild(row);
     }
@@ -1035,14 +959,17 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const renderModels = () => {
     modelsTable.innerHTML = "";
     let count = 0;
-    for (const provider of PROVIDERS) {
-      const providerModels = cache[provider] || [];
+    
+    const activeProviders = Array.from(new Set([...PROVIDERS, ...Object.keys(cache)]));
+    
+    for (const provider of activeProviders) {
+      const providerModels = cache[provider as OAuthProviderId] || [];
       if (!providerModels.length) continue;
       count += providerModels.length;
 
       const selected = new Set(
         reconcileProviderModelSelection(
-          provider,
+          provider as OAuthProviderId,
           providerModels,
           selectionCache,
         ).map(normalizeModelId),
@@ -1051,76 +978,49 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         selected.has(normalizeModelId(row.id)),
       ).length;
 
-      const section = createNode(
-        doc,
-        "div",
-        "border-top:1px solid #f0f0f0; padding:10px 0; display:flex; flex-direction:column; gap:8px;",
-      );
-      const header = createNode(
-        doc,
-        "div",
-        "display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;",
-      );
-      const title = createNode(
-        doc,
-        "div",
-        "font-weight:700; font-size:13px;",
-        getProviderLabel(provider),
+      const section = createEl(doc, "div", "llm-set-provider-section");
+      const header = createEl(doc, "div", "llm-set-row llm-set-row--spread");
+      const title = createEl(
+        doc, "div", "llm-set-provider-title",
+        getProviderLabel(provider as OAuthProviderId),
       );
       const summaryText =
         lang === "zh-CN"
           ? `已勾选 ${selectedCount}/${providerModels.length}`
           : `Selected ${selectedCount}/${providerModels.length}`;
-      const summary = createNode(
-        doc,
-        "div",
-        "font-size:12px; color:#6b7280;",
-        summaryText,
-      );
+      const summary = createEl(doc, "div", "llm-set-provider-summary", summaryText);
       header.append(title, summary);
 
-      const actions = createNode(
-        doc,
-        "div",
-        "display:flex; gap:6px; flex-wrap:wrap;",
-      );
-      const actionBtnStyle =
-        "padding:4px 10px; border-radius:999px; border:1px solid #d1d5db; background:#fff; color:#111827; cursor:pointer; font-size:12px;";
-      const defaultBtn = createNode(
-        doc,
-        "button",
-        actionBtnStyle,
+      const actions = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+      const defaultBtn = createEl(
+        doc, "button", "llm-set-btn llm-set-btn--pill",
         lang === "zh-CN" ? "默认" : "Defaults",
       ) as HTMLButtonElement;
       defaultBtn.type = "button";
       defaultBtn.addEventListener("click", () => {
         setProviderSelection(
-          provider,
-          getDefaultSelectedModelIds(provider, providerModels),
+          provider as OAuthProviderId,
+          getDefaultSelectedModelIds(provider as OAuthProviderId, providerModels),
         );
       });
-      const allBtn = createNode(
-        doc,
-        "button",
-        actionBtnStyle,
+      const allBtn = createEl(
+        doc, "button", "llm-set-btn llm-set-btn--pill",
         lang === "zh-CN" ? "全选" : "Select All",
       ) as HTMLButtonElement;
       allBtn.type = "button";
       allBtn.addEventListener("click", () => {
         setProviderSelection(
-          provider,
+          provider as OAuthProviderId,
           providerModels.map((row) => row.id),
         );
       });
-      const clearBtn = createNode(
-        doc,
-        "button",
-        actionBtnStyle,
+      const clearBtn = createEl(
+        doc, "button", "llm-set-btn llm-set-btn--pill",
         lang === "zh-CN" ? "清空" : "Clear",
       ) as HTMLButtonElement;
       clearBtn.type = "button";
       clearBtn.addEventListener("click", () => {
-        setProviderSelection(provider, []);
+        setProviderSelection(provider as OAuthProviderId, []);
       });
       actions.append(defaultBtn, allBtn, clearBtn);
       section.append(header, actions);
@@ -1128,19 +1028,14 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       for (const row of providerModels) {
         const id = String(row.id || "").trim();
         if (!id) continue;
-        const line = createNode(
-          doc,
-          "label",
-          "display:flex; align-items:flex-start; gap:8px; padding:6px 8px; border:1px solid #f3f4f6; border-radius:8px; cursor:pointer;",
-        );
-        const checkbox = createNode(doc, "input") as HTMLInputElement;
+        const line = createEl(doc, "label", "llm-set-model-row");
+        const checkbox = createEl(doc, "input", "llm-set-checkbox") as HTMLInputElement;
         checkbox.type = "checkbox";
         checkbox.checked = selected.has(normalizeModelId(id));
-        checkbox.style.marginTop = "2px";
         checkbox.addEventListener("change", () => {
           const nextSelected = new Set(
             reconcileProviderModelSelection(
-              provider,
+              provider as OAuthProviderId,
               providerModels,
               selectionCache,
             ).map(normalizeModelId),
@@ -1154,21 +1049,14 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           const nextIds = providerModels
             .map((model) => String(model.id || "").trim())
             .filter((modelId) => nextSelected.has(normalizeModelId(modelId)));
-          setProviderSelection(provider, nextIds);
+          setProviderSelection(provider as OAuthProviderId, nextIds);
         });
 
-        const textBox = createNode(
-          doc,
-          "div",
-          "display:flex; flex-direction:column; gap:2px;",
-        );
-        textBox.append(
-          createNode(doc, "div", "font-size:12px; color:#111827;", id),
-        );
+        const textBox = createEl(doc, "div", "llm-set-field");
+        textBox.style.gap = "2px";
+        textBox.append(createEl(doc, "div", "llm-set-model-id", id));
         if (row.label && row.label !== id) {
-          textBox.append(
-            createNode(doc, "div", "font-size:11px; color:#6b7280;", row.label),
-          );
+          textBox.append(createEl(doc, "div", "llm-set-model-label", row.label));
         }
         line.append(checkbox, textBox);
         section.appendChild(line);
@@ -1178,7 +1066,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     }
     if (!count) {
       modelsTable.appendChild(
-        createNode(doc, "div", "padding:8px 0; color:#6b7280;", L.noModels),
+        createEl(doc, "div", "llm-set-hint", L.noModels),
       );
     }
   };
@@ -1205,51 +1093,29 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   };
 
   for (const provider of PROVIDERS) {
-    const card = createNode(
-      doc,
-      "div",
-      "border:1px solid #ddd; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;",
-    );
-    const title = createNode(
-      doc,
-      "div",
-      "font-weight:700; font-size:13px;",
+    const card = createEl(doc, "div", "llm-set-card");
+    const title = createEl(
+      doc, "div", "llm-set-provider-title",
       getProviderLabel(provider),
     );
-    const row = createNode(
-      doc,
-      "div",
-      "display:flex; gap:8px; align-items:center; flex-wrap:wrap;",
-    );
-    const perProviderSetupBtn = createNode(
-      doc,
-      "button",
-      `${commonBtnStyle} border:1px solid #059669; background:#059669; color:#fff;`,
+    const row = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+    const perProviderSetupBtn = createEl(
+      doc, "button", "llm-set-btn llm-set-btn--success",
     ) as HTMLButtonElement;
     perProviderSetupBtn.type = "button";
-    const loginBtn = createNode(
-      doc,
-      "button",
-      `${commonBtnStyle} border:1px solid #2563eb; background:#2563eb; color:#fff;`,
+    const loginBtn = createEl(
+      doc, "button", "llm-set-btn llm-set-btn--accent",
     ) as HTMLButtonElement;
     loginBtn.type = "button";
-    const refreshBtn = createNode(
-      doc,
-      "button",
-      `${commonBtnStyle} border:1px solid #666; background:#fff; color:#111;`,
+    const refreshBtn = createEl(
+      doc, "button", "llm-set-btn",
     ) as HTMLButtonElement;
     refreshBtn.type = "button";
-    const deleteBtn = createNode(
-      doc,
-      "button",
-      `${commonBtnStyle} border:1px solid #dc2626; background:#fff; color:#b91c1c;`,
+    const deleteBtn = createEl(
+      doc, "button", "llm-set-btn llm-set-btn--danger",
     ) as HTMLButtonElement;
     deleteBtn.type = "button";
-    const status = createNode(
-      doc,
-      "span",
-      "font-size:12px; color:#555; white-space:pre-wrap;",
-    ) as HTMLSpanElement;
+    const status = createEl(doc, "span", "llm-set-status") as HTMLSpanElement;
     row.append(perProviderSetupBtn, loginBtn, refreshBtn, deleteBtn, status);
     card.append(title, row);
     authCards.appendChild(card);
@@ -1633,15 +1499,26 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         if (m.label && m.label !== m.id) opt.textContent = m.label;
         customModelDatalist.appendChild(opt);
       }
+      
       if (models.length > 0) {
+        // Prepare dynamic list UI
+        const oldCheckState = new Map(lastFetchedModels.map(x => [x.id, x.checked]));
+        lastFetchedModels = models.map(m => ({
+          id: m.id,
+          label: m.label || m.id,
+          checked: oldCheckState.get(m.id) ?? false
+        }));
+        renderFetchedModels();
+        fetchedModelsBox.style.display = "flex";
+        
         customModelHint.textContent = L.fetchModelsDone.replace("{n}", String(models.length));
         customModelHint.style.color = "#065f46";
-        // If model field is empty, auto-select the first model
         if (!customModelInput.value.trim() && models.length > 0) {
           customModelInput.value = models[0].id;
           persistCustomModel();
         }
       } else {
+        fetchedModelsBox.style.display = "none";
         customModelHint.textContent = L.fetchModelsEmpty;
         customModelHint.style.color = "#b45309";
       }
@@ -1661,41 +1538,47 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   await renderAccounts();
   persistSelectionState();
 
-  const systemPromptInput = doc.querySelector(
-    `#${config.addonRef}-system-prompt`,
-  ) as HTMLTextAreaElement | null;
-  if (systemPromptInput) {
-    systemPromptInput.value = getPref("systemPrompt") || "";
-    systemPromptInput.addEventListener("input", () =>
-      setPref("systemPrompt", systemPromptInput.value),
-    );
-  }
-  const popupInput = doc.querySelector(
-    `#${config.addonRef}-popup-add-text-enabled`,
-  ) as HTMLInputElement | null;
-  if (popupInput) {
-    const prefValue = Zotero.Prefs.get(
-      `${config.prefsPrefix}.showPopupAddText`,
-      true,
-    );
-    popupInput.checked =
-      prefValue !== false && `${prefValue || ""}`.toLowerCase() !== "false";
-    popupInput.addEventListener("change", () => {
-      Zotero.Prefs.set(
-        `${config.prefsPrefix}.showPopupAddText`,
-        popupInput.checked,
-        true,
-      );
-    });
-  }
-  const showAllModelsInput = doc.querySelector(
-    `#${config.addonRef}-show-all-models`,
-  ) as HTMLInputElement | null;
-  if (showAllModelsInput) {
-    const section = showAllModelsInput.closest("div");
-    if (section) {
-      section.setAttribute("style", "display:none;");
-    }
-    Zotero.Prefs.set(`${config.prefsPrefix}.showAllModels`, false, true);
-  }
+  const advancedGroup = createEl(doc, "div", "llm-set-card");
+
+  const systemPromptWrap = createEl(doc, "div", "llm-set-field");
+  const systemPromptLabel = createEl(doc, "label", "llm-set-label", L.systemPrompt);
+  const systemPromptInput = createEl(doc, "textarea", "llm-set-input llm-set-textarea") as HTMLTextAreaElement;
+  systemPromptInput.rows = 4;
+  systemPromptInput.placeholder = "Custom instructions for the AI assistant...";
+  const systemPromptHint = createEl(doc, "span", "llm-set-hint", L.systemPromptHint);
+  systemPromptWrap.append(systemPromptLabel, systemPromptInput, systemPromptHint);
+  advancedGroup.appendChild(systemPromptWrap);
+
+  systemPromptInput.value = getPref("systemPrompt") || "";
+  systemPromptInput.addEventListener("input", () =>
+    setPref("systemPrompt", systemPromptInput.value),
+  );
+  const popupAddTextWrap = createEl(doc, "div", "llm-set-field");
+  const popupAddTextLabel = createEl(doc, "label", "llm-set-radio-label");
+  const popupInput = createEl(doc, "input") as HTMLInputElement;
+  popupInput.type = "checkbox";
+  const popupText = createEl(doc, "span", "", L.showAddText);
+  popupAddTextLabel.append(popupInput, popupText);
+  const popupHint = createEl(doc, "span", "llm-set-hint", L.showAddTextHint);
+  popupAddTextWrap.append(popupAddTextLabel, popupHint);
+  advancedGroup.appendChild(popupAddTextWrap);
+
+  const prefValue = Zotero.Prefs.get(
+    `${config.prefsPrefix}.showPopupAddText`,
+    true,
+  );
+  popupInput.checked = prefValue !== false && String(prefValue).toLowerCase() !== "false";
+  popupInput.addEventListener("change", () => {
+    Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, popupInput.checked, true);
+  });
+  // showAllModels feature is hidden from the UI but we must NOT force-write
+  // the pref on every render — that would silently override any user/external value.
+  const showAllModelsWrap = createEl(doc, "div");
+  showAllModelsWrap.style.display = "none";
+  const showAllModelsInput = createEl(doc, "input") as HTMLInputElement;
+  showAllModelsInput.type = "checkbox";
+  showAllModelsWrap.appendChild(showAllModelsInput);
+  advancedGroup.appendChild(showAllModelsWrap);
+
+  root.appendChild(advancedGroup);
 }

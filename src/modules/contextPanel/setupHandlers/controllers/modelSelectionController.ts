@@ -6,7 +6,7 @@ import {
   getApiProfiles,
   getStringPref,
 } from "../../prefHelpers";
-import { selectedModelCache } from "../../state";
+import { selectedModelCache, selectedModelProviderCache } from "../../state";
 import {
   markerToProvider,
   type OAuthProviderId,
@@ -50,12 +50,17 @@ export type ModelChoice = {
   key: ModelProfileKey;
   model: string;
   provider?: string;
+  /** For custom-endpoint models, the API base URL to use. */
+  apiBase?: string;
+  /** For custom-endpoint models, the API key to use. */
+  apiKey?: string;
 };
 
 export function getModelChoices() {
   const profiles = getApiProfiles();
   const primaryModel = profiles.primary.model.trim();
   const choices: ModelChoice[] = [];
+  // Dedup key: model+provider to allow same model name across different providers
   const seenModels = new Set<string>();
   const modelCache = parseOAuthModelCache();
   const selectionCache = parseModelSelectionCache(
@@ -84,12 +89,14 @@ export function getModelChoices() {
       }
     }
 
-    if (seenModels.has(normalized)) continue;
-    seenModels.add(normalized);
+    const providerLabel = detectProvider(profiles[key].apiBase);
+    const dedupKey = `${normalized}\x00${providerLabel}`;
+    if (seenModels.has(dedupKey)) continue;
+    seenModels.add(dedupKey);
     choices.push({
       key,
       model,
-      provider: detectProvider(profiles[key].apiBase),
+      provider: providerLabel,
     });
   }
 
@@ -113,16 +120,22 @@ export function getModelChoices() {
       modelCache[provider] || [],
       selectionCache,
     );
+    const label = providerLabels[provider] || provider;
     for (const row of providerModels) {
       const id = String(row.id || "").trim();
       const normalized = normalizeModelId(id);
-      if (!id || seenModels.has(normalized)) continue;
-      seenModels.add(normalized);
+      if (!id) continue;
+      // Dedup per provider — same model under different providers is allowed
+      const dedupKey = `${normalized}\x00${label}`;
+      if (seenModels.has(dedupKey)) continue;
+      seenModels.add(dedupKey);
       const key = profileKeys[slotIdx % profileKeys.length] || "primary";
       choices.push({
         key,
         model: id,
-        provider: providerLabels[provider] || provider,
+        provider: label,
+        apiBase: row.apiBase,
+        apiKey: row.apiKey,
       });
       slotIdx += 1;
     }
@@ -156,9 +169,14 @@ export function pickBestDefaultModel(choices: ModelChoice[]): string {
 }
 
 const LAST_MODEL_NAME_PREF = "lastUsedModelName";
+const LAST_MODEL_PROVIDER_PREF = "lastUsedModelProvider";
 
 export function getPersistedModelName(): string {
   return getStringPref(LAST_MODEL_NAME_PREF).trim();
+}
+
+export function getPersistedModelProvider(): string {
+  return getStringPref(LAST_MODEL_PROVIDER_PREF).trim();
 }
 
 export function persistModelName(modelName: string): void {
@@ -166,6 +184,16 @@ export function persistModelName(modelName: string): void {
     Zotero.Prefs.set(
       `${addon.data.config.prefsPrefix}.${LAST_MODEL_NAME_PREF}`,
       modelName,
+      true,
+    );
+  } catch { /* ignore */ }
+}
+
+export function persistModelProvider(providerLabel: string): void {
+  try {
+    Zotero.Prefs.set(
+      `${addon.data.config.prefsPrefix}.${LAST_MODEL_PROVIDER_PREF}`,
+      providerLabel,
       true,
     );
   } catch { /* ignore */ }
@@ -182,12 +210,17 @@ export function getSelectedModelInfo(itemId: number | null) {
   }
 
   const cachedSelection = selectedModelCache.get(itemId);
+  const cachedProvider = selectedModelProviderCache.get(itemId);
   if (cachedSelection) {
     const isProfileKey = (
       ["primary", "secondary", "tertiary", "quaternary"] as const
     ).includes(cachedSelection as ModelProfileKey);
     if (!isProfileKey) {
-      const byModel = choices.find((entry) => entry.model === cachedSelection);
+      // Match by both model name and provider if available
+      const byModel = cachedProvider
+        ? choices.find((entry) => entry.model === cachedSelection && entry.provider === cachedProvider)
+          || choices.find((entry) => entry.model === cachedSelection)
+        : choices.find((entry) => entry.model === cachedSelection);
       if (byModel) {
         return {
           selected: byModel.key,
@@ -208,11 +241,22 @@ export function getSelectedModelInfo(itemId: number | null) {
 
   const persistedModel = getPersistedModelName();
   if (persistedModel) {
-    const byPersisted = choices.find(
-      (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase(),
-    );
+    const persistedProvider = getPersistedModelProvider();
+    const byPersisted = persistedProvider
+      ? choices.find(
+          (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase()
+            && entry.provider === persistedProvider,
+        ) || choices.find(
+          (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase(),
+        )
+      : choices.find(
+          (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase(),
+        );
     if (byPersisted) {
       selectedModelCache.set(itemId, byPersisted.model);
+      if (byPersisted.provider) {
+        selectedModelProviderCache.set(itemId, byPersisted.provider);
+      }
       return {
         selected: byPersisted.key,
         choices,

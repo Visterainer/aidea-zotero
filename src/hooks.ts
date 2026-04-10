@@ -1,5 +1,5 @@
 import { initLocale } from "./utils/locale";
-import { registerPrefsScripts } from "./modules/preferenceScript";
+import { config } from "../package.json";
 import {
   registerReaderContextPanel,
   registerLLMStyles,
@@ -136,7 +136,7 @@ async function onNotify(
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   switch (type) {
     case "load":
-      registerPrefsScripts(data.window);
+      // No longer used, preferences have moved to sidebar Setting panel
       break;
     default:
       return;

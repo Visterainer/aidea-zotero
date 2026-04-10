@@ -4,7 +4,7 @@ import {
   patchStreamingBubble,
   finalizeStreamingBubble,
   createQueuedStreamingPatch,
-  autoScrollStreamingIfNeeded,
+  createStreamingAutoScroller,
 } from "./streamingUpdate";
 import {
   appendMessage as appendStoredMessage,
@@ -85,6 +85,8 @@ import {
   buildChatScrollSnapshot,
   getChatScrollSnapshot,
   cancelFollowBottomStabilization,
+  suspendScrollUpdates,
+  resumeScrollUpdates,
 } from "./chatScroll";
 import {
   normalizeSelectedTextPaperContexts as normalizeSelectedTextPaperContextEntries,
@@ -1934,9 +1936,15 @@ export async function retryLatestAssistantResponse(
     const retryBubbleRef = findLastAssistantBubble(
       ui.chatBox as HTMLDivElement | null,
     );
+    const retryAutoScroller = createStreamingAutoScroller(
+      ui.chatBox as HTMLDivElement | null,
+      suspendScrollUpdates,
+      resumeScrollUpdates,
+    );
     const queueRetryPatch = createQueuedStreamingPatch(() => {
-      patchStreamingBubble(retryBubbleRef, assistantMessage.text);
-      autoScrollStreamingIfNeeded(ui.chatBox as HTMLDivElement | null);
+      retryAutoScroller.patchAndScroll(() => {
+        patchStreamingBubble(retryBubbleRef, assistantMessage.text);
+      });
     });
 
     const answer = await callLLMStream(
@@ -2237,9 +2245,15 @@ export async function sendQuestion(
     const sendBubbleRef = findLastAssistantBubble(
       ui.chatBox as HTMLDivElement | null,
     );
+    const sendAutoScroller = createStreamingAutoScroller(
+      ui.chatBox as HTMLDivElement | null,
+      suspendScrollUpdates,
+      resumeScrollUpdates,
+    );
     const queueStreamingPatch = createQueuedStreamingPatch(() => {
-      patchStreamingBubble(sendBubbleRef, assistantMessage.text);
-      autoScrollStreamingIfNeeded(ui.chatBox as HTMLDivElement | null);
+      sendAutoScroller.patchAndScroll(() => {
+        patchStreamingBubble(sendBubbleRef, assistantMessage.text);
+      });
     });
 
     const answer = await callLLMStream(

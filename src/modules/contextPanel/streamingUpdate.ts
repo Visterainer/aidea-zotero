@@ -157,3 +157,124 @@ export function autoScrollStreamingIfNeeded(
     chatBox.scrollTop = chatBox.scrollHeight;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Stateful streaming auto-scroller
+// ---------------------------------------------------------------------------
+
+export interface StreamingAutoScroller {
+  /**
+   * Whether auto-scroll is currently active.
+   * Starts as `true` if the chatBox was near bottom when created.
+   * Becomes `false` when the user scrolls away (see `onUserScroll`).
+   */
+  readonly active: boolean;
+
+  /**
+   * Call from the queued streaming-patch callback.
+   * Wraps the DOM patch and scroll-to-bottom in a scroll-suspension
+   * guard so the `persistScroll` handler won't write a spurious
+   * `"manual"` snapshot caused by content-height jumps (e.g. KaTeX).
+   */
+  patchAndScroll: (patchFn: () => void) => void;
+
+  /**
+   * Call from a *user-initiated* scroll event to break auto-scroll.
+   * Should only be called when the scroll was NOT caused by a
+   * programmatic `scrollTop` write (i.e. `isScrollUpdateSuspended()`
+   * returns false).
+   */
+  onUserScroll: () => void;
+
+  /**
+   * Re-activate auto-scroll (e.g. when the user clicks "scroll to bottom").
+   */
+  reactivate: () => void;
+}
+
+/**
+ * Create a stateful auto-scroller for a streaming session.
+ *
+ * Unlike the stateless `autoScrollStreamingIfNeeded`, this tracks whether
+ * the user was at the bottom when streaming started and keeps scrolling
+ * until the user explicitly scrolls away.  This prevents formula rendering
+ * (which can increase `scrollHeight` dramatically in a single frame) from
+ * inadvertently breaking auto-scroll.
+ *
+ * @param chatBox              The scrollable chat container.
+ * @param suspendScrollUpdates Callback to set `_scrollUpdatesSuspended = true`.
+ * @param resumeScrollUpdates  Callback to set `_scrollUpdatesSuspended = false` (deferred).
+ * @param threshold            Distance from bottom considered "near bottom".
+ */
+export function createStreamingAutoScroller(
+  chatBox: HTMLDivElement | null,
+  suspendScrollUpdates: () => void,
+  resumeScrollUpdates: () => void,
+  threshold: number = DEFAULT_AUTO_SCROLL_THRESHOLD,
+): StreamingAutoScroller {
+  let _active = false;
+
+  // Determine initial state: auto-scroll only if already near bottom.
+  if (chatBox) {
+    const distanceFromBottom =
+      chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
+    _active = distanceFromBottom <= threshold;
+  }
+
+  return {
+    get active() {
+      return _active;
+    },
+
+    patchAndScroll(patchFn: () => void) {
+      if (!chatBox) {
+        patchFn();
+        return;
+      }
+
+      // ── Pre-patch user-scroll detection ──
+      // BEFORE executing patchFn (which may dramatically increase
+      // scrollHeight via KaTeX rendering), check whether the user has
+      // scrolled away from the bottom since the last patch.  At this
+      // point scrollHeight hasn't changed yet, so any distance from
+      // the bottom must be caused by the user scrolling.
+      const distanceFromBottom =
+        chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
+      if (distanceFromBottom > threshold) {
+        _active = false;   // User scrolled up → stop auto-scroll
+      } else {
+        _active = true;    // User scrolled back to bottom → resume
+      }
+
+      // Suspend scroll-event persistence so the height jump from
+      // innerHTML replacement doesn't create a "manual" snapshot.
+      suspendScrollUpdates();
+      try {
+        patchFn();
+      } finally {
+        if (_active) {
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        // Resume asynchronously so the scroll event triggered by our
+        // programmatic scrollTop write is also suppressed.
+        Promise.resolve().then(resumeScrollUpdates);
+      }
+    },
+
+    onUserScroll() {
+      if (!chatBox) return;
+      const distanceFromBottom =
+        chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
+      if (distanceFromBottom > threshold) {
+        _active = false;
+      } else {
+        // User scrolled back to bottom — re-activate.
+        _active = true;
+      }
+    },
+
+    reactivate() {
+      _active = true;
+    },
+  };
+}

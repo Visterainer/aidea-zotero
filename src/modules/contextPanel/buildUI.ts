@@ -60,6 +60,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const container = createElement(doc, "div", "llm-panel", { id: "llm-main" });
   container.dataset.itemId = conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";
+  container.dataset.activeTab = "discussion";
 
   // ═══════════════════════════════════════════════════════════
   // Tab Navigation
@@ -78,7 +79,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   });
   tabSettingBtn.dataset.tab = "setting";
   tabNav.append(tabDiscussionBtn, tabSettingBtn);
-  container.appendChild(tabNav);
 
   // ═══════════════════════════════════════════════════════════
   // Tab Content Wrapper (upper area — shared, resize: vertical via CSS)
@@ -145,14 +145,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   historyModeIndicator.setAttribute("aria-live", "polite");
   historyBar.append(historyNewBtn, historyToggleBtn, historyModeIndicator);
 
-  const exportBtn = createElement(doc, "button", "llm-btn-icon llm-export-btn", {
+  const exportBtn = createElement(doc, "button", "llm-btn-icon llm-export-btn llm-discussion-only", {
     id: "llm-export",
     type: "button",
     textContent: "",
     title: i18n.export,
     disabled: !hasItem,
   });
-  const clearBtn = createElement(doc, "button", "llm-btn-icon llm-clear-btn", {
+  const clearBtn = createElement(doc, "button", "llm-btn-icon llm-clear-btn llm-discussion-only", {
     id: "llm-clear",
     type: "button",
     textContent: "",
@@ -162,7 +162,9 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   headerInfo.append(headerIcon, title, exportBtn, clearBtn);
   headerTop.appendChild(headerInfo);
 
-  const headerActions = createElement(doc, "div", "llm-header-actions");
+  headerTop.appendChild(tabNav);
+
+  const headerActions = createElement(doc, "div", "llm-header-actions llm-discussion-only");
   headerActions.append(historyBar);
   headerTop.appendChild(headerActions);
   header.appendChild(headerTop);
@@ -189,7 +191,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   historyUndo.append(historyUndoText, historyUndoBtn);
   header.appendChild(historyUndo);
 
-  discussionPanel.appendChild(header);
+  container.appendChild(header);
 
   // Chat display area
   const chatShell = createElement(doc, "div", "llm-chat-shell", {
@@ -224,10 +226,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   });
   settingScroll.appendChild(settingPlaceholder);
 
-  const settingHeaderSpacer = createElement(doc, "div", "llm-tab-spacer llm-header-spacer", {
-    id: "llm-setting-header-spacer",
-  });
-  settingPanel.append(settingHeaderSpacer, settingScroll);
+  settingPanel.append(settingScroll);
 
   contentWrapper.appendChild(settingPanel);
   container.appendChild(contentWrapper);
@@ -691,29 +690,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   discussionBottom.append(shortcutsRow, inputSection);
 
   bottomWrapper.appendChild(discussionBottom);
-
-  // ── Setting Bottom (console) ──
-  const settingBottom = createElement(doc, "div", "llm-tab-bottom", {
-    id: "llm-tab-bottom-setting",
-  });
-  settingBottom.dataset.tab = "setting";
-
-  const settingConsole = createElement(doc, "div", "llm-setting-console llm-input-section", {
-    id: "llm-setting-console",
-  });
-  // Console content will be populated by settingTab.ts in Phase 2
-  const consolePlaceholder = createElement(doc, "div", "llm-tab-placeholder", {
-    id: "llm-setting-console-placeholder",
-    textContent: "📋 Console",
-  });
-  // Shortcuts spacer — mirrors Discussion's shortcuts row height
-  const settingShortcutsSpacer = createElement(doc, "div", "llm-tab-spacer llm-shortcuts-spacer", {
-    id: "llm-setting-shortcuts-spacer",
-  });
-  settingConsole.appendChild(consolePlaceholder);
-  settingBottom.append(settingShortcutsSpacer, settingConsole);
-
-  bottomWrapper.appendChild(settingBottom);
   container.appendChild(bottomWrapper);
 
   // ═══════════════════════════════════════════════════════════
@@ -735,16 +711,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // ═══════════════════════════════════════════════════════════
   const tabBtns = [tabDiscussionBtn, tabSettingBtn];
   const tabPanels = [discussionPanel, settingPanel];
-  const tabBottoms = [discussionBottom, settingBottom];
   for (const btn of tabBtns) {
     btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
+      // Track active tab on container for CSS-driven visibility
+      container.dataset.activeTab = tab || "discussion";
       // Update button active state
       for (const b of tabBtns) b.classList.toggle("active", b === btn);
       // Toggle panel visibility
       for (const p of tabPanels) p.classList.toggle("visible", p.dataset.tab === tab);
-      // Toggle bottom visibility
-      for (const b of tabBottoms) b.classList.toggle("visible", b.dataset.tab === tab);
+      // Discussion bottom: only visible in discussion tab
+      discussionBottom.classList.toggle("visible", tab !== "setting");
     });
   }
 }

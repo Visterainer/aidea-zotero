@@ -57,6 +57,10 @@ export type PanelDomRefs = {
   status: HTMLElement | null;
   chatBox: HTMLDivElement | null;
   scrollBottomBtn: HTMLButtonElement | null;
+  settingScroll: HTMLDivElement | null;
+  settingConsole: HTMLDivElement | null;
+  contentWrapper: HTMLDivElement | null;
+  bottomWrapper: HTMLDivElement | null;
   panelRoot: HTMLDivElement | null;
 };
 
@@ -150,6 +154,10 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     status: body.querySelector("#llm-status") as HTMLElement | null,
     chatBox: body.querySelector("#llm-chat-box") as HTMLDivElement | null,
     scrollBottomBtn: body.querySelector("#llm-scroll-bottom") as HTMLButtonElement | null,
+    settingScroll: body.querySelector("#llm-setting-scroll") as HTMLDivElement | null,
+    settingConsole: body.querySelector("#llm-setting-console") as HTMLDivElement | null,
+    contentWrapper: body.querySelector("#llm-tab-content-wrapper") as HTMLDivElement | null,
+    bottomWrapper: body.querySelector("#llm-tab-bottom-wrapper") as HTMLDivElement | null,
     panelRoot: body.querySelector("#llm-main") as HTMLDivElement | null,
   };
 }

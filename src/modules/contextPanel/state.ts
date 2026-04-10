@@ -46,6 +46,8 @@ export const chatHistory = new Map<number, Message[]>();
 export const loadedConversationKeys = new Set<number>();
 export const loadingConversationTasks = new Map<number, Promise<void>>();
 export const selectedModelCache = new Map<number, string>();
+/** Parallel cache: tracks which provider label the selected model belongs to. */
+export const selectedModelProviderCache = new Map<number, string>();
 
 export const pdfTextCache = new Map<number, PdfContext>();
 export const pdfTextLoadingTasks = new Map<number, Promise<void>>();

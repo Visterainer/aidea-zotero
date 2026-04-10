@@ -27,6 +27,7 @@ import {
 } from "./constants";
 import {
   selectedModelCache,
+  selectedModelProviderCache,
   selectedImageCache,
   selectedFileAttachmentCache,
   selectedImagePreviewExpandedCache,
@@ -76,6 +77,10 @@ import {
   setLastUsedModelProfileKey,
   getStringPref,
   persistFileAttachmentState,
+  getPanelContentHeight,
+  setPanelContentHeight,
+  getPanelBottomHeight,
+  setPanelBottomHeight,
 } from "./prefHelpers";
 import {
   sendQuestion,
@@ -199,9 +204,12 @@ import {
   getModelChoices,
   getSelectedModelInfo as getSelectedModelInfoFromController,
   persistModelName,
+  persistModelProvider,
   getPersistedModelName,
   pickBestDefaultModel,
 } from "./setupHandlers/controllers/modelSelectionController";
+import { bootstrapSettingTab } from "../preferenceScript";
+import { createHeightSync } from "./heightSync";
 
 export function setupHandlers(
   body: Element,
@@ -297,6 +305,10 @@ export function setupHandlers(
     status,
     chatBox,
     scrollBottomBtn,
+    settingScroll,
+    settingConsole,
+    contentWrapper,
+    bottomWrapper,
     panelRoot,
   } = getPanelDomRefs(body);
 
@@ -321,6 +333,50 @@ export function setupHandlers(
     Boolean(ElementCtor && value instanceof ElementCtor);
   panelRoot.tabIndex = 0;
   applyPanelFontScale(panelRoot);
+
+  if (settingScroll && !settingScroll.dataset.rendered) {
+    settingScroll.dataset.rendered = "true";
+    settingScroll.textContent = "";
+    // Console is now inline in the scroll area; consoleContainer param is unused
+    bootstrapSettingTab(panelDoc, settingScroll, settingScroll).catch((e) => {
+      ztoolkit.log("LLM: Failed to bootstrap setting tab", e);
+    });
+  }
+
+  // ── Height sync controller ──
+  // Applies initial heights from prefs, tracks resize, and syncs
+  // between Discussion (two-pane) and Setting (single-pane) layouts.
+  const initialContentHeight = getPanelContentHeight();
+  if (initialContentHeight && contentWrapper) {
+    if (initialContentHeight.includes("px") || initialContentHeight.includes("vh") || initialContentHeight.includes("%")) {
+      contentWrapper.style.height = initialContentHeight;
+      contentWrapper.style.flex = "none";
+    }
+  }
+
+  const initialBottomHeight = getPanelBottomHeight();
+  if (initialBottomHeight && bottomWrapper) {
+    if (initialBottomHeight.includes("px") || initialBottomHeight.includes("vh") || initialBottomHeight.includes("%")) {
+      bottomWrapper.style.height = initialBottomHeight;
+      bottomWrapper.style.flex = "none";
+    }
+  }
+
+  if (contentWrapper && bottomWrapper) {
+    const heightSync = createHeightSync({
+      contentWrapper,
+      bottomWrapper,
+      gap: 3,
+      onH1Change: setPanelContentHeight,
+      onH2Change: setPanelBottomHeight,
+    });
+
+    // Wire tab buttons to height sync
+    const settingTabBtn = panelRoot.querySelector("#llm-tab-btn-setting");
+    const discussionTabBtn = panelRoot.querySelector("#llm-tab-btn-discussion");
+    settingTabBtn?.addEventListener("click", () => heightSync.switchToSetting());
+    discussionTabBtn?.addEventListener("click", () => heightSync.switchToDiscussion());
+  }
 
   const isGlobalMode = () => Boolean(item && isGlobalPortalItem(item));
   const getCurrentLibraryID = (): number => {
@@ -3959,10 +4015,12 @@ export function setupHandlers(
         e.preventDefault();
         e.stopPropagation();
         if (!item) return;
-        // Store the model name for the current item (don't clear other items' selections)
+        // Store the model name and provider for the current item
         selectedModelCache.set(item.id, entry.model);
-        // Persist model name so new conversations remember it
+        if (entry.provider) selectedModelProviderCache.set(item.id, entry.provider);
+        // Persist model name and provider so new conversations remember it
         persistModelName(entry.model);
+        if (entry.provider) persistModelProvider(entry.provider);
         // Clear the persisted profile key so it doesn't shadow the in-session choice
         try {
           Zotero.Prefs.set(
@@ -4024,7 +4082,9 @@ export function setupHandlers(
         closeRetryModelMenu();
         // Sync model selection with the bottom model selector
         selectedModelCache.set(item.id, entry.model);
+        if (entry.provider) selectedModelProviderCache.set(item.id, entry.provider);
         persistModelName(entry.model);
+        if (entry.provider) persistModelProvider(entry.provider);
         try {
           Zotero.Prefs.set(
             `${addon.data.config.prefsPrefix}.lastUsedModelProfile`,
@@ -6227,6 +6287,14 @@ export function setupHandlers(
         scheduleAttachmentGc();
         if (status) setStatus(status, "Cleared", "ready");
       })();
+    });
+  }
+
+  // Listen for model config changes from the Setting tab
+  // so the Discussion tab model menu refreshes immediately.
+  if (panelDoc) {
+    panelDoc.addEventListener("llm-models-changed", () => {
+      updateModelButton();
     });
   }
 }

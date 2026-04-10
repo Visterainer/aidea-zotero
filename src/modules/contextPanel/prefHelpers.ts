@@ -15,7 +15,7 @@ import {
   type ModelProfileKey,
 } from "./constants";
 import type { ApiProfile, CustomShortcut } from "./types";
-import { selectedModelCache, panelFontScalePercent } from "./state";
+import { selectedModelCache, selectedModelProviderCache, panelFontScalePercent } from "./state";
 
 export type PrimaryConnectionMode = "oauth" | "custom";
 
@@ -146,11 +146,21 @@ export function getSelectedProfileForItem(itemId: number): {
 
   // Check the cache first — it may contain either a profile key or a model name
   const cachedValue = selectedModelCache.get(itemId);
+  const cachedProvider = selectedModelProviderCache.get(itemId);
 
-  // If the cache has a model name (not a profile key), return the primary profile
-  // but with the model name overridden. Don't overwrite the cache!
+  // If the cache has a model name (not a profile key), resolve the correct
+  // credentials by checking the model cache for the provider-specific entry.
   if (cachedValue && !MODEL_PROFILE_KEYS.has(cachedValue as ModelProfileKey)) {
-    // cachedValue is a model name like "gpt-5.2" — use primary profile's credentials
+    const resolved = resolveModelCredentials(cachedValue, cachedProvider);
+    if (resolved) {
+      return {
+        key: "primary" as ModelProfileKey,
+        apiBase: resolved.apiBase,
+        apiKey: resolved.apiKey,
+        model: cachedValue,
+      };
+    }
+    // Fallback: use primary profile's credentials
     return {
       key: "primary" as ModelProfileKey,
       apiBase: profiles.primary.apiBase,
@@ -162,6 +172,16 @@ export function getSelectedProfileForItem(itemId: number): {
   // Check persisted model name preference
   const persistedModelName = getStringPref("lastUsedModelName").trim();
   if (!cachedValue && persistedModelName) {
+    const persistedProvider = getStringPref("lastUsedModelProvider").trim();
+    const resolved = resolveModelCredentials(persistedModelName, persistedProvider || undefined);
+    if (resolved) {
+      return {
+        key: "primary" as ModelProfileKey,
+        apiBase: resolved.apiBase,
+        apiKey: resolved.apiKey,
+        model: persistedModelName,
+      };
+    }
     return {
       key: "primary" as ModelProfileKey,
       apiBase: profiles.primary.apiBase,
@@ -180,6 +200,54 @@ export function getSelectedProfileForItem(itemId: number): {
       ? preferredKey
       : "primary";
   return { key: selectedKey, ...profiles[selectedKey] };
+}
+
+/**
+ * Resolve apiBase/apiKey for a model by looking it up in the oauthModelListCache.
+ * If provider is specified, look in that provider's cache first.
+ * Returns null if the model doesn't have custom credentials.
+ */
+function resolveModelCredentials(
+  modelName: string,
+  provider?: string,
+): { apiBase: string; apiKey: string } | null {
+  const cacheRaw = getStringPref("oauthModelListCache").trim();
+  if (!cacheRaw) return null;
+  let modelCache: Record<string, Array<{ id: string; apiBase?: string; apiKey?: string }>>;
+  try {
+    modelCache = JSON.parse(cacheRaw);
+    if (!modelCache || typeof modelCache !== "object") return null;
+  } catch {
+    return null;
+  }
+
+  const normalized = modelName.trim().toLowerCase();
+
+  // If provider is specified, look there first
+  if (provider) {
+    const providerModels = modelCache[provider];
+    if (providerModels) {
+      const match = providerModels.find(
+        (m) => String(m.id || "").trim().toLowerCase() === normalized,
+      );
+      if (match?.apiBase) {
+        return { apiBase: match.apiBase, apiKey: match.apiKey || "" };
+      }
+    }
+  }
+
+  // Search all providers for the model
+  for (const [, models] of Object.entries(modelCache)) {
+    if (!Array.isArray(models)) continue;
+    const match = models.find(
+      (m) => String(m.id || "").trim().toLowerCase() === normalized,
+    );
+    if (match?.apiBase) {
+      return { apiBase: match.apiBase, apiKey: match.apiKey || "" };
+    }
+  }
+
+  return null;
 }
 
 export function getAdvancedModelParamsForProfile(profileKey: ModelProfileKey): {
@@ -233,6 +301,19 @@ export const setCustomShortcuts = (v: CustomShortcut[]) =>
 export const getShortcutOrder = () => getStringArrayPref("shortcutOrder");
 export const setShortcutOrder = (v: string[]) =>
   setStringArrayPref("shortcutOrder", v);
+
+export function getPanelContentHeight(): string {
+  return getStringPref("panelContentHeight");
+}
+export function setPanelContentHeight(height: string): void {
+  Zotero.Prefs.set(`${config.prefsPrefix}.panelContentHeight`, height, true);
+}
+export function getPanelBottomHeight(): string {
+  return getStringPref("panelBottomHeight");
+}
+export function setPanelBottomHeight(height: string): void {
+  Zotero.Prefs.set(`${config.prefsPrefix}.panelBottomHeight`, height, true);
+}
 
 function getStringArrayPref(key: string): string[] {
   const raw =

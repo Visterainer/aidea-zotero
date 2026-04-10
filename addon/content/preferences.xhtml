@@ -13,83 +13,21 @@
   </linkset>
   <groupbox>
     <html:div
-      style="display: flex; flex-direction: column; gap: 18px; padding: 10px"
+      style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; gap: 16px"
     >
-      <html:div
-        id="__addonRef__-model-sections"
-        style="display: flex; flex-direction: column; gap: 18px"
-      ></html:div>
-
-      <html:div style="display: flex; flex-direction: column; gap: 4px">
-        <html:label
-          id="__addonRef__-system-prompt-label"
-          for="__addonRef__-system-prompt"
-          style="font-weight: 600; font-size: 13px"
-        >
-          Custom System Prompt (Optional)
-        </html:label>
-        <html:textarea
-          id="__addonRef__-system-prompt"
-          rows="4"
-          placeholder="Custom instructions for the AI assistant..."
-          style="
-            width: 100%;
-            padding: 8px 12px;
-            font-size: 13px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-sizing: border-box;
-            resize: vertical;
-          "
-        ></html:textarea>
-        <html:span id="__addonRef__-system-prompt-hint" style="font-size: 11px; color: #666">
-          Override the default system prompt (leave empty to use default)
-        </html:span>
-      </html:div>
-
-      <html:div style="display: flex; flex-direction: column; gap: 6px">
-        <html:label
-          style="
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
-            font-size: 13px;
-          "
-        >
-          <html:input
-            id="__addonRef__-popup-add-text-enabled"
-            type="checkbox"
-          ></html:input>
-          <html:span id="__addonRef__-popup-add-text-label">Show "Add Text" in reader selection popup</html:span>
-        </html:label>
-        <html:span id="__addonRef__-popup-add-text-hint" style="font-size: 11px; color: #666">
-          Disable this if you prefer not to show the Add Text option in Zotero's
-          text selection popup menu.
-        </html:span>
-      </html:div>
-
-      <html:div style="display: flex; flex-direction: column; gap: 6px">
-        <html:label
-          style="
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
-            font-size: 13px;
-          "
-        >
-          <html:input
-            id="__addonRef__-show-all-models"
-            type="checkbox"
-          ></html:input>
-          <html:span id="__addonRef__-show-all-models-label">Show all models in dropdown</html:span>
-        </html:label>
-        <html:span id="__addonRef__-show-all-models-hint" style="font-size: 11px; color: #666">
-          When enabled, shows all available models. When disabled, only the best
-          models per provider are shown.
-        </html:span>
-      </html:div>
+      <html:span style="font-size: 48px">⚙️</html:span>
+      <html:span style="font-weight: 600; font-size: 16px; color: #333;">
+        Preferences moved to Sidebar / 设置已迁移至侧边栏
+      </html:span>
+      <html:span style="font-size: 14px; color: #666;">
+        The AIdea settings have been migrated to the new tabbed interface within the main chat sidebar.
+        <html:br/><html:br/>
+        Please open a PDF or select an item in the library, then switch to the "Setting" tab in the Zotero side panel.
+        <html:br/><html:br/>
+        AIdea 插件设置已迁移到主聊天侧边栏的选项卡界面。
+        <html:br/><html:br/>
+        请打开 PDF 或在文库中选择一个条目，然后在 Zotero 侧边栏中切换到「设置」选项卡。
+      </html:span>
     </html:div>
   </groupbox>
 </vbox>

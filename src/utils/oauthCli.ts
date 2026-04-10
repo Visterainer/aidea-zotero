@@ -79,6 +79,8 @@ export type OAuthCredential = {
 export type ProviderModelOption = {
   id: string;
   label: string;
+  apiBase?: string;
+  apiKey?: string;
 };
 
 export type ProviderAccountSummary = {
