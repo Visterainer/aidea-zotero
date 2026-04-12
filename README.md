@@ -44,10 +44,6 @@ Chat with AI directly in Zotero's side panel — available in both the **Library
 
 Select text in the PDF reader and click **"Add Text"** to attach the selected passage to the context area. The AI will use it as reference when answering your questions — enabling precise, passage-level Q&A.
 
-<p align="center">
-  <img src="doc/screenshots/add_text.png" alt="Add Text popup" width="500" />
-</p>
-
 ### ⚡ Quick Action Shortcuts
 
 One-click shortcut buttons for common tasks like **Summarize**, **Explain**, **Translate**, and more. Fully customizable — add, edit, reorder, or remove shortcuts to fit your workflow.
@@ -144,7 +140,15 @@ For each provider you want to use, the setup flow on the **provider card** is:
 | **`Remove Auth`**        | Clears the saved OAuth token for this provider.                                                                                                                                                                                                                                   |
 
 <p align="center">
-  <img src="doc/screenshots/settings_en.png" alt="Provider card buttons" width="700" />
+  <img src="doc/screenshots/settings_oauth_en.png" alt="OAuth Providers" width="700" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/settings_api_en.png" alt="API Mode custom endpoint" width="700" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/settings_models_en.png" alt="Available Models" width="700" />
 </p>
 
 > 💡 **Tip:** You only need to do this once per provider. The login session is saved locally and persists across Zotero restarts.
