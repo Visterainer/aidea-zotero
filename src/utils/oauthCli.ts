@@ -81,6 +81,8 @@ export type ProviderModelOption = {
   label: string;
   apiBase?: string;
   apiKey?: string;
+  /** In-memory only — not persisted; set by ping test. */
+  status?: "ok" | "fail" | "testing";
 };
 
 export type ProviderAccountSummary = {
@@ -3426,4 +3428,138 @@ export async function callProviderEmbeddingsUnsupported(): Promise<never> {
   throw new Error(
     "OAuth-only mode does not provide embeddings. AIdea falls back to BM25 retrieval.",
   );
+}
+
+/**
+ * Resolve the API base URL and auth headers for an OAuth provider,
+ * suitable for a /chat/completions ping request.
+ * Returns null if the provider doesn't support standard chat/completions
+ * (e.g. openai-codex uses a non-standard backend-api).
+ */
+export async function getOAuthProviderPingInfo(
+  provider: OAuthProviderId,
+): Promise<{ apiBase: string; headers: Record<string, string> } | null> {
+  const cred = await readProviderOAuthCredential(provider);
+  if (!cred?.accessToken) return null;
+
+  if (provider === "openai-codex") {
+    // Codex uses chatgpt.com/backend-api/codex/responses — not /chat/completions.
+    // We'll test via the usage endpoint instead.
+    return {
+      apiBase: "https://chatgpt.com/backend-api",
+      headers: {
+        ...ensureProviderAuthHeaderInit(cred),
+        "Content-Type": "application/json",
+        ...(cred.accountId ? { "ChatGPT-Account-Id": cred.accountId } : {}),
+      },
+    };
+  }
+
+  if (provider === "google-gemini-cli") {
+    // Gemini CLI uses Code Assist streaming API — no standard /chat/completions.
+    return null;
+  }
+
+  if (provider === "qwen") {
+    return {
+      apiBase: getQwenBaseUrl(),
+      headers: {
+        ...ensureProviderAuthHeaderInit(cred),
+        "Content-Type": "application/json",
+      },
+    };
+  }
+
+  if (provider === "github-copilot") {
+    const result = await ensureCopilotApiToken();
+    if (!result) return null;
+    return {
+      apiBase: `${result.baseUrl}`,
+      headers: {
+        Authorization: `Bearer ${result.token}`,
+        "Content-Type": "application/json",
+        "Copilot-Integration-Id": "vscode-chat",
+        "Editor-Version": "Zotero-AIdea/1.0",
+      },
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Ping a model to test its availability.
+ * Sends a minimal 1-token chat completion request.
+ * Returns "ok" if the server recognises the model (any response except 404),
+ * "fail" on 404 / network error / timeout.
+ */
+export async function pingModel(
+  apiBase: string,
+  apiKey: string,
+  modelId: string,
+  extraHeaders?: Record<string, string>,
+): Promise<"ok" | "fail"> {
+  const base = apiBase.replace(/\/+$/, "");
+  const url = `${base}/chat/completions`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    ...(extraHeaders || {}),
+  };
+  const body = JSON.stringify({
+    model: modelId,
+    messages: [{ role: "user", content: "hi" }],
+    max_tokens: 1,
+    stream: false,
+  });
+
+  try {
+    const fetchPromise = getFetch()(url, {
+      method: "POST",
+      headers,
+      body,
+    });
+    const timeoutPromise = new Promise<Response>((_resolve, reject) =>
+      setTimeout(() => reject(new Error("ping timeout")), 15_000),
+    );
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    // 404 = model does not exist; anything else = server recognises the model
+    if (res.status === 404) return "fail";
+    // Also check response body for "model_not_found" style errors
+    if (res.status >= 400) {
+      try {
+        const text = await res.text();
+        if (/model.*not.*found|does not exist|invalid.*model/i.test(text)) {
+          return "fail";
+        }
+      } catch { /* ignore body parse errors */ }
+    }
+    return "ok";
+  } catch {
+    return "fail";
+  }
+}
+
+/**
+ * Ping a Codex model by hitting the usage endpoint (since Codex
+ * doesn't support standard /chat/completions).
+ * Returns "ok" if the token is valid, "fail" otherwise.
+ */
+export async function pingCodexModel(
+  headers: Record<string, string>,
+): Promise<"ok" | "fail"> {
+  try {
+    const fetchPromise = getFetch()("https://chatgpt.com/backend-api/wham/usage", {
+      method: "GET",
+      headers,
+    });
+    const timeoutPromise = new Promise<Response>((_resolve, reject) =>
+      setTimeout(() => reject(new Error("ping timeout")), 15_000),
+    );
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    // Any non-network response means token is at least partially valid
+    return res.status !== 401 && res.status !== 403 ? "ok" : "fail";
+  } catch {
+    return "fail";
+  }
 }

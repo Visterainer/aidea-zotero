@@ -99,7 +99,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const headerInfo = createElement(doc, "div", "llm-header-info");
   const headerIcon = createElement(doc, "img", "llm-header-icon", {
     alt: "AIdea",
-    src: `chrome://aidea/content/icons/icon-96.png`,
+    src: `chrome://aidea/content/icons/logo-talk.png`,
   }) as HTMLImageElement;
   headerIcon.style.width = "28px";
   headerIcon.style.height = "28px";
@@ -722,6 +722,10 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       for (const p of tabPanels) p.classList.toggle("visible", p.dataset.tab === tab);
       // Discussion bottom: only visible in discussion tab
       discussionBottom.classList.toggle("visible", tab !== "setting");
+      // Swap header icon based on active tab
+      (headerIcon as HTMLImageElement).src = tab === "setting"
+        ? "chrome://aidea/content/icons/logo-setting.png"
+        : "chrome://aidea/content/icons/logo-talk.png";
     });
   }
 }

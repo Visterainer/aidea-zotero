@@ -4,8 +4,11 @@ import {
   autoConfigureEnvironment,
   fetchAvailableModels,
   fetchCustomEndpointModels,
+  getOAuthProviderPingInfo,
   getProviderAccountSummary,
   getProviderLabel,
+  pingCodexModel,
+  pingModel,
   providerToMarker,
   removeProviderOAuthCredential,
   runProviderOAuthLogin,
@@ -93,11 +96,10 @@ function getLang(): Lang {
 
 const I18N = {
   "zh-CN": {
-    envOAuth: "环境与 OAuth",
     primaryConnectionMode: "主连接模式",
     oauthProvidersMode: "OAuth 提供商",
-    customCompatibleMode: "自定义 OpenAI 兼容接口",
-    customEndpointTitle: "自定义 OpenAI 兼容接口",
+    customCompatibleMode: "API 方式",
+    modelConfigTitle: "模型配置",
     customEndpointHint:
       "OAuth 提供商卡片会一直保留。切换到自定义模式后，请填写基础配置中的 API Base URL 和 Model；API Key 可选。",
     customApiBase: "API Base URL *",
@@ -111,7 +113,7 @@ const I18N = {
     customModel: "Model *",
     customModelPlaceholder: "例如：gpt-4.1-mini 或 llama3.1:8b",
     customModelHint: "自定义模式请求成功至少需要 API Base URL 和 Model。",
-    fetchModels: "获取模型列表",
+    fetchModels: "自动获取模型列表",
     fetchModelsRunning: "正在获取模型列表...",
     fetchModelsDone: "已获取 {n} 个模型",
     fetchModelsFailed: "获取模型列表失败，请检查 API Base URL 和 API Key",
@@ -144,12 +146,12 @@ const I18N = {
     modelId: "模型 ID",
     source: "来源",
     internalNote:
-      "只有勾选的模型会出现在侧边栏对话框中。前 4 个勾选模型会同步到配置槽位。",
+      "只有勾选的模型会出现在侧边栏对话框中。",
     systemPrompt: "自定义系统提示词（可选）",
     systemPromptHint: "覆盖默认系统提示词（留空使用默认值）",
-    showAddText: "在阅读器选择弹窗显示 Add Text",
+    showAddText: "在阅读器选择弹窗显示 添加文本",
     showAddTextHint:
-      "如果不想在 Zotero 文本选择弹出菜单中显示 Add Text 选项，请关闭此开关。",
+      "如果不想在 Zotero 文本选择弹出菜单中显示 添加文本 选项，请关闭此开关。",
     showAllModels: "在下拉菜单中显示所有模型",
     showAllModelsHint:
       "开启后显示所有可用模型。关闭时仅显示每个提供商的精选模型。",
@@ -165,11 +167,10 @@ const I18N = {
     developing: "此功能正在开发中，敬请期待！",
   },
   "en-US": {
-    envOAuth: "Environment & OAuth",
     primaryConnectionMode: "Primary connection mode",
-    oauthProvidersMode: "OAuth providers",
-    customCompatibleMode: "Custom OpenAI-compatible",
-    customEndpointTitle: "Custom OpenAI-compatible",
+    oauthProvidersMode: "OAuth Providers",
+    customCompatibleMode: "API Mode",
+    modelConfigTitle: "Model Config",
     customEndpointHint:
       "OAuth provider cards always stay visible. In custom mode, fill the base-pref API Base URL and Model; API Key is optional.",
     customApiBase: "API Base URL *",
@@ -184,7 +185,7 @@ const I18N = {
     customModelPlaceholder: "Example: gpt-4.1-mini or llama3.1:8b",
     customModelHint:
       "A successful custom-mode request requires API Base URL and Model.",
-    fetchModels: "Fetch Models",
+    fetchModels: "Auto Fetch Models",
     fetchModelsRunning: "Fetching models...",
     fetchModelsDone: "{n} models found",
     fetchModelsFailed: "Failed to fetch models. Check API Base URL and API Key.",
@@ -218,7 +219,7 @@ const I18N = {
     modelId: "Model ID",
     source: "Source",
     internalNote:
-      "Only checked models appear in the sidebar dropdown. The first four checked models are synced to profile slots.",
+      "Only checked models appear in the sidebar dropdown.",
     systemPrompt: "Custom System Prompt (Optional)",
     systemPromptHint:
       "Override the default system prompt (leave empty to use default)",
@@ -248,6 +249,27 @@ export function normalizeCustomApiBaseInput(value: string): string {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
   return `${trimmed.replace(/\/+$/, "")}/`;
+}
+
+/**
+ * Generate a human-readable provider label from an API Base URL.
+ * e.g. "https://api.deepseek.com/" → "api.deepseek.com"
+ *      "http://localhost:8080/v1/" → "localhost:8080-v1"
+ */
+function generateProviderLabel(url: string): string {
+  let label = String(url || "").trim();
+  if (!label) return "custom api";
+  // 1. Remove trailing slashes
+  label = label.replace(/\/+$/, "");
+  // 2. Remove protocol (everything up to and including "://")
+  label = label.replace(/^[^:]+:\/\//, "");
+  // 3. Replace "//" with "-"
+  label = label.replace(/\/\//g, "-");
+  // 4. Replace "/" with "-"
+  label = label.replace(/\//g, "-");
+  // 5. Trim leading/trailing "-"
+  label = label.replace(/^-+|-+$/g, "");
+  return label || "custom api";
 }
 
 export function getCustomEndpointMissingFields(
@@ -491,62 +513,38 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const root = createEl(doc, "div", "llm-settings-root");
   scrollContainer.appendChild(root);
 
-  const langBox = createEl(doc, "div", "llm-set-card llm-set-card--inline");
-  const langLabel = createEl(doc, "label", "llm-set-label");
+  // ── ① Language tab bar + danger buttons toolbar ──
+  const langBox = createEl(doc, "div", "llm-set-card llm-set-toolbar");
+  const langLeft = createEl(doc, "div", "llm-set-toolbar-left");
+  const langLabel = createEl(doc, "label", "llm-set-label llm-set-label--title");
 
-  // Custom dropdown — native <select> shows a bullet on the selected <option> in Gecko
   const LANG_OPTIONS: { value: Lang; label: string }[] = [
     { value: "zh-CN", label: "CN" },
     { value: "en-US", label: "EN" },
   ];
-  const dropdownWrap = createEl(doc, "div", "llm-set-dropdown-wrap");
-  const dropdownBtn = createEl(doc, "button", "llm-set-dropdown-btn") as HTMLButtonElement;
-  dropdownBtn.type = "button";
-  const dropdownBtnLabel = createEl(
-    doc, "span", "",
-    LANG_OPTIONS.find((o) => o.value === lang)?.label ?? lang,
-  );
-  const dropdownBtnArrow = createEl(doc, "span", "llm-set-dropdown-arrow", "\u25be");
-  dropdownBtn.append(dropdownBtnLabel, dropdownBtnArrow);
-
-  const dropdownList = createEl(doc, "div", "llm-set-dropdown-list");
-
-  const dropdownItems = LANG_OPTIONS.map((opt) => {
-    const item = createEl(doc, "div", "llm-set-dropdown-item", opt.label);
-    item.addEventListener("mouseenter", () => {
-      item.style.background = "#f3f4f6";
-    });
-    item.addEventListener("mouseleave", () => {
-      item.classList.toggle("llm-set-dropdown-item--active", lang === opt.value);
-      item.style.background = "";
-    });
-    item.addEventListener("click", () => {
+  const langTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  const langTabBtns = LANG_OPTIONS.map((opt) => {
+    const btn = createEl(doc, "button", "llm-set-tab-btn", opt.label) as HTMLButtonElement;
+    btn.type = "button";
+    if (opt.value === lang) btn.classList.add("active");
+    btn.addEventListener("click", () => {
       switchLang(opt.value);
-      dropdownBtnLabel.textContent = opt.label;
-      dropdownList.style.display = "none";
-      dropdownItems.forEach((i) => {
-        i.classList.remove("llm-set-dropdown-item--active");
-        i.style.background = "";
-      });
-      item.classList.add("llm-set-dropdown-item--active");
+      langTabBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
     });
-    if (opt.value === lang) item.classList.add("llm-set-dropdown-item--active");
-    dropdownList.appendChild(item);
-    return item;
+    langTabBar.appendChild(btn);
+    return btn;
   });
+  langLeft.append(langLabel, langTabBar);
 
-  dropdownBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    dropdownList.style.display =
-      dropdownList.style.display === "none" ? "block" : "none";
-  });
-  // Scope the "click outside to close" listener to the settings scroll area
-  // instead of the entire Zotero document to avoid a permanent global listener leak.
-  scrollContainer.addEventListener("click", () => {
-    dropdownList.style.display = "none";
-  });
-
-  dropdownWrap.append(dropdownBtn, dropdownList);
+  // Danger buttons (moved from bottom dangerZone)
+  const langRight = createEl(doc, "div", "llm-set-toolbar-right");
+  const restoreDefaultsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--warn") as HTMLButtonElement;
+  restoreDefaultsBtn.type = "button";
+  const clearAllHistoryBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--danger") as HTMLButtonElement;
+  clearAllHistoryBtn.type = "button";
+  const dangerStatus = createEl(doc, "span", "llm-set-status");
+  langRight.append(restoreDefaultsBtn, clearAllHistoryBtn);
 
   const switchLang = (next: Lang) => {
     lang = next;
@@ -557,65 +555,104 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     refreshAllSidebarShortcuts();
   };
 
-  langBox.append(langLabel, dropdownWrap);
-  root.appendChild(langBox);
+  langBox.append(langLeft, langRight, dangerStatus);
 
-  const envBox = createEl(doc, "div", "llm-set-card llm-set-card--dashed");
-  const envTitle = createEl(doc, "div", "llm-set-title");
-  const envActionRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
-  const refreshAllBtn = createEl(doc, "button", "llm-set-btn") as HTMLButtonElement;
+  const refreshAllBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--accent") as HTMLButtonElement;
   refreshAllBtn.type = "button";
-  const restoreDefaultsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--warn") as HTMLButtonElement;
-  restoreDefaultsBtn.type = "button";
-  const clearAllHistoryBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--danger") as HTMLButtonElement;
-  clearAllHistoryBtn.type = "button";
-  const dangerStatus = createEl(doc, "span", "llm-set-status");
-  envActionRow.append(
-    refreshAllBtn,
-    restoreDefaultsBtn,
-    clearAllHistoryBtn,
-    dangerStatus,
-  );
   const progressText = createEl(doc, "span", "llm-set-status");
+  const progressListWrap = createEl(doc, "div", "llm-set-progress-wrap");
   const progressList = createEl(doc, "div", "llm-set-progress-list");
+  const progressCopyBtn = createEl(doc, "button", "llm-set-console-copy") as HTMLButtonElement;
+  progressCopyBtn.type = "button";
+  progressCopyBtn.title = "Copy";
+  progressCopyBtn.addEventListener("click", () => {
+    const text = progressList.innerText || progressList.textContent || "";
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const helper = (Components.classes as any)["@mozilla.org/widget/clipboardhelper;1"]
+        ?.getService(Components.interfaces.nsIClipboardHelper);
+      if (helper) helper.copyString(text);
+      progressCopyBtn.classList.add("llm-set-console-copy--done");
+      setTimeout(() => progressCopyBtn.classList.remove("llm-set-console-copy--done"), 1500);
+    } catch (_e) {
+      ztoolkit.log("LLM: clipboard copy failed");
+    }
+  });
+  progressListWrap.append(progressList, progressCopyBtn);
+
+  const logsWrap = createEl(doc, "div", "llm-set-logs-wrap");
   const logsBox = createEl(doc, "textarea", "llm-set-logs-area") as HTMLTextAreaElement;
   logsBox.readOnly = true;
+  logsBox.rows = 5;
   logsBox.value = getPref("oauthSetupLog") || "";
+  const logsCopyBtn = createEl(doc, "button", "llm-set-console-copy") as HTMLButtonElement;
+  logsCopyBtn.type = "button";
+  logsCopyBtn.title = "Copy";
+  logsCopyBtn.addEventListener("click", () => {
+    const text = logsBox.value || "";
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const helper = (Components.classes as any)["@mozilla.org/widget/clipboardhelper;1"]
+        ?.getService(Components.interfaces.nsIClipboardHelper);
+      if (helper) helper.copyString(text);
+      logsCopyBtn.classList.add("llm-set-console-copy--done");
+      setTimeout(() => logsCopyBtn.classList.remove("llm-set-console-copy--done"), 1500);
+    } catch (_e) {
+      ztoolkit.log("LLM: clipboard copy failed");
+    }
+  });
+  logsWrap.append(logsBox, logsCopyBtn);
 
-  envBox.append(envTitle, envActionRow, progressText);
-  root.appendChild(envBox);
+  // Console area — collapsible, collapsed by default
+  const consoleCard = createEl(doc, "div", "llm-set-card llm-set-collapsible-body");
+  consoleCard.append(logsWrap, progressListWrap);
+  const consoleTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  consoleTitle.dataset.collapsed = "true";
+  consoleCard.style.display = "none";
+  consoleTitle.addEventListener("click", () => {
+    const isCollapsed = consoleTitle.dataset.collapsed === "true";
+    consoleTitle.dataset.collapsed = isCollapsed ? "false" : "true";
+    consoleCard.style.display = isCollapsed ? "flex" : "none";
+  });
 
-  // Console section — inline in scroll area between Environment and Connection Mode
-  const consoleCard = createEl(doc, "div", "llm-set-card");
-  consoleCard.append(progressList, logsBox);
-  root.appendChild(consoleCard);
-
+  // ── ② Model Config — tab-bar style OAuth / Custom switcher ──
   const connectionModeBox = createEl(doc, "div", "llm-set-card");
-  const connectionModeTitle = createEl(doc, "div", "llm-set-title");
-  const connectionModeHint = createEl(doc, "div", "llm-set-hint");
-  const connectionModeRow = createEl(doc, "div", "llm-set-row llm-set-gap-lg");
+  const connectionModeTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const connectionModeBody = createEl(doc, "div", "llm-set-collapsible-body");
+  connectionModeTitle.dataset.collapsed = "false";
+  connectionModeTitle.addEventListener("click", () => {
+    const c = connectionModeTitle.dataset.collapsed === "true";
+    connectionModeTitle.dataset.collapsed = c ? "false" : "true";
+    connectionModeBody.style.display = c ? "" : "none";
+  });
+
+
+  // Hidden radios keep pref synced; visibility is driven by tab buttons
   const connectionModeGroupName = `${config.addonRef}-primary-connection-mode`;
-  const oauthModeOption = createEl(doc, "label", "llm-set-radio-label");
   const oauthModeRadio = createEl(doc, "input") as HTMLInputElement;
   oauthModeRadio.type = "radio";
   oauthModeRadio.name = connectionModeGroupName;
   oauthModeRadio.id = `${config.addonRef}-primary-connection-mode-oauth`;
   oauthModeRadio.value = "oauth";
-  const oauthModeText = createNode(doc, "span");
-  oauthModeOption.append(oauthModeRadio, oauthModeText);
-  const customModeOption = createNode(
-    doc,
-    "label",
-    "display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;",
-  );
-  const customModeRadio = createNode(doc, "input") as HTMLInputElement;
+  oauthModeRadio.style.display = "none";
+  const customModeRadio = createEl(doc, "input") as HTMLInputElement;
   customModeRadio.type = "radio";
   customModeRadio.name = connectionModeGroupName;
   customModeRadio.id = `${config.addonRef}-primary-connection-mode-custom`;
   customModeRadio.value = "custom";
-  const customModeText = createNode(doc, "span");
-  customModeOption.append(customModeRadio, customModeText);
-  connectionModeRow.append(oauthModeOption, customModeOption);
+  customModeRadio.style.display = "none";
+
+  // Tab bar for connection mode
+  const modeTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  const oauthTabBtn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
+  oauthTabBtn.type = "button";
+  const customTabBtn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
+  customTabBtn.type = "button";
+  modeTabBar.append(oauthTabBtn, customTabBtn);
+
+  // Panel containers for the two modes
+  const oauthPanel = createEl(doc, "div", "llm-set-mode-panel");
+  const customPanel = createEl(doc, "div", "llm-set-mode-panel");
 
   const customFieldsBox = createEl(doc, "div", "llm-set-custom-fields");
   customFieldsBox.id = `${config.addonRef}-custom-openai-fields`;
@@ -648,9 +685,9 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   customModelDatalist.id = `${config.addonRef}-custom-model-list`;
   customModelInput.setAttribute("list", customModelDatalist.id);
   const customModelInputRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
-  const fetchModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--accent") as HTMLButtonElement;
+  const fetchModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--primary llm-set-btn--pill") as HTMLButtonElement;
   fetchModelsBtn.type = "button";
-  customModelInputRow.append(customModelInput, fetchModelsBtn);
+  customModelInputRow.append(customModelInput);
   const customModelHint = createEl(doc, "span", "llm-set-hint");
   customModelField.append(customModelLabel, customModelInputRow, customModelDatalist, customModelHint);
 
@@ -663,14 +700,27 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   fetchedModelsLabelInput.style.minWidth = "120px";
   fetchedModelsLabelInput.value = "custom api";
   fetchedModelsLabelInput.type = "text";
+  let labelManuallyEdited = false;
+  fetchedModelsLabelInput.addEventListener("input", () => { labelManuallyEdited = true; });
   fetchedModelsLabelRow.append(fetchedModelsLabelText, fetchedModelsLabelInput);
   const fetchedModelsHeaderRight = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
-  const addCustomModelBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill");
+  const selectAllFetchedBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary");
+  const clearAllFetchedBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary");
   const saveModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--success llm-set-btn--pill");
-  fetchedModelsHeaderRight.append(addCustomModelBtn, saveModelsBtn);
+  fetchedModelsHeaderRight.append(selectAllFetchedBtn, clearAllFetchedBtn, saveModelsBtn);
   fetchedModelsHeader.append(fetchedModelsLabelRow, fetchedModelsHeaderRight);
   const fetchedModelsList = createEl(doc, "div", "llm-set-fetched-list");
   fetchedModelsBox.append(fetchedModelsHeader, fetchedModelsList);
+
+  // Model add row — placed into customFieldsBox below API Key
+  const addModelRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+  const addModelLabel = createEl(doc, "label", "llm-set-label");
+  const addModelInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  addModelInput.type = "text";
+  addModelInput.style.width = "38%";
+  const addModelBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--accent") as HTMLButtonElement;
+  addModelBtn.type = "button";
+  addModelRow.append(addModelLabel, addModelInput, addModelBtn, fetchModelsBtn);
   
   let lastFetchedModels: { id: string; label: string; checked: boolean }[] = [];
 
@@ -683,20 +733,38 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       cb.checked = m.checked;
       cb.addEventListener("change", () => { m.checked = cb.checked; });
       const textLabel = createNode(doc, "span", "word-break:break-all;", m.label || m.id);
-      row.append(cb, textLabel);
+      const delBtn = createEl(doc, "button", "llm-set-fetched-delete") as HTMLButtonElement;
+      delBtn.type = "button";
+      delBtn.title = "Delete";
+      delBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        lastFetchedModels = lastFetchedModels.filter(x => x.id !== m.id);
+        renderFetchedModels();
+      });
+      row.append(cb, textLabel, delBtn);
       fetchedModelsList.append(row);
     }
   };
 
-  addCustomModelBtn.addEventListener("click", () => {
-    const newId = win.prompt(lang === "zh-CN" ? "请输入自定义模型名称 (ID):" : "Enter custom model ID:");
-    if (!newId) return;
-    const trimmed = newId.trim();
+  addModelBtn.addEventListener("click", () => {
+    const trimmed = addModelInput.value.trim();
     if (!trimmed) return;
     if (!lastFetchedModels.find(m => m.id === trimmed)) {
       lastFetchedModels.unshift({ id: trimmed, label: trimmed, checked: true });
       renderFetchedModels();
     }
+    addModelInput.value = "";
+  });
+
+  selectAllFetchedBtn.addEventListener("click", () => {
+    lastFetchedModels.forEach(m => { m.checked = true; });
+    renderFetchedModels();
+  });
+
+  clearAllFetchedBtn.addEventListener("click", () => {
+    lastFetchedModels.forEach(m => { m.checked = false; });
+    renderFetchedModels();
   });
 
   saveModelsBtn.addEventListener("click", () => {
@@ -704,39 +772,24 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     const selected = lastFetchedModels.filter(m => m.checked);
     const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
     const apiKey = customApiKeyInput.value.trim();
-    
-    // Issue 4 fix: If a different label already has models with the same apiBase,
-    // remove that old entry to prevent duplicate provider groups.
-    if (apiBase) {
-      for (const existingLabel of Object.keys(cache)) {
-        if (existingLabel === label) continue;
-        const existingModels = cache[existingLabel as OAuthProviderId] || [];
-        const hasMatchingBase = existingModels.some(m => m.apiBase === apiBase);
-        if (hasMatchingBase) {
-          delete cache[existingLabel as OAuthProviderId];
-          // Also clean selection cache for the old label
-          if (selectionCache[existingLabel as OAuthProviderId] !== undefined) {
-            delete selectionCache[existingLabel as OAuthProviderId];
-          }
-        }
-      }
-    }
-    
-    const existing = cache[label as OAuthProviderId] || [];
+
+    // Rule 1: Replace — the checked list IS the new model list for this provider.
     const newModels = selected.map(m => ({ id: m.id, label: m.label, apiBase, apiKey }));
-    
-    const mergedMap = new Map();
-    for (const m of existing) mergedMap.set(m.id, m);
-    for (const m of newModels) mergedMap.set(m.id, m);
-    
-    cache = { ...cache, [label as OAuthProviderId]: Array.from(mergedMap.values()) };
+    cache = { ...cache, [label as OAuthProviderId]: newModels };
     saveModelCache(cache);
     persistSelectionState();
     renderModels();
-    
-    fetchedModelsBox.style.display = "none";
-    customModelHint.textContent = lang === "zh-CN" ? "模型已保存" : "Models saved";
-    customModelHint.style.color = "#059669";
+
+    // Flash the save button to confirm success
+    const origText = saveModelsBtn.textContent || "";
+    const origClassName = saveModelsBtn.className;
+    saveModelsBtn.textContent = lang === "zh-CN" ? "✔ 已保存" : "✔ Saved";
+    saveModelsBtn.classList.remove("llm-set-btn--success");
+    saveModelsBtn.classList.add("llm-set-btn--saved-flash");
+    setTimeout(() => {
+      saveModelsBtn.textContent = origText;
+      saveModelsBtn.className = origClassName;
+    }, 2000);
   });
 
   const customModeStatus = createEl(doc, "div", "llm-set-status");
@@ -744,17 +797,21 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   customFieldsBox.append(
     customApiBaseField,
     customApiKeyField,
-    customModelField,
-    fetchedModelsBox,
+    addModelRow,
     customModeStatus,
   );
-  connectionModeBox.append(
-    connectionModeTitle,
-    connectionModeRow,
-    connectionModeHint,
-    customFieldsBox,
+  // Assemble customPanel with the custom fields
+  customPanel.append(customFieldsBox, fetchedModelsBox);
+
+  connectionModeBody.append(
+    modeTabBar,
+    oauthModeRadio,
+    customModeRadio,
+    oauthPanel,
+    customPanel,
   );
-  root.appendChild(connectionModeBox);
+  connectionModeBox.append(connectionModeTitle, connectionModeBody);
+
 
   const setCustomInputBorderState = (
     input: HTMLInputElement,
@@ -765,6 +822,15 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
   const updateCustomModeUi = () => {
     const isCustom = customModeRadio.checked;
+
+    // Toggle tab-bar active state
+    oauthTabBtn.classList.toggle("active", !isCustom);
+    customTabBtn.classList.toggle("active", isCustom);
+
+    // Toggle panel visibility
+    oauthPanel.classList.toggle("active", !isCustom);
+    customPanel.classList.toggle("active", isCustom);
+
     customFieldsBox.style.display = isCustom ? "flex" : "none";
     customApiBaseInput.disabled = !isCustom;
     customApiKeyInput.disabled = !isCustom;
@@ -810,25 +876,40 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   customApiBaseInput.value = getPref("apiBase") || "";
   customApiKeyInput.value = getPref("apiKey") || "";
   customModelInput.value = getPref("model") || "";
+  // Initial label set — resolve + load will happen later after helper functions are defined
+  fetchedModelsLabelInput.value = generateProviderLabel(customApiBaseInput.value);
   const initialMode = getPrimaryConnectionMode();
   oauthModeRadio.checked = initialMode !== "custom";
   customModeRadio.checked = initialMode === "custom";
 
   const authCards = createEl(doc, "div", "llm-settings-root");
-  root.appendChild(authCards);
 
   const accountsBox = createEl(doc, "div", "llm-set-card");
-  const accountsTitle = createEl(doc, "div", "llm-set-title");
-  const accountsTable = createEl(doc, "div", "llm-set-table");
+  const accountsTitle = createEl(doc, "div", "llm-set-title llm-set-title--sub llm-set-collapsible-toggle");
+  accountsTitle.dataset.collapsed = "true";
+  const accountsTable = createEl(doc, "div", "llm-set-table llm-set-collapsible-body");
+  accountsTable.style.display = "none";
+  accountsTitle.addEventListener("click", () => {
+    const isCollapsed = accountsTitle.dataset.collapsed === "true";
+    accountsTitle.dataset.collapsed = isCollapsed ? "false" : "true";
+    accountsTable.style.display = isCollapsed ? "block" : "none";
+  });
   accountsBox.append(accountsTitle, accountsTable);
-  root.appendChild(accountsBox);
 
   const modelsBox = createEl(doc, "div", "llm-set-card");
-  const modelsTitle = createEl(doc, "div", "llm-set-title");
+  const modelsTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const modelsBody = createEl(doc, "div", "llm-set-collapsible-body");
+  modelsTitle.dataset.collapsed = "false";
+  modelsTitle.addEventListener("click", () => {
+    const c = modelsTitle.dataset.collapsed === "true";
+    modelsTitle.dataset.collapsed = c ? "false" : "true";
+    modelsBody.style.display = c ? "" : "none";
+  });
+  const modelsActionRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm llm-set-row--spread");
+  modelsActionRow.append(progressText, refreshAllBtn);
   const modelsTable = createEl(doc, "div", "llm-set-table");
-  const note = createEl(doc, "div", "llm-set-hint");
-  modelsBox.append(modelsTitle, modelsTable, note);
-  root.appendChild(modelsBox);
+  modelsBody.append(modelsActionRow, modelsTable);
+  modelsBox.append(modelsTitle, modelsBody);
 
   const providerCards = new Map<
     OAuthProviderId,
@@ -836,26 +917,26 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       status: HTMLSpanElement;
       setupBtn: HTMLButtonElement;
       loginBtn: HTMLButtonElement;
-      refreshBtn: HTMLButtonElement;
       deleteBtn: HTMLButtonElement;
     }
   >();
 
   const renderStaticText = () => {
     L = tt(lang);
-    // "UI Language" label stays English regardless of selected language
-    langLabel.textContent = "UI Language:";
-    envTitle.textContent = L.envOAuth;
+    // "Language" label stays English regardless of selected language
+    langLabel.textContent = "Language:";
+    consoleTitle.textContent = lang === "zh-CN" ? "控制台" : "Console";
     refreshAllBtn.textContent = L.refreshAllModels;
     restoreDefaultsBtn.textContent = L.restoreDefaults;
     clearAllHistoryBtn.textContent = L.clearAllHistory;
     accountsTitle.textContent = L.accounts;
     modelsTitle.textContent = L.models;
-    note.textContent = L.internalNote;
-    connectionModeTitle.textContent = L.customEndpointTitle;
-    oauthModeText.textContent = L.oauthProvidersMode;
-    customModeText.textContent = L.customCompatibleMode;
-    connectionModeHint.textContent = L.customEndpointHint;
+
+    connectionModeTitle.textContent = L.modelConfigTitle;
+    advancedTitle.textContent = lang === "zh-CN" ? "高级" : "Advanced";
+    oauthTabBtn.textContent = L.oauthProvidersMode;
+    customTabBtn.textContent = L.customCompatibleMode;
+
     customApiBaseLabel.textContent = L.customApiBase;
     customApiBaseInput.placeholder = L.customApiBasePlaceholder;
     customApiBaseHint.textContent = L.customApiBaseHint;
@@ -867,14 +948,17 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     customModelHint.textContent = L.customModelHint;
     fetchModelsBtn.textContent = L.fetchModels;
     fetchedModelsLabelText.textContent = lang === "zh-CN" ? "提供商标签:" : "Provider Label:";
-    addCustomModelBtn.textContent = lang === "zh-CN" ? "➕ 添加自定义模型" : "➕ Add Custom";
+    addModelLabel.textContent = lang === "zh-CN" ? "模型名称:" : "Model ID:";
+    addModelInput.placeholder = lang === "zh-CN" ? "输入模型 ID" : "Enter model ID";
+    addModelBtn.textContent = lang === "zh-CN" ? "手动添加" : "Manual Add";
+    selectAllFetchedBtn.textContent = lang === "zh-CN" ? "全选" : "All";
+    clearAllFetchedBtn.textContent = lang === "zh-CN" ? "清空" : "Clear";
     saveModelsBtn.textContent = lang === "zh-CN" ? "💾 保存勾选模型" : "💾 Save Models";
     for (const provider of PROVIDERS) {
       const refs = providerCards.get(provider);
       if (!refs) continue;
       refs.setupBtn.textContent = L.installEnv;
       refs.loginBtn.textContent = L.oauthLogin;
-      refs.refreshBtn.textContent = L.refreshModels;
       refs.deleteBtn.textContent = L.oauthDelete;
     }
     // Update XHTML static labels
@@ -894,6 +978,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   };
 
   const appendProgress = (line: string, color = "#374151") => {
+    // Auto-expand console section when progress is appended
+    if (consoleTitle.dataset.collapsed === "true") {
+      consoleTitle.dataset.collapsed = "false";
+      consoleCard.style.display = "flex";
+    }
     const row = createNode(doc, "div", `color:${color};`);
     row.textContent = line;
     progressList.appendChild(row);
@@ -956,6 +1045,9 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     }
   };
 
+  // Map to hold per-provider status elements across renderModels() rebuilds
+  const providerStatusRefs = new Map<string, HTMLSpanElement>();
+
   const renderModels = () => {
     modelsTable.innerHTML = "";
     let count = 0;
@@ -993,7 +1085,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
       const actions = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
       const defaultBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill",
+        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
         lang === "zh-CN" ? "默认" : "Defaults",
       ) as HTMLButtonElement;
       defaultBtn.type = "button";
@@ -1004,7 +1096,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         );
       });
       const allBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill",
+        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
         lang === "zh-CN" ? "全选" : "Select All",
       ) as HTMLButtonElement;
       allBtn.type = "button";
@@ -1015,15 +1107,61 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         );
       });
       const clearBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill",
+        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
         lang === "zh-CN" ? "清空" : "Clear",
       ) as HTMLButtonElement;
       clearBtn.type = "button";
       clearBtn.addEventListener("click", () => {
         setProviderSelection(provider as OAuthProviderId, []);
       });
-      actions.append(defaultBtn, allBtn, clearBtn);
-      section.append(header, actions);
+      const perProviderRefreshBtn = createEl(
+        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--primary",
+        lang === "zh-CN" ? "刷新模型" : "Refresh",
+      ) as HTMLButtonElement;
+      perProviderRefreshBtn.type = "button";
+      const perProviderStatus = createEl(doc, "span", "llm-set-status") as HTMLSpanElement;
+      // Persist status text from a previous render cycle (survives renderModels rebuilds)
+      const prevStatus = providerStatusRefs.get(provider);
+      if (prevStatus) {
+        perProviderStatus.textContent = prevStatus.textContent;
+        perProviderStatus.style.color = prevStatus.style.color;
+      }
+      providerStatusRefs.set(provider, perProviderStatus);
+      perProviderRefreshBtn.addEventListener("click", async () => {
+        await refreshOneProvider(provider as OAuthProviderId);
+      });
+      actions.append(defaultBtn, allBtn, clearBtn, perProviderRefreshBtn, perProviderStatus);
+
+      // Provider-level delete button (ghost style, requires confirm)
+      const deleteProviderBtn = createEl(
+        doc, "button", "llm-set-btn llm-set-btn--ghost",
+        lang === "zh-CN" ? "删除提供商" : "Remove Provider",
+      ) as HTMLButtonElement;
+      deleteProviderBtn.type = "button";
+      deleteProviderBtn.addEventListener("click", () => {
+        const confirmed = win.confirm(
+          lang === "zh-CN"
+            ? `确定要删除提供商「${getProviderLabel(provider as OAuthProviderId)}」及其所有模型吗？`
+            : `Remove provider "${getProviderLabel(provider as OAuthProviderId)}" and all its models?`,
+        );
+        if (!confirmed) return;
+        // Fully remove from cache (not just clear to [])
+        const nextCache = { ...cache };
+        delete nextCache[provider as OAuthProviderId];
+        cache = nextCache;
+        saveModelCache(cache);
+        const nextSelection = { ...selectionCache };
+        delete nextSelection[provider as OAuthProviderId];
+        selectionCache = nextSelection;
+        persistSelectionState();
+        renderModels();
+      });
+
+      const actionsLeft = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+      actionsLeft.append(defaultBtn, allBtn, clearBtn, perProviderRefreshBtn, perProviderStatus);
+      const actionsRow = createEl(doc, "div", "llm-set-row llm-set-row--spread");
+      actionsRow.append(actionsLeft, deleteProviderBtn);
+      section.append(header, actionsRow);
 
       for (const row of providerModels) {
         const id = String(row.id || "").trim();
@@ -1054,11 +1192,40 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
         const textBox = createEl(doc, "div", "llm-set-field");
         textBox.style.gap = "2px";
-        textBox.append(createEl(doc, "div", "llm-set-model-id", id));
+        textBox.style.flex = "1";
+        const idRow = createEl(doc, "div", "llm-set-model-id-row");
+        idRow.append(createEl(doc, "div", "llm-set-model-id", id));
+        // Status badge
+        if (row.status) {
+          const badgeCls = row.status === "ok"
+            ? "llm-set-model-status--ok"
+            : row.status === "fail"
+              ? "llm-set-model-status--fail"
+              : "llm-set-model-status--testing";
+          const badgeText = row.status === "ok" ? "\u2714"
+            : row.status === "fail" ? "\u2716" : "\u23F3";
+          idRow.append(createEl(doc, "span", badgeCls, badgeText));
+        }
+        textBox.append(idRow);
         if (row.label && row.label !== id) {
           textBox.append(createEl(doc, "div", "llm-set-model-label", row.label));
         }
-        line.append(checkbox, textBox);
+
+        // Per-model delete SVG (no confirm)
+        const delModelBtn = createEl(doc, "button", "llm-set-fetched-delete") as HTMLButtonElement;
+        delModelBtn.type = "button";
+        delModelBtn.title = lang === "zh-CN" ? "删除模型" : "Remove model";
+        delModelBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const updated = (cache[provider as OAuthProviderId] || []).filter(m => m.id !== id);
+          cache = { ...cache, [provider as OAuthProviderId]: updated };
+          saveModelCache(cache);
+          persistSelectionState();
+          renderModels();
+        });
+
+        line.append(checkbox, textBox, delModelBtn);
         section.appendChild(line);
       }
 
@@ -1072,24 +1239,145 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   };
 
   const refreshOneProvider = async (provider: OAuthProviderId) => {
-    progressText.textContent = L.refreshingModels;
+    const isOAuth = (PROVIDERS as string[]).includes(provider);
+    const getTarget = () => providerStatusRefs.get(provider) || progressText;
+    const target = getTarget();
+    target.textContent = L.refreshingModels;
+    target.style.color = "#555";
     appendProgress(`[${getProviderLabel(provider)}] ${L.refreshingModels}`);
     await flushUi();
-    const models = await fetchAvailableModels(provider);
-    cache = { ...cache, [provider]: models };
-    saveModelCache(cache);
-    persistSelectionState();
-    renderModels();
-    await renderAccounts();
-    const refs = providerCards.get(provider);
-    if (refs) {
-      const s = await getProviderAccountSummary(provider);
-      refs.status.textContent = s.status;
-      refs.status.style.color = /logged in/i.test(s.status)
-        ? "green"
-        : "#b45309";
+
+    try {
+      let models: ProviderModelOption[];
+
+      if (isOAuth) {
+        // ── OAuth provider: replace model list ──
+        models = await fetchAvailableModels(provider);
+        cache = { ...cache, [provider]: models };
+      } else {
+        // ── Custom API provider: merge new models into existing ──
+        const existing = cache[provider] || [];
+        let fetched: ProviderModelOption[] = [];
+        const firstModel = existing[0];
+        if (firstModel?.apiBase) {
+          try {
+            fetched = await fetchCustomEndpointModels(
+              firstModel.apiBase,
+              firstModel.apiKey || "",
+            );
+          } catch {
+            // Fetch failed — keep existing list unchanged
+          }
+        }
+        // Merge: keep all existing, add new ones from fetch
+        const existingIds = new Set(existing.map(m => m.id));
+        const merged = [...existing];
+        for (const fm of fetched) {
+          if (!existingIds.has(fm.id)) {
+            merged.push({
+              ...fm,
+              apiBase: firstModel?.apiBase || "",
+              apiKey: firstModel?.apiKey || "",
+            });
+          }
+        }
+        models = merged;
+        cache = { ...cache, [provider]: models };
+      }
+
+      saveModelCache(cache);
+      persistSelectionState();
+      renderModels();
+      await renderAccounts();
+
+      const refs = providerCards.get(provider);
+      if (refs) {
+        const s = await getProviderAccountSummary(provider);
+        refs.status.textContent = s.status;
+        refs.status.style.color = /logged in/i.test(s.status) ? "green" : "#b45309";
+      }
+
+      const fetchMsg = lang === "zh-CN"
+        ? `✔ ${models.length} 个模型，正在测试可用性...`
+        : `✔ ${models.length} models, testing availability...`;
+      const liveTarget1 = getTarget();
+      liveTarget1.textContent = fetchMsg;
+      liveTarget1.style.color = "#555";
+      appendProgress(`[${getProviderLabel(provider)}] ${fetchMsg}`);
+
+      // ── Ping each model ──
+      // Mark all as "testing" first
+      for (const m of models) m.status = "testing";
+      renderModels();
+      await flushUi();
+
+      let okCount = 0;
+      let failCount = 0;
+
+      if (isOAuth) {
+        // OAuth ping
+        const pingInfo = await getOAuthProviderPingInfo(provider);
+        if (provider === "openai-codex" && pingInfo) {
+          // Codex: single token-level ping (all models share same token)
+          const result = await pingCodexModel(pingInfo.headers);
+          for (const m of models) {
+            m.status = result;
+            if (result === "ok") okCount++; else failCount++;
+          }
+          renderModels();
+        } else if (provider === "google-gemini-cli") {
+          // Gemini CLI: no standard ping available, skip
+          for (const m of models) {
+            m.status = undefined;
+          }
+          renderModels();
+        } else if (pingInfo) {
+          // Qwen / Copilot: standard /chat/completions ping per model
+          for (const m of models) {
+            m.status = await pingModel(
+              pingInfo.apiBase,
+              "",
+              m.id,
+              pingInfo.headers,
+            );
+            if (m.status === "ok") okCount++; else failCount++;
+            renderModels();
+            await flushUi();
+          }
+        } else {
+          // No ping info — clear status
+          for (const m of models) m.status = undefined;
+          renderModels();
+        }
+      } else {
+        // Custom API: ping each model using stored apiBase/apiKey
+        const firstModel = models[0];
+        const apiBase = firstModel?.apiBase || "";
+        const apiKey = firstModel?.apiKey || "";
+        for (const m of models) {
+          m.status = await pingModel(apiBase, apiKey, m.id);
+          if (m.status === "ok") okCount++; else failCount++;
+          renderModels();
+          await flushUi();
+        }
+      }
+
+      const doneMsg = lang === "zh-CN"
+        ? `✔ ${okCount} 可用, ${failCount} 不可用`
+        : `✔ ${okCount} ok, ${failCount} failed`;
+      const liveTarget2 = getTarget();
+      liveTarget2.textContent = doneMsg;
+      liveTarget2.style.color = failCount === 0 ? "#065f46" : "#b45309";
+      appendProgress(`[${getProviderLabel(provider)}] ${doneMsg}`,
+        failCount === 0 ? "#065f46" : "#b45309");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const errMsg = lang === "zh-CN" ? `✖ 刷新失败: ${msg}` : `✖ Refresh failed: ${msg}`;
+      const liveTarget = getTarget();
+      liveTarget.textContent = errMsg;
+      liveTarget.style.color = "#991b1b";
+      appendProgress(`[${getProviderLabel(provider)}] ${errMsg}`, "#991b1b");
     }
-    progressText.textContent = "";
   };
 
   for (const provider of PROVIDERS) {
@@ -1104,26 +1392,22 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     ) as HTMLButtonElement;
     perProviderSetupBtn.type = "button";
     const loginBtn = createEl(
-      doc, "button", "llm-set-btn llm-set-btn--accent",
+      doc, "button", "llm-set-btn llm-set-btn--secondary",
     ) as HTMLButtonElement;
     loginBtn.type = "button";
-    const refreshBtn = createEl(
-      doc, "button", "llm-set-btn",
-    ) as HTMLButtonElement;
-    refreshBtn.type = "button";
+
     const deleteBtn = createEl(
-      doc, "button", "llm-set-btn llm-set-btn--danger",
+      doc, "button", "llm-set-btn llm-set-btn--ghost",
     ) as HTMLButtonElement;
     deleteBtn.type = "button";
     const status = createEl(doc, "span", "llm-set-status") as HTMLSpanElement;
-    row.append(perProviderSetupBtn, loginBtn, refreshBtn, deleteBtn, status);
+    row.append(perProviderSetupBtn, loginBtn, deleteBtn, status);
     card.append(title, row);
     authCards.appendChild(card);
     providerCards.set(provider, {
       status,
       setupBtn: perProviderSetupBtn,
       loginBtn,
-      refreshBtn,
       deleteBtn,
     });
 
@@ -1182,9 +1466,6 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         }
       });
 
-      refreshBtn.addEventListener("click", async () => {
-        await refreshOneProvider(provider);
-      });
 
       deleteBtn.addEventListener("click", async () => {
         status.textContent = L.running;
@@ -1292,9 +1573,6 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         }
       });
 
-      refreshBtn.addEventListener("click", async () => {
-        await refreshOneProvider(provider);
-      });
 
       deleteBtn.addEventListener("click", async () => {
         status.textContent = L.running;
@@ -1317,8 +1595,12 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   refreshAllBtn.addEventListener("click", async () => {
     progressText.textContent = L.refreshingModels;
     progressText.style.color = "#555";
-    for (const provider of PROVIDERS) {
-      await refreshOneProvider(provider);
+    // Include all providers: OAuth built-ins + custom API providers in cache
+    const allProviders = Array.from(
+      new Set([...PROVIDERS, ...Object.keys(cache)]),
+    );
+    for (const provider of allProviders) {
+      await refreshOneProvider(provider as OAuthProviderId);
     }
     progressText.textContent = "";
   });
@@ -1445,30 +1727,111 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     updateCustomModeUi();
   };
 
-  oauthModeRadio.addEventListener("change", () => {
-    if (oauthModeRadio.checked) handleModeChange("oauth");
-  });
-  customModeRadio.addEventListener("change", () => {
-    if (customModeRadio.checked) handleModeChange("custom");
-  });
+  oauthTabBtn.addEventListener("click", () => handleModeChange("oauth"));
+  customTabBtn.addEventListener("click", () => handleModeChange("custom"));
 
-  const persistCustomApiBase = () =>
+  // ── Provider label resolution helpers ──
+
+  /**
+   * Rule 2: If `rawLabel` already exists in cache with different apiBase/apiKey,
+   * append _2, _3, … until we find a free or matching slot.
+   * Rule 1: If the existing label has same apiBase+apiKey, return as-is.
+   * Rule 3: If label doesn't exist, return as-is.
+   */
+  const resolveProviderLabel = (rawLabel: string, apiBase: string, apiKey: string): string => {
+    const check = (candidate: string): boolean => {
+      const existing = cache[candidate as OAuthProviderId];
+      if (!existing || existing.length === 0) return true; // free slot
+      const first = existing[0];
+      return (first.apiBase || "") === apiBase && (first.apiKey || "") === apiKey; // matching slot
+    };
+    if (check(rawLabel)) return rawLabel;
+    let suffix = 2;
+    while (true) {
+      const candidate = `${rawLabel}_${suffix}`;
+      if (check(candidate)) return candidate;
+      suffix++;
+      if (suffix > 100) break; // safety
+    }
+    return `${rawLabel}_${suffix}`;
+  };
+
+  /**
+   * Load existing models from cache into fetchedModelsList if the current
+   * (label, apiBase, apiKey) triple matches an existing provider.
+   * All loaded models are checked by default.
+   */
+  const loadExistingProviderModels = () => {
+    const label = fetchedModelsLabelInput.value.trim() || "custom api";
+    const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
+    const apiKey = customApiKeyInput.value.trim();
+    const existing = cache[label as OAuthProviderId] || [];
+    if (existing.length === 0) {
+      // No match — only clear if user hasn't added anything manually yet
+      if (lastFetchedModels.length === 0) renderFetchedModels();
+      return;
+    }
+    // Verify triple match: the existing models must share the same apiBase+apiKey
+    const first = existing[0];
+    if ((first.apiBase || "") !== apiBase || (first.apiKey || "") !== apiKey) {
+      return; // label exists but credentials differ — do not load
+    }
+    // Build a set of IDs already in lastFetchedModels so we don't duplicate
+    const alreadyInList = new Set(lastFetchedModels.map(m => m.id));
+    let changed = false;
+    for (const m of existing) {
+      if (!alreadyInList.has(m.id)) {
+        lastFetchedModels.push({ id: m.id, label: m.label || m.id, checked: true });
+        changed = true;
+      }
+    }
+    if (changed || lastFetchedModels.length > 0) renderFetchedModels();
+  };
+
+  const syncLabelFromApiBase = () => {
+    if (!labelManuallyEdited) {
+      const rawLabel = generateProviderLabel(customApiBaseInput.value);
+      const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
+      const apiKey = customApiKeyInput.value.trim();
+      fetchedModelsLabelInput.value = resolveProviderLabel(rawLabel, apiBase, apiKey);
+    }
+    loadExistingProviderModels();
+  };
+  const persistCustomApiBase = () => {
     persistCustomPref(
       customApiBaseInput,
       "apiBase",
       normalizeCustomApiBaseInput,
     );
-  const persistCustomApiKey = () =>
+    syncLabelFromApiBase();
+  };
+  const persistCustomApiKey = () => {
     persistCustomPref(customApiKeyInput, "apiKey", (value) => value.trim());
+    // apiKey change may affect triple match — re-resolve label + reload models
+    syncLabelFromApiBase();
+  };
   const persistCustomModel = () =>
     persistCustomPref(customModelInput, "model", (value) => value.trim());
 
+  customApiBaseInput.addEventListener("input", syncLabelFromApiBase);
   customApiBaseInput.addEventListener("change", persistCustomApiBase);
   customApiBaseInput.addEventListener("blur", persistCustomApiBase);
   customApiKeyInput.addEventListener("change", persistCustomApiKey);
   customApiKeyInput.addEventListener("blur", persistCustomApiKey);
   customModelInput.addEventListener("change", persistCustomModel);
   customModelInput.addEventListener("blur", persistCustomModel);
+  // Manual label edit — re-check for existing models under the new label
+  fetchedModelsLabelInput.addEventListener("blur", loadExistingProviderModels);
+
+  // Deferred initial label resolution + model loading
+  // (must be after resolveProviderLabel and loadExistingProviderModels are defined)
+  {
+    const rawLabel = generateProviderLabel(customApiBaseInput.value);
+    const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
+    const apiKey = customApiKeyInput.value.trim();
+    fetchedModelsLabelInput.value = resolveProviderLabel(rawLabel, apiBase, apiKey);
+    loadExistingProviderModels();
+  }
 
   // ── Fetch Models button handler ──
   let fetchModelsBusy = false;
@@ -1509,7 +1872,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
           checked: oldCheckState.get(m.id) ?? false
         }));
         renderFetchedModels();
-        fetchedModelsBox.style.display = "flex";
+
         
         customModelHint.textContent = L.fetchModelsDone.replace("{n}", String(models.length));
         customModelHint.style.color = "#065f46";
@@ -1518,7 +1881,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
           persistCustomModel();
         }
       } else {
-        fetchedModelsBox.style.display = "none";
+
         customModelHint.textContent = L.fetchModelsEmpty;
         customModelHint.style.color = "#b45309";
       }
@@ -1533,21 +1896,30 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     }
   });
 
+  const advancedGroup = createEl(doc, "div", "llm-set-card");
+  const advancedTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const advancedBody = createEl(doc, "div", "llm-set-collapsible-body");
+  advancedTitle.dataset.collapsed = "true";
+  advancedBody.style.display = "none";
+  advancedTitle.addEventListener("click", () => {
+    const c = advancedTitle.dataset.collapsed === "true";
+    advancedTitle.dataset.collapsed = c ? "false" : "true";
+    advancedBody.style.display = c ? "" : "none";
+  });
+
   renderStaticText();
   renderModels();
   await renderAccounts();
   persistSelectionState();
 
-  const advancedGroup = createEl(doc, "div", "llm-set-card");
-
   const systemPromptWrap = createEl(doc, "div", "llm-set-field");
-  const systemPromptLabel = createEl(doc, "label", "llm-set-label", L.systemPrompt);
+  const systemPromptLabel = createEl(doc, "label", "llm-set-label llm-set-label--md", L.systemPrompt);
   const systemPromptInput = createEl(doc, "textarea", "llm-set-input llm-set-textarea") as HTMLTextAreaElement;
   systemPromptInput.rows = 4;
   systemPromptInput.placeholder = "Custom instructions for the AI assistant...";
   const systemPromptHint = createEl(doc, "span", "llm-set-hint", L.systemPromptHint);
   systemPromptWrap.append(systemPromptLabel, systemPromptInput, systemPromptHint);
-  advancedGroup.appendChild(systemPromptWrap);
+  advancedBody.appendChild(systemPromptWrap);
 
   systemPromptInput.value = getPref("systemPrompt") || "";
   systemPromptInput.addEventListener("input", () =>
@@ -1555,13 +1927,13 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   );
   const popupAddTextWrap = createEl(doc, "div", "llm-set-field");
   const popupAddTextLabel = createEl(doc, "label", "llm-set-radio-label");
-  const popupInput = createEl(doc, "input") as HTMLInputElement;
+  const popupInput = createEl(doc, "input", "llm-set-checkbox") as HTMLInputElement;
   popupInput.type = "checkbox";
   const popupText = createEl(doc, "span", "", L.showAddText);
   popupAddTextLabel.append(popupInput, popupText);
   const popupHint = createEl(doc, "span", "llm-set-hint", L.showAddTextHint);
   popupAddTextWrap.append(popupAddTextLabel, popupHint);
-  advancedGroup.appendChild(popupAddTextWrap);
+  advancedBody.appendChild(popupAddTextWrap);
 
   const prefValue = Zotero.Prefs.get(
     `${config.prefsPrefix}.showPopupAddText`,
@@ -1578,7 +1950,20 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const showAllModelsInput = createEl(doc, "input") as HTMLInputElement;
   showAllModelsInput.type = "checkbox";
   showAllModelsWrap.appendChild(showAllModelsInput);
-  advancedGroup.appendChild(showAllModelsWrap);
+  advancedBody.appendChild(showAllModelsWrap);
+  advancedGroup.append(advancedTitle, advancedBody);
 
+  // ── Build collapsible console section ──
+  const consoleSection = createEl(doc, "div", "llm-set-card");
+  consoleSection.append(consoleTitle, consoleCard);
+
+  // ── Move authCards, accountsBox into OAuth panel ──
+  oauthPanel.append(authCards, accountsBox);
+
+  // ── Final assembly — optimized section order ──
+  root.appendChild(langBox);
+  root.appendChild(connectionModeBox);
+  root.appendChild(modelsBox);
   root.appendChild(advancedGroup);
+  root.appendChild(consoleSection);
 }
