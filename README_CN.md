@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>免费开源的 Zotero AI 助手插件</strong><br/>
-  使用 ChatGPT / Gemini / 通义千问 / Copilot 账号登录 — 无需 API Key
+  OAuth 账号直接登录，或接入任意 OpenAI 兼容端点
 </p>
 
 <p align="center">

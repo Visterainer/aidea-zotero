@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A free, open-source AI assistant plugin for Zotero</strong><br/>
-  Log in with your ChatGPT / Gemini / Qwen / Copilot account — No API key needed
+  OAuth login with your existing account, or connect any OpenAI-compatible endpoint
 </p>
 
 <p align="center">
