@@ -128,7 +128,11 @@ Go to **Tools → Add-ons → AIdea → Settings** (or **Edit → Settings → A
 
 ### 2. Set Up a Provider
 
-For each provider you want to use, the setup flow on the **provider card** is:
+AIdea offers two connection modes. You can use one or both:
+
+#### Option A: OAuth Login (No API Key Required)
+
+Sign in with your **existing account** — no API key needed. For each provider you want to use, the setup flow on the **provider card** is:
 
 > **① `Install/Update Env`** → **② `OAuth Login`** → **③ `Refresh Models`**
 
@@ -143,29 +147,33 @@ For each provider you want to use, the setup flow on the **provider card** is:
   <img src="doc/screenshots/settings_oauth_en.png" alt="OAuth Providers" width="700" />
 </p>
 
+> 💡 **Tip:** You only need to do this once per provider. The login session is saved locally and persists across Zotero restarts.
+
+#### Option B: Custom OpenAI-Compatible Endpoint
+
+As an alternative to OAuth, AIdea supports connecting to any **OpenAI-compatible chat endpoint**. This is useful for users who want to use local or self-hosted models (e.g. Ollama, LM Studio, vLLM), or third-party services (e.g. DeepSeek, OpenRouter, Groq).
+
+In **Settings**, switch to the **API Mode** tab and fill in the following fields:
+
+| Field            | Required | Description                                                                                                                                                      |
+| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **API Base URL** | Yes      | The base URL of your endpoint (e.g. `https://api.openai.com/v1` or a local address like `http://localhost:11434/v1`). Local and self-hosted endpoints are supported. |
+| **API Key**      | No       | An API key if your endpoint requires authentication. Leave blank if no key is needed.                                                                            |
+| **Model**        | Yes      | Enter a model ID manually, or click **Auto Fetch Models** to discover available models automatically.                                                            |
+
 <p align="center">
   <img src="doc/screenshots/settings_api_en.png" alt="API Mode custom endpoint" width="700" />
 </p>
 
+> **Note:** This feature targets OpenAI-compatible `/chat/completions` endpoints. It does not guarantee compatibility with provider-specific features such as tool calling, file uploads, or image inputs beyond basic chat completion.
+
+#### Available Models
+
+Both connection modes share a unified model list. You can select which models to use, manage per-provider models, and refresh them at any time.
+
 <p align="center">
   <img src="doc/screenshots/settings_models_en.png" alt="Available Models" width="700" />
 </p>
-
-> 💡 **Tip:** You only need to do this once per provider. The login session is saved locally and persists across Zotero restarts.
-
-### Advanced: Custom OpenAI-Compatible Endpoint
-
-As an alternative to OAuth login, AIdea supports connecting to any **OpenAI-compatible chat endpoint**. This is useful for advanced users who want to use local or self-hosted models, or services that are not listed as built-in providers.
-
-To use a custom endpoint, open **Settings** and look for the **Custom** option in the connection mode selector. You will need to fill in the following fields:
-
-| Field            | Required | Description                                                                                                                                                      |
-| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **API Base URL** | Yes      | The base URL of your endpoint (e.g. `https://api.openai.com/v1` or a local address like `http://localhost:8000`). Local and self-hosted endpoints are supported. |
-| **API Key**      | No       | An API key if your endpoint requires authentication. Leave blank if no key is needed.                                                                            |
-| **Model**        | Yes      | The model name to use (e.g. `gpt-4o`, `llama3`, etc.).                                                                                                           |
-
-> **Note:** This feature targets OpenAI-compatible chat endpoints. It does not guarantee compatibility with provider-specific features such as tool calling, file uploads, or image inputs beyond basic chat completion.
 
 ### 3. Start Chatting
 
