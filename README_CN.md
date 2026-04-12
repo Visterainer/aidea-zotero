@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>免费开源的 Zotero AI 助手插件</strong><br/>
-  OAuth 账号直接登录，同时支持 OpenAI 兼容 API 与本地模型（Ollama、LM Studio 等）
+  OAuth 账号直接登录，或接入任意 OpenAI 兼容端点
 </p>
 
 <p align="center">

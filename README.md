@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A free, open-source AI assistant plugin for Zotero</strong><br/>
-  OAuth login with your existing account, or bring your own OpenAI-compatible API / local models (Ollama, LM Studio, etc.)
+  OAuth login with your existing account, or connect any OpenAI-compatible endpoint
 </p>
 
 <p align="center">
