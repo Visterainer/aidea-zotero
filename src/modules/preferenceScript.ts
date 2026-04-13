@@ -1412,10 +1412,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
     // Copilot uses in-plugin Device Code flow — no CLI needed
     if (provider === "github-copilot") {
-      perProviderSetupBtn.setAttribute(
-        "style",
-        perProviderSetupBtn.getAttribute("style") + "display:none;",
-      );
+      perProviderSetupBtn.remove();
 
       loginBtn.addEventListener("click", async () => {
         // Show OAuth risk warning on first click only
