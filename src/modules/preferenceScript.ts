@@ -59,7 +59,6 @@ type Lang = "zh-CN" | "en-US";
 const PROVIDERS: OAuthProviderId[] = [
   "openai-codex",
   "google-gemini-cli",
-  "qwen",
   "github-copilot",
 ];
 const PROFILE_KEYS = [
@@ -1411,8 +1410,8 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       deleteBtn,
     });
 
-    // Qwen and Copilot use in-plugin Device Code flows — no CLI needed
-    if (provider === "qwen" || provider === "github-copilot") {
+    // Copilot uses in-plugin Device Code flow — no CLI needed
+    if (provider === "github-copilot") {
       perProviderSetupBtn.setAttribute(
         "style",
         perProviderSetupBtn.getAttribute("style") + "display:none;",

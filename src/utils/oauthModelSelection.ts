@@ -135,9 +135,7 @@ export function getDefaultSelectedModelIds(
     );
   }
 
-  if (provider === "qwen") {
-    return canonicalizeSelectedModelIds(modelIds, models);
-  }
+
 
   const selected = [
     ...modelIds.filter((id) => /^claude-/i.test(id)),
@@ -189,7 +187,6 @@ export function reconcileModelSelectionCache(
   const providers = Array.from(new Set([
     "openai-codex",
     "google-gemini-cli",
-    "qwen",
     "github-copilot",
     ...Object.keys(modelCache)
   ])) as OAuthProviderId[];
@@ -220,7 +217,6 @@ function sameSelectionCache(
   const providers = new Set([
     "openai-codex",
     "google-gemini-cli",
-    "qwen",
     "github-copilot",
     ...Object.keys(left),
     ...Object.keys(right)

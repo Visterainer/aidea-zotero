@@ -64,7 +64,7 @@ function showCopiedToast(lang: OAuthUiLang): void {
   } catch { /* best-effort */ }
 }
 
-export type OAuthProviderId = "openai-codex" | "google-gemini-cli" | "qwen" | "github-copilot";
+export type OAuthProviderId = "openai-codex" | "google-gemini-cli" | "github-copilot";
 
 export type OAuthCredential = {
   provider: OAuthProviderId;
@@ -196,7 +196,7 @@ export function markerToProvider(value: string | undefined | null): OAuthProvide
   if (raw === providerToMarker("google-gemini-cli") || raw === "google-gemini-cli") {
     return "google-gemini-cli";
   }
-  if (raw === providerToMarker("qwen") || raw === "qwen") return "qwen";
+
   if (raw === providerToMarker("github-copilot") || raw === "github-copilot") return "github-copilot";
   return null;
 }
@@ -1123,7 +1123,7 @@ async function readJsonFile(path: string): Promise<any | null> {
 export function getProviderLabel(provider: OAuthProviderId): string {
   if (provider === "openai-codex") return "ChatGPT (Codex OAuth)";
   if (provider === "google-gemini-cli") return "Gemini (Gemini CLI OAuth)";
-  if (provider === "qwen") return "Qwen (通义千问)";
+
   if (provider === "github-copilot") return "GitHub Copilot";
   return provider;
 }
@@ -1235,51 +1235,7 @@ async function sha256Base64Url(text: string): Promise<string> {
   throw new Error("SubtleCrypto not available for PKCE");
 }
 
-// ---------- Qwen credential read/write ----------
-const DEFAULT_QWEN_BASE_URL = "https://portal.qwen.ai/v1";
 
-function getQwenBaseUrl(): string {
-  const raw = getOAuthPref("oauthQwenToken");
-  if (!raw) return DEFAULT_QWEN_BASE_URL;
-  try {
-    const data = JSON.parse(raw);
-    const ru = typeof data.resource_url === "string" ? data.resource_url.trim() : "";
-    if (ru) {
-      const url = ru.startsWith("http") ? ru : `https://${ru}`;
-      return url.endsWith("/v1") ? url : `${url.replace(/\/+$/, "")}/v1`;
-    }
-    return DEFAULT_QWEN_BASE_URL;
-  } catch {
-    return DEFAULT_QWEN_BASE_URL;
-  }
-}
-
-export async function readQwenOAuthCredential(): Promise<OAuthCredential | null> {
-  const raw = getOAuthPref("oauthQwenToken");
-  if (!raw) return null;
-  try {
-    const data = JSON.parse(raw);
-    const accessToken = typeof data.access_token === "string" ? data.access_token.trim() : "";
-    if (!accessToken) return null;
-    return {
-      provider: "qwen",
-      accessToken,
-      refreshToken: typeof data.refresh_token === "string" ? data.refresh_token.trim() : undefined,
-      expiresAt: typeof data.expires_at === "number" ? data.expires_at : undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function saveQwenOAuthCredential(data: {
-  access_token: string;
-  refresh_token?: string;
-  expires_at?: number;
-  resource_url?: string;
-}): void {
-  setOAuthPref("oauthQwenToken", JSON.stringify(data));
-}
 
 // ---------- GitHub Copilot credential read/write ----------
 function saveCopilotGithubToken(token: string): void {
@@ -1425,7 +1381,7 @@ export async function readProviderOAuthCredential(
 ): Promise<OAuthCredential | null> {
   if (provider === "openai-codex") return readCodexOAuthCredential();
   if (provider === "google-gemini-cli") return readGeminiOAuthCredential();
-  if (provider === "qwen") return readQwenOAuthCredential();
+
   if (provider === "github-copilot") return readCopilotOAuthCredential();
   return null;
 }
@@ -1470,13 +1426,7 @@ const GEMINI_CLI_KNOWN_MODELS: ProviderModelOption[] = [
   { id: "gemini-2.5-flash-lite",   label: "Gemini 2.5 Flash Lite" },
 ];
 
-/**
- * Known Qwen (通义千问) models.
- */
-const QWEN_KNOWN_MODELS: ProviderModelOption[] = [
-  { id: "coder-model",   label: "Qwen Coder" },
-  { id: "vision-model",  label: "Qwen Vision" },
-];
+
 
 /**
  * Known GitHub Copilot models.
@@ -1549,39 +1499,7 @@ export async function fetchAvailableModels(
       return [...CODEX_KNOWN_MODELS];
     }
 
-    if (provider === "qwen") {
-      // Try dynamic model discovery from the Qwen portal
-      try {
-        const baseUrl = getQwenBaseUrl();
-        const modelsRes = await getFetch()(`${baseUrl}/models`, {
-          method: "GET",
-          headers: {
-            ...ensureProviderAuthHeaderInit(cred),
-            Accept: "application/json",
-          },
-        });
-        if (modelsRes.ok) {
-          const modelsData = (await modelsRes.json()) as any;
-          const models = Array.isArray(modelsData?.data) ? modelsData.data : (Array.isArray(modelsData) ? modelsData : []);
-          if (models.length > 0) {
-            const rows: ProviderModelOption[] = models
-              .map((m: any) => {
-                const id = String(m.id || m.model || "").trim();
-                const label = String(m.name || m.id || "").trim() || id;
-                return { id, label };
-              })
-              .filter((m: ProviderModelOption) => m.id);
-            if (rows.length > 0) {
-              ztoolkit?.log?.(`AIdea: Qwen dynamic models: ${rows.map(r => r.id).join(", ")}`);
-              return dedupeModels(rows);
-            }
-          }
-        }
-      } catch (err) {
-        ztoolkit?.log?.("AIdea: Qwen dynamic model fetch failed, using static list", err);
-      }
-      return [...QWEN_KNOWN_MODELS];
-    }
+
 
     if (provider === "github-copilot") {
       try {
@@ -1603,7 +1521,7 @@ export async function fetchAvailableModels(
   } catch (err) {
     ztoolkit?.log?.("AIdea: fetchAvailableModels failed", provider, err);
     if (provider === "google-gemini-cli") return [...GEMINI_CLI_KNOWN_MODELS];
-    if (provider === "qwen") return [...QWEN_KNOWN_MODELS];
+
     if (provider === "github-copilot") return [...COPILOT_KNOWN_MODELS];
     return [];
   }
@@ -2109,97 +2027,7 @@ async function discoverGeminiProject(accessToken: string): Promise<string> {
   return "";
 }
 
-// ---------- Qwen Device Code Flow ----------
-const QWEN_CLIENT_ID = "f0304373b74a44d2b584a3fb70ca9e56";
-const QWEN_DEVICE_CODE_URL = "https://chat.qwen.ai/api/v1/oauth2/device/code";
-const QWEN_TOKEN_URL = "https://chat.qwen.ai/api/v1/oauth2/token";
 
-async function loginQwenDeviceCode(): Promise<{ ok: boolean; message: string }> {
-  try {
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = await sha256Base64Url(codeVerifier);
-
-    const body = new URLSearchParams({
-      client_id: QWEN_CLIENT_ID,
-      scope: "openid profile email model.completion",
-      code_challenge: codeChallenge,
-      code_challenge_method: "S256",
-    });
-    const dcRes = await getFetch()(QWEN_DEVICE_CODE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-      body,
-    });
-    if (!dcRes.ok) throw new Error(`Qwen device code failed: HTTP ${dcRes.status}`);
-    const dcJson = (await dcRes.json()) as unknown as Record<string, unknown>;
-    const deviceCode = String(dcJson.device_code || "");
-    const userCode = String(dcJson.user_code || "");
-    const verificationUri = String(dcJson.verification_uri_complete || dcJson.verification_uri || "");
-    const interval = Math.max(2, Number(dcJson.interval) || 5);
-    const expiresIn = Number(dcJson.expires_in) || 300;
-    if (!deviceCode || !userCode) throw new Error("Qwen device code response missing fields");
-
-    // Show dialog to user with i18n and copy-to-clipboard
-    const win = Zotero.getMainWindow?.();
-    const lang = getUiLang();
-    const msg = lang === "zh-CN"
-      ? `Qwen OAuth 登录\n\n您的授权码：\n${userCode}\n\n点击「确定」将自动复制授权码并在浏览器中打开授权页面。\n请在浏览器页面中粘贴此授权码完成授权。`
-      : `Qwen OAuth Login\n\nYour authorization code:\n${userCode}\n\nClick OK to copy the code and open the authorization page in your browser.\nPaste this code on the browser page to complete authorization.`;
-    const accepted = win?.confirm?.(msg);
-    if (!accepted) return { ok: false, message: lang === "zh-CN" ? "用户取消了授权" : "Authorization cancelled by user" };
-    // Copy user code to clipboard, show toast, and open browser
-    copyToClipboard(userCode);
-    showCopiedToast(lang);
-    try { (Zotero as any).launchURL?.(verificationUri); } catch { /* ignore */ }
-
-    // Poll for token
-    const deadline = Date.now() + expiresIn * 1000;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, interval * 1000));
-      const tokenBody = new URLSearchParams({
-        client_id: QWEN_CLIENT_ID,
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        device_code: deviceCode,
-        code_verifier: codeVerifier,
-      });
-      const tokenRes = await getFetch()(QWEN_TOKEN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-        body: tokenBody,
-      });
-      if (!tokenRes.ok) {
-        // may be authorization_pending
-        try {
-          const errJson = (await tokenRes.json()) as unknown as Record<string, unknown>;
-          const err = String(errJson.error || "");
-          if (err === "authorization_pending") continue;
-          if (err === "slow_down") { await new Promise((r) => setTimeout(r, 2000)); continue; }
-          if (err === "expired_token") throw new Error("Qwen authorization expired");
-          if (err === "access_denied") throw new Error("Qwen authorization denied by user");
-          throw new Error(`Qwen token error: ${err}`);
-        } catch (parseErr) {
-          if (parseErr instanceof Error && parseErr.message.startsWith("Qwen")) throw parseErr;
-          continue;
-        }
-      }
-      const tokenJson = (await tokenRes.json()) as unknown as Record<string, unknown>;
-      const accessToken = String(tokenJson.access_token || "");
-      if (!accessToken) throw new Error("Qwen token response missing access_token");
-      saveQwenOAuthCredential({
-        access_token: accessToken,
-        refresh_token: typeof tokenJson.refresh_token === "string" ? tokenJson.refresh_token : undefined,
-        expires_at: typeof tokenJson.expires_in === "number"
-          ? Date.now() + tokenJson.expires_in * 1000
-          : undefined,
-        resource_url: typeof tokenJson.resource_url === "string" ? tokenJson.resource_url : undefined,
-      });
-      return { ok: true, message: `${getProviderLabel("qwen")} OAuth ready` };
-    }
-    throw new Error("Qwen device code expired");
-  } catch (err) {
-    return { ok: false, message: String(err instanceof Error ? err.message : err) };
-  }
-}
 
 // ---------- GitHub Copilot Device Code Flow ----------
 const COPILOT_GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98";
@@ -2277,7 +2105,7 @@ export async function runProviderOAuthLogin(
   provider: OAuthProviderId,
 ): Promise<{ ok: boolean; message: string }> {
   // Qwen and Copilot use in-plugin Device Code flows
-  if (provider === "qwen") return loginQwenDeviceCode();
+
   if (provider === "github-copilot") return loginCopilotDeviceCode();
 
   // Gemini: in-plugin OAuth Authorization Code + PKCE flow.
@@ -2333,10 +2161,7 @@ export async function runProviderOAuthLogin(
 export async function removeProviderOAuthCredential(
   provider: OAuthProviderId,
 ): Promise<{ ok: boolean; message: string }> {
-  if (provider === "qwen") {
-    setOAuthPref("oauthQwenToken", "");
-    return { ok: true, message: `${getProviderLabel(provider)} authorization removed` };
-  }
+
   if (provider === "github-copilot") {
     setOAuthPref("oauthCopilotGithubToken", "");
     setOAuthPref("oauthCopilotApiToken", "");
@@ -2816,8 +2641,7 @@ export async function getProviderAccountSummary(
     } else {
       account = cred.projectId || "Google OAuth";
     }
-  } else if (provider === "qwen") {
-    account = "Qwen OAuth";
+
   } else if (provider === "github-copilot") {
     account = "GitHub OAuth";
   } else {
@@ -3302,43 +3126,7 @@ export async function chatWithProviderOAuth(params: {
     return fullText || "(No response text)";
   }
 
-  // ---------- Qwen (OpenAI-compatible) ----------
-  if (params.provider === "qwen") {
-    const messages = buildOpenAIResponsesInput(params);
-    const payload: Record<string, unknown> = {
-      model: params.model,
-      messages,
-      stream: true,
-    };
-    if (typeof params.temperature === "number" && Number.isFinite(params.temperature)) {
-      payload.temperature = params.temperature;
-    }
-    if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
-      payload.max_tokens = params.maxTokens;
-    }
-    const qwenUrl = `${getQwenBaseUrl()}/chat/completions`;
-    const res = await getFetch()(qwenUrl, {
-      method: "POST",
-      headers: {
-        ...ensureProviderAuthHeaderInit(cred),
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-      },
-      body: JSON.stringify(payload),
-      signal: params.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`Qwen OAuth HTTP ${res.status}: ${await res.text()}`);
-    }
-    if (res.body) {
-      return parseOpenAICompatSSEStream(res.body, params.onDelta);
-    }
-    // Fallback: non-streaming
-    const data = (await res.json()) as any;
-    const text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
-    params.onDelta?.(text);
-    return text;
-  }
+
 
   // ---------- GitHub Copilot (OpenAI-compatible via token exchange) ----------
   if (params.provider === "github-copilot") {
@@ -3460,15 +3248,7 @@ export async function getOAuthProviderPingInfo(
     return null;
   }
 
-  if (provider === "qwen") {
-    return {
-      apiBase: getQwenBaseUrl(),
-      headers: {
-        ...ensureProviderAuthHeaderInit(cred),
-        "Content-Type": "application/json",
-      },
-    };
-  }
+
 
   if (provider === "github-copilot") {
     const result = await ensureCopilotApiToken();

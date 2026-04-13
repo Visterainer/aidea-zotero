@@ -220,7 +220,6 @@ export function getSelectedProfileForItem(itemId: number): {
 const KNOWN_OAUTH_PROVIDERS: ReadonlySet<string> = new Set([
   "openai-codex",
   "google-gemini-cli",
-  "qwen",
   "github-copilot",
 ]);
 
