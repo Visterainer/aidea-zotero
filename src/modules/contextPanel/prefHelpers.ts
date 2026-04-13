@@ -16,6 +16,10 @@ import {
 } from "./constants";
 import type { ApiProfile, CustomShortcut } from "./types";
 import { selectedModelCache, selectedModelProviderCache, panelFontScalePercent } from "./state";
+import {
+  providerToMarker,
+  type OAuthProviderId,
+} from "../../utils/oauthCli";
 
 export type PrimaryConnectionMode = "oauth" | "custom";
 
@@ -205,8 +209,21 @@ export function getSelectedProfileForItem(itemId: number): {
 /**
  * Resolve apiBase/apiKey for a model by looking it up in the oauthModelListCache.
  * If provider is specified, look in that provider's cache first.
- * Returns null if the model doesn't have custom credentials.
+ *
+ * For custom-endpoint models (those with an `apiBase` stored in the cache),
+ * returns the stored credentials directly.
+ *
+ * For OAuth models (no `apiBase` but belonging to a known OAuth provider),
+ * returns the provider marker (e.g. `oauth://openai-codex`) so the chat
+ * system can resolve the correct OAuth token.
  */
+const KNOWN_OAUTH_PROVIDERS: ReadonlySet<string> = new Set([
+  "openai-codex",
+  "google-gemini-cli",
+  "qwen",
+  "github-copilot",
+]);
+
 function resolveModelCredentials(
   modelName: string,
   provider?: string,
@@ -223,28 +240,45 @@ function resolveModelCredentials(
 
   const normalized = modelName.trim().toLowerCase();
 
+  /**
+   * Try to match a model in a single provider's list.
+   * Returns credentials for custom endpoints, OAuth marker for OAuth providers,
+   * or null if no match.
+   */
+  const tryMatch = (
+    providerKey: string,
+    models: Array<{ id: string; apiBase?: string; apiKey?: string }>,
+  ): { apiBase: string; apiKey: string } | null => {
+    const match = models.find(
+      (m) => String(m.id || "").trim().toLowerCase() === normalized,
+    );
+    if (!match) return null;
+    // Custom endpoint: has explicit apiBase
+    if (match.apiBase) {
+      return { apiBase: match.apiBase, apiKey: match.apiKey || "" };
+    }
+    // Known OAuth provider: return the marker so the chat system resolves
+    // the correct OAuth credential for this provider.
+    if (KNOWN_OAUTH_PROVIDERS.has(providerKey)) {
+      return { apiBase: providerToMarker(providerKey as OAuthProviderId), apiKey: "" };
+    }
+    return null;
+  };
+
   // If provider is specified, look there first
   if (provider) {
     const providerModels = modelCache[provider];
     if (providerModels) {
-      const match = providerModels.find(
-        (m) => String(m.id || "").trim().toLowerCase() === normalized,
-      );
-      if (match?.apiBase) {
-        return { apiBase: match.apiBase, apiKey: match.apiKey || "" };
-      }
+      const result = tryMatch(provider, providerModels);
+      if (result) return result;
     }
   }
 
   // Search all providers for the model
-  for (const [, models] of Object.entries(modelCache)) {
+  for (const [providerKey, models] of Object.entries(modelCache)) {
     if (!Array.isArray(models)) continue;
-    const match = models.find(
-      (m) => String(m.id || "").trim().toLowerCase() === normalized,
-    );
-    if (match?.apiBase) {
-      return { apiBase: match.apiBase, apiKey: match.apiKey || "" };
-    }
+    const result = tryMatch(providerKey, models);
+    if (result) return result;
   }
 
   return null;

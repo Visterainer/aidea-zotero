@@ -1,14 +1,13 @@
 import {
-  MODEL_PROFILE_ORDER,
   type ModelProfileKey,
 } from "../../constants";
 import {
   getApiProfiles,
+  getPrimaryConnectionMode,
   getStringPref,
 } from "../../prefHelpers";
 import { selectedModelCache, selectedModelProviderCache } from "../../state";
 import {
-  markerToProvider,
   type OAuthProviderId,
   type ProviderModelOption,
 } from "../../../../utils/oauthCli";
@@ -17,20 +16,6 @@ import {
   normalizeModelId,
   parseModelSelectionCache,
 } from "../../../../utils/oauthModelSelection";
-
-function detectProvider(apiBase: string): string {
-  if (apiBase.includes("openai-codex")) return "Codex";
-  if (apiBase.includes("google-gemini")) return "Gemini";
-  if (apiBase.includes("qwen")) return "Qwen";
-  if (apiBase.includes("github-copilot")) return "Copilot";
-  return "";
-}
-
-function detectOAuthProvider(apiBase: string): OAuthProviderId | null {
-  const normalized = String(apiBase || "").trim();
-  if (!normalized) return null;
-  return markerToProvider(normalized);
-}
 
 function parseOAuthModelCache():
   Partial<Record<OAuthProviderId, ProviderModelOption[]>> {
@@ -56,49 +41,30 @@ export type ModelChoice = {
   apiKey?: string;
 };
 
+/** Human-readable labels for known OAuth providers. */
+const OAUTH_PROVIDER_LABELS: Record<OAuthProviderId, string> = {
+  "openai-codex": "Codex",
+  "google-gemini-cli": "Gemini",
+  qwen: "Qwen",
+  "github-copilot": "Copilot",
+};
+
+/**
+ * Build the model choices list from a **single source of truth**: the
+ * `oauthModelListCache` (plus the `oauthModelSelectionCache` filter).
+ *
+ * In "custom" connection mode, the base-pref model is also included as a
+ * fallback if it is not already present in the cache.
+ */
 export function getModelChoices() {
   const profiles = getApiProfiles();
-  const primaryModel = profiles.primary.model.trim();
   const choices: ModelChoice[] = [];
-  // Dedup key: model+provider to allow same model name across different providers
+  // Dedup key: normalized-model + provider-label
   const seenModels = new Set<string>();
   const modelCache = parseOAuthModelCache();
   const selectionCache = parseModelSelectionCache(
     getStringPref("oauthModelSelectionCache"),
   );
-
-  for (const key of MODEL_PROFILE_ORDER) {
-    const model = (
-      key === "primary" ? primaryModel : profiles[key].model
-    ).trim();
-    if (!model) continue;
-
-    const providerId = detectOAuthProvider(profiles[key].apiBase);
-    const normalized = normalizeModelId(model);
-    if (providerId) {
-      const providerModels = modelCache[providerId] || [];
-      if (providerModels.length > 0) {
-        const selectedIds = new Set(
-          getSelectedProviderModels(
-            providerId,
-            providerModels,
-            selectionCache,
-          ).map((row) => normalizeModelId(row.id)),
-        );
-        if (!selectedIds.has(normalized)) continue;
-      }
-    }
-
-    const providerLabel = detectProvider(profiles[key].apiBase);
-    const dedupKey = `${normalized}\x00${providerLabel}`;
-    if (seenModels.has(dedupKey)) continue;
-    seenModels.add(dedupKey);
-    choices.push({
-      key,
-      model,
-      provider: providerLabel,
-    });
-  }
 
   const profileKeys: ModelProfileKey[] = [
     "primary",
@@ -106,25 +72,20 @@ export function getModelChoices() {
     "tertiary",
     "quaternary",
   ];
-  let slotIdx = choices.length;
-  const providerLabels: Record<OAuthProviderId, string> = {
-    "openai-codex": "Codex",
-    "google-gemini-cli": "Gemini",
-    qwen: "Qwen",
-    "github-copilot": "Copilot",
-  };
+  let slotIdx = 0;
 
+  // ── Single source of truth: modelCache ──
   for (const provider of Object.keys(modelCache) as OAuthProviderId[]) {
     const providerModels = getSelectedProviderModels(
       provider,
       modelCache[provider] || [],
       selectionCache,
     );
-    const label = providerLabels[provider] || provider;
+    const label = OAUTH_PROVIDER_LABELS[provider] || provider;
     for (const row of providerModels) {
       const id = String(row.id || "").trim();
-      const normalized = normalizeModelId(id);
       if (!id) continue;
+      const normalized = normalizeModelId(id);
       // Dedup per provider — same model under different providers is allowed
       const dedupKey = `${normalized}\x00${label}`;
       if (seenModels.has(dedupKey)) continue;
@@ -138,6 +99,29 @@ export function getModelChoices() {
         apiKey: row.apiKey,
       });
       slotIdx += 1;
+    }
+  }
+
+  // ── Custom mode fallback ──
+  // When the user is in "custom" connection mode, the base prefs may contain
+  // a model that is NOT in any provider's cache.  Include it so the dropdown
+  // is never empty in custom mode.
+  if (getPrimaryConnectionMode() === "custom") {
+    const customModel = profiles.primary.model.trim();
+    if (customModel) {
+      const normalized = normalizeModelId(customModel);
+      const alreadyPresent = choices.some(
+        (c) => normalizeModelId(c.model) === normalized,
+      );
+      if (!alreadyPresent) {
+        choices.unshift({
+          key: "primary",
+          model: customModel,
+          provider: "Custom API",
+          apiBase: profiles.primary.apiBase,
+          apiKey: profiles.primary.apiKey,
+        });
+      }
     }
   }
 
@@ -201,12 +185,19 @@ export function persistModelProvider(providerLabel: string): void {
 
 export function getSelectedModelInfo(itemId: number | null) {
   const { choices } = getModelChoices();
+
+  /** Helper: build a consistent return shape that always includes currentProvider. */
+  const buildResult = (entry: ModelChoice) => ({
+    selected: entry.key,
+    choices,
+    currentModel: entry.model,
+    currentProvider: entry.provider || "",
+  });
+
   if (itemId === null) {
-    return {
-      selected: "primary" as const,
-      choices,
-      currentModel: choices[0]?.model || "",
-    };
+    return choices[0]
+      ? buildResult(choices[0])
+      : { selected: "primary" as const, choices, currentModel: "", currentProvider: "" };
   }
 
   const cachedSelection = selectedModelCache.get(itemId);
@@ -221,22 +212,10 @@ export function getSelectedModelInfo(itemId: number | null) {
         ? choices.find((entry) => entry.model === cachedSelection && entry.provider === cachedProvider)
           || choices.find((entry) => entry.model === cachedSelection)
         : choices.find((entry) => entry.model === cachedSelection);
-      if (byModel) {
-        return {
-          selected: byModel.key,
-          choices,
-          currentModel: byModel.model,
-        };
-      }
+      if (byModel) return buildResult(byModel);
     }
     const byKey = choices.find((entry) => entry.key === cachedSelection);
-    if (byKey) {
-      return {
-        selected: cachedSelection,
-        choices,
-        currentModel: byKey.model,
-      };
-    }
+    if (byKey) return buildResult(byKey);
   }
 
   const persistedModel = getPersistedModelName();
@@ -257,28 +236,25 @@ export function getSelectedModelInfo(itemId: number | null) {
       if (byPersisted.provider) {
         selectedModelProviderCache.set(itemId, byPersisted.provider);
       }
-      return {
-        selected: byPersisted.key,
-        choices,
-        currentModel: byPersisted.model,
-      };
+      return buildResult(byPersisted);
     }
   }
 
   const bestDefault = pickBestDefaultModel(choices);
   if (bestDefault) {
     selectedModelCache.set(itemId, bestDefault);
+    const bestEntry = choices.find((entry) => entry.model === bestDefault);
+    if (bestEntry) return buildResult(bestEntry);
     return {
-      selected: choices.find((entry) => entry.model === bestDefault)?.key || "primary",
+      selected: "primary" as ModelProfileKey,
       choices,
       currentModel: bestDefault,
+      currentProvider: "",
     };
   }
 
   const first = choices[0];
-  return {
-    selected: first?.key || "primary",
-    choices,
-    currentModel: first?.model || "",
-  };
+  return first
+    ? buildResult(first)
+    : { selected: "primary" as ModelProfileKey, choices, currentModel: "", currentProvider: "" };
 }

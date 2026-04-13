@@ -3959,7 +3959,7 @@ export function setupHandlers(
   const rebuildModelMenu = () => {
     if (!item || !modelMenu) return;
     const { choices } = getModelChoices();
-    const { currentModel } = getSelectedModelInfo();
+    const { currentModel, currentProvider } = getSelectedModelInfo();
 
     modelMenu.innerHTML = "";
     appendDropdownInstruction(
@@ -3994,8 +3994,10 @@ export function setupHandlers(
         modelMenu.appendChild(header);
       }
 
-      // Match selection by model name (not profile key) to avoid duplicates
-      const isSelected = entry.model.trim().toLowerCase() === currentModel.trim().toLowerCase();
+      // Match selection by model name + provider to handle same-name models across providers
+      const isSelected =
+        entry.model.trim().toLowerCase() === currentModel.trim().toLowerCase()
+        && (entry.provider || "").toLowerCase() === (currentProvider || "").toLowerCase();
       const optionClasses = isSelected
         ? "llm-response-menu-item llm-model-option llm-model-option-selected"
         : "llm-response-menu-item llm-model-option";
@@ -4041,7 +4043,7 @@ export function setupHandlers(
   const rebuildRetryModelMenu = () => {
     if (!item || !retryModelMenu) return;
     const { choices } = getModelChoices();
-    const { currentModel } = getSelectedModelInfo();
+    const { currentModel, currentProvider } = getSelectedModelInfo();
     retryModelMenu.innerHTML = "";
 
     // Group by provider with headers
@@ -4059,7 +4061,9 @@ export function setupHandlers(
         retryModelMenu.appendChild(header);
       }
 
-      const isSelected = entry.model.trim().toLowerCase() === currentModel.trim().toLowerCase();
+      const isSelected =
+        entry.model.trim().toLowerCase() === currentModel.trim().toLowerCase()
+        && (entry.provider || "").toLowerCase() === (currentProvider || "").toLowerCase();
       const optionClasses = isSelected
         ? "llm-response-menu-item llm-model-option llm-model-option-selected"
         : "llm-response-menu-item llm-model-option";
