@@ -105,6 +105,125 @@ describe("markdown renderer", function () {
       assert.include(html, "<p>");
       assert.include(html, "<ul>");
     });
+
+    it("should keep | inside inline code as one cell", function () {
+      const md =
+        "| regex | note |\n| --- | --- |\n| `a|b` | alternation |";
+      const html = renderMarkdown(md);
+      assert.include(html, "<code>a|b</code>");
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+    });
+
+    it("should keep | inside inline math as one cell", function () {
+      const md =
+        "| expr | meaning |\n| --- | --- |\n| $x|y$ | divides |";
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "divides");
+    });
+
+    it("should keep | inside double quotes as one cell", function () {
+      const md = '| word | value |\n| --- | --- |\n| pipe | "|" |';
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "&quot;|&quot;");
+    });
+
+    it("should keep | inside single quotes as one cell", function () {
+      const md = "| word | value |\n| --- | --- |\n| pipe | '|' |";
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "&#039;|&#039;");
+    });
+
+    it("should ignore word-internal apostrophes when splitting cells", function () {
+      const md =
+        "| word | meaning |\n| --- | --- |\n| don't | refuse |\n| won't | will not |";
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<tr>/g) || []).length, 2);
+      assert.equal((body.match(/<td>/g) || []).length, 4);
+    });
+
+    it("should handle mixed delimiter types across rows", function () {
+      const md =
+        '| kind | example |\n| --- | --- |\n| code | `a|b` |\n| quote | "c|d" |';
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 4);
+      assert.include(body, "<code>a|b</code>");
+      assert.include(body, "&quot;c|d&quot;");
+    });
+
+    it("should keep trailing | inside an unpaired opener", function () {
+      // Stack-based: an opener without a closer keeps the row inside
+      // its context, so pipes after it do not split further cells.
+      const md =
+        '| text | note |\n| --- | --- |\n| "open | unclosed |';
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 1);
+    });
+
+    it("should let outer backticks protect inner quoted |", function () {
+      const md =
+        '| code | note |\n| --- | --- |\n| `"a|b"` | quote inside code |';
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "<code>&quot;a|b&quot;</code>");
+    });
+
+    it("should let outer double quotes protect inner apostrophe and |", function () {
+      const md =
+        `| phrase | note |\n| --- | --- |\n| "it's|fine" | apostrophe in quote |`;
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "it&#039;s|fine");
+    });
+
+    it("should let outer single quotes protect inner double-quoted |", function () {
+      const md =
+        `| phrase | note |\n| --- | --- |\n| '"a|b"' | double inside single |`;
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "&quot;a|b&quot;");
+    });
+
+    it("should protect math | alongside code | in the same row", function () {
+      const md =
+        "| expr | code |\n| --- | --- |\n| $a|b$ | `c|d` |";
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "<code>c|d</code>");
+    });
+
+    it("should combine code and quoted | guards in one cell", function () {
+      const md =
+        '| kind | sample |\n| --- | --- |\n| mix | `a|b` and "c|d" |';
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      assert.include(body, "<code>a|b</code>");
+      assert.include(body, "&quot;c|d&quot;");
+    });
+
+    it("should honor the outermost guard with triple nesting", function () {
+      const md =
+        '| phrase | note |\n| --- | --- |\n| "`$x|y$`" | triple nesting |';
+      const html = renderMarkdown(md);
+      const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
+      assert.equal((body.match(/<td>/g) || []).length, 2);
+      // The | inside the outermost "..." pair must not split the row
+      assert.include(body, "triple nesting");
+    });
   });
 
   describe("renderMarkdownForNote", function () {
