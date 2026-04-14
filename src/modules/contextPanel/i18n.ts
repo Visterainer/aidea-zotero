@@ -58,6 +58,42 @@ export type PanelI18n = {
   confirmDeleteTitle: string;
   tabDiscussion: string;
   tabSetting: string;
+  tabTranslate: string;
+  trCurrentPdf: string;
+  trSelectLocalPdf: string;
+  trNoPdfFound: string;
+  trSourceLang: string;
+  trTargetLang: string;
+  trOutputMono: string;
+  trOutputDual: string;
+  trSavePath: string;
+  trBrowsePath: string;
+  trStartTranslation: string;
+  trPause: string;
+  trResume: string;
+  trClearCache: string;
+  trInstallEnv: string;
+  trEnvNotReady: string;
+  trTranslating: string;
+  trDone: string;
+  trError: string;
+  trIdle: string;
+  trAdvanced: string;
+  trSkipReferencesAuto: string;
+  trKeepAppendixTranslated: string;
+  trProtectAuthorBlock: string;
+  trDisableRichTextTranslate: string;
+  trEnhanceCompatibility: string;
+  trTranslateTableText: string;
+  trOCR: string;
+  trAutoOCR: string;
+  trSaveGlossary: string;
+  trDisableGlossary: string;
+  trFontFamily: string;
+  trFontFamilyAuto: string;
+  trFontFamilySerif: string;
+  trFontFamilySansSerif: string;
+  trFontFamilyScript: string;
 };
 
 declare const Zotero: any;
@@ -138,6 +174,42 @@ export function getPanelI18n(): PanelI18n {
       confirmDeleteTitle: "Delete conversations",
       tabDiscussion: "Discussion",
       tabSetting: "Setting",
+      tabTranslate: "Translate",
+      trCurrentPdf: "Current PDF",
+      trSelectLocalPdf: "Select local PDF",
+      trNoPdfFound: "No PDF attachment found",
+      trSourceLang: "Source",
+      trTargetLang: "Target",
+      trOutputMono: "Translation only",
+      trOutputDual: "Bilingual",
+      trSavePath: "Save to",
+      trBrowsePath: "Browse",
+      trStartTranslation: "Translate",
+      trPause: "Pause",
+      trResume: "Resume",
+      trClearCache: "Clear cache",
+      trInstallEnv: "Install Environment",
+      trEnvNotReady: "Translation environment not ready",
+      trTranslating: "Translating...",
+      trDone: "Translation complete",
+      trError: "Translation failed",
+      trIdle: "Ready to translate",
+      trAdvanced: "Advanced",
+      trSkipReferencesAuto: "Auto-skip references (detect by heading/pattern)",
+      trKeepAppendixTranslated: "Keep appendix translated",
+      trProtectAuthorBlock: "Protect author/affiliation block",
+      trDisableRichTextTranslate: "Disable rich-text translation",
+      trEnhanceCompatibility: "Enhance compatibility",
+      trTranslateTableText: "Translate table text",
+      trOCR: "Force OCR workaround",
+      trAutoOCR: "Auto OCR workaround",
+      trSaveGlossary: "Save extracted glossary",
+      trDisableGlossary: "Disable glossary extraction",
+      trFontFamily: "Primary font family",
+      trFontFamilyAuto: "Auto",
+      trFontFamilySerif: "Serif",
+      trFontFamilySansSerif: "Sans-serif",
+      trFontFamilyScript: "Script",
     };
   }
   return {
@@ -198,5 +270,41 @@ export function getPanelI18n(): PanelI18n {
     confirmDeleteTitle: "删除对话",
     tabDiscussion: "对话",
     tabSetting: "设置",
+    tabTranslate: "翻译",
+    trCurrentPdf: "当前 PDF",
+    trSelectLocalPdf: "选择本地 PDF",
+    trNoPdfFound: "未找到 PDF 附件",
+    trSourceLang: "源语言",
+    trTargetLang: "目标语言",
+    trOutputMono: "仅译文",
+    trOutputDual: "双语对照",
+    trSavePath: "保存到",
+    trBrowsePath: "浏览",
+    trStartTranslation: "翻译",
+    trPause: "暂停",
+    trResume: "继续",
+    trClearCache: "清除缓存",
+    trInstallEnv: "安装环境",
+    trEnvNotReady: "翻译环境未就绪",
+    trTranslating: "翻译中...",
+    trDone: "翻译完成",
+    trError: "翻译失败",
+    trIdle: "准备翻译",
+    trAdvanced: "高级选项",
+    trSkipReferencesAuto: "自动识别并跳过参考文献",
+    trKeepAppendixTranslated: "附录继续翻译",
+    trProtectAuthorBlock: "保护作者/机构信息",
+    trDisableRichTextTranslate: "禁用富文本翻译",
+    trEnhanceCompatibility: "增强兼容性",
+    trTranslateTableText: "翻译表格文本",
+    trOCR: "强制 OCR 兼容模式",
+    trAutoOCR: "自动 OCR 兼容模式",
+    trSaveGlossary: "保存自动术语表",
+    trDisableGlossary: "禁用术语自动提取",
+    trFontFamily: "首选字体族",
+    trFontFamilyAuto: "自动",
+    trFontFamilySerif: "衬线体",
+    trFontFamilySansSerif: "无衬线体",
+    trFontFamilyScript: "手写体",
   };
 }

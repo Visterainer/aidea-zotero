@@ -44,6 +44,18 @@ declare namespace _ZoteroTypes {
       "customShortcuts": string;
       "shortcutOrder": string;
       "showAllModels": boolean;
+      "translate.skipReferencesAuto": boolean;
+      "translate.outputDir": string;
+      "translate.keepAppendixTranslated": boolean;
+      "translate.protectAuthorBlock": boolean;
+      "translate.disableRichTextTranslate": boolean;
+      "translate.enhanceCompatibility": boolean;
+      "translate.translateTableText": boolean;
+      "translate.ocr": boolean;
+      "translate.autoOcr": boolean;
+      "translate.saveGlossary": boolean;
+      "translate.disableGlossary": boolean;
+      "translate.fontFamily": string;
     };
   }
 }

@@ -5,13 +5,13 @@
    ═══════════════════════════════════════════════════════════ */
 .llm-tab-nav {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 2px;
   background: var(--fill-quinary);
   border-radius: 8px;
   padding: 2px;
   min-width: 0;
-  width: 180px;
+  width: 250px;
   flex-shrink: 0;
 }
 
@@ -50,6 +50,11 @@
 /* Setting tab uses dark gray when active */
 .llm-tab-btn.active[data-tab="setting"] {
   background: #565656;
+}
+
+/* Translate tab uses teal when active */
+.llm-tab-btn.active[data-tab="translate"] {
+  background: #0d9488;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4990,4 +4995,330 @@
   min-width: 0;
   overflow: hidden;
   background: var(--material-background, #fff);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Translate Panel
+   ═══════════════════════════════════════════════════════════ */
+.llm-translate-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.llm-tr-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.llm-tr-label {
+  font-weight: 600;
+  font-size: var(--llm-fs-11, 11px);
+  color: var(--fill-secondary, #888);
+}
+
+.llm-tr-pdf-name {
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-primary, #ddd);
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%);
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+  border-radius: 4px;
+  padding: 6px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 18px;
+}
+
+.llm-tr-select {
+  appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 5px 8px;
+  font-size: var(--llm-fs-10, 10px);
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border-radius: 4px;
+  color: var(--fill-primary, #ddd);
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.llm-tr-select:focus {
+  outline: none;
+  border-color: #0d9488;
+}
+
+.llm-tr-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: var(--llm-fs-10, 10px);
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border-radius: 4px;
+  color: var(--fill-primary, #ddd);
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%);
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.llm-tr-input:focus {
+  outline: none;
+  border-color: #0d9488;
+}
+
+.llm-tr-input::placeholder {
+  color: var(--fill-tertiary, #666);
+}
+
+.llm-tr-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.llm-tr-half {
+  flex: 1;
+  min-width: 0;
+}
+
+.llm-tr-format-row {
+  align-items: center;
+  padding: 4px 0;
+}
+
+.llm-tr-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-primary, #ddd);
+  cursor: pointer;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+.llm-tr-checkbox-label input[type="checkbox"] {
+  accent-color: #0d9488;
+}
+
+.llm-tr-advanced-section {
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+  border-radius: 6px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 94%, var(--fill-primary, #fff) 6%);
+}
+
+.llm-tr-advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+}
+
+@media (max-width: 520px) {
+  .llm-tr-advanced-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Buttons */
+.llm-tr-btn {
+  appearance: none;
+  -moz-appearance: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--llm-fs-11, 11px);
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.llm-tr-btn-primary {
+  background: #0d9488;
+  color: #fff;
+  border-color: #0d9488;
+}
+
+.llm-tr-btn-primary:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.llm-tr-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.llm-tr-btn-secondary {
+  background: transparent;
+  color: var(--fill-primary, #ddd);
+  border-color: color-mix(in srgb, var(--fill-primary, #333) 25%, transparent);
+}
+
+.llm-tr-btn-secondary:hover {
+  background: color-mix(in srgb, var(--fill-primary, #fff) 8%, transparent);
+  border-color: color-mix(in srgb, var(--fill-primary, #fff) 35%, transparent);
+}
+
+.llm-tr-btn-danger {
+  background: transparent;
+  color: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 35%, transparent);
+}
+
+.llm-tr-btn-danger:hover {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border-color: #ef4444;
+}
+
+.llm-tr-btn-small {
+  padding: 4px 10px;
+  font-size: var(--llm-fs-10, 10px);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+/* Progress bar */
+.llm-tr-progress-bar {
+  height: 8px;
+  background: color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.llm-tr-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0d9488, #14b8a6);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.llm-tr-progress-text {
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-secondary, #888);
+  margin-top: 3px;
+}
+
+.llm-tr-progress-section {
+  padding: 6px 0;
+}
+
+/* Status display */
+.llm-tr-status {
+  font-size: var(--llm-fs-11, 11px);
+  color: var(--fill-tertiary, #666);
+  padding: 4px 0;
+  min-height: 18px;
+}
+
+/* Action buttons row */
+.llm-tr-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+/* ── Console log area ── */
+.llm-tr-console {
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--fill-primary, #000) 6%, transparent);
+}
+
+.llm-tr-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: var(--llm-fs-10, 10px);
+  font-weight: 600;
+  color: var(--fill-secondary, #888);
+  border-bottom: 1px solid color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+  background: color-mix(in srgb, var(--fill-primary, #000) 4%, transparent);
+}
+
+.llm-tr-console-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.llm-tr-console-icon-btn {
+  background: none;
+  border: none;
+  color: var(--fill-tertiary, #999);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.llm-tr-console-icon-btn:hover {
+  color: var(--fill-primary, #333);
+  background: color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+}
+
+.llm-tr-console-body {
+  height: 120px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Menlo", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--fill-secondary, #ccc);
+  scroll-behavior: smooth;
+  user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+}
+
+.llm-tr-console-line {
+  display: flex;
+  gap: 6px;
+  padding: 1px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.llm-tr-console-time {
+  color: var(--fill-tertiary, #666);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.llm-tr-console-msg {
+  flex: 1;
+}
+
+.llm-tr-console-line.error .llm-tr-console-msg {
+  color: #ef4444;
+}
+
+.llm-tr-console-line.success .llm-tr-console-msg {
+  color: #10b981;
+}
+
+.llm-tr-console-line.info .llm-tr-console-msg {
+  color: #0d9488;
 }

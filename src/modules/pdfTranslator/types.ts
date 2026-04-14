@@ -19,6 +19,8 @@ export interface ProgressData {
   outputFiles?: string[];    // populated when status === "done"
   startTime?: number;        // unix timestamp
   error?: string;            // populated when status === "error"
+  errorDetail?: string;      // tail logs when bridge/process fails
+  logFile?: string;          // bridge log path for diagnosis
 }
 
 /** Parameters to start a translation */
@@ -31,6 +33,25 @@ export interface TranslateParams {
   generateMono: boolean;     // produce single-language PDF
   generateDual: boolean;     // produce bilingual PDF
   qps?: number;              // queries per second (default 10)
+  // Layout / compatibility
+  disableRichTextTranslate?: boolean;
+  enhanceCompatibility?: boolean;
+  translateTableText?: boolean;
+  fontFamily?: "auto" | "serif" | "sans-serif" | "script";
+  // OCR / glossary
+  ocr?: boolean;
+  autoOcr?: boolean;
+  saveGlossary?: boolean;
+  disableGlossary?: boolean;
+  // Output mode / behavior
+  dualMode?: "LR" | "TB";
+  transFirst?: boolean;
+  skipClean?: boolean;
+  noWatermark?: boolean;
+  // Policy
+  skipReferencesAuto?: boolean;
+  keepAppendixTranslated?: boolean;
+  protectAuthorBlock?: boolean;
 }
 
 /** Task descriptor passed to aidea_bridge.py via task.json */
@@ -45,6 +66,32 @@ export interface BridgeTask {
   noDual: boolean;
   noMono: boolean;
   qps: number;
+  // Layout / compatibility
+  disableRichTextTranslate?: boolean;
+  enhanceCompatibility?: boolean;
+  translateTableText?: boolean;
+  fontFamily?: "auto" | "serif" | "sans-serif" | "script";
+  // OCR / glossary
+  ocr?: boolean;
+  autoOcr?: boolean;
+  saveGlossary?: boolean;
+  disableGlossary?: boolean;
+  // Output mode / behavior
+  dualMode?: "LR" | "TB";
+  transFirst?: boolean;
+  skipClean?: boolean;
+  noWatermark?: boolean;
+  // Policy
+  skipReferencesAuto?: boolean;
+  keepAppendixTranslated?: boolean;
+  protectAuthorBlock?: boolean;
+  referencePolicyDebug?: boolean;
+  oauthProxy?: {
+    provider: "openai-codex" | "google-gemini-cli";
+    accessToken: string;
+    accountId?: string;
+    projectId?: string;
+  };
 }
 
 /** Translation controller state machine */

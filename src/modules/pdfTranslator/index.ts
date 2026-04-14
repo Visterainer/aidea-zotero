@@ -9,10 +9,14 @@ import type {
   TranslateState,
   ProgressData,
 } from "./types";
+import type { TranslateCredentials } from "./modelResolver";
 import { checkEnvironment, installEnvironment } from "./envManager";
 import { generateConfigToml, generateTaskJson } from "./configWriter";
 import { launchProcess, type RunningProcess } from "./processRunner";
 import { ProgressPoller } from "./progressPoller";
+
+declare const Services: any;
+declare const rootURI: string | undefined;
 
 /** Callback signature for UI updates */
 export type TranslateUICallback = (event: TranslateEvent) => void;
@@ -66,8 +70,7 @@ export class TranslateController {
 
   async start(
     params: TranslateParams,
-    oauthToken: string,
-    apiUrl: string,
+    credentials: TranslateCredentials,
   ): Promise<void> {
     /* 1. Check environment */
     const env = await checkEnvironment();
@@ -77,7 +80,11 @@ export class TranslateController {
     }
 
     /* 2. Temp file paths */
-    const tmpDir = PathUtils.join(PathUtils.tempDir, "aidea-translate");
+    const tempDir = String(PathUtils.tempDir || "").trim();
+    if (!tempDir) {
+      throw new Error("Cannot resolve temporary directory (PathUtils.tempDir is empty)");
+    }
+    const tmpDir = PathUtils.join(tempDir, "aidea-translate");
     await IOUtils.makeDirectory(tmpDir, { ignoreExisting: true });
 
     const configPath = PathUtils.join(tmpDir, "config.toml");
@@ -87,13 +94,25 @@ export class TranslateController {
     /* 3. Write config.toml with OAuth token */
     const toml = generateConfigToml({
       model: params.modelId,
-      apiKey: oauthToken,
-      apiUrl,
+      apiKey: credentials.apiKey,
+      apiUrl: credentials.apiUrl,
       sourceLang: params.sourceLang,
       targetLang: params.targetLang,
       qps: params.qps ?? 10,
       noDual: !params.generateDual,
       noMono: !params.generateMono,
+      disableRichTextTranslate: params.disableRichTextTranslate,
+      enhanceCompatibility: params.enhanceCompatibility,
+      translateTableText: params.translateTableText,
+      fontFamily: params.fontFamily,
+      ocr: params.ocr,
+      autoOcr: params.autoOcr,
+      saveGlossary: params.saveGlossary,
+      disableGlossary: params.disableGlossary,
+      dualMode: params.dualMode,
+      transFirst: params.transFirst,
+      skipClean: params.skipClean,
+      noWatermark: params.noWatermark,
     });
     await IOUtils.writeUTF8(configPath, toml);
 
@@ -109,6 +128,22 @@ export class TranslateController {
       noDual: !params.generateDual,
       noMono: !params.generateMono,
       qps: params.qps ?? 10,
+      disableRichTextTranslate: params.disableRichTextTranslate,
+      enhanceCompatibility: params.enhanceCompatibility,
+      translateTableText: params.translateTableText,
+      fontFamily: params.fontFamily,
+      ocr: params.ocr,
+      autoOcr: params.autoOcr,
+      saveGlossary: params.saveGlossary,
+      disableGlossary: params.disableGlossary,
+      dualMode: params.dualMode,
+      transFirst: params.transFirst,
+      skipClean: params.skipClean,
+      noWatermark: params.noWatermark,
+      skipReferencesAuto: params.skipReferencesAuto,
+      keepAppendixTranslated: params.keepAppendixTranslated,
+      protectAuthorBlock: params.protectAuthorBlock,
+      oauthProxy: credentials.oauthProxy,
     });
     await IOUtils.writeUTF8(taskPath, taskJson);
 
@@ -116,7 +151,12 @@ export class TranslateController {
     try { await IOUtils.remove(progressPath); } catch { /* ok */ }
 
     /* 6. Find bridge script */
-    const bridgePath = this.getBridgeScriptPath();
+    const bridgePath = this.getBridgeScriptPath(tmpDir);
+    this.callback({
+      type: "env_progress",
+      step: "bridge",
+      detail: `Bridge script: ${bridgePath}`,
+    });
 
     /* 7. Launch bridge subprocess */
     this.setState("running");
@@ -126,7 +166,15 @@ export class TranslateController {
     this.poller = new ProgressPoller(progressPath, (data) => {
       this.callback({ type: "progress", data });
       if (data.status === "done") this.setState("done");
-      if (data.status === "error") this.setState("error");
+      if (data.status === "error") {
+        this.setState("error");
+        const detail = (data.errorDetail || "").trim();
+        const logHint = data.logFile ? ` (log: ${data.logFile})` : "";
+        const message = detail
+          ? `${data.message}\n${detail}${logHint}`
+          : `${data.message}${logHint}`;
+        this.callback({ type: "error", message });
+      }
     });
     this.poller.start();
 
@@ -181,14 +229,170 @@ export class TranslateController {
   }
 
   /** Resolve path to addon/scripts/aidea_bridge.py */
-  private getBridgeScriptPath(): string {
-    // In Zotero plugin context, rootURI points to the addon directory
-    const uri = (typeof globalThis !== "undefined" && (globalThis as any).rootURI)
-      ? String((globalThis as any).rootURI)
-      : "";
-    // Convert file:/// URI to native path
-    const sep = (Zotero as any).isWin ? "\\" : "/";
-    const addonDir = uri.replace(/^file:\/\/\//, "").replace(/\//g, sep);
-    return PathUtils.join(addonDir, "scripts", "aidea_bridge.py");
+  private getBridgeScriptPath(stageDir: string): string {
+    const rootUris = this.getAddonRootUriCandidates();
+    const candidates = this.getAddonDirCandidates(rootUris);
+    for (const addonDir of candidates) {
+      const bridgePath = this.tryJoin(addonDir, "scripts", "aidea_bridge.py");
+      if (!bridgePath) continue;
+      if (this.fileExists(bridgePath)) return bridgePath;
+    }
+
+    for (const root of rootUris) {
+      const extracted = this.extractBridgeFromJarRootUri(root, stageDir);
+      if (extracted && this.fileExists(extracted)) return extracted;
+    }
+
+    throw new Error(
+      "Cannot resolve bridge script path (aidea_bridge.py). " +
+      "Addon root URI/path is unavailable in current runtime context.",
+    );
+  }
+
+  private getAddonRootUriCandidates(): string[] {
+    const uris = [
+      this.asNonEmptyString((globalThis as any)?.rootURI),
+      this.asNonEmptyString((globalThis as any)?._globalThis?.rootURI),
+      this.asNonEmptyString(typeof rootURI !== "undefined" ? rootURI : ""),
+    ].filter(Boolean);
+
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const uri of uris) {
+      const key = uri.trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(key);
+    }
+    return out;
+  }
+
+  private getAddonDirCandidates(rootUris: string[]): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const uri of rootUris) {
+      const path = this.uriOrPathToNativePath(uri);
+      if (!path) continue;
+      if (seen.has(path)) continue;
+      seen.add(path);
+      out.push(path);
+    }
+    return out;
+  }
+
+  private tryJoin(base: string, ...segments: string[]): string {
+    try {
+      return PathUtils.join(base, ...segments);
+    } catch {
+      return "";
+    }
+  }
+
+  private extractBridgeFromJarRootUri(rootUri: string, stageDir: string): string {
+    const raw = this.asNonEmptyString(rootUri);
+    if (!raw || !raw.startsWith("jar:")) return "";
+
+    try {
+      const Ci = (Components.interfaces as any);
+      const Cc = (Components.classes as any);
+      const uri = Services.io.newURI(raw);
+      const jarUri = uri.QueryInterface(Ci.nsIJARURI);
+      const jarFileUri = jarUri.JARFile.QueryInterface(Ci.nsIFileURL);
+      const jarFile = jarFileUri.file;
+      if (!jarFile?.exists?.()) return "";
+
+      const jarRoot = String(jarUri.JAREntry || "")
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "");
+      const bridgeEntry = [jarRoot, "scripts", "aidea_bridge.py"]
+        .filter(Boolean)
+        .join("/");
+
+      const zipReader = Cc["@mozilla.org/libjar/zip-reader;1"]
+        .createInstance(Ci.nsIZipReader);
+      zipReader.open(jarFile);
+      try {
+        if (!zipReader.hasEntry(bridgeEntry)) return "";
+
+        const outPath = this.tryJoin(stageDir, "aidea_bridge.py");
+        if (!outPath) return "";
+        const outFile = Cc["@mozilla.org/file/local;1"]
+          .createInstance(Ci.nsIFile);
+        outFile.initWithPath(outPath);
+        if (outFile.exists()) {
+          try { outFile.remove(false); } catch { /* ignore */ }
+        }
+        zipReader.extract(bridgeEntry, outFile);
+        return outPath;
+      } finally {
+        try { zipReader.close(); } catch { /* ignore */ }
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  private asNonEmptyString(value: unknown): string {
+    const text = typeof value === "string" ? value.trim() : "";
+    return text;
+  }
+
+  private uriOrPathToNativePath(value: string): string {
+    const raw = this.asNonEmptyString(value);
+    if (!raw) return "";
+    const isWin = Boolean((Zotero as any).isWin);
+
+    // Native Windows path, e.g. C:\...
+    if (isWin && /^[A-Za-z]:[\\/]/.test(raw)) {
+      return raw.replace(/\//g, "\\");
+    }
+
+    // UNC path on Windows.
+    if (isWin && raw.startsWith("\\\\")) {
+      return raw;
+    }
+
+    // Non-file URI schemes are not local paths (e.g. jar:, chrome:).
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !raw.startsWith("file://")) {
+      return "";
+    }
+
+    // file:///C:/... or file:///home/...
+    if (raw.startsWith("file://")) {
+      let noScheme = raw.replace(/^file:\/\//i, "");
+      if (isWin) {
+        noScheme = noScheme.replace(/^localhost\//i, "");
+        noScheme = noScheme.replace(/^\/+/, "");
+      } else {
+        if (noScheme.startsWith("localhost/")) {
+          noScheme = noScheme.slice("localhost".length);
+        }
+        if (!noScheme.startsWith("/")) {
+          noScheme = `/${noScheme}`;
+        }
+      }
+
+      const decoded = decodeURIComponent(noScheme);
+      if (isWin) {
+        if (!/^[A-Za-z]:[\\/]/.test(decoded)) return "";
+        return decoded.replace(/\//g, "\\");
+      }
+      return decoded.replace(/\/+/g, "/");
+    }
+
+    // Already a native absolute path.
+    if (isWin) return raw.replace(/\//g, "\\");
+    return raw;
+  }
+
+  private fileExists(path: string): boolean {
+    try {
+      const file = (Components.classes as any)["@mozilla.org/file/local;1"]
+        .createInstance((Components.interfaces as any).nsIFile);
+      file.initWithPath(path);
+      return Boolean(file.exists());
+    } catch {
+      return false;
+    }
   }
 }

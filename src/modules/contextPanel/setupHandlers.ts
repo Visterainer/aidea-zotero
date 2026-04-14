@@ -343,6 +343,14 @@ export function setupHandlers(
     });
   }
 
+  // ── Translate tab controller ──
+  try {
+    const { initTranslateTab } = require("../pdfTranslator/translateTabController");
+    initTranslateTab(body);
+  } catch (e) {
+    ztoolkit.log("LLM: Failed to init translate tab", e);
+  }
+
   // ── Height sync controller ──
   // Applies initial heights from prefs, tracks resize, and syncs
   // between Discussion (two-pane) and Setting (single-pane) layouts.
@@ -374,8 +382,11 @@ export function setupHandlers(
     // Wire tab buttons to height sync
     const settingTabBtn = panelRoot.querySelector("#llm-tab-btn-setting");
     const discussionTabBtn = panelRoot.querySelector("#llm-tab-btn-discussion");
+    const translateTabBtn = panelRoot.querySelector("#llm-tab-btn-translate");
     settingTabBtn?.addEventListener("click", () => heightSync.switchToSetting());
     discussionTabBtn?.addEventListener("click", () => heightSync.switchToDiscussion());
+    // Translate tab uses setting layout (single pane, no bottom wrapper)
+    translateTabBtn?.addEventListener("click", () => heightSync.switchToSetting());
   }
 
   const isGlobalMode = () => Boolean(item && isGlobalPortalItem(item));
