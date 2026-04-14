@@ -636,6 +636,47 @@ function renderBlockquote(content: string): string {
   return `<blockquote>${innerLines.map((l) => renderInline(l)).join("<br/>")}</blockquote>`;
 }
 
+const TABLE_CELL_GUARDS = new Set(["`", "$", '"', "'"]);
+
+/**
+ * Split a table row on `|`, skipping pipes inside code / math / quoted
+ * spans. A guard char pushes onto the stack when flanked like an opener
+ * (space/edge on the left, non-space on the right) and pops when it
+ * matches the top and is flanked like a closer. `|` splits only when
+ * the stack is empty; apostrophes inside words (`don't`) fail both
+ * flanking tests and don't enter the stack.
+ */
+function splitTableRow(row: string): string[] {
+  const cells: string[] = [];
+  const stack: string[] = [];
+  let current = "";
+
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+
+    if (TABLE_CELL_GUARDS.has(ch)) {
+      const leftFree = i === 0 || /\s/.test(row[i - 1]);
+      const rightFree = i === row.length - 1 || /\s/.test(row[i + 1]);
+      const top = stack[stack.length - 1];
+
+      if (top === ch && !leftFree && rightFree) {
+        stack.pop();
+      } else if (top === undefined && leftFree && !rightFree) {
+        stack.push(ch);
+      }
+      current += ch;
+    } else if (ch === "|" && stack.length === 0) {
+      cells.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+
+  cells.push(current);
+  return cells;
+}
+
 /** Render table */
 function renderTable(content: string): string {
   const lines = content.split(/\r?\n/).filter((l) => l.trim());
@@ -644,8 +685,7 @@ function renderTable(content: string): string {
   }
 
   const readCells = (row: string) =>
-    row
-      .split("|")
+    splitTableRow(row)
       .map((cell) => cell.trim())
       .filter((cell, idx, arr) => {
         const isEdge = (idx === 0 || idx === arr.length - 1) && cell === "";
