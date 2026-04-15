@@ -59,6 +59,7 @@ export type PanelI18n = {
   tabDiscussion: string;
   tabSetting: string;
   tabTranslate: string;
+  trFormatDisclaimer: string;
   trSectionBasic: string;
   trSectionEngine: string;
   trSectionExecute: string;
@@ -196,6 +197,7 @@ export function getPanelI18n(): PanelI18n {
       tabDiscussion: "Discussion",
       tabSetting: "Setting",
       tabTranslate: "Translate",
+      trFormatDisclaimer: "⚠ Due to the inherent complexity of PDF formatting, occasional layout or style mismatches may occur in translated output. This is being continuously improved — thank you for your understanding.",
       trSectionBasic: "Basic Config",
       trSectionEngine: "Translation Engine",
       trSectionExecute: "Execute",
@@ -313,6 +315,7 @@ export function getPanelI18n(): PanelI18n {
     tabDiscussion: "对话",
     tabSetting: "设置",
     tabTranslate: "全文翻译",
+    trFormatDisclaimer: "⚠ 由于 PDF 格式本身的复杂性，翻译后的文档偶尔可能出现排版或样式不一致的情况，正在持续改进中，敬请谅解。",
     trSectionBasic: "基础配置",
     trSectionEngine: "翻译引擎",
     trSectionExecute: "执行",
@@ -370,4 +373,114 @@ export function getPanelI18n(): PanelI18n {
     trHintFontFamily: "自动=引擎智能匹配；衬线体=宋体/Times；无衬线体=黑体/Arial；手写体=斜体/书法。",
     trHintQps: "每秒 API 请求数。免费 API 建议 3-5，付费 API 可设 10-20。过高会触发限速。",
   };
+}
+
+/**
+ * Refresh all translatable text in the Translate tab for the given document.
+ * Called when the UI language is switched in Settings.
+ */
+export function refreshTranslateTabI18n(doc: Document): void {
+  const i18n = getPanelI18n();
+
+  // Helper: set text content by element ID
+  const setText = (id: string, text: string) => {
+    const el = doc.getElementById(id);
+    if (el) el.textContent = text;
+  };
+
+  // Helper: update checkbox label text (preserves the <input> child)
+  const setCheckboxText = (id: string, text: string) => {
+    const label = doc.getElementById(id);
+    if (!label) return;
+    for (let i = label.childNodes.length - 1; i >= 0; i--) {
+      if (label.childNodes[i].nodeType === 3 /* TEXT_NODE */) {
+        label.childNodes[i].textContent = ` ${text}`;
+        return;
+      }
+    }
+  };
+
+  // Helper: update stepper label text (first .llm-tr-stepper-label child)
+  const setStepperLabel = (wrapperId: string, text: string) => {
+    const wrapper = doc.getElementById(wrapperId)?.closest(".llm-tr-stepper");
+    const lbl = wrapper?.querySelector(".llm-tr-stepper-label");
+    if (lbl) lbl.textContent = text;
+  };
+
+  // Disclaimer
+  setText("llm-tr-disclaimer", i18n.trFormatDisclaimer);
+
+  // Section titles (collapsible toggles — textContent is safe, ::before is CSS)
+  setText("llm-tr-sec-basic-toggle", i18n.trSectionBasic);
+  setText("llm-tr-sec-engine-toggle", i18n.trSectionEngine);
+  setText("llm-tr-sec-exec-toggle", i18n.trSectionExecute);
+
+  // Field labels
+  setText("llm-tr-input-path-label", i18n.trInputPath);
+  setText("llm-tr-save-path-label", i18n.trSavePath);
+  setText("llm-tr-model-label", i18n.modelSelectHint);
+  setText("llm-tr-src-lang-label", i18n.trSourceLang);
+  setText("llm-tr-tgt-lang-label", i18n.trTargetLang);
+  setText("llm-tr-output-title", i18n.trOutputFormat);
+
+  // Buttons
+  setText("llm-tr-pick-file", i18n.trSelectLocalPdf);
+  setText("llm-tr-browse-dir", i18n.trBrowsePath);
+  setText("llm-tr-install-env", `⚙ ${i18n.trInstallEnv}`);
+  setText("llm-tr-start", `▶ ${i18n.trStartTranslation}`);
+  setText("llm-tr-pause", `⏸ ${i18n.trPause}`);
+  setText("llm-tr-clear", `🗑 ${i18n.trClearCache}`);
+
+  // Advanced toggle
+  setText("llm-tr-advanced-toggle", i18n.trAdvanced);
+
+  // Checkbox labels (output format)
+  setCheckboxText("llm-tr-mono-label", i18n.trOutputMono);
+  setCheckboxText("llm-tr-dual-label", i18n.trOutputDual);
+
+  // Advanced checkboxes — query by input ID, update parent label text
+  const advChecks: [string, string, string][] = [
+    ["llm-tr-skip-refs-auto", i18n.trSkipReferencesAuto, i18n.trHintSkipReferences],
+    ["llm-tr-keep-appendix", i18n.trKeepAppendixTranslated, i18n.trHintKeepAppendix],
+    ["llm-tr-protect-author", i18n.trProtectAuthorBlock, i18n.trHintProtectAuthor],
+    ["llm-tr-disable-rich-text", i18n.trDisableRichTextTranslate, i18n.trHintDisableRichText],
+    ["llm-tr-enhance-compat", i18n.trEnhanceCompatibility, i18n.trHintEnhanceCompat],
+    ["llm-tr-translate-table", i18n.trTranslateTableText, i18n.trHintTranslateTable],
+    ["llm-tr-ocr", i18n.trOCR, i18n.trHintOcr],
+    ["llm-tr-auto-ocr", i18n.trAutoOCR, i18n.trHintAutoOcr],
+    ["llm-tr-save-glossary", i18n.trSaveGlossary, i18n.trHintSaveGlossary],
+    ["llm-tr-disable-glossary", i18n.trDisableGlossary, i18n.trHintDisableGlossary],
+  ];
+  for (const [inputId, label, hint] of advChecks) {
+    const input = doc.getElementById(inputId);
+    const parent = input?.closest("label");
+    if (parent) {
+      if (hint) (parent as HTMLElement).title = hint;
+      for (let i = parent.childNodes.length - 1; i >= 0; i--) {
+        if (parent.childNodes[i].nodeType === 3) {
+          parent.childNodes[i].textContent = ` ${label}`;
+          break;
+        }
+      }
+    }
+  }
+
+  // Steppers
+  setStepperLabel("llm-tr-pool-max-worker", i18n.trPoolMaxWorker);
+  setStepperLabel("llm-tr-qps", i18n.trQps);
+
+  // Font family label
+  setText("llm-tr-font-label", i18n.trFontFamily);
+
+  // Tab buttons (Discussion / Translate / Setting)
+  const tabBtns: [string, string][] = [
+    ["llm-tab-btn-discussion", i18n.tabDiscussion],
+    ["llm-tab-btn-translate", i18n.tabTranslate],
+    ["llm-tab-btn-setting", i18n.tabSetting],
+  ];
+  for (const [id, text] of tabBtns) {
+    doc.querySelectorAll(`#${id}`).forEach((el: Element) => {
+      el.textContent = text;
+    });
+  }
 }

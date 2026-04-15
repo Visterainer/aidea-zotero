@@ -29,6 +29,7 @@ import {
 import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n } from "./contextPanel/i18n";
+import { refreshTranslateTabI18n } from "./contextPanel/i18n";
 import { getPrimaryConnectionMode } from "./contextPanel/prefHelpers";
 
 type PrefKey =
@@ -623,6 +624,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     renderModels();
     void renderAccounts();
     refreshAllSidebarShortcuts();
+    refreshTranslateTabI18n(doc);
   };
 
   langBox.append(langLeft, hideNavGroup, langRight, dangerStatus);

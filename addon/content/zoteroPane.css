@@ -5030,6 +5030,18 @@
   gap: 0;
 }
 
+/* ── Disclaimer notice ── */
+.llm-tr-disclaimer {
+  font-size: var(--llm-fs-10, 10px);
+  line-height: 1.5;
+  color: #b89a5a;
+  background: color-mix(in srgb, #b89a5a 8%, transparent);
+  border: 1px solid color-mix(in srgb, #b89a5a 20%, transparent);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin: 4px 0 2px;
+}
+
 /* ── Section Title — PyCharm-style: text + horizontal line ── */
 .llm-tr-title {
   font-weight: 600;

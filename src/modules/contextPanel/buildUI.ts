@@ -279,7 +279,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
   // Input path row: [label] [input] [select file btn]
   const trInputPathSection = createElement(doc, "div", "llm-tr-path-block");
-  const trInputPathLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trInputPath });
+  const trInputPathLabel = createElement(doc, "div", "llm-tr-field-label", { id: "llm-tr-input-path-label", textContent: i18n.trInputPath });
   const trInputPathRow = createElement(doc, "div", "llm-tr-row");
   const trPdfName = createElement(doc, "div", "llm-tr-pdf-name", {
     id: "llm-tr-pdf-name",
@@ -295,7 +295,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
   // Save path row: [label] [input] [browse btn] — aligned with input path
   const trSavePathSection = createElement(doc, "div", "llm-tr-path-block");
-  const trSavePathLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trSavePath });
+  const trSavePathLabel = createElement(doc, "div", "llm-tr-field-label", { id: "llm-tr-save-path-label", textContent: i18n.trSavePath });
   const trSavePathRow = createElement(doc, "div", "llm-tr-row");
   const trPathInput = createElement(doc, "input", "llm-tr-input", {
     id: "llm-tr-output-dir",
@@ -312,7 +312,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
   // Model selector row — custom dropdown to avoid native select styling issues
   const trModelRow = createElement(doc, "div", "llm-tr-path-block");
-  const trModelLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.modelSelectHint });
+  const trModelLabel = createElement(doc, "div", "llm-tr-field-label", { id: "llm-tr-model-label", textContent: i18n.modelSelectHint });
   // Custom dropdown wrapper
   const trModelDropdown = createElement(doc, "div", "llm-tr-dropdown", { id: "llm-tr-model" }) as HTMLDivElement;
   const trModelTrigger = createElement(doc, "div", "llm-tr-dropdown-trigger") as HTMLDivElement;
@@ -392,10 +392,10 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // Language selectors with swap button
   const trLangRow = createElement(doc, "div", "llm-tr-lang-row");
   const trSrcLangSection = createElement(doc, "div", "llm-tr-lang-half");
-  const trSrcLangLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trSourceLang });
+  const trSrcLangLabel = createElement(doc, "div", "llm-tr-field-label", { id: "llm-tr-src-lang-label", textContent: i18n.trSourceLang });
 
   const trTgtLangSection = createElement(doc, "div", "llm-tr-lang-half");
-  const trTgtLangLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trTargetLang });
+  const trTgtLangLabel = createElement(doc, "div", "llm-tr-field-label", { id: "llm-tr-tgt-lang-label", textContent: i18n.trTargetLang });
 
   const trLangSwapBtn = createElement(doc, "button", "llm-tr-lang-swap", {
     id: "llm-tr-lang-swap",
@@ -445,7 +445,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const sec2 = buildSection("llm-tr-sec-engine", i18n.trSectionEngine, true);
 
   // Output format checkboxes
-  const trOptionsTitle = createElement(doc, "div", "llm-tr-subtitle", { textContent: i18n.trOutputFormat });
+  const trOptionsTitle = createElement(doc, "div", "llm-tr-subtitle", { id: "llm-tr-output-title", textContent: i18n.trOutputFormat });
   const trFormatRow = createElement(doc, "div", "llm-tr-row llm-tr-format-row");
   const trMonoLabel = createElement(doc, "label", "llm-tr-checkbox-label", { id: "llm-tr-mono-label" });
   const trMonoInput = createElement(doc, "input", "", {
@@ -593,7 +593,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // Font family drop-down (custom dropdown)
   const advFontRow = createElement(doc, "div", "llm-tr-row llm-tr-adv-font-row");
   advFontRow.title = i18n.trHintFontFamily;
-  const advFontLabel = createElement(doc, "span", "llm-tr-adv-font-label", { textContent: i18n.trFontFamily });
+  const advFontLabel = createElement(doc, "span", "llm-tr-adv-font-label", { id: "llm-tr-font-label", textContent: i18n.trFontFamily });
   const advFontSelect = buildDropdown("llm-tr-font-family", [
     { value: "auto", label: i18n.trFontFamilyAuto },
     { value: "serif", label: i18n.trFontFamilySerif },
@@ -730,7 +730,12 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // ═══════════════════════════════════════════════════════════
   // Assemble all sections into root
   // ═══════════════════════════════════════════════════════════
+  const trDisclaimer = createElement(doc, "div", "llm-tr-disclaimer", {
+    id: "llm-tr-disclaimer",
+    textContent: i18n.trFormatDisclaimer,
+  });
   trRoot.append(
+    trDisclaimer,
     sec1.title, sec1.body,
     sec2.title, sec2.body,
     sec3.title, sec3.body,
