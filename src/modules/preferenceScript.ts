@@ -154,6 +154,9 @@ const I18N = {
     showAllModels: "在下拉菜单中显示所有模型",
     showAllModelsHint:
       "开启后显示所有可用模型。关闭时仅显示每个提供商的精选模型。",
+    hideTabNav: "标签栏:",
+    hideTabNavOn: "隐藏",
+    hideTabNavOff: "显示",
     restoreDefaults: "恢复默认",
     restoreDefaultsConfirm:
       "确定要恢复所有配置到默认值吗？\n\n这将重置所有模型配置、系统提示词等设置。",
@@ -228,6 +231,9 @@ const I18N = {
     showAllModels: "Show all models in dropdown",
     showAllModelsHint:
       "When enabled, shows all available models. When disabled, only the best models per provider are shown.",
+    hideTabNav: "Tab Bar:",
+    hideTabNavOn: "Hide",
+    hideTabNavOff: "Show",
     restoreDefaults: "Restore Defaults",
     restoreDefaultsConfirm:
       "Are you sure you want to restore all settings to defaults?\n\nThis will reset all model configurations, system prompt, etc.",
@@ -493,6 +499,42 @@ function refreshAllSidebarShortcuts(
     log?.(`Panel refresh failed: ${msg}`, "#991b1b");
   }
 }
+/**
+ * Toggle the auto-hide CSS class on every `#llm-tab-nav` across all Zotero windows.
+ */
+export function applyHideTabNavToAllPanels(hide: boolean): void {
+  try {
+    const allDocs = new Set<Document>();
+    try {
+      const wins: Window[] = Zotero.getMainWindows?.() || [];
+      for (const w of wins) {
+        if (w?.document) allDocs.add(w.document);
+      }
+    } catch { /* ignore */ }
+    try {
+      const mainWin: Window | null = Zotero.getMainWindow?.() || null;
+      if (mainWin?.document) allDocs.add(mainWin.document);
+    } catch { /* ignore */ }
+    try {
+      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
+        Ci.nsIWindowMediator,
+      );
+      if (wm) {
+        const enumerator = wm.getEnumerator("navigator:browser");
+        while (enumerator.hasMoreElements()) {
+          const w = enumerator.getNext() as Window;
+          if (w?.document) allDocs.add(w.document);
+        }
+      }
+    } catch { /* ignore */ }
+
+    for (const doc of allDocs) {
+      doc.querySelectorAll("#llm-tab-nav").forEach((nav: Element) => {
+        nav.classList.toggle("llm-tab-nav--auto-hide", hide);
+      });
+    }
+  } catch { /* ignore */ }
+}
 
 export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLElement, consoleContainer: HTMLElement) {
   const win = doc.defaultView;
@@ -536,6 +578,35 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   });
   langLeft.append(langLabel, langTabBar);
 
+  // ── Hide Tab Nav toggle (ON = hide, OFF = show) ──
+  const hideNavGroup = createEl(doc, "div", "llm-set-toolbar-left");
+  const hideNavLabel = createEl(doc, "label", "llm-set-label llm-set-label--title");
+  const HIDE_NAV_OPTIONS: { value: boolean; labelKey: "hideTabNavOn" | "hideTabNavOff" }[] = [
+    { value: true, labelKey: "hideTabNavOn" },
+    { value: false, labelKey: "hideTabNavOff" },
+  ];
+  const hideNavTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  const currentHideTabNav = () => {
+    const v = Zotero.Prefs.get(`${config.prefsPrefix}.hideTabNav`, true);
+    return v === true || String(v).toLowerCase() === "true";
+  };
+  let hideNavValue = currentHideTabNav();
+  const hideNavBtns = HIDE_NAV_OPTIONS.map((opt) => {
+    const btn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
+    btn.type = "button";
+    if (opt.value === hideNavValue) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      hideNavValue = opt.value;
+      Zotero.Prefs.set(`${config.prefsPrefix}.hideTabNav`, hideNavValue, true);
+      hideNavBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      applyHideTabNavToAllPanels(hideNavValue);
+    });
+    hideNavTabBar.appendChild(btn);
+    return btn;
+  });
+  hideNavGroup.append(hideNavLabel, hideNavTabBar);
+
   // Danger buttons (moved from bottom dangerZone)
   const langRight = createEl(doc, "div", "llm-set-toolbar-right");
   const restoreDefaultsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--warn") as HTMLButtonElement;
@@ -554,7 +625,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     refreshAllSidebarShortcuts();
   };
 
-  langBox.append(langLeft, langRight, dangerStatus);
+  langBox.append(langLeft, hideNavGroup, langRight, dangerStatus);
 
   const refreshAllBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--accent") as HTMLButtonElement;
   refreshAllBtn.type = "button";
@@ -924,6 +995,10 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     L = tt(lang);
     // "Language" label stays English regardless of selected language
     langLabel.textContent = "Language:";
+    hideNavLabel.textContent = L.hideTabNav;
+    HIDE_NAV_OPTIONS.forEach((opt, i) => {
+      if (hideNavBtns[i]) hideNavBtns[i].textContent = tt(lang)[opt.labelKey] as string;
+    });
     consoleTitle.textContent = lang === "zh-CN" ? "控制台" : "Console";
     refreshAllBtn.textContent = L.refreshAllModels;
     restoreDefaultsBtn.textContent = L.restoreDefaults;
@@ -1905,7 +1980,9 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
   renderStaticText();
   renderModels();
-  await renderAccounts();
+  // Fire-and-forget: accounts table is already wired into the DOM tree,
+  // so it will populate asynchronously without blocking the settings UI.
+  void renderAccounts();
   persistSelectionState();
 
   const systemPromptWrap = createEl(doc, "div", "llm-set-field");

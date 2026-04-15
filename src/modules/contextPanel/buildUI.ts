@@ -1,3 +1,4 @@
+import { config } from "../../../package.json";
 import { createElement } from "../../utils/domHelpers";
 import {
   SCREENSHOT_EXPANDED_LABEL,
@@ -66,6 +67,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // Tab Navigation
   // ═══════════════════════════════════════════════════════════
   const tabNav = createElement(doc, "div", "llm-tab-nav", { id: "llm-tab-nav" });
+  // Apply auto-hide if user preference is set
+  try {
+    const hideNav = Zotero.Prefs.get(`${config.prefsPrefix}.hideTabNav`, true);
+    if (hideNav === true || String(hideNav).toLowerCase() === "true") {
+      tabNav.classList.add("llm-tab-nav--auto-hide");
+    }
+  } catch { /* pref not yet registered */ }
   const tabDiscussionBtn = createElement(doc, "button", "llm-tab-btn active", {
     id: "llm-tab-btn-discussion",
     type: "button",

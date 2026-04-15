@@ -56,6 +56,7 @@ declare namespace _ZoteroTypes {
       "translate.saveGlossary": boolean;
       "translate.disableGlossary": boolean;
       "translate.fontFamily": string;
+      "hideTabNav": boolean;
     };
   }
 }

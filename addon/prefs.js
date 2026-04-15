@@ -47,3 +47,4 @@ pref("translate.autoOcr", false);
 pref("translate.saveGlossary", true);
 pref("translate.disableGlossary", false);
 pref("translate.fontFamily", "serif");
+pref("hideTabNav", false);

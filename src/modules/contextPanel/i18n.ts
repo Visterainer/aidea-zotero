@@ -312,7 +312,7 @@ export function getPanelI18n(): PanelI18n {
     confirmDeleteTitle: "删除对话",
     tabDiscussion: "对话",
     tabSetting: "设置",
-    tabTranslate: "翻译",
+    tabTranslate: "全文翻译",
     trSectionBasic: "基础配置",
     trSectionEngine: "翻译引擎",
     trSectionExecute: "执行",
