@@ -159,25 +159,57 @@ def _unique_keep_order(items):
     return out
 
 
-def _page_reference_score(text):
-    if not text:
-        return 0
-    numbered_lines = len(re.findall(r"(?m)^\s*(?:\[\d+\]|\d+\.)\s+", text))
-    doi_hits = len(re.findall(r"(?i)\b(?:doi|arxiv)\b", text))
-    url_hits = len(re.findall(r"(?i)\bhttps?://", text))
-    year_hits = len(re.findall(r"\b(?:19|20)\d{2}[a-z]?\b", text))
-    journal_hits = len(re.findall(r"(?i)\b(?:vol\.?|pp\.?|proceedings|journal|conference)\b", text))
-    score = (
-        numbered_lines * 2
-        + doi_hits * 3
-        + url_hits * 2
-        + max(0, (year_hits - 8) // 2)
-        + min(journal_hits, 4)
-    )
-    return score
+def _is_appendix_letter_heading(head_lines, letter_re):
+    """Detect standalone appendix letter headings.
+
+    Matches patterns like:
+      A                          (line by itself)
+      Factor Expression...       (descriptive title follows)
+
+    Skips common false positives: paper title/author header lines.
+    Only matches single uppercase letters A-Z (not "I" which is too ambiguous).
+    """
+    if not head_lines:
+        return False
+    # Skip header/footer lines (common in preprints: "Preprint, ,", "Wang et al.")
+    content_lines = []
+    for line in head_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Skip obvious header/footer patterns
+        if stripped.lower().startswith(("preprint", "accepted", "published")):
+            continue
+        if "et al" in stripped.lower():
+            continue
+        content_lines.append(stripped)
+        if len(content_lines) >= 3:
+            break
+
+    if len(content_lines) < 2:
+        return False
+
+    first = content_lines[0]
+    second = content_lines[1]
+    # First line must be a single uppercase letter (A-Z, skip I)
+    if len(first) == 1 and first.isalpha() and first.isupper() and first != "I":
+        # Second line should be a descriptive title (starts with uppercase, multi-word)
+        if second and second[0].isupper() and len(second.split()) >= 2:
+            return True
+    return False
 
 
 def classify_reference_and_appendix_pages(pdf_path, keep_appendix_translated=True):
+    """Section-based reference detection.
+
+    Instead of scoring each page independently (prone to false positives on
+    chart pages with many year labels), we:
+      1. Scan all pages for section headings (References, Appendix, etc.)
+      2. Find the "References" heading → mark as ref block start
+      3. Find the next heading after it → mark as ref block end
+      4. All pages between start and end = reference pages
+      5. If no "References" heading found → skip nothing (safe fallback)
+    """
     result = {
         "total_pages": 0,
         "reference_pages": [],
@@ -191,13 +223,29 @@ def classify_reference_and_appendix_pages(pdf_path, keep_appendix_translated=Tru
     except Exception:
         return result
 
-    reference_pages = set()
-    appendix_pages = set()
-    in_reference_block = False
+    # Phase 1: Scan all pages for section headings
+    # Each entry: (heading_type, page_no)
+    #   heading_type: "references" | "appendix" | "other_section"
+    sections = []
+    OTHER_SECTION_RE = re.compile(
+        r"(?im)^\s*(?:"
+        r"(?:[A-Z]\.?\s+)"           # "A ", "B " (appendix-style sections)
+        r"|(?:\d+\.?\s+)"            # "1 ", "2." (numbered sections)
+        r")"
+        r"[A-Z][A-Za-z]",            # followed by a capitalized word
+    )
+
+    # Regex for standalone appendix-letter headings:
+    # Matches "A" alone on a line, followed by a descriptive title on the next line
+    # Common in academic papers: "A\nFactor Expression and Operator Library"
+    APPENDIX_LETTER_RE = re.compile(
+        r"(?m)^\s*([A-Z])\s*$"
+    )
 
     try:
         total_pages = len(doc)
         result["total_pages"] = total_pages
+
         for page_index in range(total_pages):
             page_no = page_index + 1
             try:
@@ -207,32 +255,49 @@ def classify_reference_and_appendix_pages(pdf_path, keep_appendix_translated=Tru
             lines = [line.strip() for line in text.splitlines() if line.strip()]
             head = "\n".join(lines[:10])
 
-            is_appendix_heading = bool(APPENDIX_HEADING_RE.search(head))
-            is_reference_heading = bool(REFERENCE_HEADING_RE.search(head))
-            score = _page_reference_score(text)
-            likely_reference = is_reference_heading or score >= 16
-
-            if is_appendix_heading:
-                appendix_pages.add(page_no)
-                in_reference_block = False
-                continue
-
-            if is_reference_heading:
-                in_reference_block = True
-                reference_pages.add(page_no)
-                continue
-
-            if in_reference_block:
-                if score >= 7:
-                    reference_pages.add(page_no)
-                    continue
-                # Reference block usually ends when density drops.
-                in_reference_block = False
-
-            if likely_reference:
-                reference_pages.add(page_no)
+            if REFERENCE_HEADING_RE.search(head):
+                sections.append(("references", page_no))
+            elif APPENDIX_HEADING_RE.search(head):
+                sections.append(("appendix", page_no))
+            elif _is_appendix_letter_heading(lines[:6], APPENDIX_LETTER_RE):
+                # Standalone letter heading (A, B, C...) followed by a title
+                sections.append(("appendix", page_no))
+            elif OTHER_SECTION_RE.search(head) and page_no > total_pages // 2:
+                # Only track "other" sections in the back half of the paper
+                # to avoid noise from intro/methodology sections
+                sections.append(("other_section", page_no))
     finally:
         doc.close()
+
+    # Phase 2: Determine reference page range
+    ref_start = None
+    ref_end = None  # exclusive (first page NOT in the ref block)
+
+    for i, (sec_type, page_no) in enumerate(sections):
+        if sec_type == "references":
+            ref_start = page_no
+            # Look for the next non-reference section after this one
+            for j in range(i + 1, len(sections)):
+                next_type, next_page = sections[j]
+                if next_type != "references":
+                    ref_end = next_page  # appendix or other section starts here
+                    break
+            if ref_end is None:
+                # No section after References → ref block goes to end of document
+                ref_end = total_pages + 1
+            break  # only use the first References heading
+
+    if ref_start is None:
+        # No "References" heading found → don't skip anything
+        return result
+
+    reference_pages = set(range(ref_start, ref_end))
+    appendix_pages = set()
+
+    # Mark appendix pages (pages with appendix headings after references)
+    for sec_type, page_no in sections:
+        if sec_type == "appendix":
+            appendix_pages.add(page_no)
 
     if keep_appendix_translated:
         reference_pages.difference_update(appendix_pages)
@@ -806,6 +871,7 @@ def main():
     source_lang = task.get("sourceLang", "en")
     target_lang = task.get("targetLang", "zh-CN")
     qps = task.get("qps", 10)
+    pool_max_worker = int(task.get("poolMaxWorker", 1) or 1)
     no_dual = _as_bool(task.get("noDual", False))
     no_mono = _as_bool(task.get("noMono", False))
     no_watermark = _as_bool(task.get("noWatermark", True), True)
@@ -953,6 +1019,8 @@ def main():
             cmd.extend(["--primary-font-family", font_family])
         if selected_pages_spec:
             cmd.extend(["--pages", selected_pages_spec])
+        if pool_max_worker and pool_max_worker > 1:
+            cmd.extend(["--pool-max-worker", str(pool_max_worker)])
         log_line("Command: " + " ".join(cmd))
 
         write_progress(progress_file, make_progress(
@@ -979,7 +1047,11 @@ def main():
             sys.exit(1)
 
         last_pct = 0
+        last_current = None
+        last_total = None
         tail_lines = deque(maxlen=80)
+        last_write_time = 0
+        WRITE_THROTTLE_SEC = 0.8  # min interval between progress writes
         for line in proc.stdout:
             line = line.rstrip()
             if not line:
@@ -987,18 +1059,46 @@ def main():
             print(line, flush=True)
             log_line(line)
             tail_lines.append(line)
+
+            # Parse page progress (e.g. "4/14")
             result = parse_progress(line)
             if result:
                 current, total, pct = result
                 if pct > last_pct:
                     last_pct = pct
+                    last_current = current
+                    last_total = total
                     if current is not None and total is not None:
                         message = f"Translating {current}/{total} pages..."
                     else:
                         message = f"Translating... {pct}%"
                     write_progress(progress_file, make_progress(
-                        "running", pct, message, current=current, total=total,
+                        "running", pct, message,
+                        current=current, total=total,
+                        detail=_sanitize_text(line, max_len=300),
                     ))
+                    last_write_time = time.time()
+                    continue
+
+            # For non-progress lines: write detail update (throttled)
+            now = time.time()
+            if now - last_write_time >= WRITE_THROTTLE_SEC:
+                detail_text = _sanitize_text(line, max_len=300)
+                if detail_text:
+                    # Keep message as the last known progress message,
+                    # put the raw engine output in detail only.
+                    # Omit current/total so TypeScript won't re-print page line.
+                    if last_current is not None and last_total is not None:
+                        keep_msg = f"Translating {last_current}/{last_total} pages..."
+                    elif last_pct > 0:
+                        keep_msg = f"Translating... {last_pct}%"
+                    else:
+                        keep_msg = "Processing..."
+                    write_progress(progress_file, make_progress(
+                        "running", last_pct, keep_msg,
+                        detail=detail_text,
+                    ))
+                    last_write_time = now
 
         returncode = proc.wait()
         if returncode == 0:

@@ -10,6 +10,7 @@
 import {
   getModelChoices,
 } from "../contextPanel/setupHandlers/controllers/modelSelectionController";
+import { getPanelI18n } from "../contextPanel/i18n";
 
 /* ── Per-tab model pref key ── */
 
@@ -86,74 +87,88 @@ function persistTranslateModel(name: string): void {
   } catch { /* ignore */ }
 }
 
-/* ── Model selector population ── */
-
 /**
- * Populate the translate tab's <select> with the same models
+ * Populate the translate tab's custom dropdown with the same models
  * available in the chat tab.
  *
- * @param selectEl  the #llm-tr-model <select> element
- * @returns         the currently selected model name
+ * @param dropdownEl  the #llm-tr-model custom dropdown div element
+ * @returns           the currently selected model name
  */
 export function populateTranslateModelSelector(
-  selectEl: HTMLSelectElement,
+  dropdownEl: HTMLElement,
 ): string {
   const { choices } = getModelChoices();
   const persisted = getPersistedTranslateModel();
+  const prevValue = dropdownEl.dataset.value || persisted;
 
-  // Remember current value before clearing
-  const prevValue = selectEl.value || persisted;
+  const trigger = dropdownEl.querySelector(".llm-tr-dropdown-trigger") as HTMLElement | null;
+  const menu = dropdownEl.querySelector(".llm-tr-dropdown-menu") as HTMLElement | null;
+  if (!trigger || !menu) return "";
 
-  // Clear existing options
-  selectEl.innerHTML = "";
+  // Clear menu
+  menu.innerHTML = "";
 
   if (!choices.length) {
-    const opt = selectEl.ownerDocument!.createElement("option");
-    opt.value = "";
-    opt.textContent = "—";
-    selectEl.appendChild(opt);
+    if (trigger) {
+      // Keep arrow
+      const arrow = trigger.querySelector(".llm-tr-dropdown-arrow");
+      trigger.textContent = "—";
+      if (arrow) trigger.appendChild(arrow);
+    }
+    dropdownEl.dataset.value = "";
     return "";
   }
 
   // Group by provider
   let lastProvider = "";
   let selectedModel = "";
+  const doc = dropdownEl.ownerDocument!;
+
+  const selectItem = (model: string) => {
+    dropdownEl.dataset.value = model;
+    // Update trigger text
+    const arrow = trigger!.querySelector(".llm-tr-dropdown-arrow");
+    trigger!.textContent = model;
+    if (arrow) trigger!.appendChild(arrow);
+    // Update selected highlight
+    menu!.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
+      (el as HTMLElement).classList.toggle("selected", (el as HTMLElement).dataset.value === model);
+    });
+    // Close menu
+    menu!.style.display = "none";
+    dropdownEl.classList.remove("open");
+    // Persist
+    persistTranslateModel(model);
+  };
 
   for (const entry of choices) {
-    // Provider header (as optgroup)
     const provider = entry.provider || "";
     if (provider && provider !== lastProvider) {
       lastProvider = provider;
-      // We use optgroup for visual grouping
-      const group = selectEl.ownerDocument!.createElement("optgroup");
-      group.label = provider;
-      selectEl.appendChild(group);
+      const groupLabel = doc.createElementNS("http://www.w3.org/1999/xhtml", "div") as HTMLDivElement;
+      groupLabel.className = "llm-tr-dropdown-group";
+      groupLabel.textContent = provider;
+      menu.appendChild(groupLabel);
     }
 
-    const opt = selectEl.ownerDocument!.createElement("option");
-    opt.value = entry.model;
-    opt.textContent = entry.model;
-    // Append to current optgroup if exists, else to select directly
-    const lastGroup = selectEl.querySelector("optgroup:last-of-type");
-    if (lastGroup && (entry.provider || "") === lastProvider) {
-      lastGroup.appendChild(opt);
-    } else {
-      selectEl.appendChild(opt);
-    }
+    const item = doc.createElementNS("http://www.w3.org/1999/xhtml", "div") as HTMLDivElement;
+    item.className = "llm-tr-dropdown-item";
+    item.dataset.value = entry.model;
+    item.textContent = entry.model;
+    item.addEventListener("click", () => selectItem(entry.model));
+    menu.appendChild(item);
 
-    // Select the previously persisted model
     if (entry.model === prevValue || entry.model.toLowerCase() === prevValue.toLowerCase()) {
       selectedModel = entry.model;
     }
   }
 
   // Apply selection
-  if (selectedModel) {
-    selectEl.value = selectedModel;
-  } else {
-    // Default to first option
+  if (!selectedModel) {
     selectedModel = choices[0]?.model || "";
-    selectEl.value = selectedModel;
+  }
+  if (selectedModel) {
+    selectItem(selectedModel);
   }
 
   return selectedModel;
@@ -162,8 +177,8 @@ export function populateTranslateModelSelector(
 /**
  * Get the currently selected translate model name.
  */
-export function getTranslateModel(selectEl: HTMLSelectElement): string {
-  return selectEl.value || "";
+export function getTranslateModel(dropdownEl: HTMLElement): string {
+  return dropdownEl.dataset.value || "";
 }
 
 /* ── Init: wire up event listeners ── */
@@ -175,7 +190,7 @@ export function getTranslateModel(selectEl: HTMLSelectElement): string {
  * @param body  the panel body element (contains #llm-main)
  */
 export function initTranslateTab(body: Element): void {
-  const modelSelect = body.querySelector("#llm-tr-model") as HTMLSelectElement | null;
+  const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   if (!modelSelect) return;
 
   const skipRefsAutoEl = body.querySelector("#llm-tr-skip-refs-auto") as HTMLInputElement | null;
@@ -193,11 +208,7 @@ export function initTranslateTab(body: Element): void {
   outputDirEl?.addEventListener("change", () => setStringPref(TRANSLATE_PREFS.outputDir, outputDirEl.value || ""));
   outputDirEl?.addEventListener("blur", () => setStringPref(TRANSLATE_PREFS.outputDir, outputDirEl.value || ""));
 
-  // Persist selection changes
-  modelSelect.addEventListener("change", () => {
-    const model = modelSelect.value;
-    if (model) persistTranslateModel(model);
-  });
+  // Model selection persistence is handled internally by the custom dropdown
 
   // Re-populate when tab becomes visible (models may have been added/removed)
   const tabBtn = body.querySelector("#llm-tab-btn-translate") as HTMLButtonElement | null;
@@ -205,6 +216,24 @@ export function initTranslateTab(body: Element): void {
     tabBtn.addEventListener("click", () => {
       populateTranslateModelSelector(modelSelect);
       updatePdfSourceFromItem(body);
+    });
+  }
+
+  // ── Language swap button ──
+  const langSwapBtn = body.querySelector("#llm-tr-lang-swap") as HTMLButtonElement | null;
+  if (langSwapBtn) {
+    langSwapBtn.addEventListener("click", () => {
+      const srcDD = body.querySelector("#llm-tr-source-lang") as HTMLElement | null;
+      const tgtDD = body.querySelector("#llm-tr-target-lang") as HTMLElement | null;
+      if (srcDD && tgtDD) {
+        const srcVal = srcDD.dataset.value || "";
+        const tgtVal = tgtDD.dataset.value || "";
+        // Swap by clicking the matching items
+        const srcItem = tgtDD.querySelector(`.llm-tr-dropdown-item[data-value="${srcVal}"]`) as HTMLElement | null;
+        const tgtItem = srcDD.querySelector(`.llm-tr-dropdown-item[data-value="${tgtVal}"]`) as HTMLElement | null;
+        if (srcItem) srcItem.click();
+        if (tgtItem) tgtItem.click();
+      }
     });
   }
 
@@ -221,7 +250,7 @@ export function initTranslateTab(body: Element): void {
           setSelectedPdfPath(body, path);
         }
       } catch (err) {
-        updateStatus(body, `Error: ${err}`);
+        consoleLog(body, `❌ Error: ${err}`, "error");
       }
     });
   }
@@ -243,7 +272,7 @@ export function initTranslateTab(body: Element): void {
           }
         }
       } catch (err) {
-        updateStatus(body, `Error: ${err}`);
+        consoleLog(body, `❌ Error: ${err}`, "error");
       }
     });
   }
@@ -273,13 +302,10 @@ export function initTranslateTab(body: Element): void {
       try {
         const { installEnvironment } = await import("./envManager");
         await installEnvironment((step, detail) => {
-          updateStatus(body, detail);
           consoleLog(body, detail, detail.startsWith("✅") ? "success" : "info");
         });
-        updateStatus(body, "✅ Environment ready");
         consoleLog(body, "✅ Environment setup complete!", "success");
       } catch (err) {
-        updateStatus(body, `❌ ${err}`);
         consoleLog(body, `❌ Error: ${err}`, "error");
         // Try to read the stderr log for more details
         try {
@@ -300,16 +326,80 @@ export function initTranslateTab(body: Element): void {
 
   // ── Start translation button ──
   const startBtn = body.querySelector("#llm-tr-start") as HTMLButtonElement | null;
+  const pauseBtn = body.querySelector("#llm-tr-pause") as HTMLButtonElement | null;
+  const clearBtn = body.querySelector("#llm-tr-clear") as HTMLButtonElement | null;
   if (startBtn) {
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       try {
         await startTranslation(body);
       } catch (err) {
-        updateStatus(body, `❌ ${err}`);
         consoleLog(body, `❌ ${err}`, "error");
       } finally {
         startBtn.disabled = false;
+      }
+    });
+  }
+
+  // ── Pause / Resume button ──
+  if (pauseBtn) {
+    pauseBtn.addEventListener("click", async () => {
+      if (!_activeController) return;
+      try {
+        if (_isPaused) {
+          // Resume — re-start translation to continue from cache
+          _isPaused = false;
+          const i18n = getPanelI18n();
+          pauseBtn.textContent = `⏸ ${i18n.trPause}`;
+          pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
+          consoleLog(body, "▶️ " + i18n.trResume + "d", "info");
+        } else {
+          // Pause
+          _activeController.pause();
+          _isPaused = true;
+          const i18n = getPanelI18n();
+          pauseBtn.textContent = `▶ ${i18n.trResume}`;
+          pauseBtn.className = "llm-tr-btn llm-tr-btn-primary";
+          consoleLog(body, "⏸ " + i18n.trPause + "d", "info");
+        }
+      } catch (err) {
+        consoleLog(body, `❌ Pause error: ${err}`, "error");
+      }
+    });
+  }
+
+  // ── Clear cache button ──
+  if (clearBtn) {
+    clearBtn.addEventListener("click", async () => {
+      try {
+        // Only clear temp cache files (progress, config, task, log)
+        // Do NOT delete the output directory or generated PDFs
+        const tempDir = String(PathUtils.tempDir || "").trim();
+        if (tempDir) {
+          const cacheDir = PathUtils.join(tempDir, "aidea-translate");
+          const cacheFiles = ["progress.json", "progress.json.tmp", "config.toml", "task.json", "bridge.log", "aidea_bridge.py"];
+          for (const file of cacheFiles) {
+            try {
+              const filePath = PathUtils.join(cacheDir, file);
+              await IOUtils.remove(filePath);
+            } catch { /* file may not exist */ }
+          }
+        }
+        // Reset UI state
+        _isPaused = false;
+        _activeController = null;
+        const i18n = getPanelI18n();
+        consoleLog(body, `🗑 ${i18n.trClearCache}: done`, "info");
+        updateProgress(body, 0, "");
+        _stopProgressTimer();
+        _translationStartTime = 0;
+        // Restore start button
+        const startBtn = body.querySelector("#llm-tr-start") as HTMLButtonElement | null;
+        const pauseBtn = body.querySelector("#llm-tr-pause") as HTMLButtonElement | null;
+        if (startBtn) startBtn.style.display = "";
+        if (pauseBtn) pauseBtn.style.display = "none";
+      } catch (err) {
+        consoleLog(body, `❌ Clear error: ${err}`, "error");
       }
     });
   }
@@ -319,7 +409,7 @@ export function initTranslateTab(body: Element): void {
  * Refresh the translate model selector (e.g., after OAuth model list update).
  */
 export function refreshTranslateModels(body: Element): void {
-  const modelSelect = body.querySelector("#llm-tr-model") as HTMLSelectElement | null;
+  const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   if (modelSelect) populateTranslateModelSelector(modelSelect);
 }
 
@@ -327,6 +417,25 @@ export function refreshTranslateModels(body: Element): void {
 
 /** Store the currently selected PDF path as a data attribute */
 let _selectedPdfPath = "";
+
+/** Track translation start time for elapsed/remaining calculations */
+let _translationStartTime = 0;
+
+/** Track pause state */
+let _isPaused = false;
+
+/** Active controller instance for pause/resume/clear */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _activeController: any = null;
+
+/** Independent progress bar refresh timer (1s) */
+let _progressTimer: ReturnType<typeof setInterval> | null = null;
+/** Last known progress percentage for timer-based refresh */
+let _lastProgressPct = 0;
+/** Reference to body element for timer-based updates */
+let _translationBody: Element | null = null;
+/** Heartbeat counter — log every 15s when idle */
+let _heartbeatCounter = 0;
 
 function setSelectedPdfPath(body: Element, pdfPath: string): void {
   _selectedPdfPath = pdfPath;
@@ -339,18 +448,65 @@ function setSelectedPdfPath(body: Element, pdfPath: string): void {
   }
 }
 
-function updateStatus(body: Element, msg: string): void {
-  const el = body.querySelector("#llm-tr-status") as HTMLElement | null;
-  if (el) el.textContent = msg;
+function updateProgress(body: Element, pct: number, _text: string): void {
+  _lastProgressPct = pct;
+  _refreshProgressBar(body, pct);
 }
 
-function updateProgress(body: Element, pct: number, text: string): void {
+/** Refresh progress bar time display (called by both poller and timer) */
+function _refreshProgressBar(body: Element, pct: number): void {
   const fill = body.querySelector("#llm-tr-progress-fill") as HTMLElement | null;
-  const textEl = body.querySelector("#llm-tr-progress-text") as HTMLElement | null;
-  const section = body.querySelector("#llm-tr-progress-section") as HTMLElement | null;
-  if (section) section.style.display = "";
-  if (fill) fill.style.width = `${pct}%`;
-  if (textEl) textEl.textContent = text;
+  if (fill) {
+    fill.style.width = `${pct}%`;
+    const i18n = getPanelI18n();
+    const elapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
+    const elapsedStr = formatDuration(elapsed);
+    let remainStr = "--:--";
+    if (pct > 0 && pct < 100 && elapsed > 0) {
+      const totalEstimated = elapsed / (pct / 100);
+      const remaining = Math.max(0, totalEstimated - elapsed);
+      remainStr = formatDuration(remaining);
+    } else if (pct >= 100) {
+      remainStr = "00:00";
+    }
+    const isZh = i18n.tabTranslate === "翻译";
+    const elapsedLabel = isZh ? "已用" : "Elapsed";
+    const remainLabel = isZh ? "剩余" : "Remaining";
+    fill.textContent = pct > 0 ? `${pct}% | ${elapsedLabel}: ${elapsedStr} | ${remainLabel}: ${remainStr}` : "";
+  }
+}
+
+/** Start the independent 1s progress bar timer */
+function _startProgressTimer(body: Element): void {
+  _stopProgressTimer();
+  _translationBody = body;
+  _heartbeatCounter = 0;
+  _progressTimer = setInterval(() => {
+    if (_translationBody && _translationStartTime > 0) {
+      _refreshProgressBar(_translationBody, _lastProgressPct);
+    }
+  }, 1000);
+}
+
+/** Stop the progress bar timer */
+function _stopProgressTimer(): void {
+  if (_progressTimer) {
+    clearInterval(_progressTimer);
+    _progressTimer = null;
+  }
+  _translationBody = null;
+  _heartbeatCounter = 0;
+}
+
+/** Format seconds to MM:SS or HH:MM:SS */
+function formatDuration(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (h > 0) {
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 /** Append a timestamped line to the console log area. */
@@ -363,6 +519,14 @@ function consoleLog(
   if (!consoleBody) return;
   const doc = body.ownerDocument;
   if (!doc) return;
+
+  // Auto-expand console if it is collapsed
+  const consoleToggle = body.querySelector("#llm-tr-console-toggle") as HTMLElement | null;
+  const consoleEl = body.querySelector("#llm-tr-console") as HTMLElement | null;
+  if (consoleToggle && consoleToggle.dataset.collapsed === "true" && consoleEl) {
+    consoleToggle.dataset.collapsed = "false";
+    consoleEl.style.display = "";
+  }
 
   const line = doc.createElement("div");
   line.className = `llm-tr-console-line ${level}`;
@@ -442,82 +606,103 @@ async function updatePdfSourceFromItem(body: Element): Promise<void> {
  * Main translation flow.
  */
 async function startTranslation(body: Element): Promise<void> {
+  const i18n = getPanelI18n();
   // Gather parameters
-  const modelSelect = body.querySelector("#llm-tr-model") as HTMLSelectElement | null;
-  const modelName = modelSelect?.value || "";
+  const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
+  const modelName = modelSelect?.dataset.value || "";
   if (!modelName) {
-    updateStatus(body, "Please select a model");
-    consoleLog(body, "⚠️ No model selected", "error");
+    consoleLog(body, "⚠️ No model selected — go to Settings tab to configure LLM models", "error");
     return;
   }
   if (!_selectedPdfPath) {
-    updateStatus(body, "Please select a PDF file");
-    consoleLog(body, "⚠️ No PDF file selected", "error");
+    consoleLog(body, "⚠️ No PDF file selected — click 'Select local PDF' or open a PDF in Zotero", "error");
     return;
   }
 
-  const srcLang = (body.querySelector("#llm-tr-source-lang") as HTMLSelectElement)?.value || "en";
-  const tgtLang = (body.querySelector("#llm-tr-target-lang") as HTMLSelectElement)?.value || "zh-CN";
+  const srcLang = (body.querySelector("#llm-tr-source-lang") as HTMLElement)?.dataset.value || "en";
+  const tgtLang = (body.querySelector("#llm-tr-target-lang") as HTMLElement)?.dataset.value || "zh-CN";
   const monoChecked = (body.querySelector("#llm-tr-mono") as HTMLInputElement)?.checked ?? true;
   const dualChecked = (body.querySelector("#llm-tr-dual") as HTMLInputElement)?.checked ?? true;
   const outputDirInput = ((body.querySelector("#llm-tr-output-dir") as HTMLInputElement)?.value || "").trim();
   const skipReferencesAuto = (body.querySelector("#llm-tr-skip-refs-auto") as HTMLInputElement)?.checked ?? true;
-  // Fixed policy defaults (no UI toggles)
-  const keepAppendixTranslated = true;
-  const protectAuthorBlock = true;
-  const disableRichTextTranslate = false;
-  const enhanceCompatibility = true;
-  const translateTableText = true;
-  const ocr = false;
-  const autoOcr = false;
-  const saveGlossary = true;
-  const disableGlossary = false;
-  const fontFamily = "serif" as const;
+  // ── Performance inputs ──
+  const qps = parseInt(body.querySelector("#llm-tr-qps")?.textContent || "10", 10) || 10;
+  const poolMaxWorker = parseInt(body.querySelector("#llm-tr-pool-max-worker")?.textContent || "1", 10) || 1;
+
+  // ── Advanced settings (read from collapsible panel) ──
+  const keepAppendixTranslated = (body.querySelector("#llm-tr-keep-appendix") as HTMLInputElement)?.checked ?? true;
+  const protectAuthorBlock = (body.querySelector("#llm-tr-protect-author") as HTMLInputElement)?.checked ?? true;
+  const disableRichTextTranslate = (body.querySelector("#llm-tr-disable-rich-text") as HTMLInputElement)?.checked ?? false;
+  const enhanceCompatibility = (body.querySelector("#llm-tr-enhance-compat") as HTMLInputElement)?.checked ?? false;
+  const translateTableText = (body.querySelector("#llm-tr-translate-table") as HTMLInputElement)?.checked ?? false;
+  const ocr = (body.querySelector("#llm-tr-ocr") as HTMLInputElement)?.checked ?? false;
+  const autoOcr = (body.querySelector("#llm-tr-auto-ocr") as HTMLInputElement)?.checked ?? true;
+  const saveGlossary = (body.querySelector("#llm-tr-save-glossary") as HTMLInputElement)?.checked ?? true;
+  const disableGlossary = (body.querySelector("#llm-tr-disable-glossary") as HTMLInputElement)?.checked ?? false;
+  const fontFamily = ((body.querySelector("#llm-tr-font-family") as HTMLElement)?.dataset.value || "auto") as "auto" | "serif" | "sans-serif" | "script";
 
   if (!outputDirInput) {
-    updateStatus(body, "Please choose a save folder before starting translation");
     consoleLog(body, "⚠️ Save path is required. Click 'Browse' and select an output folder.", "error");
     return;
   }
   setStringPref(TRANSLATE_PREFS.outputDir, outputDirInput);
   const outputDir = outputDirInput;
 
-  consoleLog(body, `PDF: ${_selectedPdfPath}`, "info");
-  consoleLog(body, `Model: ${modelName}`, "info");
-  consoleLog(body, `${srcLang} → ${tgtLang}  |  Output: ${outputDir}`, "info");
-
-  consoleLog(
-    body,
-    `Policy: skipRefs=${skipReferencesAuto} keepAppendix=${keepAppendixTranslated} protectAuthor=${protectAuthorBlock}`,
-    "info",
-  );
-  consoleLog(
-    body,
-    `Layout: richText=${!disableRichTextTranslate} compat=${enhanceCompatibility} table=${translateTableText} font=${fontFamily}`,
-    "info",
-  );
-  consoleLog(body, `Glossary: save=${saveGlossary}`, "info");
+  // Detailed console logging
+  const pdfBasename = _selectedPdfPath.split(/[\\/]/).pop() || _selectedPdfPath;
+  consoleLog(body, `─── Translation Job Started ───`, "info");
+  consoleLog(body, `📄 PDF: ${pdfBasename}`, "info");
+  consoleLog(body, `   Full path: ${_selectedPdfPath}`, "info");
+  consoleLog(body, `🤖 Model: ${modelName}`, "info");
+  consoleLog(body, `🌐 Language: ${srcLang} → ${tgtLang}`, "info");
+  consoleLog(body, `📁 Output: ${outputDir}`, "info");
+  consoleLog(body, `📝 Output format: Mono=${monoChecked} | Dual=${dualChecked}`, "info");
+  consoleLog(body, `⚙️ Skip references: ${skipReferencesAuto} | Compatibility: ${enhanceCompatibility}`, "info");
 
   // Resolve model credentials
+  consoleLog(body, `🔑 Resolving model credentials...`, "info");
   const { resolveModelCredentialsOrThrow } = await import("./modelResolver");
-  const creds = await resolveModelCredentialsOrThrow(modelName);
-  const authMode = creds.oauthProxy ? `oauth:${creds.oauthProxy.provider}` : "api-key";
-  consoleLog(
-    body,
-    `Auth: ${authMode} | modelId=${creds.modelId} | base=${creds.apiUrl}`,
-    "info",
-  );
+  let creds;
+  try {
+    creds = await resolveModelCredentialsOrThrow(modelName);
+  } catch (err) {
+    consoleLog(body, `❌ Failed to resolve credentials: ${err}`, "error");
+    return;
+  }
+  const authMode = creds.oauthProxy ? `OAuth (${creds.oauthProxy.provider})` : "API Key";
+  consoleLog(body, `🔑 Auth: ${authMode}`, "success");
+  consoleLog(body, `   Model ID: ${creds.modelId}`, "info");
+  consoleLog(body, `   API Base: ${creds.apiUrl}`, "info");
 
   // Check environment
-  consoleLog(body, "Checking translation environment...", "info");
+  consoleLog(body, `🔍 Checking translation environment...`, "info");
   const { checkEnvironment } = await import("./envManager");
   const envStatus = await checkEnvironment();
   if (envStatus.status !== "ready") {
-    updateStatus(body, "❌ Translation environment not ready. Click 'Install Environment' first.");
     consoleLog(body, `❌ Environment not ready (status: ${envStatus.status})`, "error");
+    consoleLog(body, `   Please click '⚙ Install Environment' button to set up the Python environment`, "error");
     return;
   }
-  consoleLog(body, "✅ Environment ready", "success");
+  consoleLog(body, `✅ Environment ready (${envStatus.venvDir})`, "success");
+  consoleLog(body, `   Python: ${envStatus.pythonBin}`, "info");
+  consoleLog(body, `   pdf2zh: ${envStatus.pdf2zhBin}`, "info");
+
+  // Reset timer and pause state
+  _translationStartTime = Date.now();
+  _isPaused = false;
+  _lastProgressPct = 0;
+  updateProgress(body, 0, "");
+  _startProgressTimer(body);
+
+  // Show pause button, hide start button
+  const startBtn = body.querySelector("#llm-tr-start") as HTMLButtonElement | null;
+  const pauseBtn = body.querySelector("#llm-tr-pause") as HTMLButtonElement | null;
+  if (startBtn) startBtn.style.display = "none";
+  if (pauseBtn) {
+    pauseBtn.style.display = "";
+    pauseBtn.textContent = `⏸ ${i18n.trPause}`;
+    pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
+  }
 
   // Use TranslateController to run the translation
   const { TranslateController } = await import("./index");
@@ -527,39 +712,84 @@ async function startTranslation(body: Element): Promise<void> {
       case "progress": {
         const pct = event.data.progress;
         const msg = event.data.message || "";
+        const status = event.data.status || "";
+        const detail = event.data.detail || "";
         updateProgress(body, pct, msg);
-        updateStatus(body, msg || "Translating...");
-        // Log progress milestones (every 10%) and page updates
+
+        // Log page transitions (when page number is present)
         if (event.data.current !== undefined && event.data.total !== undefined) {
-          consoleLog(body, `Page ${event.data.current}/${event.data.total} (${pct}%) — ${msg}`, "info");
+          const elapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
+          consoleLog(
+            body,
+            `📊 Page ${event.data.current}/${event.data.total} (${pct}%) [${formatDuration(elapsed)}]`,
+            "info",
+          );
+        }
+
+        // Show engine output detail (raw line from pdf2zh_next stdout)
+        if (detail && detail !== msg) {
+          consoleLog(body, `🔧 ${detail}`, "info");
+        } else if (msg && event.data.current === undefined) {
+          // Non-page messages from bridge (init, detecting refs, etc.)
+          consoleLog(body, `🔄 ${msg}`, "info");
+        }
+
+        // Log output files on completion
+        if (status === "done" && event.data.outputFiles?.length) {
+          for (const f of event.data.outputFiles) {
+            consoleLog(body, `   📄 Output: ${f}`, "success");
+          }
+        }
+
+        // Log errors with full detail
+        if (status === "error") {
+          const errMsg = event.data.error || event.data.message || "Unknown error";
+          consoleLog(body, `❌ Bridge error: ${errMsg}`, "error");
+          if (event.data.errorDetail) {
+            const lines = event.data.errorDetail.split("\n").slice(-10);
+            for (const line of lines) {
+              if (line.trim()) consoleLog(body, `   ${line.trim()}`, "error");
+            }
+          }
+          if (event.data.logFile) {
+            consoleLog(body, `   📝 Full log: ${event.data.logFile}`, "info");
+          }
         }
         break;
       }
       case "state":
         if (event.state === "done") {
-          updateStatus(body, "✅ Translation complete!");
-          updateProgress(body, 100, "Done");
-          consoleLog(body, "✅ Translation complete!", "success");
+          const totalElapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
+          updateProgress(body, 100, "");
+          consoleLog(body, `✅ ${i18n.trDone}! Total time: ${formatDuration(totalElapsed)}`, "success");
+          consoleLog(body, `─── Job Finished ───`, "success");
+          _translationStartTime = 0;
+          _stopProgressTimer();
+          // Restore buttons
+          if (startBtn) startBtn.style.display = "";
+          if (pauseBtn) pauseBtn.style.display = "none";
         } else if (event.state === "error") {
-          updateStatus(body, "❌ Translation failed");
-          consoleLog(body, "❌ Translation failed", "error");
+          consoleLog(body, `❌ ${i18n.trError} — see details above`, "error");
+          _translationStartTime = 0;
+          _stopProgressTimer();
+          if (startBtn) startBtn.style.display = "";
+          if (pauseBtn) pauseBtn.style.display = "none";
         } else if (event.state === "running") {
-          consoleLog(body, "⏳ Translation running...", "info");
+          consoleLog(body, "⏳ Translation engine started...", "info");
+        } else if (event.state === "paused") {
+          consoleLog(body, "⏸ Translation paused — progress cached", "info");
         }
         break;
       case "error":
-        updateStatus(body, `❌ ${event.message}`);
-        consoleLog(body, `❌ ${event.message}`, "error");
+        consoleLog(body, `❌ Error: ${event.message}`, "error");
         break;
       case "env_progress":
-        updateStatus(body, event.detail);
-        consoleLog(body, event.detail, "info");
+        consoleLog(body, `🔧 ${event.detail}`, "info");
         break;
     }
   });
+  _activeController = controller;
 
-  updateStatus(body, "⏳ Starting translation...");
-  updateProgress(body, 0, "Initializing...");
   consoleLog(body, "⏳ Launching translation engine...", "info");
 
   try {
@@ -572,6 +802,8 @@ async function startTranslation(body: Element): Promise<void> {
         modelId: creds.modelId,
         generateMono: monoChecked,
         generateDual: dualChecked,
+        qps,
+        poolMaxWorker,
         disableRichTextTranslate,
         enhanceCompatibility,
         translateTableText,
@@ -582,7 +814,7 @@ async function startTranslation(body: Element): Promise<void> {
         disableGlossary,
         noWatermark: true,
         dualMode: "LR",
-        transFirst: false,
+        transFirst: false,            // LR mode: original left, translation right
         skipClean: false,
         skipReferencesAuto,
         keepAppendixTranslated,
@@ -592,9 +824,13 @@ async function startTranslation(body: Element): Promise<void> {
     );
   } catch (err) {
     if (err instanceof Error && err.stack) {
-      consoleLog(body, `Stack: ${err.stack}`, "error");
+      consoleLog(body, `Stack trace:\n${err.stack}`, "error");
     }
-    updateStatus(body, `❌ Translation failed: ${err}`);
-    consoleLog(body, `❌ Translation failed: ${err}`, "error");
+    consoleLog(body, `❌ ${i18n.trError}: ${err}`, "error");
+    _translationStartTime = 0;
+    _stopProgressTimer();
+    // Restore buttons
+    if (startBtn) startBtn.style.display = "";
+    if (pauseBtn) pauseBtn.style.display = "none";
   }
 }

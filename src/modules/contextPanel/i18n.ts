@@ -59,11 +59,16 @@ export type PanelI18n = {
   tabDiscussion: string;
   tabSetting: string;
   tabTranslate: string;
+  trSectionBasic: string;
+  trSectionEngine: string;
+  trSectionExecute: string;
+  trInputPath: string;
   trCurrentPdf: string;
   trSelectLocalPdf: string;
   trNoPdfFound: string;
   trSourceLang: string;
   trTargetLang: string;
+  trOutputFormat: string;
   trOutputMono: string;
   trOutputDual: string;
   trSavePath: string;
@@ -79,6 +84,8 @@ export type PanelI18n = {
   trError: string;
   trIdle: string;
   trAdvanced: string;
+  trQps: string;
+  trPoolMaxWorker: string;
   trSkipReferencesAuto: string;
   trKeepAppendixTranslated: string;
   trProtectAuthorBlock: string;
@@ -93,6 +100,20 @@ export type PanelI18n = {
   trFontFamilyAuto: string;
   trFontFamilySerif: string;
   trFontFamilySansSerif: string;
+  // Tooltip hints
+  trHintPoolMaxWorker: string;
+  trHintSkipReferences: string;
+  trHintKeepAppendix: string;
+  trHintProtectAuthor: string;
+  trHintDisableRichText: string;
+  trHintEnhanceCompat: string;
+  trHintTranslateTable: string;
+  trHintOcr: string;
+  trHintAutoOcr: string;
+  trHintSaveGlossary: string;
+  trHintDisableGlossary: string;
+  trHintFontFamily: string;
+  trHintQps: string;
   trFontFamilyScript: string;
 };
 
@@ -175,14 +196,19 @@ export function getPanelI18n(): PanelI18n {
       tabDiscussion: "Discussion",
       tabSetting: "Setting",
       tabTranslate: "Translate",
+      trSectionBasic: "Basic Config",
+      trSectionEngine: "Translation Engine",
+      trSectionExecute: "Execute",
+      trInputPath: "Input Path",
       trCurrentPdf: "Current PDF",
-      trSelectLocalPdf: "Select local PDF",
+      trSelectLocalPdf: "Select Local File",
       trNoPdfFound: "No PDF attachment found",
       trSourceLang: "Source",
       trTargetLang: "Target",
+      trOutputFormat: "Output",
       trOutputMono: "Translation only",
       trOutputDual: "Bilingual",
-      trSavePath: "Save to",
+      trSavePath: "Save Path",
       trBrowsePath: "Browse",
       trStartTranslation: "Translate",
       trPause: "Pause",
@@ -195,6 +221,8 @@ export function getPanelI18n(): PanelI18n {
       trError: "Translation failed",
       trIdle: "Ready to translate",
       trAdvanced: "Advanced",
+      trQps: "QPS (queries/sec)",
+      trPoolMaxWorker: "Parallel workers",
       trSkipReferencesAuto: "Auto-skip references (detect by heading/pattern)",
       trKeepAppendixTranslated: "Keep appendix translated",
       trProtectAuthorBlock: "Protect author/affiliation block",
@@ -210,6 +238,20 @@ export function getPanelI18n(): PanelI18n {
       trFontFamilySerif: "Serif",
       trFontFamilySansSerif: "Sans-serif",
       trFontFamilyScript: "Script",
+      // Tooltip hints
+      trHintPoolMaxWorker: "Number of paragraphs translated concurrently. Higher = faster but may hit API rate limits.",
+      trHintSkipReferences: "Detect the References section by heading and skip translating those pages.",
+      trHintKeepAppendix: "Continue translating appendices (Appendix A/B/C) after the References section.",
+      trHintProtectAuthor: "Preserve author names, emails, and affiliations on the title page without translating.",
+      trHintDisableRichText: "Disable bold/italic style preservation. Output plain text only — cleaner but loses formatting.",
+      trHintEnhanceCompat: "Use conservative PDF rendering for broader reader compatibility. May slightly reduce layout quality.",
+      trHintTranslateTable: "Translate text inside tables. Off by default because complex tables may break after translation.",
+      trHintOcr: "Force OCR on all pages. Use for PDFs with broken text layers or embedded images.",
+      trHintAutoOcr: "Automatically detect scanned PDFs and enable OCR when needed.",
+      trHintSaveGlossary: "Auto-extract a terminology glossary (e.g. Transformer → 变换器) and save to the output folder.",
+      trHintDisableGlossary: "Completely disable automatic terminology extraction. May reduce translation consistency.",
+      trHintFontFamily: "Auto = engine selects best match; Serif = Song/Times; Sans-serif = Hei/Arial; Script = italic/cursive.",
+      trHintQps: "API requests per second. Free APIs: 3-5; Paid APIs: 10-20. Too high may trigger rate limiting.",
     };
   }
   return {
@@ -271,14 +313,19 @@ export function getPanelI18n(): PanelI18n {
     tabDiscussion: "对话",
     tabSetting: "设置",
     tabTranslate: "翻译",
+    trSectionBasic: "基础配置",
+    trSectionEngine: "翻译引擎",
+    trSectionExecute: "执行",
+    trInputPath: "输入路径",
     trCurrentPdf: "当前 PDF",
-    trSelectLocalPdf: "选择本地 PDF",
+    trSelectLocalPdf: "选择本地文件",
     trNoPdfFound: "未找到 PDF 附件",
     trSourceLang: "源语言",
     trTargetLang: "目标语言",
+    trOutputFormat: "输出格式",
     trOutputMono: "仅译文",
     trOutputDual: "双语对照",
-    trSavePath: "保存到",
+    trSavePath: "保存路径",
     trBrowsePath: "浏览",
     trStartTranslation: "翻译",
     trPause: "暂停",
@@ -291,6 +338,8 @@ export function getPanelI18n(): PanelI18n {
     trError: "翻译失败",
     trIdle: "准备翻译",
     trAdvanced: "高级选项",
+    trQps: "QPS（每秒请求数）",
+    trPoolMaxWorker: "并行线程数",
     trSkipReferencesAuto: "自动识别并跳过参考文献",
     trKeepAppendixTranslated: "附录继续翻译",
     trProtectAuthorBlock: "保护作者/机构信息",
@@ -306,5 +355,19 @@ export function getPanelI18n(): PanelI18n {
     trFontFamilySerif: "衬线体",
     trFontFamilySansSerif: "无衬线体",
     trFontFamilyScript: "手写体",
+    // Tooltip hints
+    trHintPoolMaxWorker: "同时翻译的段落数。值越大越快，但可能触发 API 限速。",
+    trHintSkipReferences: "通过章节标题检测参考文献区域，跳过翻译。",
+    trHintKeepAppendix: "参考文献后面的附录（Appendix A/B/C）继续翻译，不跳过。",
+    trHintProtectAuthor: "保留首页作者姓名、邮箱、单位等信息不翻译。",
+    trHintDisableRichText: "禁用粗体/斜体等格式保留，翻译结果为纯文本。排版更简洁但丢失样式。",
+    trHintEnhanceCompat: "使用更保守的 PDF 渲染方式，兼容更多阅读器。可能略微降低排版质量。",
+    trHintTranslateTable: "翻译表格中的文字。默认关闭，因为复杂表格翻译后容易错位。",
+    trHintOcr: "强制对所有页面使用 OCR 提取文字。用于文字层损坏或嵌入图片的 PDF。",
+    trHintAutoOcr: "自动检测是否为扫描件 PDF，如果是则自动启用 OCR。",
+    trHintSaveGlossary: "翻译时自动提取专业术语对照表并保存，下次可复用。",
+    trHintDisableGlossary: "完全关闭术语自动提取。可能降低翻译一致性。",
+    trHintFontFamily: "自动=引擎智能匹配；衬线体=宋体/Times；无衬线体=黑体/Arial；手写体=斜体/书法。",
+    trHintQps: "每秒 API 请求数。免费 API 建议 3-5，付费 API 可设 10-20。过高会触发限速。",
   };
 }

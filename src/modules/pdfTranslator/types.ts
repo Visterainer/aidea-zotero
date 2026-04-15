@@ -16,6 +16,7 @@ export interface ProgressData {
   current?: number;          // current page
   total?: number;            // total pages
   message: string;
+  detail?: string;           // latest engine output line (raw)
   outputFiles?: string[];    // populated when status === "done"
   startTime?: number;        // unix timestamp
   error?: string;            // populated when status === "error"
@@ -33,6 +34,7 @@ export interface TranslateParams {
   generateMono: boolean;     // produce single-language PDF
   generateDual: boolean;     // produce bilingual PDF
   qps?: number;              // queries per second (default 10)
+  poolMaxWorker?: number;    // parallel translation workers (default 1)
   // Layout / compatibility
   disableRichTextTranslate?: boolean;
   enhanceCompatibility?: boolean;
@@ -66,6 +68,7 @@ export interface BridgeTask {
   noDual: boolean;
   noMono: boolean;
   qps: number;
+  poolMaxWorker?: number;
   // Layout / compatibility
   disableRichTextTranslate?: boolean;
   enhanceCompatibility?: boolean;

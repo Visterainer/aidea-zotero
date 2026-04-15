@@ -54,7 +54,7 @@ export function generateConfigToml(params: {
   const fontFamily =
     params.fontFamily && params.fontFamily !== "auto"
       ? `"${esc(params.fontFamily)}"`
-      : `"null"`;
+      : `"null"`;  // pdf2zh_next interprets "null" as auto-detect
   const customPrompt =
     params.customSystemPrompt && params.customSystemPrompt.trim()
       ? `"${esc(params.customSystemPrompt)}"`
@@ -94,7 +94,7 @@ support_llm = "yes"
 openai_compatible_model = "${esc(params.model)}"
 openai_compatible_base_url = "${esc(params.apiUrl)}"
 openai_compatible_api_key = "${esc(params.apiKey)}"
-openai_compatible_timeout = "120"
+openai_compatible_timeout = "300"
 `;
 }
 

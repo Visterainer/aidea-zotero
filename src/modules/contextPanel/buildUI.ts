@@ -246,44 +246,155 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "llm-translate-scroll",
   });
 
-  // PDF source section
-  const trSourceSection = createElement(doc, "div", "llm-tr-section", { id: "llm-tr-source-section" });
-  const trSourceLabel = createElement(doc, "div", "llm-tr-label", { textContent: i18n.trCurrentPdf });
+  // Root container
+  const trRoot = createElement(doc, "div", "llm-tr-root");
+
+  // ── Helper: create a collapsible section (title + body) ──
+  const buildSection = (id: string, label: string, defaultOpen: boolean) => {
+    const title = createElement(doc, "div", "llm-tr-title llm-tr-collapsible-toggle", { id: `${id}-toggle` });
+    title.textContent = label;
+    title.dataset.collapsed = defaultOpen ? "false" : "true";
+    const body = createElement(doc, "div", "llm-tr-section-body", { id: `${id}-body` });
+    if (!defaultOpen) body.style.display = "none";
+    title.addEventListener("click", () => {
+      const isOpen = title.dataset.collapsed === "false";
+      title.dataset.collapsed = isOpen ? "true" : "false";
+      body.style.display = isOpen ? "none" : "";
+    });
+    return { title, body };
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // Section 1: 基础配置 (Basic Config) — default open
+  // ═══════════════════════════════════════════════════════════
+  const sec1 = buildSection("llm-tr-sec-basic", i18n.trSectionBasic, true);
+
+  // Input path row: [label] [input] [select file btn]
+  const trInputPathSection = createElement(doc, "div", "llm-tr-path-block");
+  const trInputPathLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trInputPath });
+  const trInputPathRow = createElement(doc, "div", "llm-tr-row");
   const trPdfName = createElement(doc, "div", "llm-tr-pdf-name", {
     id: "llm-tr-pdf-name",
     textContent: i18n.trNoPdfFound,
   });
-  const trPickFileBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-secondary", {
+  const trPickFileBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-primary llm-tr-btn-small", {
     id: "llm-tr-pick-file",
     type: "button",
     textContent: i18n.trSelectLocalPdf,
   });
-  trSourceSection.append(trSourceLabel, trPdfName, trPickFileBtn);
+  trInputPathRow.append(trPdfName, trPickFileBtn);
+  trInputPathSection.append(trInputPathLabel, trInputPathRow);
 
-  // Model selector
-  const trModelSection = createElement(doc, "div", "llm-tr-section");
-  const trModelLabel = createElement(doc, "div", "llm-tr-label", { textContent: i18n.modelSelectHint });
-  const trModelSelect = createElement(doc, "select", "llm-tr-select", {
-    id: "llm-tr-model",
-  }) as HTMLSelectElement;
-  trModelSection.append(trModelLabel, trModelSelect);
+  // Save path row: [label] [input] [browse btn] — aligned with input path
+  const trSavePathSection = createElement(doc, "div", "llm-tr-path-block");
+  const trSavePathLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trSavePath });
+  const trSavePathRow = createElement(doc, "div", "llm-tr-row");
+  const trPathInput = createElement(doc, "input", "llm-tr-input", {
+    id: "llm-tr-output-dir",
+    type: "text",
+    placeholder: "Required: choose output folder",
+  }) as HTMLInputElement;
+  const trPathBrowseBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-primary llm-tr-btn-small", {
+    id: "llm-tr-browse-dir",
+    type: "button",
+    textContent: i18n.trBrowsePath,
+  });
+  trSavePathRow.append(trPathInput, trPathBrowseBtn);
+  trSavePathSection.append(trSavePathLabel, trSavePathRow);
 
-  // Language selectors row
-  const trLangRow = createElement(doc, "div", "llm-tr-row");
-  const trSrcLangSection = createElement(doc, "div", "llm-tr-section llm-tr-half");
-  const trSrcLangLabel = createElement(doc, "div", "llm-tr-label", { textContent: i18n.trSourceLang });
-  const trSrcLangSelect = createElement(doc, "select", "llm-tr-select", {
-    id: "llm-tr-source-lang",
-  }) as HTMLSelectElement;
-  trSrcLangSection.append(trSrcLangLabel, trSrcLangSelect);
+  // Model selector row — custom dropdown to avoid native select styling issues
+  const trModelRow = createElement(doc, "div", "llm-tr-path-block");
+  const trModelLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.modelSelectHint });
+  // Custom dropdown wrapper
+  const trModelDropdown = createElement(doc, "div", "llm-tr-dropdown", { id: "llm-tr-model" }) as HTMLDivElement;
+  const trModelTrigger = createElement(doc, "div", "llm-tr-dropdown-trigger") as HTMLDivElement;
+  trModelTrigger.textContent = "—";
+  const trModelArrow = createElement(doc, "span", "llm-tr-dropdown-arrow") as HTMLSpanElement;
+  trModelArrow.textContent = "▾";
+  trModelTrigger.appendChild(trModelArrow);
+  const trModelMenu = createElement(doc, "div", "llm-tr-dropdown-menu") as HTMLDivElement;
+  trModelMenu.style.display = "none";
+  trModelDropdown.append(trModelTrigger, trModelMenu);
+  // Toggle menu on trigger click
+  trModelTrigger.addEventListener("click", () => {
+    const open = trModelMenu.style.display !== "none";
+    trModelMenu.style.display = open ? "none" : "block";
+    trModelDropdown.classList.toggle("open", !open);
+  });
+  // Close on outside click
+  doc.addEventListener("click", (e: Event) => {
+    if (!trModelDropdown.contains(e.target as Node)) {
+      trModelMenu.style.display = "none";
+      trModelDropdown.classList.remove("open");
+    }
+  });
+  trModelRow.append(trModelLabel, trModelDropdown);
 
-  const trTgtLangSection = createElement(doc, "div", "llm-tr-section llm-tr-half");
-  const trTgtLangLabel = createElement(doc, "div", "llm-tr-label", { textContent: i18n.trTargetLang });
-  const trTgtLangSelect = createElement(doc, "select", "llm-tr-select", {
-    id: "llm-tr-target-lang",
-  }) as HTMLSelectElement;
-  trTgtLangSection.append(trTgtLangLabel, trTgtLangSelect);
-  trLangRow.append(trSrcLangSection, trTgtLangSection);
+  // ── Reusable custom dropdown builder ──
+  const buildDropdown = (id: string, options: { value: string; label: string }[], defaultValue: string) => {
+    const dd = createElement(doc, "div", "llm-tr-dropdown", { id }) as HTMLDivElement;
+    const trigger = createElement(doc, "div", "llm-tr-dropdown-trigger") as HTMLDivElement;
+    const arrow = createElement(doc, "span", "llm-tr-dropdown-arrow") as HTMLSpanElement;
+    arrow.textContent = "▾";
+    trigger.textContent = "—";
+    trigger.appendChild(arrow);
+    const menu = createElement(doc, "div", "llm-tr-dropdown-menu") as HTMLDivElement;
+    menu.style.display = "none";
+    dd.append(trigger, menu);
+
+    const selectItem = (value: string, label: string) => {
+      dd.dataset.value = value;
+      const arrowEl = trigger.querySelector(".llm-tr-dropdown-arrow");
+      trigger.textContent = label;
+      if (arrowEl) trigger.appendChild(arrowEl);
+      menu.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
+        (el as HTMLElement).classList.toggle("selected", (el as HTMLElement).dataset.value === value);
+      });
+      menu.style.display = "none";
+      dd.classList.remove("open");
+    };
+
+    for (const opt of options) {
+      const item = createElement(doc, "div", "llm-tr-dropdown-item") as HTMLDivElement;
+      item.dataset.value = opt.value;
+      item.textContent = opt.label;
+      item.addEventListener("click", () => selectItem(opt.value, opt.label));
+      menu.appendChild(item);
+    }
+
+    // Set default
+    const defaultOpt = options.find(o => o.value === defaultValue) || options[0];
+    if (defaultOpt) selectItem(defaultOpt.value, defaultOpt.label);
+
+    trigger.addEventListener("click", () => {
+      const open = menu.style.display !== "none";
+      menu.style.display = open ? "none" : "block";
+      dd.classList.toggle("open", !open);
+    });
+    doc.addEventListener("click", (e: Event) => {
+      if (!dd.contains(e.target as Node)) {
+        menu.style.display = "none";
+        dd.classList.remove("open");
+      }
+    });
+
+    return dd;
+  };
+
+  // Language selectors with swap button
+  const trLangRow = createElement(doc, "div", "llm-tr-lang-row");
+  const trSrcLangSection = createElement(doc, "div", "llm-tr-lang-half");
+  const trSrcLangLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trSourceLang });
+
+  const trTgtLangSection = createElement(doc, "div", "llm-tr-lang-half");
+  const trTgtLangLabel = createElement(doc, "div", "llm-tr-field-label", { textContent: i18n.trTargetLang });
+
+  const trLangSwapBtn = createElement(doc, "button", "llm-tr-lang-swap", {
+    id: "llm-tr-lang-swap",
+    type: "button",
+    textContent: "⇄",
+    title: "Swap languages",
+  });
 
   // Populate language options
   const LANG_OPTIONS = [
@@ -297,23 +408,36 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     { code: "es", label: "Español" },
     { code: "ru", label: "Русский" },
     { code: "pt", label: "Português" },
+    { code: "ar", label: "العربية" },
+    { code: "hi", label: "हिन्दी" },
+    { code: "it", label: "Italiano" },
+    { code: "nl", label: "Nederlands" },
+    { code: "pl", label: "Polski" },
+    { code: "tr", label: "Türkçe" },
+    { code: "vi", label: "Tiếng Việt" },
+    { code: "th", label: "ภาษาไทย" },
+    { code: "id", label: "Bahasa Indonesia" },
+    { code: "uk", label: "Українська" },
   ];
-  for (const lang of LANG_OPTIONS) {
-    const srcOpt = doc.createElement("option");
-    srcOpt.value = lang.code;
-    srcOpt.textContent = lang.label;
-    if (lang.code === "en") srcOpt.selected = true;
-    trSrcLangSelect.appendChild(srcOpt);
+  const langDropdownOpts = LANG_OPTIONS.map(l => ({ value: l.code, label: l.label }));
 
-    const tgtOpt = doc.createElement("option");
-    tgtOpt.value = lang.code;
-    tgtOpt.textContent = lang.label;
-    if (lang.code === "zh-CN") tgtOpt.selected = true;
-    trTgtLangSelect.appendChild(tgtOpt);
-  }
+  const trSrcLangSelect = buildDropdown("llm-tr-source-lang", langDropdownOpts, "en");
+  const trTgtLangSelect = buildDropdown("llm-tr-target-lang", langDropdownOpts, "zh-CN");
 
-  // Output format section
-  const trFormatSection = createElement(doc, "div", "llm-tr-section");
+  trSrcLangSection.append(trSrcLangLabel, trSrcLangSelect);
+  trTgtLangSection.append(trTgtLangLabel, trTgtLangSelect);
+  trLangRow.append(trSrcLangSection, trLangSwapBtn, trTgtLangSection);
+
+  // Assemble section 1
+  sec1.body.append(trInputPathSection, trSavePathSection, trModelRow, trLangRow);
+
+  // ═══════════════════════════════════════════════════════════
+  // Section 2: 翻译引擎 (Translation Engine) — default open
+  // ═══════════════════════════════════════════════════════════
+  const sec2 = buildSection("llm-tr-sec-engine", i18n.trSectionEngine, true);
+
+  // Output format checkboxes
+  const trOptionsTitle = createElement(doc, "div", "llm-tr-subtitle", { textContent: i18n.trOutputFormat });
   const trFormatRow = createElement(doc, "div", "llm-tr-row llm-tr-format-row");
   const trMonoLabel = createElement(doc, "label", "llm-tr-checkbox-label", { id: "llm-tr-mono-label" });
   const trMonoInput = createElement(doc, "input", "", {
@@ -332,13 +456,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   trDualInput.checked = true;
   const trDualText = doc.createTextNode(` ${i18n.trOutputDual}`);
   trDualLabel.append(trDualInput, trDualText);
-  trFormatRow.append(trMonoLabel, trDualLabel);
-  trFormatSection.appendChild(trFormatRow);
-
-  // Advanced options
-  const trAdvancedSection = createElement(doc, "div", "llm-tr-section llm-tr-advanced-section");
-  const trAdvancedLabel = createElement(doc, "div", "llm-tr-label", { textContent: i18n.trAdvanced });
-  const trAdvancedGrid = createElement(doc, "div", "llm-tr-advanced-grid");
 
   const trSkipRefsLabel = createElement(doc, "label", "llm-tr-checkbox-label");
   const trSkipRefsInput = createElement(doc, "input", "", {
@@ -346,120 +463,271 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     type: "checkbox",
   }) as HTMLInputElement;
   trSkipRefsInput.checked = true;
+  trSkipRefsLabel.title = i18n.trHintSkipReferences;
   trSkipRefsLabel.append(trSkipRefsInput, doc.createTextNode(` ${i18n.trSkipReferencesAuto}`));
-  trAdvancedGrid.appendChild(trSkipRefsLabel);
-  trAdvancedSection.append(trAdvancedLabel, trAdvancedGrid);
 
-  // Save path section
-  const trPathSection = createElement(doc, "div", "llm-tr-section");
-  const trPathLabel = createElement(doc, "div", "llm-tr-label", { textContent: i18n.trSavePath });
-  const trPathRow = createElement(doc, "div", "llm-tr-row");
-  const trPathInput = createElement(doc, "input", "llm-tr-input", {
-    id: "llm-tr-output-dir",
-    type: "text",
-    placeholder: "Required: choose output folder",
-  }) as HTMLInputElement;
-  const trPathBrowseBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-secondary llm-tr-btn-small", {
-    id: "llm-tr-browse-dir",
-    type: "button",
-    textContent: i18n.trBrowsePath,
+  trFormatRow.append(trMonoLabel, trDualLabel, trSkipRefsLabel);
+
+  // Helper: build a numeric stepper (label + ‹ [input] ›)
+  const buildStepper = (id: string, label: string, defaultVal: number, min: number, max: number, step: number) => {
+    const wrapper = createElement(doc, "div", "llm-tr-stepper");
+    const lbl = createElement(doc, "span", "llm-tr-stepper-label", { textContent: label });
+    const group = createElement(doc, "div", "llm-tr-stepper-group");
+
+    // Arrow style helper
+    const makeArrow = (text: string) => {
+      const arrow = createElement(doc, "span", "") as HTMLSpanElement;
+      arrow.textContent = text;
+      Object.assign(arrow.style, {
+        color: "#888", fontSize: "14px", fontWeight: "700",
+        cursor: "pointer", userSelect: "none",
+        padding: "0 3px", lineHeight: "20px",
+        transition: "color 0.15s ease",
+      });
+      arrow.addEventListener("mouseenter", () => { arrow.style.color = "#ccc"; });
+      arrow.addEventListener("mouseleave", () => { arrow.style.color = "#888"; });
+      return arrow;
+    };
+
+    const btnDec = makeArrow("‹");
+    const btnInc = makeArrow("›");
+
+    // Editable value
+    const valInput = createElement(doc, "div", "llm-tr-stepper-value", { id }) as HTMLDivElement;
+    valInput.setAttribute("contenteditable", "true");
+    valInput.textContent = String(defaultVal);
+    Object.assign(valInput.style, {
+      width: "40px", height: "20px", lineHeight: "20px",
+      padding: "0 4px", margin: "0",
+      border: "1px solid rgba(128,128,128,0.25)",
+      borderRadius: "4px",
+      color: "inherit", fontSize: "10px", fontFamily: "inherit",
+      textAlign: "center", boxSizing: "border-box",
+      cursor: "text", overflow: "hidden", whiteSpace: "nowrap",
+    });
+    valInput.style.setProperty("background", "color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%)");
+
+    const clamp = () => {
+      let v = parseInt(valInput.textContent || String(defaultVal), 10);
+      if (isNaN(v)) v = defaultVal;
+      valInput.textContent = String(Math.max(min, Math.min(max, v)));
+    };
+
+    btnDec.addEventListener("click", () => {
+      clamp();
+      let v = parseInt(valInput.textContent || String(defaultVal), 10);
+      valInput.textContent = String(Math.max(min, v - step));
+    });
+    btnInc.addEventListener("click", () => {
+      clamp();
+      let v = parseInt(valInput.textContent || String(defaultVal), 10);
+      valInput.textContent = String(Math.min(max, v + step));
+    });
+    valInput.addEventListener("keydown", (e: Event) => {
+      if ((e as KeyboardEvent).key === "Enter") {
+        e.preventDefault();
+        clamp();
+        (valInput as HTMLElement).blur();
+      }
+    });
+    valInput.addEventListener("blur", clamp);
+
+    group.append(btnDec, valInput, btnInc);
+    wrapper.append(lbl, group);
+    return wrapper;
+  };
+
+  // Collapsible Advanced sub-section (collapsed by default)
+  const trAdvTitle = createElement(doc, "div", "llm-tr-subtitle llm-tr-collapsible-toggle", {
+    id: "llm-tr-advanced-toggle",
   });
-  trPathRow.append(trPathInput, trPathBrowseBtn);
-  trPathSection.append(trPathLabel, trPathRow);
+  trAdvTitle.textContent = i18n.trAdvanced;
+  trAdvTitle.dataset.collapsed = "true";
 
-  // Progress section
-  const trProgressSection = createElement(doc, "div", "llm-tr-section llm-tr-progress-section", {
+  const trAdvBody = createElement(doc, "div", "llm-tr-advanced-body", {
+    id: "llm-tr-advanced-body",
+  });
+  trAdvBody.style.display = "none";
+
+  trAdvTitle.addEventListener("click", () => {
+    const isOpen = trAdvTitle.dataset.collapsed === "false";
+    trAdvTitle.dataset.collapsed = isOpen ? "true" : "false";
+    trAdvBody.style.display = isOpen ? "none" : "";
+  });
+
+  // Helper to create advanced checkbox with tooltip
+  const advCheck = (id: string, label: string, checked: boolean, tooltip?: string) => {
+    const row = createElement(doc, "label", "llm-tr-checkbox-label llm-tr-adv-label");
+    if (tooltip) row.title = tooltip;
+    const inp = createElement(doc, "input", "", { id, type: "checkbox" }) as HTMLInputElement;
+    inp.checked = checked;
+    row.append(inp, doc.createTextNode(` ${label}`));
+    return row;
+  };
+
+  // Pool stepper & QPS stepper
+  const trPoolStepper = buildStepper("llm-tr-pool-max-worker", i18n.trPoolMaxWorker, 1, 1, 32, 1);
+  trPoolStepper.title = i18n.trHintPoolMaxWorker;
+  const advQpsStepper = buildStepper("llm-tr-qps", i18n.trQps, 10, 1, 100, 1);
+  advQpsStepper.title = i18n.trHintQps;
+
+  // Advanced checkboxes
+  const advKeepAppendix = advCheck("llm-tr-keep-appendix", i18n.trKeepAppendixTranslated, true, i18n.trHintKeepAppendix);
+  const advProtectAuthor = advCheck("llm-tr-protect-author", i18n.trProtectAuthorBlock, true, i18n.trHintProtectAuthor);
+  const advDisableRichText = advCheck("llm-tr-disable-rich-text", i18n.trDisableRichTextTranslate, false, i18n.trHintDisableRichText);
+  const advEnhanceCompat = advCheck("llm-tr-enhance-compat", i18n.trEnhanceCompatibility, false, i18n.trHintEnhanceCompat);
+  const advTranslateTable = advCheck("llm-tr-translate-table", i18n.trTranslateTableText, false, i18n.trHintTranslateTable);
+  const advOcr = advCheck("llm-tr-ocr", i18n.trOCR, false, i18n.trHintOcr);
+  const advAutoOcr = advCheck("llm-tr-auto-ocr", i18n.trAutoOCR, true, i18n.trHintAutoOcr);
+  const advSaveGlossary = advCheck("llm-tr-save-glossary", i18n.trSaveGlossary, true, i18n.trHintSaveGlossary);
+  const advDisableGlossary = advCheck("llm-tr-disable-glossary", i18n.trDisableGlossary, false, i18n.trHintDisableGlossary);
+
+  // Font family drop-down (custom dropdown)
+  const advFontRow = createElement(doc, "div", "llm-tr-row llm-tr-adv-font-row");
+  advFontRow.title = i18n.trHintFontFamily;
+  const advFontLabel = createElement(doc, "span", "llm-tr-adv-font-label", { textContent: i18n.trFontFamily });
+  const advFontSelect = buildDropdown("llm-tr-font-family", [
+    { value: "auto", label: i18n.trFontFamilyAuto },
+    { value: "serif", label: i18n.trFontFamilySerif },
+    { value: "sans-serif", label: i18n.trFontFamilySansSerif },
+    { value: "script", label: i18n.trFontFamilyScript },
+  ], "auto");
+  advFontRow.append(advFontLabel, advFontSelect);
+
+  trAdvBody.append(
+    trPoolStepper, advQpsStepper,
+    advKeepAppendix, advProtectAuthor,
+    advDisableRichText, advEnhanceCompat, advTranslateTable,
+    advOcr, advAutoOcr,
+    advSaveGlossary, advDisableGlossary,
+    advFontRow,
+  );
+
+  // Assemble section 2
+  sec2.body.append(trOptionsTitle, trFormatRow, trAdvTitle, trAdvBody);
+
+  // ═══════════════════════════════════════════════════════════
+  // Section 3: 执行 (Execute) — default open
+  // ═══════════════════════════════════════════════════════════
+  const sec3 = buildSection("llm-tr-sec-exec", i18n.trSectionExecute, true);
+
+  // Progress bar
+  const trProgressSection = createElement(doc, "div", "llm-tr-progress-section", {
     id: "llm-tr-progress-section",
   });
-  trProgressSection.style.display = "none";
   const trProgressBarOuter = createElement(doc, "div", "llm-tr-progress-bar");
   const trProgressBarInner = createElement(doc, "div", "llm-tr-progress-fill", {
     id: "llm-tr-progress-fill",
   });
   trProgressBarOuter.appendChild(trProgressBarInner);
-  const trProgressText = createElement(doc, "div", "llm-tr-progress-text", {
-    id: "llm-tr-progress-text",
-    textContent: "",
-  });
-  trProgressSection.append(trProgressBarOuter, trProgressText);
+  trProgressSection.appendChild(trProgressBarOuter);
 
-  // Status display
-  const trStatus = createElement(doc, "div", "llm-tr-status", {
-    id: "llm-tr-status",
-    textContent: i18n.trIdle,
+  // Console (collapsible, default EXPANDED)
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const trConsoleTitle = createElement(doc, "div", "llm-tr-subtitle llm-tr-collapsible-toggle", {
+    id: "llm-tr-console-toggle",
   });
+  trConsoleTitle.textContent = "Console";
+  trConsoleTitle.dataset.collapsed = "false";
 
-  // Action buttons
-  const trActions = createElement(doc, "div", "llm-tr-actions");
-  const trInstallBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-secondary", {
-    id: "llm-tr-install-env",
-    type: "button",
-    textContent: i18n.trInstallEnv,
-  });
-  const trStartBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-primary", {
-    id: "llm-tr-start",
-    type: "button",
-    textContent: i18n.trStartTranslation,
-  });
-  const trPauseBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-secondary", {
-    id: "llm-tr-pause",
-    type: "button",
-    textContent: i18n.trPause,
-  });
-  trPauseBtn.style.display = "none";
-  const trClearBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-danger", {
-    id: "llm-tr-clear",
-    type: "button",
-    textContent: i18n.trClearCache,
-  });
-  trClearBtn.style.display = "none";
-  trActions.append(trInstallBtn, trStartBtn, trPauseBtn, trClearBtn);
-
-  // Assemble translate panel
-  translateScroll.append(
-    trSourceSection,
-    trModelSection,
-    trLangRow,
-    trFormatSection,
-    trAdvancedSection,
-    trPathSection,
-    trProgressSection,
-    trStatus,
-  );
-
-  // Console log area — shows env install & translation output
   const trConsole = createElement(doc, "div", "llm-tr-console", {
     id: "llm-tr-console",
   });
-  const trConsoleHeader = createElement(doc, "div", "llm-tr-console-header");
-  const trConsoleTitle = createElement(doc, "span", "", {
-    textContent: "📋 Console",
+  // default expanded — no display:none
+
+  trConsoleTitle.addEventListener("click", () => {
+    const isOpen = trConsoleTitle.dataset.collapsed === "false";
+    trConsoleTitle.dataset.collapsed = isOpen ? "true" : "false";
+    trConsole.style.display = isOpen ? "none" : "";
   });
+
+  const trConsoleHeader = createElement(doc, "div", "llm-tr-console-header");
   const trConsoleActions = createElement(doc, "div", "llm-tr-console-actions");
 
-  // Copy button — use text fallback since SVG innerHTML may be stripped in Zotero
+  // Copy button with SVG icon
   const trConsoleCopyBtn = createElement(doc, "button", "llm-tr-console-icon-btn", {
     id: "llm-tr-console-copy",
     type: "button",
     title: "Copy all",
-    textContent: "📄",
   });
-  // Clear button
+  const copySvg = doc.createElementNS(SVG_NS, "svg");
+  copySvg.setAttribute("viewBox", "0 0 16 16");
+  for (const d of [
+    "M4 4V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2",
+    "M2 6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6z",
+  ]) {
+    const p = doc.createElementNS(SVG_NS, "path");
+    p.setAttribute("d", d);
+    copySvg.appendChild(p);
+  }
+  trConsoleCopyBtn.appendChild(copySvg);
+
+  // Clear button with SVG icon
   const trConsoleClearBtn = createElement(doc, "button", "llm-tr-console-icon-btn", {
     id: "llm-tr-console-clear",
     type: "button",
     title: "Clear",
-    textContent: "🗑",
   });
+  const trashSvg = doc.createElementNS(SVG_NS, "svg");
+  trashSvg.setAttribute("viewBox", "0 0 16 16");
+  for (const d of [
+    "M2 4h12",
+    "M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4",
+    "M3.333 4v9.333a1.333 1.333 0 0 0 1.334 1.334h6.666a1.333 1.333 0 0 0 1.334-1.334V4",
+    "M6.667 7.333v4",
+    "M9.333 7.333v4",
+  ]) {
+    const p = doc.createElementNS(SVG_NS, "path");
+    p.setAttribute("d", d);
+    trashSvg.appendChild(p);
+  }
+  trConsoleClearBtn.appendChild(trashSvg);
+
   trConsoleActions.append(trConsoleCopyBtn, trConsoleClearBtn);
-  trConsoleHeader.append(trConsoleTitle, trConsoleActions);
+  trConsoleHeader.appendChild(trConsoleActions);
   const trConsoleBody = createElement(doc, "div", "llm-tr-console-body", {
     id: "llm-tr-console-body",
   });
   trConsole.append(trConsoleHeader, trConsoleBody);
-  translateScroll.appendChild(trConsole);
 
-  translateScroll.appendChild(trActions);
+  // Action buttons: [Install] ... spacer ... [Start / Pause] [Clear]
+  const trInstallBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-pink llm-tr-btn-action", {
+    id: "llm-tr-install-env",
+    type: "button",
+    textContent: `⚙ ${i18n.trInstallEnv}`,
+  });
+  const trStartBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-primary llm-tr-btn-action", {
+    id: "llm-tr-start",
+    type: "button",
+    textContent: `▶ ${i18n.trStartTranslation}`,
+  });
+  const trPauseBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-warning llm-tr-btn-action", {
+    id: "llm-tr-pause",
+    type: "button",
+    textContent: `⏸ ${i18n.trPause}`,
+  });
+  trPauseBtn.style.display = "none";
+  const trClearBtn = createElement(doc, "button", "llm-tr-btn llm-tr-btn-danger llm-tr-btn-action", {
+    id: "llm-tr-clear",
+    type: "button",
+    textContent: `🗑 ${i18n.trClearCache}`,
+  });
+  const trActions = createElement(doc, "div", "llm-tr-actions");
+  const trActionsSpacer = createElement(doc, "div", "llm-tr-actions-spacer");
+  trActions.append(trInstallBtn, trActionsSpacer, trStartBtn, trPauseBtn, trClearBtn);
+
+  // Assemble section 3
+  sec3.body.append(trProgressSection, trConsoleTitle, trConsole, trActions);
+
+  // ═══════════════════════════════════════════════════════════
+  // Assemble all sections into root
+  // ═══════════════════════════════════════════════════════════
+  trRoot.append(
+    sec1.title, sec1.body,
+    sec2.title, sec2.body,
+    sec3.title, sec3.body,
+  );
+  translateScroll.appendChild(trRoot);
   translatePanel.appendChild(translateScroll);
   contentWrapper.appendChild(translatePanel);
   container.appendChild(contentWrapper);
@@ -921,8 +1189,26 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "llm-shortcuts",
   });
   discussionBottom.append(shortcutsRow, inputSection);
-
   bottomWrapper.appendChild(discussionBottom);
+
+  // ── Setting Bottom (spacer to maintain height) ──
+  const settingBottom = createElement(doc, "div", "llm-tab-bottom", {
+    id: "llm-tab-bottom-setting",
+  });
+  settingBottom.dataset.tab = "setting";
+  // Setting tab uses the bottom as a spacer — no content needed,
+  // but it fills the space so wrapper height stays linked.
+  bottomWrapper.appendChild(settingBottom);
+
+  // ── Translate Bottom (spacer to maintain height, like Setting) ──
+  const translateBottom = createElement(doc, "div", "llm-tab-bottom", {
+    id: "llm-tab-bottom-translate",
+  });
+  translateBottom.dataset.tab = "translate";
+  // Console + actions are now inside translateScroll (contentWrapper),
+  // so this bottom panel is an empty spacer — same as settingBottom.
+  bottomWrapper.appendChild(translateBottom);
+
   container.appendChild(bottomWrapper);
 
   // ═══════════════════════════════════════════════════════════
@@ -944,6 +1230,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // ═══════════════════════════════════════════════════════════
   const tabBtns = [tabDiscussionBtn, tabTranslateBtn, tabSettingBtn];
   const tabPanels = [discussionPanel, settingPanel, translatePanel];
+  const tabBottoms = [discussionBottom, settingBottom, translateBottom];
   for (const btn of tabBtns) {
     btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
@@ -951,14 +1238,19 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       container.dataset.activeTab = tab || "discussion";
       // Update button active state
       for (const b of tabBtns) b.classList.toggle("active", b === btn);
-      // Toggle panel visibility
+      // Toggle panel visibility (upper)
       for (const p of tabPanels) p.classList.toggle("visible", p.dataset.tab === tab);
-      // Discussion bottom: only visible in discussion tab
-      discussionBottom.classList.toggle("visible", tab === "discussion");
+      // Toggle bottom visibility (lower) — wrapper always visible, height stays linked
+      for (const b of tabBottoms) b.classList.toggle("visible", b.dataset.tab === tab);
       // Swap header icon based on active tab
-      (headerIcon as HTMLImageElement).src = tab === "setting"
-        ? "chrome://aidea/content/icons/logo-setting.png"
-        : "chrome://aidea/content/icons/logo-talk.png";
+      const logoMap: Record<string, string> = {
+        discussion: "chrome://aidea/content/icons/logo-talk.png",
+        translate: "chrome://aidea/content/icons/logo-translate.png",
+        setting: "chrome://aidea/content/icons/logo-setting.png",
+      };
+      const activeTab = tab || "discussion";
+      (headerIcon as HTMLImageElement).src =
+        logoMap[activeTab] ?? "chrome://aidea/content/icons/logo-talk.png";
     });
   }
 }

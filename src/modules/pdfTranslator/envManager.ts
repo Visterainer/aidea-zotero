@@ -601,7 +601,10 @@ async function readCommandLog(path: string): Promise<string> {
   }
 }
 
-/** Low-level nsIProcess wrapper — only used for shell executables (cmd.exe, /bin/sh) */
+/**
+ * Low-level nsIProcess wrapper — only used for shell executables (cmd.exe, /bin/sh).
+ * On Windows, uses startHidden to suppress terminal window pop-ups.
+ */
 function _runNsIProcess(exe: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
@@ -611,6 +614,12 @@ function _runNsIProcess(exe: string, args: string[]): Promise<void> {
       const proc = (Components.classes as any)["@mozilla.org/process/util;1"]
         .createInstance((Components.interfaces as any).nsIProcess);
       proc.init(file);
+
+      // Suppress terminal window on Windows
+      if (IS_WIN) {
+        try { proc.startHidden = true; } catch { /* older Gecko may not support */ }
+        try { proc.noShell = true; } catch { /* best effort */ }
+      }
 
       const observer = {
         observe(_subject: unknown, topic: string) {

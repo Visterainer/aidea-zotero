@@ -4998,49 +4998,140 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Translate Panel
+   Translate Panel — Premium Teal Theme
    ═══════════════════════════════════════════════════════════ */
+
+/* ── Scroll Container ── */
 .llm-translate-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
 }
 
-.llm-tr-section {
+/* ── Root container ── */
+.llm-tr-root {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0;
 }
 
-.llm-tr-label {
+/* ── Section Title — PyCharm-style: text + horizontal line ── */
+.llm-tr-title {
   font-weight: 600;
-  font-size: var(--llm-fs-11, 11px);
+  font-size: var(--llm-fs-12, 12px);
   color: var(--fill-secondary, #888);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  letter-spacing: 0;
+  padding: 6px 0 2px 0;
+  margin-top: 6px;
 }
 
+/* First section title needs no top margin */
+.llm-tr-root > .llm-tr-title:first-child {
+  margin-top: 0;
+}
+
+.llm-tr-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+}
+
+/* ── Section Body — indented content under a section title ── */
+.llm-tr-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 6px 0;
+}
+
+/* ── Sub-title (within a section, e.g. "输出格式", "高级选项", "Console") ── */
+.llm-tr-subtitle {
+  font-weight: 500;
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-secondary, #888);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  padding: 3px 0 1px 0;
+}
+
+.llm-tr-subtitle::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--fill-primary, #333) 8%, transparent);
+}
+
+/* ── Path Block — container for input-path / save-path rows ── */
+.llm-tr-path-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Field Label (small inline label, e.g. for lang selects) ── */
+.llm-tr-field-label {
+  font-weight: 500;
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-secondary, #888);
+  padding-bottom: 2px;
+}
+
+/* ── PDF Source Card ── */
 .llm-tr-pdf-name {
+  flex: 1;
+  min-width: 0;
   font-size: var(--llm-fs-10, 10px);
   color: var(--fill-primary, #ddd);
   background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%);
-  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 0 10px;
+  height: 28px;
+  box-sizing: border-box;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: border-color 0.15s ease;
 }
 
+/* PDF icon via ::before pseudo-element */
+.llm-tr-pdf-name::before {
+  content: "📄";
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.llm-tr-pdf-name:hover {
+  border-color: color-mix(in srgb, #0d9488 40%, transparent);
+}
+
+/* Subtle muted state when no PDF is loaded */
+.llm-tr-pdf-name:empty::before,
+.llm-tr-pdf-name[data-empty="true"]::before {
+  content: "📭";
+}
+
+/* ── Select (model, languages) ── */
 .llm-tr-select {
   appearance: none;
   -moz-appearance: none;
   width: 100%;
-  padding: 5px 8px;
+  padding: 5px 10px;
   font-size: var(--llm-fs-10, 10px);
   border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
   border-radius: 4px;
@@ -5056,10 +5147,111 @@
   border-color: #0d9488;
 }
 
+.llm-tr-select:hover {
+  border-color: color-mix(in srgb, var(--fill-primary, #fff) 30%, transparent);
+}
+
+/* ── Custom Dropdown (model selector) ── */
+.llm-tr-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.llm-tr-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 5px 10px;
+  font-size: var(--llm-fs-10, 10px);
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border-radius: 4px;
+  color: var(--fill-primary, #ddd);
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%);
+  cursor: pointer;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+  user-select: none;
+}
+
+.llm-tr-dropdown-trigger:hover {
+  border-color: color-mix(in srgb, var(--fill-primary, #fff) 30%, transparent);
+}
+
+.llm-tr-dropdown.open .llm-tr-dropdown-trigger {
+  border-color: #0d9488;
+}
+
+.llm-tr-dropdown-arrow {
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: 0.5;
+  transition: transform 0.2s ease;
+}
+
+.llm-tr-dropdown.open .llm-tr-dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.llm-tr-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 95%, var(--fill-primary, #fff) 5%);
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 25%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+  padding: 4px 0;
+}
+
+.llm-tr-dropdown-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.llm-tr-dropdown-menu::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.3);
+  border-radius: 2px;
+}
+
+.llm-tr-dropdown-group {
+  padding: 6px 10px 3px;
+  font-size: var(--llm-fs-10, 10px);
+  font-weight: 700;
+  color: #5b9bd5;
+  user-select: none;
+}
+
+.llm-tr-dropdown-item {
+  padding: 4px 14px;
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-primary, #ddd);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  user-select: none;
+}
+
+.llm-tr-dropdown-item:hover {
+  background: color-mix(in srgb, var(--fill-primary, #fff) 10%, transparent);
+}
+
+.llm-tr-dropdown-item.selected {
+  background: color-mix(in srgb, var(--fill-primary, #fff) 8%, transparent);
+  color: #0d9488;
+  font-weight: 600;
+}
+
+/* ── Text Input ── */
 .llm-tr-input {
   flex: 1;
   min-width: 0;
-  padding: 5px 8px;
+  padding: 0 10px;
+  height: 28px;
+  box-sizing: border-box;
   font-size: var(--llm-fs-10, 10px);
   border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
   border-radius: 4px;
@@ -5078,76 +5270,341 @@
   color: var(--fill-tertiary, #666);
 }
 
+/* ── Row Layout ── */
 .llm-tr-row {
   display: flex;
-  gap: 8px;
-  align-items: flex-end;
+  gap: 6px;
+  align-items: center;
 }
 
-.llm-tr-half {
+.llm-tr-lang-half {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
+/* ── Language Row with Swap Button ── */
+.llm-tr-lang-row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  padding: 2px 0;
+}
+
+.llm-tr-lang-swap {
+  appearance: none;
+  -moz-appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 18%, transparent);
+  color: var(--fill-secondary, #888);
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  align-self: flex-end;
+  margin-bottom: 1px;
+}
+
+.llm-tr-lang-swap:hover {
+  background: color-mix(in srgb, #0d9488 15%, transparent);
+  border-color: #0d9488;
+  color: #0d9488;
+  transform: rotate(180deg);
+}
+
+.llm-tr-lang-swap:active {
+  transform: rotate(180deg) scale(0.9);
+}
+
+/* ── Output Format Row ── */
 .llm-tr-format-row {
   align-items: center;
-  padding: 4px 0;
+  padding: 2px 0;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
+/* ── Checkbox Labels ── */
 .llm-tr-checkbox-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: var(--llm-fs-10, 10px);
   color: var(--fill-primary, #ddd);
   cursor: pointer;
   user-select: none;
   -moz-user-select: none;
+  padding: 2px 0;
+  transition: color 0.12s ease;
+}
+
+.llm-tr-checkbox-label:hover {
+  color: #14b8a6;
 }
 
 .llm-tr-checkbox-label input[type="checkbox"] {
   accent-color: #0d9488;
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
 }
 
-.llm-tr-advanced-section {
-  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
-  border-radius: 6px;
-  padding: 8px;
-  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 94%, var(--fill-primary, #fff) 6%);
+/* ── Stepper ── */
+.llm-tr-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.llm-tr-advanced-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
+.llm-tr-stepper-label {
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-primary, #ddd);
+  white-space: nowrap;
 }
 
-@media (max-width: 520px) {
-  .llm-tr-advanced-grid {
-    grid-template-columns: 1fr;
-  }
+.llm-tr-stepper-group {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-/* Buttons */
+.llm-tr-stepper-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--fill-secondary, #aaa);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.llm-tr-stepper-btn:hover {
+  background: rgba(20, 184, 166, 0.2);
+  color: #14b8a6;
+}
+
+.llm-tr-stepper-btn:active {
+  background: rgba(20, 184, 166, 0.35);
+}
+
+.llm-tr-stepper-value {
+  width: 30px;
+  height: 22px;
+  text-align: center;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #14b8a6;
+  font-size: var(--llm-fs-11, 11px);
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0;
+  -moz-appearance: textfield;
+  cursor: default;
+}
+
+/* ── Collapsible Toggle — matches settings tab pattern ── */
+.llm-tr-collapsible-toggle {
+  cursor: pointer;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+.llm-tr-collapsible-toggle::before {
+  content: "▾";
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.12s ease;
+}
+
+.llm-tr-collapsible-toggle:hover {
+  color: #14b8a6;
+}
+
+.llm-tr-collapsible-toggle:hover::before {
+  opacity: 1;
+}
+
+.llm-tr-collapsible-toggle[data-collapsed="true"]::before {
+  content: "▸";
+}
+
+/* Collapsible body indent */
+.llm-tr-collapsible-body {
+  padding-left: 14px;
+}
+
+/* ── Advanced Body ── */
+.llm-tr-advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 0 2px 14px;
+}
+
+.llm-tr-adv-label {
+  font-size: var(--llm-fs-10, 10px) !important;
+}
+
+.llm-tr-adv-font-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.llm-tr-adv-font-label {
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-primary, #ddd);
+  white-space: nowrap;
+}
+
+.llm-tr-adv-font-select {
+  flex: 1;
+  min-width: 80px;
+  max-width: 140px;
+}
+
+/* ── Stepper Controls (label [input] [✓]) ── */
+.llm-tr-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.llm-tr-stepper-label {
+  font-size: var(--llm-fs-10, 10px);
+  color: var(--fill-primary, #ddd);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.llm-tr-stepper-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.llm-tr-stepper-value {
+  width: 50px;
+  height: 24px;
+  line-height: 24px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border-radius: 4px;
+  color: var(--fill-primary, #ddd);
+  font-size: var(--llm-fs-10, 10px);
+  font-family: inherit;
+  text-align: center;
+  box-sizing: border-box;
+  cursor: text;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: border-color 0.15s ease;
+}
+
+.llm-tr-stepper-value:focus {
+  outline: none;
+  border-color: #0d9488;
+}
+
+.llm-tr-stepper-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border-radius: 4px;
+  background: none;
+  color: var(--fill-secondary, #888);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.llm-tr-stepper-confirm:hover {
+  color: var(--fill-primary, #ccc);
+  border-color: color-mix(in srgb, var(--fill-primary, #888) 40%, transparent);
+}
+
+.llm-tr-stepper-confirm.confirmed {
+  color: #0d9488;
+  border-color: #0d9488;
+}
+
+/* ── Buttons — flat, compact, matching settings tab ── */
 .llm-tr-btn {
   appearance: none;
   -moz-appearance: none;
-  padding: 6px 14px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 3px;
   cursor: pointer;
-  font-weight: 600;
-  font-size: var(--llm-fs-11, 11px);
+  font-weight: 500;
+  font-size: var(--llm-fs-10, 10px);
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   white-space: nowrap;
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 22%, transparent);
+  background: transparent;
+  color: var(--fill-primary, #ddd);
+  transition: background 0.12s ease, border-color 0.12s ease;
   font-family: inherit;
+  box-sizing: border-box;
 }
 
+/* Small path-row button — fixed width to align input/save rows */
+.llm-tr-btn-small {
+  min-width: 90px;
+  height: 28px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  font-size: var(--llm-fs-10, 10px);
+}
+
+.llm-tr-btn:hover {
+  background: color-mix(in srgb, var(--fill-primary, #fff) 8%, transparent);
+  border-color: color-mix(in srgb, var(--fill-primary, #fff) 30%, transparent);
+}
+
+.llm-tr-btn:active {
+  background: color-mix(in srgb, var(--fill-primary, #fff) 12%, transparent);
+}
+
+.llm-tr-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Primary — green teal */
 .llm-tr-btn-primary {
   background: #0d9488;
   color: #fff;
@@ -5159,123 +5616,174 @@
   border-color: #0f766e;
 }
 
-.llm-tr-btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+/* Secondary — outlined */
 .llm-tr-btn-secondary {
   background: transparent;
   color: var(--fill-primary, #ddd);
-  border-color: color-mix(in srgb, var(--fill-primary, #333) 25%, transparent);
+  border-color: color-mix(in srgb, var(--fill-primary, #333) 22%, transparent);
 }
 
 .llm-tr-btn-secondary:hover {
   background: color-mix(in srgb, var(--fill-primary, #fff) 8%, transparent);
-  border-color: color-mix(in srgb, var(--fill-primary, #fff) 35%, transparent);
+  border-color: color-mix(in srgb, var(--fill-primary, #fff) 30%, transparent);
 }
 
+/* Warning — amber (Pause) */
+.llm-tr-btn-warning {
+  background: #BF631F;
+  color: #fff;
+  border-color: #BF631F;
+}
+
+.llm-tr-btn-warning:hover {
+  background: #a5541a;
+  border-color: #a5541a;
+}
+
+/* Danger — red (Clear Cache) */
 .llm-tr-btn-danger {
-  background: transparent;
-  color: #ef4444;
-  border-color: color-mix(in srgb, #ef4444 35%, transparent);
+  background: #C45037;
+  color: #fff;
+  border-color: #C45037;
 }
 
 .llm-tr-btn-danger:hover {
-  background: color-mix(in srgb, #ef4444 12%, transparent);
-  border-color: #ef4444;
+  background: #a8412c;
+  border-color: #a8412c;
 }
 
+/* Small variant */
 .llm-tr-btn-small {
-  padding: 4px 10px;
+  padding: 3px 8px;
   font-size: var(--llm-fs-10, 10px);
-  font-weight: 500;
   flex-shrink: 0;
 }
 
-/* Progress bar */
-.llm-tr-progress-bar {
-  height: 8px;
-  background: color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+/* Pink variant — light pink for Install Environment */
+.llm-tr-btn-pink {
+  background: color-mix(in srgb, #e8a0bf 22%, transparent);
+  color: #c4648a;
+  border-color: color-mix(in srgb, #c4648a 30%, transparent);
+}
+
+.llm-tr-btn-pink:hover {
+  background: color-mix(in srgb, #e8a0bf 35%, transparent);
+  border-color: color-mix(in srgb, #c4648a 50%, transparent);
+  color: #b24e75;
+}
+
+/* Action button — slightly larger than default */
+.llm-tr-btn-action {
+  padding: 6px 14px;
+  font-size: var(--llm-fs-11, 11px);
+  font-weight: 600;
   border-radius: 4px;
+}
+
+/* Action button row layout */
+.llm-tr-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+
+/* Spacer pushes right-side buttons to the end */
+.llm-tr-actions-spacer {
+  flex: 1;
+}
+
+/* ── Progress Bar ── */
+.llm-tr-progress-section {
+  padding: 4px 0;
+}
+
+.llm-tr-progress-bar {
+  height: 18px;
+  background: color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+  border-radius: 3px;
   overflow: hidden;
+  position: relative;
 }
 
 .llm-tr-progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #0d9488, #14b8a6);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.llm-tr-progress-text {
-  font-size: var(--llm-fs-10, 10px);
-  color: var(--fill-secondary, #888);
-  margin-top: 3px;
-}
-
-.llm-tr-progress-section {
-  padding: 6px 0;
-}
-
-/* Status display */
-.llm-tr-status {
-  font-size: var(--llm-fs-11, 11px);
-  color: var(--fill-tertiary, #666);
-  padding: 4px 0;
-  min-height: 18px;
-}
-
-/* Action buttons row */
-.llm-tr-actions {
+  background: linear-gradient(90deg, #0d9488, #14b8a6, #2dd4bf, #14b8a6, #0d9488);
+  background-size: 200% 100%;
+  border-radius: 3px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: llm-tr-progress-shimmer 2s linear infinite;
+  /* Text inside the bar */
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 4px;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  min-width: fit-content;
+  padding: 0 6px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.2px;
 }
 
-/* ── Console log area ── */
+@keyframes llm-tr-progress-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ════════════════════════════════════════════════════
+   Console — Flat, compact
+   ════════════════════════════════════════════════════ */
 .llm-tr-console {
-  margin-top: 8px;
-  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
-  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+  border-radius: 4px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--fill-primary, #000) 6%, transparent);
+  background: color-mix(in srgb, var(--material-sidepane, #2b2b2b) 92%, var(--fill-primary, #fff) 8%);
 }
 
 .llm-tr-console-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  font-size: var(--llm-fs-10, 10px);
-  font-weight: 600;
-  color: var(--fill-secondary, #888);
-  border-bottom: 1px solid color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
-  background: color-mix(in srgb, var(--fill-primary, #000) 4%, transparent);
+  justify-content: flex-end;
+  padding: 3px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fill-primary, #333) 8%, transparent);
 }
 
 .llm-tr-console-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   align-items: center;
 }
 
 .llm-tr-console-icon-btn {
+  appearance: none;
+  -moz-appearance: none;
   background: none;
   border: none;
   color: var(--fill-tertiary, #999);
   cursor: pointer;
-  padding: 3px;
+  padding: 2px 4px;
   border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, background 0.15s;
+  transition: all 0.12s ease;
 }
+
+.llm-tr-console-icon-btn svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .llm-tr-console-icon-btn:hover {
-  color: var(--fill-primary, #333);
+  color: var(--fill-primary, #ddd);
   background: color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
 }
 
@@ -5283,14 +5791,32 @@
   height: 120px;
   overflow-y: auto;
   padding: 6px 8px;
-  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Menlo", "Consolas", monospace;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--fill-secondary, #ccc);
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--fill-secondary, #aaa);
   scroll-behavior: smooth;
   user-select: text;
   -moz-user-select: text;
   cursor: text;
+}
+
+/* Scrollbar styling for console */
+.llm-tr-console-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.llm-tr-console-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.llm-tr-console-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border-radius: 2px;
+}
+
+.llm-tr-console-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fill-primary, #333) 30%, transparent);
 }
 
 .llm-tr-console-line {
@@ -5304,7 +5830,8 @@
 .llm-tr-console-time {
   color: var(--fill-tertiary, #666);
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
 }
 
 .llm-tr-console-msg {
@@ -5312,13 +5839,19 @@
 }
 
 .llm-tr-console-line.error .llm-tr-console-msg {
-  color: #ef4444;
+  color: #f87171;
 }
 
 .llm-tr-console-line.success .llm-tr-console-msg {
-  color: #10b981;
+  color: #34d399;
 }
 
 .llm-tr-console-line.info .llm-tr-console-msg {
-  color: #0d9488;
+  color: #2dd4bf;
 }
+
+/* ── Hide discussion-only elements in translate tab ── */
+.llm-panel[data-active-tab="translate"] .llm-discussion-only {
+  display: none !important;
+}
+

@@ -3,11 +3,14 @@
  *
  * The bridge script writes progress to a JSON file on disk.
  * We poll it periodically and invoke a callback with parsed data.
+ *
+ * Deduplication: only fires callback when progress *actually* changes
+ * (page number, percentage, or status), preventing console spam.
  * -------------------------------------------------------------------------*/
 
 import type { ProgressData } from "./types";
 
-const DEFAULT_INTERVAL_MS = 500;
+const DEFAULT_INTERVAL_MS = 2000;
 
 /** Minimal subset of IOUtils we need (Gecko global) */
 declare const IOUtils: {
@@ -17,6 +20,8 @@ declare const IOUtils: {
 
 export class ProgressPoller {
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Last emitted state fingerprint for deduplication */
+  private lastKey = "";
 
   constructor(
     private filePath: string,
@@ -26,6 +31,7 @@ export class ProgressPoller {
 
   start(): void {
     if (this.timer) return;                       // already running
+    this.lastKey = "";                            // reset dedup on fresh start
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
 
@@ -50,6 +56,13 @@ export class ProgressPoller {
       if (!text.trim()) return;                  // empty / being written
 
       const data = JSON.parse(text) as ProgressData;
+
+      // Deduplicate: only fire callback when meaningful progress changes.
+      // Key includes status, page, percentage, AND detail line.
+      const key = `${data.status}|${data.current ?? ""}|${data.progress}|${data.detail ?? ""}`;
+      if (key === this.lastKey) return;           // no change — skip
+      this.lastKey = key;
+
       this.callback(data);
 
       if (data.status === "done" || data.status === "error") {

@@ -128,6 +128,7 @@ export class TranslateController {
       noDual: !params.generateDual,
       noMono: !params.generateMono,
       qps: params.qps ?? 10,
+      poolMaxWorker: params.poolMaxWorker ?? 1,
       disableRichTextTranslate: params.disableRichTextTranslate,
       enhanceCompatibility: params.enhanceCompatibility,
       translateTableText: params.translateTableText,
@@ -181,7 +182,14 @@ export class TranslateController {
     /* 9. Handle process completion */
     try {
       const exitCode = await this.process.done;
-      if (exitCode !== 0 && this.state === "running") {
+      // Give poller one final tick to read the "done" status from progress.json
+      if (this.poller) {
+        try { await this.poller.tick(); } catch { /* ok */ }
+      }
+      if (exitCode === 0 && this.state === "running") {
+        // Poller didn't catch it — force done
+        this.setState("done");
+      } else if (exitCode !== 0 && this.state === "running") {
         this.setState("error");
         this.callback({
           type: "error",

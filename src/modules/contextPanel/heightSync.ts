@@ -137,6 +137,10 @@ export function createHeightSync(opts: HeightSyncOptions): HeightSyncController 
 
   return {
     switchToSetting() {
+      // Already in single-pane mode — no need to re-merge.
+      // Prevents height inflation when switching between Translation ↔ Setting.
+      if (settingMode) return;
+
       // Re-read live heights in case panel was resized without style.height
       const liveH1 = readHeight(contentWrapper);
       const liveH2 = readHeight(bottomWrapper);

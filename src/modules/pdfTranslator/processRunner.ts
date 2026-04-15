@@ -2,7 +2,11 @@
  * pdfTranslator/processRunner.ts  –  Launch and manage pdf2zh_next subprocess
  *
  * Wraps Gecko nsIProcess for starting/killing the bridge script.
+ * On Windows, startHidden prevents command prompt windows from appearing.
  * -------------------------------------------------------------------------*/
+
+const IS_WIN_PROC = (typeof Zotero !== "undefined" && Zotero.isWin) ||
+               (typeof navigator !== "undefined" && /win/i.test(navigator.platform));
 
 export interface RunningProcess {
   /** Kill the subprocess tree */
@@ -26,6 +30,12 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
   const proc = (Components.classes as any)["@mozilla.org/process/util;1"]
     .createInstance((Components.interfaces as any).nsIProcess);
   proc.init(file);
+
+  // Suppress terminal window on Windows
+  if (IS_WIN_PROC) {
+    try { proc.startHidden = true; } catch { /* older Gecko may not support */ }
+    try { proc.noShell = true; } catch { /* best effort */ }
+  }
 
   const done = new Promise<number>((resolve, reject) => {
     const observer = {
