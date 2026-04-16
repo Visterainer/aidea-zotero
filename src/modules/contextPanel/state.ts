@@ -67,13 +67,64 @@ export let currentRequestId = 0;
 export function nextRequestId(): number {
   return ++currentRequestId;
 }
-export let cancelledRequestId = -1;
-export function setCancelledRequestId(value: number) {
-  cancelledRequestId = value;
+type PanelRequestState = {
+  latestRequestId: number;
+  cancelledRequestId: number;
+  abortController: AbortController | null;
+};
+
+const panelRequestState = new WeakMap<Element, PanelRequestState>();
+
+function ensurePanelRequestState(panel: Element): PanelRequestState {
+  let state = panelRequestState.get(panel);
+  if (!state) {
+    state = {
+      latestRequestId: 0,
+      cancelledRequestId: -1,
+      abortController: null,
+    };
+    panelRequestState.set(panel, state);
+  }
+  return state;
 }
-export let currentAbortController: AbortController | null = null;
-export function setCurrentAbortController(value: AbortController | null) {
-  currentAbortController = value;
+
+export function registerPanelRequest(panel: Element, requestId: number): void {
+  const state = ensurePanelRequestState(panel);
+  state.latestRequestId = requestId;
+}
+
+export function getPanelAbortController(
+  panel: Element,
+): AbortController | null {
+  return ensurePanelRequestState(panel).abortController;
+}
+
+export function setPanelAbortController(
+  panel: Element,
+  value: AbortController | null,
+): void {
+  ensurePanelRequestState(panel).abortController = value;
+}
+
+export function isPanelRequestCancelled(
+  panel: Element,
+  requestId: number,
+): boolean {
+  return ensurePanelRequestState(panel).cancelledRequestId >= requestId;
+}
+
+export function cancelPanelRequest(panel: Element): number {
+  const state = ensurePanelRequestState(panel);
+  state.abortController?.abort();
+  state.cancelledRequestId = Math.max(
+    state.cancelledRequestId,
+    state.latestRequestId,
+  );
+  return state.latestRequestId;
+}
+
+export function isPanelGenerating(panel: Element): boolean {
+  return Boolean(ensurePanelRequestState(panel).abortController);
 }
 export let panelFontScalePercent = 120; // FONT_SCALE_DEFAULT_PERCENT
 export function setPanelFontScalePercent(value: number) {

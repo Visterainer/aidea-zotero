@@ -35,8 +35,8 @@ import {
   selectedFilePreviewExpandedCache,
   selectedPaperContextCache,
   selectedPaperPreviewExpandedCache,
-  setCancelledRequestId,
-  currentAbortController,
+  cancelPanelRequest,
+  isPanelGenerating,
   panelFontScalePercent,
   setPanelFontScalePercent,
   responseMenuTarget,
@@ -45,7 +45,6 @@ import {
   setPromptMenuTarget,
   chatHistory,
   loadedConversationKeys,
-  currentRequestId,
   activeGlobalConversationByLibrary,
   activeConversationModeByLibrary,
   conversationContextPool,
@@ -3128,7 +3127,7 @@ export function setupHandlers(
 
   const clearAndRestartPaperConversation = async () => {
     if (!item) return;
-    if (currentAbortController || historyNewBtn?.disabled) {
+    if (isPanelGenerating(body) || historyNewBtn?.disabled) {
       if (status) {
         setStatus(
           status,
@@ -3195,7 +3194,7 @@ export function setupHandlers(
 
   const createAndSwitchGlobalConversation = async () => {
     if (!item) return;
-    if (currentAbortController || historyNewBtn?.disabled) {
+    if (isPanelGenerating(body) || historyNewBtn?.disabled) {
       if (status) {
         setStatus(
           status,
@@ -3371,7 +3370,8 @@ export function setupHandlers(
     historyMenu.addEventListener("click", (e: Event) => {
       const target = e.target as Element | null;
       if (!target || !item) return;
-      const isGenerating = Boolean(currentAbortController) || Boolean(historyToggleBtn?.disabled);
+      const isGenerating =
+        isPanelGenerating(body) || Boolean(historyNewBtn?.disabled);
 
       const deleteBtn = target.closest(
         ".llm-history-row-delete",
@@ -6192,10 +6192,7 @@ export function setupHandlers(
     cancelBtn.addEventListener("click", (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-      if (currentAbortController) {
-        currentAbortController.abort();
-      }
-      setCancelledRequestId(currentRequestId);
+      cancelPanelRequest(body);
       if (status) setStatus(status, "Ready", "ready");
       // Re-enable UI
       if (sendBtn) {

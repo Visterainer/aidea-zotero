@@ -48,9 +48,10 @@ import {
   loadedConversationKeys,
   loadingConversationTasks,
   selectedModelCache,
-  cancelledRequestId,
-  currentAbortController,
-  setCurrentAbortController,
+  registerPanelRequest,
+  isPanelRequestCancelled,
+  getPanelAbortController,
+  setPanelAbortController,
   nextRequestId,
   setResponseMenuTarget,
   setPromptMenuTarget,
@@ -603,11 +604,12 @@ function setRequestUIBusy(
 }
 
 function restoreRequestUIIdle(
+  body: Element,
   ui: PanelRequestUI,
   conversationKey: number,
   requestId: number,
 ): void {
-  if (cancelledRequestId >= requestId) return;
+  if (isPanelRequestCancelled(body, requestId)) return;
   withScrollGuard(ui.chatBox, conversationKey, () => {
     if (ui.inputBox) {
       ui.inputBox.focus({ preventScroll: true });
@@ -1850,6 +1852,7 @@ export async function retryLatestAssistantResponse(
   }
 
   const thisRequestId = nextRequestId();
+  registerPanelRequest(body, thisRequestId);
   setRequestUIBusy(body, ui, conversationKey, "Preparing retry...");
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
@@ -1865,7 +1868,7 @@ export async function retryLatestAssistantResponse(
     reconstructRetryPayload(retryPair.userMessage);
   if (!question.trim()) {
     setStatusSafely("Nothing to retry for latest turn", "error");
-    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
     setHistoryControlsDisabled(body, false);
     return;
   }
@@ -1882,7 +1885,7 @@ export async function retryLatestAssistantResponse(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     setStatusSafely(errMsg, "error");
-    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
     setHistoryControlsDisabled(body, false);
     return;
   }
@@ -1910,7 +1913,7 @@ export async function retryLatestAssistantResponse(
       conversationKey,
       setStatusSafely,
     });
-    if (cancelledRequestId >= thisRequestId) {
+    if (isPanelRequestCancelled(body, thisRequestId)) {
       restoreOriginalAssistant();
       setStatusSafely(panelI18n.cancelled, "ready");
       return;
@@ -1926,11 +1929,13 @@ export async function retryLatestAssistantResponse(
     });
 
     const AbortControllerCtor = getAbortController();
-    setCurrentAbortController(
+    setPanelAbortController(
+      body,
       AbortControllerCtor ? new AbortControllerCtor() : null,
     );
-    if (cancelledRequestId >= thisRequestId) {
-      currentAbortController?.abort();
+    const panelAbortController = getPanelAbortController(body);
+    if (isPanelRequestCancelled(body, thisRequestId)) {
+      panelAbortController?.abort();
       restoreOriginalAssistant();
       setStatusSafely(panelI18n.cancelled, "ready");
       return;
@@ -1957,7 +1962,7 @@ export async function retryLatestAssistantResponse(
         prompt: question,
         context: combinedContext,
         history: llmHistory,
-        signal: currentAbortController?.signal,
+        signal: panelAbortController?.signal,
         images: screenshotImages,
         attachments: fileAttachments,
         model: effectiveRequestConfig.model,
@@ -1974,8 +1979,8 @@ export async function retryLatestAssistantResponse(
     );
 
     if (
-      cancelledRequestId >= thisRequestId ||
-      Boolean(currentAbortController?.signal.aborted)
+      isPanelRequestCancelled(body, thisRequestId) ||
+      Boolean(panelAbortController?.signal.aborted)
     ) {
       // Keep whatever the LLM has already generated
       finalizeStreamingBubble(retryBubbleRef);
@@ -2016,8 +2021,8 @@ export async function retryLatestAssistantResponse(
     });
   } catch (err) {
     const isCancelled =
-      cancelledRequestId >= thisRequestId ||
-      Boolean(currentAbortController?.signal.aborted) ||
+      isPanelRequestCancelled(body, thisRequestId) ||
+      Boolean(getPanelAbortController(body)?.signal.aborted) ||
       (err as { name?: string }).name === "AbortError";
     if (isCancelled) {
       // Keep whatever the LLM has already generated
@@ -2048,8 +2053,8 @@ export async function retryLatestAssistantResponse(
     );
   } finally {
     setHistoryControlsDisabled(body, false);
-    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
-    setCurrentAbortController(null);
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    setPanelAbortController(body, null);
   }
 }
 
@@ -2073,6 +2078,7 @@ export async function sendQuestion(
 
   // Track this request
   const thisRequestId = nextRequestId();
+  registerPanelRequest(body, thisRequestId);
   const initialConversationKey = getConversationKey(item);
 
   // Show cancel, hide send
@@ -2106,7 +2112,7 @@ export async function sendQuestion(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     setStatusSafely(errMsg, "error");
-    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
     setHistoryControlsDisabled(body, false);
     return;
   }
@@ -2242,9 +2248,11 @@ export async function sendQuestion(
     });
 
     const AbortControllerCtor = getAbortController();
-    setCurrentAbortController(
+    setPanelAbortController(
+      body,
       AbortControllerCtor ? new AbortControllerCtor() : null,
     );
+    const panelAbortController = getPanelAbortController(body);
     // Incremental DOM update: find the skeleton bubble that refreshChat
     // created and patch it in place instead of re-rendering the whole chat.
     const sendBubbleRef = findLastAssistantBubble(
@@ -2266,7 +2274,7 @@ export async function sendQuestion(
         prompt: question,
         context: combinedContext,
         history: llmHistory,
-        signal: currentAbortController?.signal,
+        signal: panelAbortController?.signal,
         images: images,
         attachments: requestFileAttachments,
         model: effectiveRequestConfig.model,
@@ -2282,8 +2290,8 @@ export async function sendQuestion(
     );
 
     if (
-      cancelledRequestId >= thisRequestId ||
-      Boolean(currentAbortController?.signal.aborted)
+      isPanelRequestCancelled(body, thisRequestId) ||
+      Boolean(panelAbortController?.signal.aborted)
     ) {
       await markCancelled();
       return;
@@ -2305,8 +2313,8 @@ export async function sendQuestion(
     });
   } catch (err) {
     const isCancelled =
-      cancelledRequestId >= thisRequestId ||
-      Boolean(currentAbortController?.signal.aborted) ||
+      isPanelRequestCancelled(body, thisRequestId) ||
+      Boolean(getPanelAbortController(body)?.signal.aborted) ||
       (err as { name?: string }).name === "AbortError";
     if (isCancelled) {
       await markCancelled();
@@ -2323,8 +2331,8 @@ export async function sendQuestion(
     setStatusSafely(`Error: ${`${errMsg}${retryHint}`.slice(0, 40)}`, "error");
   } finally {
     setHistoryControlsDisabled(body, false);
-    restoreRequestUIIdle(ui, conversationKey, thisRequestId);
-    setCurrentAbortController(null);
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    setPanelAbortController(body, null);
   }
 }
 
