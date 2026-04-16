@@ -1,7 +1,7 @@
 {
   "name": "aidea-for-zotero",
   "type": "module",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "AIdea: Free AI assistant for Zotero — Chat with AI directly in Zotero's side panel",
   "config": {
     "addonName": "AIdea",
