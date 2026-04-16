@@ -80,6 +80,11 @@ PROGRESS_PATTERNS = [
     re.compile(r"(\d+)%"),
 ]
 
+TRANSLATION_STATS_RE = re.compile(
+    r"Total:\s*(\d+),\s*Successful:\s*(\d+),\s*Fallback:\s*(\d+)",
+    re.IGNORECASE,
+)
+
 
 def parse_progress(line):
     m = PROGRESS_PATTERNS[0].search(line)
@@ -94,6 +99,22 @@ def parse_progress(line):
         pct = min(int(m.group(1)), 100)
         return None, None, pct
 
+    return None
+
+
+def _categorize_warning_line(line):
+    text = str(line or "")
+    lower = text.lower()
+    if "translation result is the same as input" in lower:
+        return "sameAsInput"
+    if "translation result is too long or too short" in lower:
+        return "lengthMismatch"
+    if "translation result edit distance is too small" in lower:
+        return "editDistanceSmall"
+    if "fallback to simple translation" in lower:
+        return "fallbackToSimple"
+    if "warning" in lower:
+        return "other"
     return None
 
 
@@ -444,6 +465,439 @@ def _sanitize_multiline_prompt(text):
     raw = raw.replace("\r\n", "\n").replace("\r", "\n")
     lines = [_sanitize_text(line, max_len=300) for line in raw.split("\n")]
     return "\n".join(line for line in lines if line).strip()
+
+
+OVERLAY_FONT_CANDIDATES = [
+    os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyh.ttc"),
+    os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyh.ttf"),
+    os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "simsun.ttc"),
+    os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "simhei.ttf"),
+]
+FORMULAISH_TEXT_RE = re.compile(
+    r"(?:\bsoftmax\b|\bffn\b|\bsin\b|\bcos\b|[=^_{}\\]|[A-Z]\s*\()",
+    re.IGNORECASE,
+)
+URLISH_RE = re.compile(r"(https?://|www\.|doi:|arxiv:)", re.IGNORECASE)
+
+
+def _count_ascii_letters(text):
+    return sum(ch.isascii() and ch.isalpha() for ch in str(text or ""))
+
+
+def _count_cjk_chars(text):
+    return sum("\u4e00" <= ch <= "\u9fff" for ch in str(text or ""))
+
+
+def _normalize_overlay_text(text):
+    cleaned = _sanitize_log_line(text, max_len=2000)
+    cleaned = cleaned.replace("\u00ad", "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def _join_overlay_words(words):
+    ordered = sorted(words, key=lambda item: item["x0"])
+    text = " ".join(item["text"] for item in ordered if item["text"])
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([(<\[])\s+", r"\1", text)
+    text = re.sub(r"\s+([)\]>])", r"\1", text)
+    return _normalize_overlay_text(text)
+
+
+def _group_overlay_words_into_lines(words, y_tolerance=20.0):
+    items = []
+    for word in words or []:
+        if len(word) < 5:
+            continue
+        x0, y0, x1, y1, text = word[:5]
+        normalized = _normalize_overlay_text(text)
+        if not normalized:
+            continue
+        items.append({
+            "x0": float(x0),
+            "y0": float(y0),
+            "x1": float(x1),
+            "y1": float(y1),
+            "text": normalized,
+            "cy": (float(y0) + float(y1)) / 2.0,
+        })
+
+    items.sort(key=lambda item: (item["cy"], item["x0"]))
+    groups = []
+    current = None
+    for item in items:
+        if current is None:
+            current = {"cy": item["cy"], "words": [item]}
+            continue
+        if abs(item["cy"] - current["cy"]) <= y_tolerance:
+            current["words"].append(item)
+            current["cy"] = sum(w["cy"] for w in current["words"]) / len(current["words"])
+            continue
+        groups.append(current["words"])
+        current = {"cy": item["cy"], "words": [item]}
+    if current and current["words"]:
+        groups.append(current["words"])
+
+    lines = []
+    for group in groups:
+        if not group:
+            continue
+        text = _join_overlay_words(group)
+        if not text:
+            continue
+        xs0 = [item["x0"] for item in group]
+        ys0 = [item["y0"] for item in group]
+        xs1 = [item["x1"] for item in group]
+        ys1 = [item["y1"] for item in group]
+        lines.append({
+            "text": text,
+            "bbox": (
+                min(xs0),
+                min(ys0),
+                max(xs1),
+                max(ys1),
+            ),
+            "wordCount": len(group),
+        })
+    return lines
+
+
+def _group_overlay_words_into_regions(words, y_gap_threshold=70.0):
+    items = []
+    for word in words or []:
+        if len(word) < 5:
+            continue
+        x0, y0, x1, y1, text = word[:5]
+        normalized = _normalize_overlay_text(text)
+        if not normalized:
+            continue
+        items.append({
+            "x0": float(x0),
+            "y0": float(y0),
+            "x1": float(x1),
+            "y1": float(y1),
+            "text": normalized,
+        })
+
+    items.sort(key=lambda item: (item["y0"], item["x0"]))
+    groups = []
+    current = []
+    current_bottom = None
+    for item in items:
+        if not current:
+            current = [item]
+            current_bottom = item["y1"]
+            continue
+        if item["y0"] - current_bottom <= y_gap_threshold:
+            current.append(item)
+            current_bottom = max(current_bottom, item["y1"])
+            continue
+        groups.append(current)
+        current = [item]
+        current_bottom = item["y1"]
+    if current:
+        groups.append(current)
+
+    regions = []
+    for group in groups:
+        text = _join_overlay_words(group)
+        if not text:
+            continue
+        xs0 = [item["x0"] for item in group]
+        ys0 = [item["y0"] for item in group]
+        xs1 = [item["x1"] for item in group]
+        ys1 = [item["y1"] for item in group]
+        regions.append({
+            "text": text,
+            "bbox": (
+                min(xs0),
+                min(ys0),
+                max(xs1),
+                max(ys1),
+            ),
+            "wordCount": len(group),
+        })
+    return regions
+
+
+def _extract_text_block_lines(block):
+    out = []
+    for line in block.get("lines", []):
+        spans = []
+        for span in line.get("spans", []):
+            text = _normalize_overlay_text(span.get("text"))
+            if text:
+                spans.append(text)
+        if spans:
+            out.append(" ".join(spans))
+    return out
+
+
+def _is_title_page_overlay_candidate(text):
+    lower = str(text or "").lower()
+    if not lower or "@" in lower:
+        return False
+    if "attention is all you need" in lower:
+        return True
+    if LICENSE_LINE_RE.search(lower) or "permission to" in lower:
+        return True
+    return False
+
+
+def _is_figure_overlay_page_text(text):
+    lower = str(text or "").lower()
+    return "<eos>" in lower or "<pad>" in lower
+
+
+def _should_translate_overlay_line(page_number, text, bbox, reference_pages, candidate_kind=None):
+    clean = _normalize_overlay_text(text)
+    if not clean:
+        return False
+    if page_number in set(reference_pages or []):
+        return False
+    lower = clean.lower()
+    if "@" in clean or EMAIL_RE.search(clean) or URLISH_RE.search(lower):
+        return False
+    if candidate_kind != "figure" and ("<eos>" in lower or "<pad>" in lower):
+        return False
+    if FORMULAISH_TEXT_RE.search(clean):
+        return False
+    if candidate_kind == "figure":
+        letters = _count_ascii_letters(clean)
+        words = re.findall(r"[A-Za-z][A-Za-z'.-]*", clean)
+        return letters >= 20 and len(words) >= 5
+    if page_number == 1 and _is_title_page_overlay_candidate(clean):
+        return True
+    letters = _count_ascii_letters(clean)
+    cjk = _count_cjk_chars(clean)
+    if letters < 12 or letters <= cjk * 2:
+        return False
+    words = re.findall(r"[A-Za-z][A-Za-z'.-]*", clean)
+    if len(words) < 3:
+        return False
+    if page_number == 1:
+        if _looks_like_person_name(clean):
+            return False
+        if ORG_KEYWORD_RE.search(clean) and not _is_title_page_overlay_candidate(clean):
+            return False
+        return _is_title_page_overlay_candidate(clean)
+    if lower.strip() in {"references", "bibliography"}:
+        return False
+    return True
+
+
+def _collect_overlay_candidates_for_page(page, page_number, reference_pages):
+    candidates = []
+    if page_number == 1:
+        data = page.get_text("dict")
+        for block in data.get("blocks", []):
+            if block.get("type") != 0:
+                continue
+            bbox = block.get("bbox") or (0, 0, 0, 0)
+            if len(bbox) < 4 or float(bbox[1]) > 180:
+                continue
+            text = " ".join(_extract_text_block_lines(block))
+            kind = "title" if "attention is all you need" in text.lower() else "license"
+            if not _should_translate_overlay_line(page_number, text, bbox, reference_pages, kind):
+                continue
+            align = 1 if "attention is all you need" in text.lower() else 0
+            candidates.append({"text": text, "bbox": tuple(bbox), "align": align, "kind": kind})
+        return candidates
+
+    page_text = page.get_text("text") or ""
+    if not _is_figure_overlay_page_text(page_text):
+        return candidates
+
+    figure_words = []
+    page_height = float(page.rect.height or 0)
+    for word in page.get_text("words"):
+        if len(word) < 5:
+            continue
+        x0, y0, x1, y1, text = word[:5]
+        normalized = _normalize_overlay_text(text)
+        if not normalized or normalized in {"<EOS>", "<pad>"}:
+            continue
+        if float(y1) > page_height * 0.82:
+            continue
+        if _count_ascii_letters(normalized) <= 0:
+            continue
+        figure_words.append(word)
+
+    for region in _group_overlay_words_into_regions(figure_words):
+        if not _should_translate_overlay_line(
+            page_number,
+            region["text"],
+            region["bbox"],
+            reference_pages,
+            "figure",
+        ):
+            continue
+        candidates.append({
+            "text": region["text"],
+            "bbox": region["bbox"],
+            "align": 0,
+            "kind": "figure",
+        })
+    return candidates
+
+
+def _find_overlay_fontfile(text):
+    if _count_cjk_chars(text) <= 0:
+        return None
+    for path in OVERLAY_FONT_CANDIDATES:
+        if path and os.path.exists(path):
+            return path
+    return None
+
+
+def _build_overlay_textbox_kwargs(translated_text):
+    fontfile = _find_overlay_fontfile(translated_text)
+    kwargs = {"fontname": "helv"}
+    if fontfile:
+        kwargs = {
+            "fontname": "aidea_overlay_font",
+            "fontfile": fontfile,
+        }
+    return kwargs
+
+
+def _translate_overlay_text(proxy, model_id, source_lang, target_lang, text, cache, candidate_kind=None):
+    cache_key = (source_lang, target_lang, candidate_kind or "", text)
+    if cache_key in cache:
+        return cache[cache_key]
+    if proxy is None or not model_id:
+        cache[cache_key] = ""
+        return ""
+    prompt = (
+        f"Translate the following {source_lang} text into {target_lang}. "
+        "Return only the translated text. Preserve tags such as <EOS> and <pad>, "
+        "and keep emails, URLs, DOI/arXiv identifiers unchanged."
+    )
+    if candidate_kind == "title":
+        prompt = (
+            f"Translate the following academic paper title from {source_lang} into {target_lang}. "
+            "Do not keep the English title. Return only the Chinese title."
+        )
+    elif candidate_kind == "figure":
+        prompt = (
+            f"Translate the following figure text from {source_lang} into {target_lang}. "
+            "Return only the translated sentence in natural Chinese."
+        )
+    translated = proxy.handle_chat_completion({
+        "model": model_id,
+        "messages": [
+            {"role": "system", "content": "You are a precise PDF text translation engine."},
+            {"role": "user", "content": f"{prompt}\n\n{text}"},
+        ],
+        "max_tokens": max(96, min(512, len(text) * 4)),
+        "stream": False,
+    })
+    translated = _normalize_overlay_text(translated)
+    if translated == text:
+        translated = ""
+    cache[cache_key] = translated
+    return translated
+
+
+def _paint_overlay_translation(page, bbox, translated_text, align=0):
+    if not translated_text:
+        return False
+    rect = fitz.Rect(bbox)
+    rect.x0 -= 2
+    rect.x1 += 2
+    rect.y0 -= 1
+    rect.y1 += 1
+    font_kwargs = _build_overlay_textbox_kwargs(translated_text)
+    page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
+    fontsize = min(max(rect.height * 0.45, 8.5), 16)
+    while fontsize >= 6.0:
+        result = page.insert_textbox(
+            rect,
+            translated_text,
+            fontsize=fontsize,
+            color=(0, 0, 0),
+            align=align,
+            lineheight=1.0,
+            overlay=True,
+            **font_kwargs,
+        )
+        if result >= 0:
+            return True
+        fontsize -= 0.5
+    return False
+
+
+def _collect_output_files(output_dir, pdf_path):
+    if not os.path.isdir(output_dir):
+        return []
+    source_stem = os.path.splitext(os.path.basename(pdf_path))[0]
+    out = []
+    for fn in sorted(os.listdir(output_dir)):
+        lower = fn.lower()
+        if not lower.endswith(".pdf"):
+            continue
+        if "mono" not in lower and "dual" not in lower:
+            continue
+        if source_stem and not fn.startswith(source_stem):
+            continue
+        out.append(fn)
+    return out
+
+
+def _postprocess_mono_pdf(
+    pdf_file,
+    proxy,
+    model_id,
+    source_lang,
+    target_lang,
+    reference_pages,
+    log_line,
+):
+    if fitz is None or proxy is None or not model_id:
+        return 0
+    doc = fitz.open(pdf_file)
+    translation_cache = {}
+    changed = 0
+    try:
+        for page_index, page in enumerate(doc):
+            page_number = page_index + 1
+            candidates = _collect_overlay_candidates_for_page(
+                page,
+                page_number,
+                reference_pages,
+            )
+            for candidate in candidates:
+                translated = _translate_overlay_text(
+                    proxy,
+                    model_id,
+                    source_lang,
+                    target_lang,
+                    candidate["text"],
+                    translation_cache,
+                    candidate.get("kind"),
+                )
+                if not translated:
+                    continue
+                if _paint_overlay_translation(
+                    page,
+                    candidate["bbox"],
+                    translated,
+                    align=candidate.get("align", 0),
+                ):
+                    changed += 1
+                    log_line(
+                        f"Overlay translated page {page_number}: "
+                        f"{candidate['text'][:120]} -> {translated[:120]}"
+                    )
+        if changed <= 0:
+            return 0
+        tmp_pdf = pdf_file + ".overlay.tmp"
+        doc.save(tmp_pdf, garbage=3, deflate=True)
+    finally:
+        doc.close()
+    if changed > 0:
+        os.replace(tmp_pdf, pdf_file)
+    return changed
 
 
 def _rewrite_translation_custom_prompt(config_file, prompt):
@@ -1332,6 +1786,7 @@ def main():
     pdf_path = task["pdfPath"]
     output_dir = task["outputDir"]
     config_file = task["configFile"]
+    model_id = str(task.get("modelId", "") or "").strip()
     source_lang = task.get("sourceLang", "en")
     target_lang = task.get("targetLang", "zh-CN")
     qps = task.get("qps", 10)
@@ -1388,6 +1843,7 @@ def main():
             write_progress(progress_file, make_progress(
                 "running", 6, "Analyzing author/affiliation block...",
                 startTime=time.time(),
+                stage="author_block",
             ))
             protected_terms = extract_author_block_terms(pdf_path)
             if protected_terms:
@@ -1401,10 +1857,12 @@ def main():
                 )
 
         selected_pages_spec = ""
+        reference_pages = []
         if skip_references_auto:
             write_progress(progress_file, make_progress(
                 "running", 8, "Detecting references/appendix pages...",
                 startTime=time.time(),
+                stage="reference_detection",
             ))
             policy = classify_reference_and_appendix_pages(
                 pdf_path,
@@ -1498,6 +1956,7 @@ def main():
         write_progress(progress_file, make_progress(
             "running", 5, "Initializing translation engine...",
             startTime=time.time(),
+            stage="initializing",
         ))
 
         try:
@@ -1524,6 +1983,14 @@ def main():
         last_total = None
         tail_lines = deque(maxlen=80)
         error_lines = []  # Track ERROR output from pdf2zh_next (full text)
+        warning_stats = {
+            "sameAsInput": 0,
+            "lengthMismatch": 0,
+            "editDistanceSmall": 0,
+            "fallbackToSimple": 0,
+            "other": 0,
+        }
+        translation_stats = {}
         last_write_time = 0
         WRITE_THROTTLE_SEC = 0.8  # min interval between progress writes
         suppress_cleanup_trace = False
@@ -1550,6 +2017,18 @@ def main():
             log_line(line)
             tail_lines.append(line)
 
+            warning_key = _categorize_warning_line(line)
+            if warning_key:
+                warning_stats[warning_key] = warning_stats.get(warning_key, 0) + 1
+
+            stats_match = TRANSLATION_STATS_RE.search(line)
+            if stats_match:
+                translation_stats = {
+                    "total": int(stats_match.group(1)),
+                    "successful": int(stats_match.group(2)),
+                    "fallback": int(stats_match.group(3)),
+                }
+
             # Track ERROR lines from engine — keep FULL text for debugging
             is_error_line = bool(re.search(r'\bERROR\b', line))
             if is_error_line:
@@ -1561,6 +2040,7 @@ def main():
                     f"⚠ Engine error ({len(error_lines)})",
                     detail=full_error,
                     errorCount=len(error_lines),
+                    stage="translating",
                 ))
                 last_write_time = time.time()
                 continue
@@ -1582,6 +2062,7 @@ def main():
                         "running", last_pct, message,
                         current=current, total=total,
                         detail=_sanitize_text(line, max_len=1000),
+                        stage="translating",
                     ))
                     last_write_time = time.time()
                     continue
@@ -1603,20 +2084,62 @@ def main():
                     write_progress(progress_file, make_progress(
                         "running", last_pct, keep_msg,
                         detail=detail_text,
+                        stage="translating",
                     ))
                     last_write_time = now
 
         returncode = proc.wait()
         if returncode == 0:
-            output_files = []
-            if os.path.isdir(output_dir):
-                for fn in os.listdir(output_dir):
-                    if fn.endswith(".pdf") and ("mono" in fn or "dual" in fn):
-                        output_files.append(fn)
+            nonzero_warning_stats = {
+                key: value for key, value in warning_stats.items() if value
+            }
+            warning_count = sum(nonzero_warning_stats.values())
+            write_progress(progress_file, make_progress(
+                "running", 97, "Finalizing translated PDF...",
+                stage="finalizing",
+                warningCount=warning_count,
+                warningStats=nonzero_warning_stats,
+                translationStats=translation_stats or None,
+            ))
+            output_files = _collect_output_files(output_dir, pdf_path)
+            overlay_changes = 0
+            if output_files:
+                try:
+                    if not reference_pages and fitz is not None:
+                        policy = classify_reference_and_appendix_pages(
+                            pdf_path,
+                            keep_appendix_translated=keep_appendix_translated,
+                        )
+                        reference_pages = [int(p) for p in policy.get("reference_pages", [])]
+                    for fn in output_files:
+                        if ".mono." not in fn.lower():
+                            continue
+                        overlay_changes += _postprocess_mono_pdf(
+                            os.path.join(output_dir, fn),
+                            proxy,
+                            model_id,
+                            source_lang,
+                            target_lang,
+                            reference_pages,
+                            log_line,
+                        )
+                except Exception as overlay_err:
+                    log_line(
+                        "Overlay postprocess skipped: "
+                        f"{type(overlay_err).__name__}: {overlay_err}"
+                    )
             done_data = make_progress(
                 "done", 100, "Translation complete", outputFiles=output_files,
                 logFile=log_file,
+                stage="done",
             )
+            if overlay_changes > 0:
+                done_data["detail"] = f"Overlay-translated {overlay_changes} residual text region(s)."
+            if translation_stats:
+                done_data["translationStats"] = translation_stats
+            if nonzero_warning_stats:
+                done_data["warningCount"] = warning_count
+                done_data["warningStats"] = nonzero_warning_stats
             # Warn if pdf2zh_next logged ERROR lines (e.g. API failures)
             if error_lines:
                 done_data["errorCount"] = len(error_lines)
@@ -1635,6 +2158,7 @@ def main():
                 error=f"exit_code_{returncode}",
                 errorDetail=detail,
                 logFile=log_file,
+                stage="error",
             ))
             sys.exit(returncode)
     except Exception as err:
@@ -1646,6 +2170,7 @@ def main():
             error="bridge_exception",
             errorDetail=err_text,
             logFile=log_file,
+            stage="error",
         ))
         raise
     finally:

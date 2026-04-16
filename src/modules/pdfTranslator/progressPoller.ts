@@ -60,7 +60,16 @@ export class ProgressPoller {
 
       // Deduplicate: only fire callback when meaningful progress changes.
       // Key includes status, page, percentage, AND detail line.
-      const key = `${data.status}|${data.current ?? ""}|${data.progress}|${data.detail ?? ""}`;
+      const key = [
+        data.status,
+        data.stage ?? "",
+        data.current ?? "",
+        data.total ?? "",
+        data.progress,
+        data.detail ?? "",
+        data.warningCount ?? "",
+        data.errorCount ?? "",
+      ].join("|");
       if (key === this.lastKey) return;           // no change — skip
       this.lastKey = key;
 

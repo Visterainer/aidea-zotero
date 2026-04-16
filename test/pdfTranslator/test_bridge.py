@@ -19,11 +19,17 @@ from aidea_bridge import (  # noqa: E402
     OAuthCompatProxyServer,
     _as_bool,
     _build_copilot_dynamic_headers,
+    _build_overlay_textbox_kwargs,
+    _collect_output_files,
     _collect_author_block_terms_from_lines,
+    _group_overlay_words_into_lines,
+    _group_overlay_words_into_regions,
     _derive_copilot_api_base_url,
     _http_post_json_with_retry,
+    _is_figure_overlay_page_text,
     _is_benign_pdf2zh_cleanup_trace_line,
     _is_retryable_transport_error,
+    _should_translate_overlay_line,
     _resolve_copilot_transport_kind,
     _rewrite_translation_custom_prompt,
     _sanitize_multiline_prompt,
@@ -126,6 +132,89 @@ assert_eq(
 print("\n=== _sanitize_multiline_prompt ===")
 cleaned = _sanitize_multiline_prompt("line1\nline2\t\u0001bad")
 assert_eq(cleaned, "line1\nline2 bad", "removes control chars and keeps newlines")
+
+print("\n=== overlay line grouping ===")
+grouped = _group_overlay_words_into_lines([
+    (120.0, 199.2, 134.3, 215.2, "The"),
+    (135.9, 198.1, 148.3, 215.2, "Law"),
+    (149.9, 202.3, 162.3, 215.2, "will"),
+    (163.9, 191.9, 176.3, 215.2, "never"),
+    (177.8, 204.9, 190.2, 215.2, "be"),
+    (191.8, 186.7, 204.2, 215.2, "perfect"),
+])
+assert_eq(len(grouped), 1, "groups nearby figure words into one line")
+assert_eq(grouped[0]["text"], "The Law will never be perfect", "reconstructs grouped figure sentence")
+
+regions = _group_overlay_words_into_regions([
+    (121.9, 199.2, 134.3, 215.2, "The"),
+    (135.9, 198.1, 148.3, 215.2, "Law"),
+    (149.9, 202.3, 162.3, 215.2, "will"),
+    (163.9, 191.9, 176.3, 215.2, "never"),
+    (177.8, 204.9, 190.2, 215.2, "be"),
+    (191.8, 186.7, 204.2, 215.2, "perfect"),
+    (121.9, 312.1, 134.3, 328.2, "The"),
+    (135.9, 312.1, 148.3, 329.2, "Law"),
+    (149.9, 312.1, 162.3, 325.1, "will"),
+    (163.9, 312.1, 176.3, 335.4, "never"),
+    (177.8, 312.1, 190.2, 322.5, "be"),
+    (191.8, 312.1, 204.2, 340.6, "perfect"),
+])
+assert_eq(len(regions), 2, "splits repeated figure text into separate vertical regions")
+
+print("\n=== overlay candidate detection ===")
+assert_eq(
+    _should_translate_overlay_line(14, "The Law will never be perfect but its application should be just", (0, 0, 100, 20), [], "figure"),
+    True,
+    "detects residual figure sentence for overlay translation",
+)
+assert_eq(
+    _should_translate_overlay_line(1, "Attention Is All You Need", (0, 0, 100, 20), [], "title"),
+    True,
+    "detects title-page title for overlay translation",
+)
+assert_eq(
+    _should_translate_overlay_line(1, "Ashish Vaswani Google Brain", (0, 0, 100, 20), [], "title"),
+    False,
+    "does not treat author metadata as overlay translation candidate",
+)
+assert_eq(
+    _should_translate_overlay_line(6, "Attention(Q, K, V ) = softmax(QKT", (0, 0, 100, 20), [], "figure"),
+    False,
+    "does not treat formulas as overlay translation candidates",
+)
+assert_eq(
+    _should_translate_overlay_line(10, "Some reference title in English", (0, 0, 100, 20), [10, 11, 12], "figure"),
+    False,
+    "skips reference pages during overlay translation",
+)
+
+print("\n=== figure overlay page detection ===")
+assert_eq(
+    _is_figure_overlay_page_text("The Law\\n<EOS>\\n<pad>"),
+    True,
+    "detects figure pages via eos/pad markers",
+)
+assert_eq(
+    _is_figure_overlay_page_text("Regular body paragraph without markers"),
+    False,
+    "does not treat normal body pages as figure overlay pages",
+)
+
+print("\n=== overlay textbox kwargs ===")
+orig_find_fontfile = bridge._find_overlay_fontfile
+try:
+    bridge._find_overlay_fontfile = lambda _text: None
+    assert_eq(
+        _build_overlay_textbox_kwargs("Plain english")["fontname"],
+        "helv",
+        "uses built-in font when no overlay font file is available",
+    )
+    bridge._find_overlay_fontfile = lambda _text: r"C:\Windows\Fonts\msyh.ttc"
+    kwargs = _build_overlay_textbox_kwargs("中文覆盖")
+    assert_eq(kwargs["fontname"], "aidea_overlay_font", "uses explicit overlay font name when fontfile is present")
+    assert_eq(kwargs["fontfile"], r"C:\Windows\Fonts\msyh.ttc", "passes overlay fontfile without using None fontname")
+finally:
+    bridge._find_overlay_fontfile = orig_find_fontfile
 
 print("\n=== Copilot proxy helpers ===")
 headers = _build_copilot_dynamic_headers()
@@ -313,6 +402,18 @@ try:
     assert_eq("\\n" in rewritten, True, "prompt newline escaped in TOML string")
 finally:
     os.unlink(cfg_path)
+
+print("\n=== _collect_output_files ===")
+with tempfile.TemporaryDirectory() as out_dir:
+    open(os.path.join(out_dir, "Paper A.no_watermark.zh-CN.mono.pdf"), "w").close()
+    open(os.path.join(out_dir, "Paper A.no_watermark.zh-CN.dual.pdf"), "w").close()
+    open(os.path.join(out_dir, "Paper B.no_watermark.zh-CN.mono.pdf"), "w").close()
+    files = _collect_output_files(out_dir, os.path.join(out_dir, "Paper A.pdf"))
+    assert_eq(
+        files,
+        ["Paper A.no_watermark.zh-CN.dual.pdf", "Paper A.no_watermark.zh-CN.mono.pdf"],
+        "lists only outputs for the current source PDF",
+    )
 
 print(f"\n{'=' * 40}")
 print(f"Results: {passed} passed, {failed} failed")

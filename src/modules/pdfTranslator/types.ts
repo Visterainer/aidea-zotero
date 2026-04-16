@@ -10,18 +10,39 @@ export type EnvStatus =
   | { status: "ready"; venvDir: string; pdf2zhBin: string; pythonBin: string };
 
 /** Progress data written by aidea_bridge.py, read by the plugin */
+export interface WarningStats {
+  sameAsInput?: number;
+  lengthMismatch?: number;
+  editDistanceSmall?: number;
+  fallbackToSimple?: number;
+  other?: number;
+}
+
+export interface TranslationStats {
+  total?: number;
+  successful?: number;
+  fallback?: number;
+}
+
 export interface ProgressData {
   status: "init" | "running" | "done" | "error" | "cancelled";
   progress: number;          // 0–100
   current?: number;          // current page
   total?: number;            // total pages
   message: string;
+  stage?: string;            // coarse-grained task phase for UI summaries
   detail?: string;           // latest engine output line (raw)
   outputFiles?: string[];    // populated when status === "done"
   startTime?: number;        // unix timestamp
   error?: string;            // populated when status === "error"
   errorDetail?: string;      // tail logs when bridge/process fails
   logFile?: string;          // bridge log path for diagnosis
+  warningCount?: number;     // total warning/fallback-related events
+  warningStats?: WarningStats;
+  translationStats?: TranslationStats;
+  errorCount?: number;
+  errorLines?: string[];
+  hasErrors?: boolean;
 }
 
 /** Parameters to start a translation */
@@ -63,6 +84,7 @@ export interface BridgeTask {
   outputDir: string;
   configFile: string;
   progressFile: string;
+  modelId: string;
   sourceLang: string;
   targetLang: string;
   noDual: boolean;

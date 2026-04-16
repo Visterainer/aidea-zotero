@@ -123,6 +123,7 @@ export class TranslateController {
       outputDir: params.outputDir,
       configFile: configPath,
       progressFile: progressPath,
+      modelId: params.modelId,
       sourceLang: params.sourceLang,
       targetLang: params.targetLang,
       noDual: !params.generateDual,

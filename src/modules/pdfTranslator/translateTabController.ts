@@ -11,6 +11,7 @@ import {
   getModelChoices,
 } from "../contextPanel/setupHandlers/controllers/modelSelectionController";
 import { getPanelI18n } from "../contextPanel/i18n";
+import type { ProgressData, TranslationStats, WarningStats } from "./types";
 
 /* ── Per-tab model pref key ── */
 
@@ -23,6 +24,54 @@ const TRANSLATE_PREFS = {
 
 declare const Zotero: any;
 declare const addon: any;
+
+const LOW_SIGNAL_ENGINE_DETAIL_RE = /(?:INFO:pdf2zh_next|INFO:babeldoc|WARNING:babeldoc|il_translator_llm_only\.py:(?:774|783|797|824))/i;
+
+function getStageSummaryLabel(stage?: string, message?: string): string {
+  switch (stage) {
+    case "author_block":
+      return "Analyzing author/affiliation block...";
+    case "reference_detection":
+      return "Detecting references/appendix pages...";
+    case "initializing":
+      return "Initializing translation engine...";
+    case "finalizing":
+      return "Finalizing translated PDF...";
+    default:
+      return message || "";
+  }
+}
+
+function shouldLogEngineDetail(detail: string): boolean {
+  if (!detail) return false;
+  if (/\bERROR\b/i.test(detail)) return true;
+  if (/(download|retry|overlay-translated|proxy|font subsetting|save with clean)/i.test(detail)) {
+    return true;
+  }
+  return !LOW_SIGNAL_ENGINE_DETAIL_RE.test(detail);
+}
+
+function buildTranslationSummaryLine(stats?: TranslationStats): string {
+  if (!stats || stats.total === undefined) return "";
+  const parts = [`Paragraphs ${stats.total}`];
+  if (stats.successful !== undefined) parts.push(`successful ${stats.successful}`);
+  if (stats.fallback !== undefined) parts.push(`fallback ${stats.fallback}`);
+  return parts.join(" | ");
+}
+
+function buildWarningSummaryLine(stats?: WarningStats, warningCount?: number): string {
+  if (!stats || (!warningCount && Object.keys(stats).length === 0)) return "";
+  const parts: string[] = [];
+  if (stats.sameAsInput) parts.push(`same-as-input ${stats.sameAsInput}`);
+  if (stats.lengthMismatch) parts.push(`length-mismatch ${stats.lengthMismatch}`);
+  if (stats.editDistanceSmall) parts.push(`edit-distance ${stats.editDistanceSmall}`);
+  if (stats.fallbackToSimple) parts.push(`fallback ${stats.fallbackToSimple}`);
+  if (stats.other) parts.push(`other ${stats.other}`);
+  const summary = parts.join(" | ");
+  if (warningCount && summary) return `Warnings ${warningCount} | ${summary}`;
+  if (warningCount) return `Warnings ${warningCount}`;
+  return summary;
+}
 
 function prefKey(): string {
   return `${addon.data.config.prefsPrefix}.${TRANSLATE_MODEL_PREF}`;
@@ -870,6 +919,7 @@ async function startTranslation(body: Element): Promise<void> {
 
   // Use TranslateController to run the translation
   const { TranslateController } = await import("./index");
+  let lastStageLogged = "";
 
   const controller = new TranslateController((event) => {
     switch (event.type) {
@@ -877,14 +927,28 @@ async function startTranslation(body: Element): Promise<void> {
         const pct = event.data.progress;
         const msg = event.data.message || "";
         const status = event.data.status || "";
+        const stage = event.data.stage || "";
         const detail = event.data.detail || "";
         updateProgress(body, pct, msg, {
           current: event.data.current,
           total: event.data.total,
         });
 
+        const stageSummary = getStageSummaryLabel(stage, msg);
+        if (
+          stage &&
+          stage !== lastStageLogged &&
+          stageSummary &&
+          event.data.current === undefined &&
+          status === "running"
+        ) {
+          lastStageLogged = stage;
+          consoleLog(body, `🔄 ${stageSummary}`, "info");
+        }
+
         // Log page transitions (when page number is present)
         if (event.data.current !== undefined && event.data.total !== undefined) {
+          lastStageLogged = "translating";
           const elapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
           consoleLog(
             body,
@@ -894,13 +958,13 @@ async function startTranslation(body: Element): Promise<void> {
         }
 
         // Show engine output detail (raw line from pdf2zh_next stdout)
-        if (detail && detail !== msg) {
+        if (detail && detail !== msg && shouldLogEngineDetail(detail)) {
           // Detect log level from engine output (e.g. "ERROR:pdf2zh_next...")
           const detailLevel: "info" | "error" =
             /\bERROR\b/i.test(detail) ? "error" : "info";
           const detailIcon = detailLevel === "error" ? "❌" : "🔧";
           consoleLog(body, `${detailIcon} ${detail}`, detailLevel);
-        } else if (msg && event.data.current === undefined) {
+        } else if (msg && event.data.current === undefined && stageSummary !== msg) {
           // Non-page messages from bridge (init, detecting refs, etc.)
           consoleLog(body, `🔄 ${msg}`, "info");
         }
@@ -911,10 +975,23 @@ async function startTranslation(body: Element): Promise<void> {
             consoleLog(body, `   📄 Output: ${f}`, "success");
           }
         }
+        if (status === "done") {
+          const translationSummary = buildTranslationSummaryLine(event.data.translationStats);
+          if (translationSummary) {
+            consoleLog(body, `📈 ${translationSummary}`, "info");
+          }
+          const warningSummary = buildWarningSummaryLine(
+            event.data.warningStats,
+            event.data.warningCount,
+          );
+          if (warningSummary) {
+            consoleLog(body, `⚠ ${warningSummary}`, "info");
+          }
+        }
         // Warn if translation completed but engine logged errors
-        if (status === "done" && (event.data as any).hasErrors) {
-          const errCount = (event.data as any).errorCount || 0;
-          const errLines: string[] = (event.data as any).errorLines || [];
+        if (status === "done" && event.data.hasErrors) {
+          const errCount = event.data.errorCount || 0;
+          const errLines: string[] = event.data.errorLines || [];
           consoleLog(body, `⚠️ Translation completed with ${errCount} error(s) — some pages may contain untranslated text`, "error");
           for (const errLine of errLines.slice(0, 10)) {
             consoleLog(body, `   ${errLine}`, "error");
@@ -962,6 +1039,7 @@ async function startTranslation(body: Element): Promise<void> {
           if (startBtn) startBtn.style.display = "";
           if (pauseBtn) pauseBtn.style.display = "none";
         } else if (event.state === "running") {
+          lastStageLogged = "";
           consoleLog(body, "⏳ Translation engine started...", "info");
         } else if (event.state === "paused") {
           consoleLog(body, "⏸ Translation paused — progress cached", "info");
