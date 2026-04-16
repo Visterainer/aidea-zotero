@@ -171,6 +171,12 @@ export function removeLibraryPanel(win: Window): void {
   }
 
   if (state.host) {
+    const heightSync = (
+      state.host as typeof state.host & {
+        __llmHeightSync?: { dispose?: () => void } | null;
+      }
+    ).__llmHeightSync;
+    heightSync?.dispose?.();
     state.host.remove();
   }
 

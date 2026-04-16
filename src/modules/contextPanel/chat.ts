@@ -48,10 +48,12 @@ import {
   loadedConversationKeys,
   loadingConversationTasks,
   selectedModelCache,
-  registerPanelRequest,
+  beginPanelRequest,
   isPanelRequestCancelled,
   getPanelAbortController,
-  setPanelAbortController,
+  attachPanelAbortController,
+  finishPanelRequest,
+  isPanelGenerating,
   nextRequestId,
   setResponseMenuTarget,
   setPromptMenuTarget,
@@ -1841,6 +1843,12 @@ export async function retryLatestAssistantResponse(
   advanced?: AdvancedModelParams,
 ) {
   const ui = getPanelRequestUI(body);
+  if (isPanelGenerating(body)) {
+    if (ui.status) {
+      setStatus(ui.status, "Wait for the current response to finish", "ready");
+    }
+    return;
+  }
 
   await ensureConversationLoaded(item);
   const conversationKey = getConversationKey(item);
@@ -1852,7 +1860,7 @@ export async function retryLatestAssistantResponse(
   }
 
   const thisRequestId = nextRequestId();
-  registerPanelRequest(body, thisRequestId);
+  beginPanelRequest(body, thisRequestId);
   setRequestUIBusy(body, ui, conversationKey, "Preparing retry...");
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
@@ -1929,10 +1937,16 @@ export async function retryLatestAssistantResponse(
     });
 
     const AbortControllerCtor = getAbortController();
-    setPanelAbortController(
+    const attached = attachPanelAbortController(
       body,
+      thisRequestId,
       AbortControllerCtor ? new AbortControllerCtor() : null,
     );
+    if (!attached) {
+      restoreOriginalAssistant();
+      setStatusSafely(panelI18n.cancelled, "ready");
+      return;
+    }
     const panelAbortController = getPanelAbortController(body);
     if (isPanelRequestCancelled(body, thisRequestId)) {
       panelAbortController?.abort();
@@ -2052,9 +2066,10 @@ export async function retryLatestAssistantResponse(
       "error",
     );
   } finally {
-    setHistoryControlsDisabled(body, false);
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setPanelAbortController(body, null);
+    if (finishPanelRequest(body, thisRequestId)) {
+      setHistoryControlsDisabled(body, false);
+      restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    }
   }
 }
 
@@ -2075,10 +2090,16 @@ export async function sendQuestion(
   attachments?: ChatAttachment[],
 ) {
   const ui = getPanelRequestUI(body);
+  if (isPanelGenerating(body)) {
+    if (ui.status) {
+      setStatus(ui.status, "Wait for the current response to finish", "ready");
+    }
+    return;
+  }
 
   // Track this request
   const thisRequestId = nextRequestId();
-  registerPanelRequest(body, thisRequestId);
+  beginPanelRequest(body, thisRequestId);
   const initialConversationKey = getConversationKey(item);
 
   // Show cancel, hide send
@@ -2248,10 +2269,15 @@ export async function sendQuestion(
     });
 
     const AbortControllerCtor = getAbortController();
-    setPanelAbortController(
+    const attached = attachPanelAbortController(
       body,
+      thisRequestId,
       AbortControllerCtor ? new AbortControllerCtor() : null,
     );
+    if (!attached) {
+      await markCancelled();
+      return;
+    }
     const panelAbortController = getPanelAbortController(body);
     // Incremental DOM update: find the skeleton bubble that refreshChat
     // created and patch it in place instead of re-rendering the whole chat.
@@ -2330,9 +2356,10 @@ export async function sendQuestion(
 
     setStatusSafely(`Error: ${`${errMsg}${retryHint}`.slice(0, 40)}`, "error");
   } finally {
-    setHistoryControlsDisabled(body, false);
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setPanelAbortController(body, null);
+    if (finishPanelRequest(body, thisRequestId)) {
+      setHistoryControlsDisabled(body, false);
+      restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    }
   }
 }
 

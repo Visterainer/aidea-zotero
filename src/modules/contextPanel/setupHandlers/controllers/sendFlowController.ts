@@ -37,6 +37,7 @@ type LatestEditablePair = {
 type SendFlowControllerDeps = {
   body: Element;
   inputBox: HTMLTextAreaElement;
+  isPanelGenerating: () => boolean;
   getItem: () => Zotero.Item | null;
   closeSlashMenu: () => void;
   closePaperPicker: () => void;
@@ -132,6 +133,11 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
   doSend: () => Promise<void>;
 } {
   const doSend = async () => {
+    if (deps.isPanelGenerating()) {
+      deps.setStatusMessage?.("Wait for the current response to finish", "ready");
+      return;
+    }
+
     const item = deps.getItem();
     if (!item) return;
 

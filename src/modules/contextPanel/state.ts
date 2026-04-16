@@ -69,6 +69,7 @@ export function nextRequestId(): number {
 }
 type PanelRequestState = {
   latestRequestId: number;
+  activeRequestId: number;
   cancelledRequestId: number;
   abortController: AbortController | null;
 };
@@ -80,6 +81,7 @@ function ensurePanelRequestState(panel: Element): PanelRequestState {
   if (!state) {
     state = {
       latestRequestId: 0,
+      activeRequestId: 0,
       cancelledRequestId: -1,
       abortController: null,
     };
@@ -88,9 +90,10 @@ function ensurePanelRequestState(panel: Element): PanelRequestState {
   return state;
 }
 
-export function registerPanelRequest(panel: Element, requestId: number): void {
+export function beginPanelRequest(panel: Element, requestId: number): void {
   const state = ensurePanelRequestState(panel);
   state.latestRequestId = requestId;
+  state.activeRequestId = requestId;
 }
 
 export function getPanelAbortController(
@@ -99,11 +102,18 @@ export function getPanelAbortController(
   return ensurePanelRequestState(panel).abortController;
 }
 
-export function setPanelAbortController(
+export function attachPanelAbortController(
   panel: Element,
+  requestId: number,
   value: AbortController | null,
-): void {
-  ensurePanelRequestState(panel).abortController = value;
+): boolean {
+  const state = ensurePanelRequestState(panel);
+  if (state.activeRequestId !== requestId) {
+    value?.abort();
+    return false;
+  }
+  state.abortController = value;
+  return true;
 }
 
 export function isPanelRequestCancelled(
@@ -118,13 +128,26 @@ export function cancelPanelRequest(panel: Element): number {
   state.abortController?.abort();
   state.cancelledRequestId = Math.max(
     state.cancelledRequestId,
-    state.latestRequestId,
+    state.activeRequestId || state.latestRequestId,
   );
-  return state.latestRequestId;
+  return state.activeRequestId || state.latestRequestId;
 }
 
 export function isPanelGenerating(panel: Element): boolean {
-  return Boolean(ensurePanelRequestState(panel).abortController);
+  return ensurePanelRequestState(panel).activeRequestId > 0;
+}
+
+export function finishPanelRequest(
+  panel: Element,
+  requestId: number,
+): boolean {
+  const state = ensurePanelRequestState(panel);
+  if (state.activeRequestId !== requestId) {
+    return false;
+  }
+  state.activeRequestId = 0;
+  state.abortController = null;
+  return true;
 }
 export let panelFontScalePercent = 120; // FONT_SCALE_DEFAULT_PERCENT
 export function setPanelFontScalePercent(value: number) {

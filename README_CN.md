@@ -1,3 +1,5 @@
+> 中文文档 | [English Version](README.md)
+
 <p align="center">
   <img src="addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
 </p>
@@ -37,7 +39,7 @@
 在 Zotero 的侧边栏中直接与 AI 对话 —— **文库视图**和 **PDF 阅读器**中均可使用。提问、获取摘要，与你的研究资料无缝交互。
 
 <p align="center">
-  <img src="doc/screenshots/chat_cn.png" alt="侧边栏对话" width="800" />
+  <img src="doc/screenshots/chat_panel_cn.png" alt="侧边栏对话" width="800" />
 </p>
 
 ### 📄 论文感知上下文
@@ -55,6 +57,28 @@
 ### 🔐 OAuth 账号登录（无需 API Key）
 
 使用你的**已有账号**通过 OAuth 登录 —— 无需 API Key，也不需要 API 平台的独立订阅。插件支持多个服务商，采用不同的 OAuth 流程实现无缝认证。
+
+### 📄 全文翻译
+
+直接在 Zotero 中翻译整篇论文，并导出 **双语对照 PDF** 或 **纯中文 Mono PDF**。全文翻译标签页现已支持模型选择、输出路径配置，以及侧边栏内的一站式任务执行。
+
+<p align="center">
+  <img src="doc/screenshots/translate_panel_cn.png" alt="全文翻译面板" width="800" />
+</p>
+
+示例结果：
+
+<p align="center">
+  <img src="doc/screenshots/translate_example_architecture.png" alt="双语论文翻译示例" width="800" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/translate_example_formula.png" alt="公式论文翻译示例" width="800" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/translate_example_table.png" alt="表格与正文翻译示例" width="800" />
+</p>
 
 > **最新支持版本：ChatGPT 5.4**
 
@@ -144,7 +168,7 @@ AIdea 提供两种连接方式，你可以选择其中一种或同时使用：
 | **`删除授权`**      | 清除该服务商已保存的 OAuth 令牌。                                                                                                                                                                       |
 
 <p align="center">
-  <img src="doc/screenshots/settings_oauth_cn.png" alt="OAuth 提供商" width="700" />
+  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商" width="700" />
 </p>
 
 > 💡 **提示：** 每个服务商只需配置一次。登录状态保存在本地，重启 Zotero 后依然有效。
@@ -172,7 +196,7 @@ AIdea 提供两种连接方式，你可以选择其中一种或同时使用：
 两种连接方式共享统一的模型列表。你可以选择要使用的模型、按服务商管理模型，并随时刷新。
 
 <p align="center">
-  <img src="doc/screenshots/settings_models_cn.png" alt="模型列表" width="700" />
+  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="模型列表" width="700" />
 </p>
 
 ### 3. 开始对话
@@ -212,7 +236,6 @@ AIdea 提供两种连接方式，你可以选择其中一种或同时使用：
 即将推出的功能：
 
 - 🔤 **划词翻译** —— 在 PDF 阅读器中选中文本，即时翻译选中段落
-- 📖 **一键翻译全文** —— 一键翻译整篇论文，生成双语对照视图
 - 🗂️ **一键生成框架图** —— 自动从论文内容生成结构图，一目了然地展示研究框架
 
 > 💡 有功能建议？欢迎提交 [Issue](https://github.com/Visterainer/aidea-zotero/issues)！

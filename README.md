@@ -1,3 +1,5 @@
+> [中文文档](README_CN.md) | English Version
+
 <p align="center">
   <img src="addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
 </p>
@@ -37,7 +39,7 @@
 Chat with AI directly in Zotero's side panel — available in both the **Library** view and the **PDF Reader**. Ask questions, get summaries, and interact with your research seamlessly.
 
 <p align="center">
-  <img src="doc/screenshots/chat_en.png" alt="Side panel chat" width="800" />
+  <img src="doc/screenshots/chat_panel_cn.png" alt="Side panel chat" width="800" />
 </p>
 
 ### 📄 Paper-Aware Context
@@ -55,6 +57,28 @@ Attach images (screenshots, figures, charts) to your messages. Drag & drop, past
 ### 🔐 OAuth Account Login (No API Key Required)
 
 Sign in with your **existing account** via OAuth — no need for an API key or subscription. Supports multiple providers with different OAuth flows for seamless authentication.
+
+### Full-Document Translation
+
+Translate entire papers directly inside Zotero and export either a **bilingual dual-column PDF** or a **Chinese-only mono PDF**. The full-document translation tab now supports model selection, output path configuration, and end-to-end task execution inside the side panel.
+
+<p align="center">
+  <img src="doc/screenshots/translate_panel_cn.png" alt="Full-document translation panel" width="800" />
+</p>
+
+Example outputs:
+
+<p align="center">
+  <img src="doc/screenshots/translate_example_architecture.png" alt="Bilingual architecture paper translation example" width="800" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/translate_example_formula.png" alt="Formula-heavy paper translation example" width="800" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/translate_example_table.png" alt="Table and prose translation example" width="800" />
+</p>
 
 > **Latest supported version: ChatGPT 5.4**
 
@@ -144,7 +168,7 @@ Sign in with your **existing account** — no API key needed. For each provider 
 | **`Remove Auth`**        | Clears the saved OAuth token for this provider.                                                                                                                                                                                                                                   |
 
 <p align="center">
-  <img src="doc/screenshots/settings_oauth_en.png" alt="OAuth Providers" width="700" />
+  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="OAuth Providers and model management" width="700" />
 </p>
 
 > 💡 **Tip:** You only need to do this once per provider. The login session is saved locally and persists across Zotero restarts.
@@ -172,7 +196,7 @@ In **Settings**, switch to the **API Mode** tab and fill in the following fields
 Both connection modes share a unified model list. You can select which models to use, manage per-provider models, and refresh them at any time.
 
 <p align="center">
-  <img src="doc/screenshots/settings_models_en.png" alt="Available Models" width="700" />
+  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="Available Models" width="700" />
 </p>
 
 ### 3. Start Chatting
@@ -212,7 +236,6 @@ Click any shortcut button (**Summarize**, **Explain**, **Translate**, etc.) for 
 Planned features for upcoming releases:
 
 - 🔤 **Highlight Translation** — Select text in the PDF reader to instantly translate highlighted passages in place
-- 📖 **One-Click Full Document Translation** — Translate the entire paper with a single click, generating a side-by-side bilingual view
 - 🗂️ **One-Click Architecture Diagram** — Automatically generate a structural diagram from the paper's content, visualizing the research framework at a glance
 
 > 💡 Have a feature request? Feel free to open an [Issue](https://github.com/Visterainer/aidea-zotero/issues)!

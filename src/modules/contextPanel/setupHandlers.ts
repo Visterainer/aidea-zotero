@@ -353,6 +353,20 @@ export function setupHandlers(
   // ── Height sync controller ──
   // Applies initial heights from prefs, tracks resize, and syncs
   // between Discussion (two-pane) and Setting (single-pane) layouts.
+  const existingHeightSync = (
+    panelRoot as typeof panelRoot & {
+      __llmHeightSync?: { dispose?: () => void } | null;
+    }
+  ).__llmHeightSync;
+  if (existingHeightSync?.dispose) {
+    existingHeightSync.dispose();
+  }
+  (
+    panelRoot as typeof panelRoot & {
+      __llmHeightSync?: { dispose?: () => void } | null;
+    }
+  ).__llmHeightSync = null;
+
   const initialContentHeight = getPanelContentHeight();
   if (initialContentHeight && contentWrapper) {
     if (initialContentHeight.includes("px") || initialContentHeight.includes("vh") || initialContentHeight.includes("%")) {
@@ -386,6 +400,11 @@ export function setupHandlers(
     discussionTabBtn?.addEventListener("click", () => heightSync.switchToDiscussion());
     // Translate tab uses setting layout (single pane, no bottom wrapper)
     translateTabBtn?.addEventListener("click", () => heightSync.switchToSetting());
+    (
+      panelRoot as typeof panelRoot & {
+        __llmHeightSync?: { dispose?: () => void } | null;
+      }
+    ).__llmHeightSync = heightSync;
   }
 
   const isGlobalMode = () => Boolean(item && isGlobalPortalItem(item));
@@ -5048,6 +5067,7 @@ export function setupHandlers(
   const { doSend } = createSendFlowController({
     body,
     inputBox,
+    isPanelGenerating: () => isPanelGenerating(body),
     getItem: () => item,
     closeSlashMenu,
     closePaperPicker,

@@ -22,6 +22,7 @@ describe("sendFlowController selected text conversation key", function () {
     const { doSend } = createSendFlowController({
       body: { ownerDocument: null } as unknown as Element,
       inputBox: { value: "" } as HTMLTextAreaElement,
+      isPanelGenerating: () => false,
       getItem: () => item,
       closeSlashMenu: () => {},
       closePaperPicker: () => {},

@@ -127,6 +127,12 @@ export function invalidateSharedReaderPanelForItem(
   const map = getWindowMap(win);
   const state = map.get(key);
   if (state) {
+    const heightSync = (
+      state.host as typeof state.host & {
+        __llmHeightSync?: { dispose?: () => void } | null;
+      }
+    ).__llmHeightSync;
+    heightSync?.dispose?.();
     state.hasBootstrapped = false;
     // Clear stale file preview expansion for this item
     selectedFilePreviewExpandedCache.delete(key);
@@ -137,6 +143,12 @@ export function removeReaderPanels(win: Window): void {
   const map = panelStateByWindow.get(win);
   if (!map) return;
   for (const [, state] of map) {
+    const heightSync = (
+      state.host as typeof state.host & {
+        __llmHeightSync?: { dispose?: () => void } | null;
+      }
+    ).__llmHeightSync;
+    heightSync?.dispose?.();
     state.host.remove();
   }
   map.clear();
