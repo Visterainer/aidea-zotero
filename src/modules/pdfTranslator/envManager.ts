@@ -39,6 +39,41 @@ function getPdf2zhBin(venvDir: string): string {
     : PathUtils.join(venvDir, "bin", "pdf2zh_next");
 }
 
+/**
+ * Check if a pdf2zh_next binary is actually usable (fast check for tab switch).
+ *
+ * A file can exist but be broken if the user quit Zotero mid-install,
+ * leaving behind a 0-byte or partially written executable.
+ * We verify: (1) the file exists, and (2) it has a reasonable size (>1 KB).
+ */
+async function isPdf2zhBinUsable(binPath: string): Promise<boolean> {
+  try {
+    if (!(await IOUtils.exists(binPath))) return false;
+    const info = await IOUtils.stat(binPath);
+    // A valid pdf2zh_next binary is at least ~10 KB; broken ones are often 0 bytes.
+    // Use 1024 bytes as a conservative threshold.
+    return (info.size ?? 0) > 1024;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Deep-verify pdf2zh_next by running `--version`.
+ *
+ * Only called from installEnvironment (button-triggered), never on tab switch.
+ * Returns true if the binary runs successfully and produces output.
+ */
+async function verifyPdf2zhBin(binPath: string): Promise<boolean> {
+  if (!(await isPdf2zhBinUsable(binPath))) return false;
+  try {
+    await runCmd(binPath, ["--version"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Find uv binary — look for common install locations then PATH */
 async function findUvBinary(): Promise<string | null> {
   const candidates: string[] = [];
@@ -85,7 +120,7 @@ export async function checkEnvironment(): Promise<EnvStatus> {
       const pythonBin = getCondaPythonBin(envDir);
       if (!(await IOUtils.exists(pythonBin))) continue;
       const pdf2zhBin = getCondaPdf2zhBin(envDir);
-      if (await IOUtils.exists(pdf2zhBin)) {
+      if (await isPdf2zhBinUsable(pdf2zhBin)) {
         return { status: "ready", venvDir: envDir, pdf2zhBin, pythonBin };
       }
       return { status: "no_pdf2zh" };
@@ -99,7 +134,7 @@ export async function checkEnvironment(): Promise<EnvStatus> {
       const pythonBin = getPythonBin(venvDir);
       if (!(await IOUtils.exists(pythonBin))) continue;
       const pdf2zhBin = getPdf2zhBin(venvDir);
-      if (await IOUtils.exists(pdf2zhBin)) {
+      if (await isPdf2zhBinUsable(pdf2zhBin)) {
         return { status: "ready", venvDir, pdf2zhBin, pythonBin };
       }
       return { status: "no_pdf2zh" };
@@ -170,15 +205,26 @@ export async function installEnvironment(
     }
     onProgress("create_venv", "✅ Python environment ready");
 
-    /* Install pdf2zh_next via pip inside conda env */
+    /* Install / verify pdf2zh_next via pip inside conda env */
     const pdf2zhBin = getCondaPdf2zhBin(envDir);
-    if (!(await IOUtils.exists(pdf2zhBin))) {
-      onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
+    onProgress("install_pkg", "Verifying pdf2zh_next...");
+    const condaBinOk = await verifyPdf2zhBin(pdf2zhBin);
+    if (!condaBinOk) {
+      if (await IOUtils.exists(pdf2zhBin)) {
+        onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
+        try { await IOUtils.remove(pdf2zhBin); } catch { /* ignore */ }
+      } else {
+        onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
+      }
       const pipBin = IS_WIN
         ? PathUtils.join(envDir, "Scripts", "pip.exe")
         : PathUtils.join(envDir, "bin", "pip");
       // --force-reinstall handles partially installed packages from interrupted installs
       await runCmd(pipBin, ["install", "--force-reinstall", "pdf2zh_next"]);
+      // Verify again after reinstall
+      if (!(await verifyPdf2zhBin(pdf2zhBin))) {
+        throw new Error("pdf2zh_next installed but failed verification (--version). Please retry or check logs.");
+      }
     }
     onProgress("install_pkg", "✅ pdf2zh_next ready");
     return;
@@ -214,9 +260,20 @@ export async function installEnvironment(
   onProgress("create_venv", "✅ Python environment ready");
 
   const pdf2zhBin = getPdf2zhBin(venvDir);
-  if (!(await IOUtils.exists(pdf2zhBin))) {
-    onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
+  onProgress("install_pkg", "Verifying pdf2zh_next...");
+  const uvBinOk = await verifyPdf2zhBin(pdf2zhBin);
+  if (!uvBinOk) {
+    if (await IOUtils.exists(pdf2zhBin)) {
+      onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
+      try { await IOUtils.remove(pdf2zhBin); } catch { /* ignore */ }
+    } else {
+      onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
+    }
     await runCmd(uvPath, ["pip", "install", "--force-reinstall", "pdf2zh_next", "--python", pythonBin]);
+    // Verify again after reinstall
+    if (!(await verifyPdf2zhBin(pdf2zhBin))) {
+      throw new Error("pdf2zh_next installed but failed verification (--version). Please retry or check logs.");
+    }
   }
   onProgress("install_pkg", "✅ pdf2zh_next ready");
 }
