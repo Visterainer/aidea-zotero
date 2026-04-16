@@ -35,6 +35,8 @@ export type ModelChoice = {
   key: ModelProfileKey;
   model: string;
   provider?: string;
+  /** Raw OAuth provider key (e.g. "github-copilot"), used for cache/persist lookups. */
+  providerId?: string;
   /** For custom-endpoint models, the API base URL to use. */
   apiBase?: string;
   /** For custom-endpoint models, the API key to use. */
@@ -94,6 +96,7 @@ export function getModelChoices() {
         key,
         model: id,
         provider: label,
+        providerId: provider,
         apiBase: row.apiBase,
         apiKey: row.apiKey,
       });
@@ -172,11 +175,11 @@ export function persistModelName(modelName: string): void {
   } catch { /* ignore */ }
 }
 
-export function persistModelProvider(providerLabel: string): void {
+export function persistModelProvider(provider: string): void {
   try {
     Zotero.Prefs.set(
       `${addon.data.config.prefsPrefix}.${LAST_MODEL_PROVIDER_PREF}`,
-      providerLabel,
+      provider,
       true,
     );
   } catch { /* ignore */ }
@@ -206,9 +209,9 @@ export function getSelectedModelInfo(itemId: number | null) {
       ["primary", "secondary", "tertiary", "quaternary"] as const
     ).includes(cachedSelection as ModelProfileKey);
     if (!isProfileKey) {
-      // Match by both model name and provider if available
+      // Match by both model name and provider ID if available
       const byModel = cachedProvider
-        ? choices.find((entry) => entry.model === cachedSelection && entry.provider === cachedProvider)
+        ? choices.find((entry) => entry.model === cachedSelection && entry.providerId === cachedProvider)
           || choices.find((entry) => entry.model === cachedSelection)
         : choices.find((entry) => entry.model === cachedSelection);
       if (byModel) return buildResult(byModel);
@@ -223,7 +226,7 @@ export function getSelectedModelInfo(itemId: number | null) {
     const byPersisted = persistedProvider
       ? choices.find(
           (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase()
-            && entry.provider === persistedProvider,
+            && entry.providerId === persistedProvider,
         ) || choices.find(
           (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase(),
         )
@@ -232,8 +235,8 @@ export function getSelectedModelInfo(itemId: number | null) {
         );
     if (byPersisted) {
       selectedModelCache.set(itemId, byPersisted.model);
-      if (byPersisted.provider) {
-        selectedModelProviderCache.set(itemId, byPersisted.provider);
+      if (byPersisted.providerId) {
+        selectedModelProviderCache.set(itemId, byPersisted.providerId);
       }
       return buildResult(byPersisted);
     }

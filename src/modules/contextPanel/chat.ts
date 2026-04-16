@@ -658,7 +658,12 @@ type EffectiveRequestConfig = {
 
 function shouldRewriteApiBaseForDetectedProvider(apiBase: string): boolean {
   const normalized = apiBase.trim();
-  return !normalized || normalized.startsWith("oauth://");
+  // Only auto-detect when apiBase is truly empty.
+  // An existing oauth:// marker was already resolved with provider
+  // disambiguation by resolveModelCredentials; overwriting it here with
+  // detectProviderForModel (which picks the first match) would break
+  // same-name models across different providers.
+  return !normalized;
 }
 
 export function resolveEffectiveRequestConfig(params: {

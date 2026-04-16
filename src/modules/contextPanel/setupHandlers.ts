@@ -4028,12 +4028,12 @@ export function setupHandlers(
         e.preventDefault();
         e.stopPropagation();
         if (!item) return;
-        // Store the model name and provider for the current item
+        // Store the model name and provider ID for the current item
         selectedModelCache.set(item.id, entry.model);
-        if (entry.provider) selectedModelProviderCache.set(item.id, entry.provider);
-        // Persist model name and provider so new conversations remember it
+        if (entry.providerId) selectedModelProviderCache.set(item.id, entry.providerId);
+        // Persist model name and provider ID so new conversations remember it
         persistModelName(entry.model);
-        if (entry.provider) persistModelProvider(entry.provider);
+        if (entry.providerId) persistModelProvider(entry.providerId);
         // Clear the persisted profile key so it doesn't shadow the in-session choice
         try {
           Zotero.Prefs.set(
@@ -4097,9 +4097,9 @@ export function setupHandlers(
         closeRetryModelMenu();
         // Sync model selection with the bottom model selector
         selectedModelCache.set(item.id, entry.model);
-        if (entry.provider) selectedModelProviderCache.set(item.id, entry.provider);
+        if (entry.providerId) selectedModelProviderCache.set(item.id, entry.providerId);
         persistModelName(entry.model);
-        if (entry.provider) persistModelProvider(entry.provider);
+        if (entry.providerId) persistModelProvider(entry.providerId);
         try {
           Zotero.Prefs.set(
             `${addon.data.config.prefsPrefix}.lastUsedModelProfile`,
