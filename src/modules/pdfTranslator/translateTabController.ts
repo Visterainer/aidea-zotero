@@ -774,7 +774,11 @@ async function startTranslation(body: Element): Promise<void> {
 
         // Show engine output detail (raw line from pdf2zh_next stdout)
         if (detail && detail !== msg) {
-          consoleLog(body, `🔧 ${detail}`, "info");
+          // Detect log level from engine output (e.g. "ERROR:pdf2zh_next...")
+          const detailLevel: "info" | "error" =
+            /\bERROR\b/i.test(detail) ? "error" : "info";
+          const detailIcon = detailLevel === "error" ? "❌" : "🔧";
+          consoleLog(body, `${detailIcon} ${detail}`, detailLevel);
         } else if (msg && event.data.current === undefined) {
           // Non-page messages from bridge (init, detecting refs, etc.)
           consoleLog(body, `🔄 ${msg}`, "info");
@@ -784,6 +788,18 @@ async function startTranslation(body: Element): Promise<void> {
         if (status === "done" && event.data.outputFiles?.length) {
           for (const f of event.data.outputFiles) {
             consoleLog(body, `   📄 Output: ${f}`, "success");
+          }
+        }
+        // Warn if translation completed but engine logged errors
+        if (status === "done" && (event.data as any).hasErrors) {
+          const errCount = (event.data as any).errorCount || 0;
+          const errLines: string[] = (event.data as any).errorLines || [];
+          consoleLog(body, `⚠️ Translation completed with ${errCount} error(s) — some pages may contain untranslated text`, "error");
+          for (const errLine of errLines.slice(0, 10)) {
+            consoleLog(body, `   ${errLine}`, "error");
+          }
+          if (event.data.logFile) {
+            consoleLog(body, `   📝 Full log: ${event.data.logFile}`, "info");
           }
         }
 
@@ -810,6 +826,8 @@ async function startTranslation(body: Element): Promise<void> {
           consoleLog(body, `✅ ${i18n.trDone}! Total time: ${formatDuration(totalElapsed)}`, "success");
           consoleLog(body, `─── Job Finished ───`, "success");
           _translationStartTime = 0;
+          _activeController = null;
+          _isPaused = false;
           _stopProgressTimer();
           // Restore buttons
           if (startBtn) startBtn.style.display = "";
@@ -817,6 +835,8 @@ async function startTranslation(body: Element): Promise<void> {
         } else if (event.state === "error") {
           consoleLog(body, `❌ ${i18n.trError} — see details above`, "error");
           _translationStartTime = 0;
+          _activeController = null;
+          _isPaused = false;
           _stopProgressTimer();
           if (startBtn) startBtn.style.display = "";
           if (pauseBtn) pauseBtn.style.display = "none";

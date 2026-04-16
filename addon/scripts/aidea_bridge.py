@@ -922,7 +922,7 @@ def main():
 
         if protect_author_block:
             write_progress(progress_file, make_progress(
-                "running", 0, "Analyzing author/affiliation block...",
+                "running", 6, "Analyzing author/affiliation block...",
                 startTime=time.time(),
             ))
             protected_terms = extract_author_block_terms(pdf_path)
@@ -939,7 +939,7 @@ def main():
         selected_pages_spec = ""
         if skip_references_auto:
             write_progress(progress_file, make_progress(
-                "running", 0, "Detecting references/appendix pages...",
+                "running", 8, "Detecting references/appendix pages...",
                 startTime=time.time(),
             ))
             policy = classify_reference_and_appendix_pages(
@@ -1023,8 +1023,16 @@ def main():
             cmd.extend(["--pool-max-worker", str(pool_max_worker)])
         log_line("Command: " + " ".join(cmd))
 
+        # ── Phased progress mapping ──
+        # Phase 1: Init           →  0 –  5%
+        # Phase 2: Analysis       →  5 – 10%  (ref detection, author block)
+        # Phase 3: Translation    → 10 – 95%  (page-level from pdf2zh_next)
+        # Phase 4: Finalization   → 95 – 100%
+        PHASE_TRANSLATE_START = 10
+        PHASE_TRANSLATE_END = 95
+
         write_progress(progress_file, make_progress(
-            "running", 0, "Initializing translation engine...",
+            "running", 5, "Initializing translation engine...",
             startTime=time.time(),
         ))
 
@@ -1046,12 +1054,21 @@ def main():
             ))
             sys.exit(1)
 
-        last_pct = 0
+        last_raw_pct = 0   # raw page-level pct from stdout (0-100)
+        last_pct = PHASE_TRANSLATE_START  # mapped overall pct
         last_current = None
         last_total = None
         tail_lines = deque(maxlen=80)
+        error_lines = []  # Track ERROR output from pdf2zh_next (full text)
         last_write_time = 0
         WRITE_THROTTLE_SEC = 0.8  # min interval between progress writes
+
+        def _map_page_pct(raw_pct):
+            """Map raw 0–100 page pct to PHASE_TRANSLATE_START – PHASE_TRANSLATE_END."""
+            return PHASE_TRANSLATE_START + int(
+                raw_pct * (PHASE_TRANSLATE_END - PHASE_TRANSLATE_START) / 100
+            )
+
         for line in proc.stdout:
             line = line.rstrip()
             if not line:
@@ -1060,22 +1077,38 @@ def main():
             log_line(line)
             tail_lines.append(line)
 
+            # Track ERROR lines from engine — keep FULL text for debugging
+            is_error_line = bool(re.search(r'\bERROR\b', line))
+            if is_error_line:
+                full_error = _sanitize_log_line(line, max_len=2000)
+                error_lines.append(full_error)
+                # Immediately write error detail to progress (no throttle)
+                write_progress(progress_file, make_progress(
+                    "running", last_pct,
+                    f"⚠ Engine error ({len(error_lines)})",
+                    detail=full_error,
+                    errorCount=len(error_lines),
+                ))
+                last_write_time = time.time()
+                continue
+
             # Parse page progress (e.g. "4/14")
             result = parse_progress(line)
             if result:
-                current, total, pct = result
-                if pct > last_pct:
-                    last_pct = pct
+                current, total, raw_pct = result
+                if raw_pct > last_raw_pct:
+                    last_raw_pct = raw_pct
+                    last_pct = _map_page_pct(raw_pct)
                     last_current = current
                     last_total = total
                     if current is not None and total is not None:
                         message = f"Translating {current}/{total} pages..."
                     else:
-                        message = f"Translating... {pct}%"
+                        message = f"Translating... {raw_pct}%"
                     write_progress(progress_file, make_progress(
-                        "running", pct, message,
+                        "running", last_pct, message,
                         current=current, total=total,
-                        detail=_sanitize_text(line, max_len=300),
+                        detail=_sanitize_text(line, max_len=1000),
                     ))
                     last_write_time = time.time()
                     continue
@@ -1083,15 +1116,15 @@ def main():
             # For non-progress lines: write detail update (throttled)
             now = time.time()
             if now - last_write_time >= WRITE_THROTTLE_SEC:
-                detail_text = _sanitize_text(line, max_len=300)
+                detail_text = _sanitize_text(line, max_len=1000)
                 if detail_text:
                     # Keep message as the last known progress message,
                     # put the raw engine output in detail only.
                     # Omit current/total so TypeScript won't re-print page line.
                     if last_current is not None and last_total is not None:
                         keep_msg = f"Translating {last_current}/{last_total} pages..."
-                    elif last_pct > 0:
-                        keep_msg = f"Translating... {last_pct}%"
+                    elif last_raw_pct > 0:
+                        keep_msg = f"Translating... {last_raw_pct}%"
                     else:
                         keep_msg = "Processing..."
                     write_progress(progress_file, make_progress(
@@ -1107,10 +1140,16 @@ def main():
                 for fn in os.listdir(output_dir):
                     if fn.endswith(".pdf") and ("mono" in fn or "dual" in fn):
                         output_files.append(fn)
-            write_progress(progress_file, make_progress(
+            done_data = make_progress(
                 "done", 100, "Translation complete", outputFiles=output_files,
                 logFile=log_file,
-            ))
+            )
+            # Warn if pdf2zh_next logged ERROR lines (e.g. API failures)
+            if error_lines:
+                done_data["errorCount"] = len(error_lines)
+                done_data["errorLines"] = error_lines[:50]  # keep up to 50 for debugging
+                done_data["hasErrors"] = True
+            write_progress(progress_file, done_data)
         else:
             last_line = _sanitize_text(tail_lines[-1], max_len=220) if tail_lines else ""
             detail = "\n".join(_sanitize_log_line(x, max_len=500) for x in tail_lines).strip()
