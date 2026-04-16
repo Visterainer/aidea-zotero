@@ -407,7 +407,16 @@ export function initTranslateTab(body: Element): void {
   // ── Clear cache button ──
   if (clearBtn) {
     clearBtn.addEventListener("click", async () => {
+      // Block clearing while translation is actively running
+      if (_activeController && !_isPaused) {
+        consoleLog(body, "⚠️ Cannot clear cache while translation is running. Pause or wait for it to finish.", "error");
+        return;
+      }
       try {
+        // Stop active controller if paused
+        if (_activeController) {
+          try { _activeController.abort?.(); } catch { /* ignore */ }
+        }
         // Only clear temp cache files (progress, config, task, log)
         // Do NOT delete the output directory or generated PDFs
         const tempDir = String(PathUtils.tempDir || "").trim();
