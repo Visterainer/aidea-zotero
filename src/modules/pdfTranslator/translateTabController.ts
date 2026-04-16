@@ -15,6 +15,7 @@ import { getPanelI18n } from "../contextPanel/i18n";
 /* ── Per-tab model pref key ── */
 
 const TRANSLATE_MODEL_PREF = "lastUsedModelName.translate";
+const TRANSLATE_PROVIDER_PREF = "lastUsedModelProvider.translate";
 const TRANSLATE_PREFS = {
   skipRefsAuto: "translate.skipReferencesAuto",
   outputDir: "translate.outputDir",
@@ -81,9 +82,23 @@ function getPersistedTranslateModel(): string {
   }
 }
 
+function getPersistedTranslateProvider(): string {
+  try {
+    return String(Zotero.Prefs.get(`${addon.data.config.prefsPrefix}.${TRANSLATE_PROVIDER_PREF}`, true) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 function persistTranslateModel(name: string): void {
   try {
     Zotero.Prefs.set(prefKey(), name, true);
+  } catch { /* ignore */ }
+}
+
+function persistTranslateProvider(providerId: string): void {
+  try {
+    Zotero.Prefs.set(`${addon.data.config.prefsPrefix}.${TRANSLATE_PROVIDER_PREF}`, providerId, true);
   } catch { /* ignore */ }
 }
 
@@ -99,7 +114,9 @@ export function populateTranslateModelSelector(
 ): string {
   const { choices } = getModelChoices();
   const persisted = getPersistedTranslateModel();
+  const persistedProvider = getPersistedTranslateProvider();
   const prevValue = dropdownEl.dataset.value || persisted;
+  const prevProvider = dropdownEl.dataset.providerId || persistedProvider;
 
   const trigger = dropdownEl.querySelector(".llm-tr-dropdown-trigger") as HTMLElement | null;
   const menu = dropdownEl.querySelector(".llm-tr-dropdown-menu") as HTMLElement | null;
@@ -116,29 +133,35 @@ export function populateTranslateModelSelector(
       if (arrow) trigger.appendChild(arrow);
     }
     dropdownEl.dataset.value = "";
+    dropdownEl.dataset.providerId = "";
     return "";
   }
 
   // Group by provider
   let lastProvider = "";
   let selectedModel = "";
+  let selectedProviderId = "";
   const doc = dropdownEl.ownerDocument!;
 
-  const selectItem = (model: string) => {
+  const selectItem = (model: string, providerId: string) => {
     dropdownEl.dataset.value = model;
+    dropdownEl.dataset.providerId = providerId;
     // Update trigger text
     const arrow = trigger!.querySelector(".llm-tr-dropdown-arrow");
     trigger!.textContent = model;
     if (arrow) trigger!.appendChild(arrow);
     // Update selected highlight
     menu!.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
-      (el as HTMLElement).classList.toggle("selected", (el as HTMLElement).dataset.value === model);
+      const elModel = (el as HTMLElement).dataset.value || "";
+      const elProvider = (el as HTMLElement).dataset.providerId || "";
+      (el as HTMLElement).classList.toggle("selected", elModel === model && elProvider === providerId);
     });
     // Close menu
     menu!.style.display = "none";
     dropdownEl.classList.remove("open");
     // Persist
     persistTranslateModel(model);
+    persistTranslateProvider(providerId);
   };
 
   for (const entry of choices) {
@@ -154,21 +177,34 @@ export function populateTranslateModelSelector(
     const item = doc.createElementNS("http://www.w3.org/1999/xhtml", "div") as HTMLDivElement;
     item.className = "llm-tr-dropdown-item";
     item.dataset.value = entry.model;
+    item.dataset.providerId = entry.providerId || "";
     item.textContent = entry.model;
-    item.addEventListener("click", () => selectItem(entry.model));
+    item.addEventListener("click", () => selectItem(entry.model, entry.providerId || ""));
     menu.appendChild(item);
 
-    if (entry.model === prevValue || entry.model.toLowerCase() === prevValue.toLowerCase()) {
+    // Match by model + providerId for disambiguation
+    if (
+      (entry.model === prevValue || entry.model.toLowerCase() === prevValue.toLowerCase()) &&
+      (!prevProvider || entry.providerId === prevProvider)
+    ) {
       selectedModel = entry.model;
+      selectedProviderId = entry.providerId || "";
+    } else if (
+      !selectedModel &&
+      (entry.model === prevValue || entry.model.toLowerCase() === prevValue.toLowerCase())
+    ) {
+      selectedModel = entry.model;
+      selectedProviderId = entry.providerId || "";
     }
   }
 
   // Apply selection
   if (!selectedModel) {
     selectedModel = choices[0]?.model || "";
+    selectedProviderId = choices[0]?.providerId || "";
   }
   if (selectedModel) {
-    selectItem(selectedModel);
+    selectItem(selectedModel, selectedProviderId);
   }
 
   return selectedModel;
@@ -610,6 +646,7 @@ async function startTranslation(body: Element): Promise<void> {
   // Gather parameters
   const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   const modelName = modelSelect?.dataset.value || "";
+  const modelProviderId = modelSelect?.dataset.providerId || "";
   if (!modelName) {
     consoleLog(body, "⚠️ No model selected — go to Settings tab to configure LLM models", "error");
     return;
@@ -664,7 +701,7 @@ async function startTranslation(body: Element): Promise<void> {
   const { resolveModelCredentialsOrThrow } = await import("./modelResolver");
   let creds;
   try {
-    creds = await resolveModelCredentialsOrThrow(modelName);
+    creds = await resolveModelCredentialsOrThrow(modelName, modelProviderId || undefined);
   } catch (err) {
     consoleLog(body, `❌ Failed to resolve credentials: ${err}`, "error");
     return;

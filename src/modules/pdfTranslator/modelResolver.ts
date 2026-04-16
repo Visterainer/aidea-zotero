@@ -279,16 +279,25 @@ async function resolveFromProfiles(modelName: string): Promise<TranslateCredenti
  */
 export async function resolveModelCredentials(
   modelName: string,
+  providerId?: string,
 ): Promise<TranslateCredentials | null> {
   if (!modelName) return null;
 
   const { choices } = getModelChoices();
   const normalized = normalizeModelId(modelName);
 
-  // Find exact match first, then normalized
-  const entry: ModelChoice | undefined =
-    choices.find((c) => c.model === modelName) ||
-    choices.find((c) => normalizeModelId(c.model) === normalized);
+  // Find match: prefer providerId-exact match if given, then name-only
+  let entry: ModelChoice | undefined;
+  if (providerId) {
+    entry =
+      choices.find((c) => c.model === modelName && c.providerId === providerId) ||
+      choices.find((c) => normalizeModelId(c.model) === normalized && c.providerId === providerId);
+  }
+  if (!entry) {
+    entry =
+      choices.find((c) => c.model === modelName) ||
+      choices.find((c) => normalizeModelId(c.model) === normalized);
+  }
 
   if (!entry) return null;
 
@@ -324,8 +333,9 @@ export async function resolveModelCredentials(
  */
 export async function resolveModelCredentialsOrThrow(
   modelName: string,
+  providerId?: string,
 ): Promise<TranslateCredentials> {
-  const creds = await resolveModelCredentials(modelName);
+  const creds = await resolveModelCredentials(modelName, providerId);
   if (!creds) {
     const guessedProvider = detectOAuthProviderForModel(modelName);
     const providerHint = guessedProvider
