@@ -135,6 +135,7 @@ export function pickBestDefaultModel(choices: ModelChoice[]): string {
   const parseGptVersion = (model: string): number | null => {
     const m = model.match(/^gpt-(\d+(?:\.\d+)?)/i);
     if (!m) return null;
+    if (!m[1].includes(".") && m[1].length > 1) return null;
     return parseFloat(m[1]);
   };
   const isCodexSuffix = (model: string): boolean =>

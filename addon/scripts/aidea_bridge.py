@@ -114,6 +114,27 @@ ORG_KEYWORD_RE = re.compile(
 )
 
 
+PERSON_TOKEN_RE = re.compile(r"^[A-Z][A-Za-z'鈥?\-]*$")
+AUTHOR_MARKER_RE = re.compile(r"[\*\u2020\u2021\d]+$")
+AUTHOR_ENTITY_SPLIT_RE = re.compile(r"[;,|/]+")
+PERSON_NAME_STOPWORDS = {
+    "Abstract",
+    "All",
+    "And",
+    "Attention",
+    "Figure",
+    "Introduction",
+    "Need",
+    "Provided",
+    "The",
+    "You",
+}
+LICENSE_LINE_RE = re.compile(
+    r"(provided\s+proper\s+attribution|grants?\s+permission|journalistic|scholarly\s+works?|reproduce\s+the\s+tables?\s+and\s+figures?)",
+    re.IGNORECASE,
+)
+
+
 def _as_bool(value, default=False):
     if isinstance(value, bool):
         return value
@@ -325,6 +346,59 @@ def build_pages_spec(page_numbers):
     return ",".join(f"{s}-{e}" if s != e else str(s) for s, e in ranges)
 
 
+def _looks_like_person_name(line):
+    cleaned = _sanitize_text(line, max_len=180)
+    if not cleaned or LICENSE_LINE_RE.search(cleaned):
+        return False
+    if ORG_KEYWORD_RE.search(cleaned):
+        return False
+    tokens = cleaned.split()
+    if len(tokens) < 2 or len(tokens) > 5:
+        return False
+    normalized = []
+    for token in tokens:
+        stripped = AUTHOR_MARKER_RE.sub("", token).strip("()[]{}.,:")
+        if not stripped:
+            continue
+        if not PERSON_TOKEN_RE.match(stripped):
+            return False
+        if stripped in PERSON_NAME_STOPWORDS:
+            return False
+        normalized.append(stripped)
+    return len(normalized) >= 2
+
+
+def _collect_author_block_terms_from_lines(lines, max_terms=60):
+    terms = []
+    for raw_line in lines[:140]:
+        line = _sanitize_text(raw_line, max_len=180)
+        if not line:
+            continue
+        lower = line.lower()
+        if lower.startswith(("abstract", "keywords", "introduction")):
+            break
+        if len(line) > 140 or LICENSE_LINE_RE.search(line):
+            continue
+        if "@" in line:
+            for m in EMAIL_RE.finditer(line):
+                terms.append(m.group(0))
+            continue
+        if ORG_KEYWORD_RE.search(line) and len(line.split()) <= 8:
+            terms.append(line)
+            continue
+        if AUTHOR_ENTITY_SPLIT_RE.search(line):
+            for chunk in AUTHOR_ENTITY_SPLIT_RE.split(line):
+                chunk = _sanitize_text(chunk, max_len=120)
+                if _looks_like_person_name(chunk):
+                    terms.append(chunk)
+            continue
+        if _looks_like_person_name(line):
+            terms.append(line)
+        if len(terms) >= max_terms:
+            break
+    return _unique_keep_order(terms)[:max_terms]
+
+
 def extract_author_block_terms(pdf_path, max_pages=2, max_terms=60):
     if fitz is None:
         return []
@@ -333,43 +407,29 @@ def extract_author_block_terms(pdf_path, max_pages=2, max_terms=60):
     except Exception:
         return []
 
-    terms = []
     try:
         for page_index in range(min(max_pages, len(doc))):
             text = doc[page_index].get_text("text") or ""
-            lines = [_sanitize_text(line, max_len=180) for line in text.splitlines()]
-            lines = [line for line in lines if line]
-            for line in lines[:140]:
-                lower = line.lower()
-                if lower.startswith(("abstract", "keywords", "introduction")):
-                    break
-                if len(line) > 140:
-                    continue
-                if "@" in line:
-                    for m in EMAIL_RE.finditer(line):
-                        terms.append(m.group(0))
-                    terms.append(line)
-                    continue
-                if ORG_KEYWORD_RE.search(line):
-                    terms.append(line)
-                    continue
-                if PERSON_LINE_RE.match(line):
-                    terms.append(line)
-            if len(terms) >= max_terms:
-                break
+            lines = [line for line in text.splitlines() if _sanitize_text(line)]
+            terms = _collect_author_block_terms_from_lines(lines, max_terms=max_terms)
+            if terms:
+                return terms[:max_terms]
     finally:
         doc.close()
 
-    return _unique_keep_order(terms)[:max_terms]
+    return []
 
 
 def build_author_protection_prompt(terms):
     lines = [
         "Translation constraints:",
         "1. Do NOT translate person names, institutional names, email addresses, URLs, DOI/arXiv IDs.",
-        "2. Keep author-affiliation blocks unchanged, including punctuation and spacing.",
+        "2. You MAY translate surrounding title-page prose, copyright notices, headings, and abstract text.",
         "3. Preserve footnote markers in author metadata (*, †, ‡, superscript numbers).",
     ]
+    lines.append(
+        "4. Keep only the protected entities below exactly as-is; do not preserve the full surrounding line unless every token is protected."
+    )
     protected = _unique_keep_order(terms)
     if protected:
         lines.append("Protected terms (keep exactly as-is):")
@@ -434,6 +494,90 @@ def _http_post_json(url, payload, headers, timeout=180):
     except urllib.error.HTTPError as err:
         body = err.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"HTTP {err.code} from {url}: {body}") from err
+
+
+_RETRYABLE_HTTP_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+_RETRYABLE_ERROR_MESSAGE_FRAGMENTS = (
+    "unexpected_eof_while_reading",
+    "eof occurred in violation of protocol",
+    "remote end closed connection without response",
+    "connection reset by peer",
+    "connection aborted",
+    "temporarily unavailable",
+    "tlsv1 alert",
+    "sslv3 alert",
+    "timed out",
+    "timeout",
+)
+
+
+def _extract_http_status_code(exc):
+    if isinstance(exc, urllib.error.HTTPError):
+        return int(exc.code)
+    if not isinstance(exc, RuntimeError):
+        return None
+    match = re.search(r"\bHTTP\s+(\d{3})\b", str(exc))
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except Exception:
+        return None
+
+
+def _is_retryable_transport_error(exc):
+    status_code = _extract_http_status_code(exc)
+    if status_code in _RETRYABLE_HTTP_STATUS_CODES:
+        return True
+    message = str(exc).lower()
+    return any(fragment in message for fragment in _RETRYABLE_ERROR_MESSAGE_FRAGMENTS)
+
+
+def _http_post_json_with_retry(
+    url,
+    payload,
+    headers,
+    timeout=180,
+    max_attempts=4,
+    base_delay_sec=1.0,
+):
+    attempt = 1
+    while True:
+        try:
+            return _http_post_json(url, payload, headers, timeout=timeout)
+        except Exception as exc:
+            if attempt >= max_attempts or not _is_retryable_transport_error(exc):
+                raise
+            wait_sec = min(base_delay_sec * (2 ** (attempt - 1)), 6.0)
+            wait_sec += random.uniform(0.0, 0.25)
+            print(
+                f"[AIdea] transient upstream error from {url}; retrying "
+                f"{attempt}/{max_attempts - 1} in {wait_sec:.2f}s: {exc}",
+                file=sys.stderr,
+            )
+            time.sleep(wait_sec)
+            attempt += 1
+
+
+_BENIGN_PDF2ZH_CLEANUP_TRACE_FRAGMENTS = (
+    "ERROR:asyncio:Task exception",
+    "was never retrieved",
+    "future: <Task finished",
+    "name='Task-",
+    "coro=<<async_generator_athrow",
+    "exception=SubprocessCrashError",
+    "Traceback (most recent call last):",
+    "GeneratorExit",
+    "During handling of the above exception",
+    "Translation subprocess crashed with exit code -15",
+    "exit code: -15",
+    "high_level.py\", line",
+)
+
+
+def _is_benign_pdf2zh_cleanup_trace_line(line):
+    text = str(line or "")
+    return any(fragment in text for fragment in _BENIGN_PDF2ZH_CLEANUP_TRACE_FRAGMENTS)
 
 
 def _build_codex_instructions(messages):
@@ -623,6 +767,186 @@ def _extract_gemini_text_from_sse(raw):
     return "".join(out)
 
 
+COPILOT_EDITOR_VERSION = "vscode/1.96.2"
+COPILOT_USER_AGENT = "GitHubCopilotChat/0.26.7"
+COPILOT_DEFAULT_API_BASE = "https://api.individual.githubcopilot.com"
+
+
+def _build_copilot_ide_headers():
+    return {
+        "Editor-Version": COPILOT_EDITOR_VERSION,
+        "User-Agent": COPILOT_USER_AGENT,
+    }
+
+
+def _build_copilot_dynamic_headers():
+    headers = dict(_build_copilot_ide_headers())
+    headers["Copilot-Integration-Id"] = "vscode-chat"
+    headers["Openai-Intent"] = "conversation-edits"
+    return headers
+
+
+def _derive_copilot_api_base_url(token):
+    token_text = str(token or "").strip()
+    match = re.search(r"(?:^|;)\s*proxy-ep=([^;\s]+)", token_text, re.IGNORECASE)
+    proxy_ep = match.group(1).strip() if match else ""
+    if not proxy_ep:
+        return COPILOT_DEFAULT_API_BASE
+    host = re.sub(r"^https?://", "", proxy_ep, flags=re.IGNORECASE)
+    host = re.sub(r"^proxy\.", "api.", host, flags=re.IGNORECASE)
+    return f"https://{host}" if host else COPILOT_DEFAULT_API_BASE
+
+
+def _normalize_copilot_supported_endpoints(values):
+    if not isinstance(values, list):
+        return []
+    normalized = []
+    for value in values:
+        text = str(value or "").strip().lower()
+        if text:
+            normalized.append(text)
+    return normalized
+
+
+def _is_copilot_claude_model(model):
+    return str(model or "").strip().lower().startswith("claude-")
+
+
+def _resolve_copilot_transport_kind(model, supported_endpoints=None):
+    if _is_copilot_claude_model(model):
+        return "anthropic-messages"
+
+    supported = set(_normalize_copilot_supported_endpoints(supported_endpoints))
+    if "/responses" in supported:
+        return "responses"
+    if "/chat/completions" in supported:
+        return "chat-completions"
+
+    normalized = str(model or "").strip().lower()
+    if (
+        normalized.startswith("gemini-")
+        or normalized.startswith("grok-")
+        or normalized.startswith("gpt-4")
+        or normalized.startswith("gpt-3.5")
+    ):
+        return "chat-completions"
+
+    return "responses"
+
+
+def _build_copilot_instructions(messages):
+    parts = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        if str(msg.get("role", "")).strip().lower() != "system":
+            continue
+        text = _extract_text_from_openai_content(msg.get("content")).strip()
+        if text:
+            parts.append(text)
+    if parts:
+        return "\n\n".join(parts)
+    return ""
+
+
+def _build_copilot_responses_input(messages):
+    items = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role", "")).strip().lower()
+        if role not in ("user", "assistant"):
+            continue
+        text = _extract_text_from_openai_content(msg.get("content")).strip()
+        if not text:
+            continue
+        content_type = "output_text" if role == "assistant" else "input_text"
+        items.append({
+            "role": role,
+            "content": [{"type": content_type, "text": text}],
+        })
+    if not items:
+        items.append({
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Translate this text."}],
+        })
+    return items
+
+
+def _build_copilot_anthropic_messages(messages):
+    anthropic_messages = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role", "")).strip().lower()
+        if role == "system":
+            continue
+        if role not in ("user", "assistant"):
+            role = "user"
+        text = _extract_text_from_openai_content(msg.get("content")).strip()
+        if not text:
+            continue
+        last = anthropic_messages[-1] if anthropic_messages else None
+        if last and last.get("role") == role:
+            last["content"] += f"\n{text}"
+        else:
+            anthropic_messages.append({"role": role, "content": text})
+    if not anthropic_messages:
+        anthropic_messages.append({"role": "user", "content": "Translate this text."})
+    return anthropic_messages
+
+
+def _extract_openai_chat_text(data):
+    if not isinstance(data, dict):
+        return ""
+    choices = data.get("choices")
+    if not isinstance(choices, list):
+        return ""
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                text = part.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+            if parts:
+                return "\n".join(parts)
+    return ""
+
+
+def _extract_anthropic_text(data):
+    if not isinstance(data, dict):
+        return ""
+    content = data.get("content")
+    if not isinstance(content, list):
+        return ""
+    parts = []
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        if str(part.get("type", "")).strip().lower() == "text":
+            text = part.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "\n".join(parts).strip()
+
+
+def _coerce_max_output_tokens(value, default_value):
+    if isinstance(value, (int, float)):
+        return max(16, int(value))
+    return default_value
+
+
 def _to_openai_completion_text_response(model, text):
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
@@ -666,7 +990,7 @@ def _to_openai_completion_stream_chunks(model, text):
 
 
 class OAuthCompatProxyServer:
-    """Temporary local OpenAI-compatible adapter for OAuth-only providers."""
+    """Temporary local OpenAI-compatible adapter for OAuth and proxied API providers."""
 
     GEMINI_STREAM_URL = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
     CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
@@ -740,11 +1064,43 @@ class OAuthCompatProxyServer:
 
     def handle_chat_completion(self, payload):
         provider = str(self.proxy_cfg.get("provider", "")).strip()
+        if provider == "openai-compatible":
+            return self._forward_openai_compatible(payload)
         if provider == "openai-codex":
             return self._forward_codex(payload)
         if provider == "google-gemini-cli":
             return self._forward_gemini(payload)
+        if provider == "github-copilot":
+            return self._forward_copilot(payload)
         raise RuntimeError(f"Unsupported OAuth proxy provider: {provider}")
+
+    def _forward_openai_compatible(self, payload):
+        base_url = str(self.proxy_cfg.get("apiBase", "")).strip().rstrip("/")
+        if not base_url:
+            raise RuntimeError("Missing API base URL for openai-compatible proxy")
+
+        api_key = str(self.proxy_cfg.get("apiKey", "")).strip()
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        raw = _http_post_json_with_retry(
+            f"{base_url}/chat/completions",
+            payload,
+            headers,
+            timeout=300,
+        )
+        try:
+            data = json.loads(raw)
+        except Exception:
+            data = {}
+        text = _extract_openai_chat_text(data).strip()
+        if not text:
+            raise RuntimeError("OpenAI-compatible response did not contain output text")
+        return text
 
     def _forward_codex(self, payload):
         access_token = str(self.proxy_cfg.get("accessToken", "")).strip()
@@ -771,7 +1127,7 @@ class OAuthCompatProxyServer:
         if account_id:
             headers["ChatGPT-Account-Id"] = account_id
 
-        raw = _http_post_json(self.CODEX_URL, req_body, headers, timeout=300)
+        raw = _http_post_json_with_retry(self.CODEX_URL, req_body, headers, timeout=300)
         text = _extract_codex_output_text_from_sse(raw).strip()
         if not text:
             try:
@@ -825,7 +1181,7 @@ class OAuthCompatProxyServer:
             "Accept": "text/event-stream",
             "User-Agent": f"AIdea/1.0/{model}",
         }
-        raw = _http_post_json(self.GEMINI_STREAM_URL, req_body, headers, timeout=300)
+        raw = _http_post_json_with_retry(self.GEMINI_STREAM_URL, req_body, headers, timeout=300)
         text = _extract_gemini_text_from_sse(raw).strip()
         if not text:
             try:
@@ -835,6 +1191,114 @@ class OAuthCompatProxyServer:
             text = _extract_gemini_text_from_json(data).strip()
         if not text:
             raise RuntimeError("Gemini OAuth response did not contain output text")
+        return text
+
+    def _forward_copilot(self, payload):
+        access_token = str(self.proxy_cfg.get("accessToken", "")).strip()
+        if not access_token:
+            raise RuntimeError("Missing OAuth access token for github-copilot")
+
+        base_url = str(self.proxy_cfg.get("apiBase", "")).strip()
+        if not base_url:
+            base_url = _derive_copilot_api_base_url(access_token)
+        base_url = base_url.rstrip("/")
+
+        model = str(payload.get("model", "")).strip()
+        messages = payload.get("messages")
+        if not isinstance(messages, list):
+            messages = []
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **_build_copilot_dynamic_headers(),
+        }
+        transport_kind = _resolve_copilot_transport_kind(
+            model,
+            self.proxy_cfg.get("supportedEndpoints"),
+        )
+        max_tokens = payload.get("max_tokens")
+        response_format = payload.get("response_format")
+
+        if transport_kind == "anthropic-messages":
+            req_body = {
+                "model": model,
+                "messages": _build_copilot_anthropic_messages(messages),
+                "max_tokens": _coerce_max_output_tokens(max_tokens, 8192),
+                "stream": False,
+            }
+            instructions = _build_copilot_instructions(messages)
+            if instructions:
+                req_body["system"] = instructions
+            raw = _http_post_json_with_retry(
+                f"{base_url}/v1/messages",
+                req_body,
+                headers,
+                timeout=300,
+            )
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = {}
+            text = _extract_anthropic_text(data).strip()
+            if not text:
+                raise RuntimeError("Copilot Anthropic response did not contain output text")
+            return text
+
+        if transport_kind == "chat-completions":
+            req_body = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+            }
+            if isinstance(max_tokens, (int, float)):
+                req_body["max_tokens"] = max(1, int(max_tokens))
+            if isinstance(response_format, dict) and response_format:
+                req_body["response_format"] = response_format
+            raw = _http_post_json_with_retry(
+                f"{base_url}/chat/completions",
+                req_body,
+                headers,
+                timeout=300,
+            )
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = {}
+            text = _extract_openai_chat_text(data).strip()
+            if not text:
+                raise RuntimeError("Copilot chat/completions response did not contain output text")
+            return text
+
+        req_body = {
+            "model": model,
+            "input": _build_copilot_responses_input(messages),
+            "stream": False,
+        }
+        instructions = _build_copilot_instructions(messages)
+        if instructions:
+            req_body["instructions"] = instructions
+        if isinstance(max_tokens, (int, float)):
+            req_body["max_output_tokens"] = _coerce_max_output_tokens(max_tokens, 16)
+        if (
+            isinstance(response_format, dict)
+            and str(response_format.get("type", "")).strip().lower() == "json_object"
+        ):
+            req_body["text"] = {"format": {"type": "json_object"}}
+        raw = _http_post_json_with_retry(
+            f"{base_url}/responses",
+            req_body,
+            headers,
+            timeout=300,
+        )
+        try:
+            data = json.loads(raw)
+        except Exception:
+            data = {}
+        text = _extract_codex_output_text(data).strip()
+        if not text:
+            raise RuntimeError("Copilot Responses API response did not contain output text")
         return text
 
 
@@ -1062,6 +1526,7 @@ def main():
         error_lines = []  # Track ERROR output from pdf2zh_next (full text)
         last_write_time = 0
         WRITE_THROTTLE_SEC = 0.8  # min interval between progress writes
+        suppress_cleanup_trace = False
 
         def _map_page_pct(raw_pct):
             """Map raw 0–100 page pct to PHASE_TRANSLATE_START – PHASE_TRANSLATE_END."""
@@ -1073,6 +1538,14 @@ def main():
             line = line.rstrip()
             if not line:
                 continue
+
+            if "Translate process did not finish in time, terminate it" in line:
+                suppress_cleanup_trace = True
+            elif suppress_cleanup_trace and _is_benign_pdf2zh_cleanup_trace_line(line):
+                continue
+            else:
+                suppress_cleanup_trace = False
+
             print(line, flush=True)
             log_line(line)
             tail_lines.append(line)

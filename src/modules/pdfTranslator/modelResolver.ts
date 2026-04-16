@@ -20,10 +20,17 @@ import {
 
 /** Credentials needed by the pdf2zh_next translation engine. */
 export interface OAuthProxyConfig {
-  provider: "openai-codex" | "google-gemini-cli";
+  provider:
+    | "openai-codex"
+    | "google-gemini-cli"
+    | "github-copilot"
+    | "openai-compatible";
   accessToken: string;
   accountId?: string;
   projectId?: string;
+  apiBase?: string;
+  apiKey?: string;
+  supportedEndpoints?: string[];
 }
 
 export interface TranslateCredentials {
@@ -39,7 +46,7 @@ export interface TranslateCredentials {
    */
   apiUrl: string;
   /**
-   * Optional one-shot OAuth proxy metadata.
+   * Optional one-shot local proxy metadata.
    * When present, bridge.py starts a temporary local adapter and rewrites
    * config.toml to point pdf2zh_next to that adapter.
    */
@@ -83,12 +90,19 @@ function getStringPref(key: string): string {
   }
 }
 
+type CachedOAuthModelRow = {
+  id: string;
+  apiBase?: string;
+  apiKey?: string;
+  supportedEndpoints?: string[];
+};
+
 function parseOAuthModelCache():
-  Partial<Record<OAuthProviderId, Array<{ id: string; apiBase?: string; apiKey?: string }>>> {
+  Partial<Record<OAuthProviderId, CachedOAuthModelRow[]>> {
   const raw = getStringPref("oauthModelListCache").trim();
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Partial<Record<OAuthProviderId, Array<{ id: string; apiBase?: string; apiKey?: string }>>>;
+    const parsed = JSON.parse(raw) as Partial<Record<OAuthProviderId, CachedOAuthModelRow[]>>;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -127,12 +141,25 @@ function inferProviderFromModelName(modelName: string): OAuthProviderId | null {
 function modelExistsInProviderCache(
   provider: OAuthProviderId,
   modelName: string,
-  cache: Partial<Record<OAuthProviderId, Array<{ id: string }>>>,
+  cache: Partial<Record<OAuthProviderId, CachedOAuthModelRow[]>>,
 ): boolean {
   const models = cache[provider];
   if (!Array.isArray(models)) return false;
   const normalizedModel = normalizeModelId(modelName);
   return models.some((row) => normalizeModelId(String(row.id || "")) === normalizedModel);
+}
+
+function getCachedProviderModel(
+  provider: OAuthProviderId,
+  modelName: string,
+  cache: Partial<Record<OAuthProviderId, CachedOAuthModelRow[]>>,
+): CachedOAuthModelRow | null {
+  const models = cache[provider];
+  if (!Array.isArray(models)) return null;
+  const normalizedModel = normalizeModelId(modelName);
+  return (
+    models.find((row) => normalizeModelId(String(row.id || "")) === normalizedModel) || null
+  );
 }
 
 function detectOAuthProviderForModel(
@@ -179,8 +206,9 @@ async function resolveOAuthProviderCredentials(
   const credential = await readProviderOAuthCredential(provider);
   if (!credential?.accessToken) return null;
 
-  // Codex/Gemini are not OpenAI-compatible endpoints; route through
-  // a short-lived local adapter started by bridge.py.
+  // OAuth-backed providers need a short-lived local adapter started by bridge.py.
+  // This keeps pdf2zh_next on its fixed /chat/completions client while we
+  // translate upstream auth and endpoint requirements per provider/model.
   if (provider === "openai-codex") {
     return {
       modelId,
@@ -207,17 +235,26 @@ async function resolveOAuthProviderCredentials(
     };
   }
 
-  // Copilot is OpenAI-compatible directly: use resolved base URL + token.
   if (provider === "github-copilot") {
     const pingInfo = await getOAuthProviderPingInfo(provider);
     if (!pingInfo?.apiBase) return null;
     const tokenFromPing = extractBearerToken(pingInfo.headers || {});
     const token = tokenFromPing || credential.accessToken;
     if (!token) return null;
+    const cache = parseOAuthModelCache();
+    const cachedModel = getCachedProviderModel(provider, modelId, cache);
     return {
       modelId,
-      apiKey: token,
-      apiUrl: normalizeApiBaseUrl(pingInfo.apiBase),
+      apiKey: "aidea-oauth-proxy",
+      apiUrl: "http://127.0.0.1:1/v1",
+      oauthProxy: {
+        provider,
+        accessToken: token,
+        apiBase: normalizeApiBaseUrl(pingInfo.apiBase),
+        supportedEndpoints: Array.isArray(cachedModel?.supportedEndpoints)
+          ? cachedModel?.supportedEndpoints
+          : undefined,
+      },
     };
   }
 
@@ -240,8 +277,14 @@ async function resolveFromApiBaseAndKey(
 
   return {
     modelId,
-    apiKey,
-    apiUrl: normalizeApiBaseUrl(apiBase),
+    apiKey: "aidea-oauth-proxy",
+    apiUrl: "http://127.0.0.1:1/v1",
+    oauthProxy: {
+      provider: "openai-compatible",
+      accessToken: "",
+      apiKey,
+      apiBase: normalizeApiBaseUrl(apiBase),
+    },
   };
 }
 

@@ -104,13 +104,24 @@ console.log("\n=== modelResolver: resolveModelCredentials structure ===");
   // Verify the TranslateCredentials interface shape
   const creds = {
     modelId: "gemini-2.5-pro",
-    apiKey: "test-token-123",
-    apiUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    apiKey: "aidea-oauth-proxy",
+    apiUrl: "http://127.0.0.1:1/v1",
+    oauthProxy: {
+      provider: "openai-compatible",
+      accessToken: "",
+      apiKey: "test-token-123",
+      apiBase: "https://generativelanguage.googleapis.com/v1beta/openai",
+    },
   };
   assert(typeof creds.modelId === "string", "has modelId");
   assert(typeof creds.apiKey === "string", "has apiKey");
   assert(typeof creds.apiUrl === "string", "has apiUrl");
-  assert(creds.apiUrl.includes("/v1beta/"), "apiUrl preserves version");
+  assert(creds.apiUrl === "http://127.0.0.1:1/v1", "apiUrl now points at local proxy");
+  assert(creds.oauthProxy.provider === "openai-compatible", "direct API path can use local proxy");
+  assert(
+    creds.oauthProxy.apiBase.includes("/v1beta/"),
+    "proxied upstream apiBase preserves version",
+  );
 }
 
 /* ── Summary ── */

@@ -10,7 +10,7 @@
 
 import type { ProgressData } from "./types";
 
-const DEFAULT_INTERVAL_MS = 2000;
+const DEFAULT_INTERVAL_MS = 500;
 
 /** Minimal subset of IOUtils we need (Gecko global) */
 declare const IOUtils: {
@@ -32,6 +32,7 @@ export class ProgressPoller {
   start(): void {
     if (this.timer) return;                       // already running
     this.lastKey = "";                            // reset dedup on fresh start
+    void this.tick();
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
 

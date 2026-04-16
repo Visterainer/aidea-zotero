@@ -76,6 +76,7 @@ export function getOpenAICodexDefaultModelIds(modelIds: string[]): string[] {
   for (const [index, modelId] of modelIds.entries()) {
     const version = parseGptVersion(modelId);
     if (version === null) {
+      if (/^gpt-/i.test(modelId)) continue;
       nonGpt.push(modelId);
       continue;
     }
@@ -149,10 +150,13 @@ export function getDefaultSelectedModelIds(
     ),
     ...modelIds.filter((id) => /^grok-/i.test(id)),
   ];
-  return canonicalizeSelectedModelIds(
-    selected.filter((value): value is string => Boolean(value)),
-    models,
+  const filteredSelected = selected.filter(
+    (value): value is string => Boolean(value),
   );
+  if (filteredSelected.length === 0) {
+    return canonicalizeSelectedModelIds(modelIds, models);
+  }
+  return canonicalizeSelectedModelIds(filteredSelected, models);
 }
 
 export function reconcileProviderModelSelection(
@@ -253,6 +257,7 @@ function dedupeModelIds(modelIds: string[]): string[] {
 function parseGptVersion(model: string): number | null {
   const match = model.match(/^gpt-(\d+(?:\.\d+)?)/i);
   if (!match) return null;
+  if (!match[1].includes(".") && match[1].length > 1) return null;
   const version = parseFloat(match[1]);
   return Number.isFinite(version) ? version : null;
 }

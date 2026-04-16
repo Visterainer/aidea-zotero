@@ -1,4 +1,5 @@
 import { runShellCommand, currentPlatform, escapeShellArg } from "./processRunner";
+import { fetchWithTransientRetry } from "./transientRetry";
 
 declare const Zotero: any;
 declare const ztoolkit: any;
@@ -81,6 +82,8 @@ export type ProviderModelOption = {
   label: string;
   apiBase?: string;
   apiKey?: string;
+  supportedEndpoints?: string[];
+  policyState?: "enabled" | "disabled";
   /** In-memory only — not persisted; set by ping test. */
   status?: "ok" | "fail" | "testing";
 };
@@ -1262,6 +1265,101 @@ function getCopilotApiTokenCache(): { token: string; expiresAt: number } | null 
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const DEFAULT_COPILOT_API_BASE = "https://api.individual.githubcopilot.com";
 
+// IDE headers matching OpenClaw's copilot-dynamic-headers.ts to ensure Copilot
+// accepts all model families (Claude, GPT, Gemini, etc.).
+const COPILOT_EDITOR_VERSION = "vscode/1.96.2";
+const COPILOT_USER_AGENT = "GitHubCopilotChat/0.26.7";
+const COPILOT_GITHUB_API_VERSION = "2025-04-01";
+
+/** Build the set of headers that identify this client as a VSCode Copilot Chat session. */
+function buildCopilotIdeHeaders(opts?: { includeApiVersion?: boolean }): Record<string, string> {
+  return {
+    "Editor-Version": COPILOT_EDITOR_VERSION,
+    "User-Agent": COPILOT_USER_AGENT,
+    ...(opts?.includeApiVersion ? { "X-Github-Api-Version": COPILOT_GITHUB_API_VERSION } : {}),
+  };
+}
+
+/** Build dynamic per-request headers for Copilot chat/completions calls. */
+function buildCopilotDynamicHeaders(): Record<string, string> {
+  return {
+    ...buildCopilotIdeHeaders(),
+    "Copilot-Integration-Id": "vscode-chat",
+    "Openai-Intent": "conversation-edits",
+  };
+}
+
+/** Check if a model ID belongs to the Claude / Anthropic family. */
+function isCopilotClaudeModel(modelId: string): boolean {
+  return /^claude-/i.test(modelId.trim());
+}
+
+// Observed in live Copilot probes on 2026-04-16: these model ids appear in the
+// catalog but currently return `model_not_supported` for actual inference calls.
+const COPILOT_SUPPRESSED_MODEL_IDS = new Set([
+  "claude-opus-4.5",
+  "claude-sonnet-4",
+  "claude-sonnet-4.5",
+  "gpt-41-copilot",
+]);
+
+async function postCopilotRequest(params: {
+  url: string;
+  headers: Record<string, string>;
+  payload: Record<string, unknown>;
+  signal?: AbortSignal;
+}): Promise<Response> {
+  const res = await fetchWithTransientRetry(
+    getFetch(),
+    params.url,
+    {
+      method: "POST",
+      headers: params.headers,
+      body: JSON.stringify(params.payload),
+      signal: params.signal,
+    },
+    {
+      signal: params.signal,
+      onRetry: ({ attempt, maxAttempts, error }) => {
+        ztoolkit?.log?.(
+          `AIdea: Copilot transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+          error,
+        );
+      },
+    },
+  );
+  if (res.ok) return res;
+  const errText = await res.text();
+  throw new Error(`Copilot OAuth HTTP ${res.status}: ${errText}`);
+}
+
+function shouldSendCopilotTemperature(_model: string): boolean {
+  return false;
+}
+
+async function postCopilotWithTemperatureFallback(params: {
+  url: string;
+  headers: Record<string, string>;
+  payload: Record<string, unknown>;
+  signal?: AbortSignal;
+}): Promise<Response> {
+  return postCopilotRequest(params);
+}
+
+function applyCopilotTemperatureIfSupported(
+  payload: Record<string, unknown>,
+  model: string,
+  temperature: number | undefined,
+) {
+  if (
+    shouldSendCopilotTemperature(model) &&
+    typeof temperature === "number" &&
+    Number.isFinite(temperature)
+  ) {
+    payload.temperature = temperature;
+  }
+}
+
 function deriveCopilotApiBaseUrl(token: string): string {
   const match = token.match(/(?:^|;)\s*proxy-ep=([^;\s]+)/i);
   const proxyEp = match?.[1]?.trim();
@@ -1275,13 +1373,26 @@ async function exchangeCopilotToken(githubToken: string): Promise<{
   expiresAt: number;
   baseUrl: string;
 }> {
-  const res = await getFetch()(COPILOT_TOKEN_URL, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${githubToken}`,
+  const res = await fetchWithTransientRetry(
+    getFetch(),
+    COPILOT_TOKEN_URL,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${githubToken}`,
+        ...buildCopilotIdeHeaders({ includeApiVersion: true }),
+      },
     },
-  });
+    {
+      onRetry: ({ attempt, maxAttempts, error }) => {
+        ztoolkit?.log?.(
+          `AIdea: Copilot token exchange transient error, retry ${attempt}/${maxAttempts - 1}`,
+          error,
+        );
+      },
+    },
+  );
   if (!res.ok) {
     throw new Error(`Copilot token exchange failed: HTTP ${res.status}`);
   }
@@ -1347,9 +1458,38 @@ export function parseCopilotModelsResponse(data: unknown): ProviderModelOption[]
       .map((row: any) => {
         const id = String(row?.id || row?.model || "").trim();
         const label = String(row?.name || row?.label || id).trim() || id;
-        return { id, label };
+        const supportedEndpoints = Array.isArray(row?.supported_endpoints)
+          ? row.supported_endpoints
+              .filter((value: unknown): value is string => typeof value === "string")
+              .map((value: string) => value.trim())
+              .filter(Boolean)
+          : undefined;
+        const policyState = row?.policy?.state === "enabled" || row?.policy?.state === "disabled"
+          ? row.policy.state
+          : undefined;
+        const modelPickerEnabled =
+          typeof row?.model_picker_enabled === "boolean"
+            ? row.model_picker_enabled
+            : true;
+        const isAliasOnly =
+          /-copilot$/i.test(id) &&
+          (!supportedEndpoints || supportedEndpoints.length === 0);
+        return {
+          id,
+          label,
+          supportedEndpoints,
+          policyState,
+          modelPickerEnabled,
+          isAliasOnly,
+        };
       })
-      .filter((row: ProviderModelOption) => row.id),
+      .filter((row: ProviderModelOption & { modelPickerEnabled?: boolean }) =>
+        row.id &&
+        row.modelPickerEnabled !== false &&
+        row.policyState !== "disabled" &&
+        !COPILOT_SUPPRESSED_MODEL_IDS.has(row.id) &&
+        !(row as ProviderModelOption & { isAliasOnly?: boolean }).isAliasOnly,
+      ),
   );
 }
 
@@ -1364,8 +1504,7 @@ async function fetchCopilotAvailableModels(): Promise<ProviderModelOption[]> {
     headers: {
       Authorization: `Bearer ${copilotResult.token}`,
       Accept: "application/json",
-      "Copilot-Integration-Id": "vscode-chat",
-      "Editor-Version": "Zotero-AIdea/1.0",
+      ...buildCopilotDynamicHeaders(),
     },
   });
   if (!modelsRes.ok) {
@@ -1374,6 +1513,60 @@ async function fetchCopilotAvailableModels(): Promise<ProviderModelOption[]> {
 
   const modelsData = (await modelsRes.json()) as unknown;
   return parseCopilotModelsResponse(modelsData);
+}
+
+function getCachedProviderModelOptions(
+  provider: OAuthProviderId,
+): ProviderModelOption[] {
+  const raw = getOAuthPref("oauthModelListCache").trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Partial<Record<OAuthProviderId, ProviderModelOption[]>>;
+    return Array.isArray(parsed?.[provider]) ? parsed[provider] || [] : [];
+  } catch {
+    return [];
+  }
+}
+
+function getCachedCopilotModelOption(modelId: string): ProviderModelOption | null {
+  const normalized = String(modelId || "").trim().toLowerCase();
+  if (!normalized) return null;
+  return (
+    getCachedProviderModelOptions("github-copilot").find(
+      (row) => String(row.id || "").trim().toLowerCase() === normalized,
+    ) || null
+  );
+}
+
+type CopilotTransportKind = "anthropic-messages" | "responses" | "chat-completions";
+
+function resolveCopilotTransportKind(modelId: string): CopilotTransportKind {
+  if (isCopilotClaudeModel(modelId)) {
+    return "anthropic-messages";
+  }
+
+  const cached = getCachedCopilotModelOption(modelId);
+  const supported = new Set(
+    (cached?.supportedEndpoints || []).map((value) => value.trim().toLowerCase()),
+  );
+  if (supported.has("/responses")) {
+    return "responses";
+  }
+  if (supported.has("/chat/completions")) {
+    return "chat-completions";
+  }
+
+  const normalized = String(modelId || "").trim().toLowerCase();
+  if (
+    normalized.startsWith("gemini-") ||
+    normalized.startsWith("grok-") ||
+    normalized.startsWith("gpt-4") ||
+    normalized.startsWith("gpt-3.5")
+  ) {
+    return "chat-completions";
+  }
+
+  return "responses";
 }
 
 export async function readProviderOAuthCredential(
@@ -1394,8 +1587,7 @@ function ensureProviderAuthHeaderInit(cred: OAuthCredential): Record<string, str
     headers["x-goog-user-project"] = cred.projectId;
   }
   if (cred.provider === "github-copilot") {
-    headers["Copilot-Integration-Id"] = "vscode-chat";
-    headers["Editor-Version"] = "Zotero-AIdea/1.0";
+    Object.assign(headers, buildCopilotDynamicHeaders());
   }
   return headers;
 }
@@ -1432,12 +1624,14 @@ const GEMINI_CLI_KNOWN_MODELS: ProviderModelOption[] = [
  * Known GitHub Copilot models.
  */
 const COPILOT_KNOWN_MODELS: ProviderModelOption[] = [
-  { id: "claude-sonnet-4",     label: "Claude Sonnet 4" },
-  { id: "gpt-4o",              label: "GPT-4o" },
-  { id: "gpt-4.1",             label: "GPT-4.1" },
-  { id: "gpt-4.1-mini",        label: "GPT-4.1 Mini" },
-  { id: "gpt-4.1-nano",        label: "GPT-4.1 Nano" },
-  { id: "o3-mini",             label: "o3 Mini" },
+  { id: "claude-opus-4",        label: "Claude Opus 4" },
+  { id: "claude-sonnet-4",      label: "Claude Sonnet 4" },
+  { id: "gpt-4o",               label: "GPT-4o" },
+  { id: "gpt-4.1",              label: "GPT-4.1" },
+  { id: "gpt-4.1-mini",         label: "GPT-4.1 Mini" },
+  { id: "gpt-4.1-nano",         label: "GPT-4.1 Nano" },
+  { id: "o3-mini",              label: "o3 Mini" },
+  { id: "o4-mini",              label: "o4 Mini" },
 ];
 
 export async function fetchAvailableModels(
@@ -1534,7 +1728,17 @@ function dedupeModels(models: ProviderModelOption[]): ProviderModelOption[] {
     const id = String(row.id || "").trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, label: String(row.label || id).trim() || id });
+    out.push({
+      id,
+      label: String(row.label || id).trim() || id,
+      apiBase: row.apiBase,
+      apiKey: row.apiKey,
+      supportedEndpoints: Array.isArray(row.supportedEndpoints)
+        ? [...row.supportedEndpoints]
+        : undefined,
+      policyState: row.policyState,
+      status: row.status,
+    });
   }
   out.sort((a, b) => a.id.localeCompare(b.id));
   return out;
@@ -2681,6 +2885,73 @@ function buildOpenAIResponsesInput(params: {
 }
 
 /**
+ * Build messages in OpenAI Responses API format for Copilot non-Claude models.
+ * The Responses API uses a different input shape than Chat Completions:
+ *   input: [
+ *     { role: "user",      content: [{ type: "input_text", text: "..." }] },
+ *     { role: "assistant", content: [{ type: "output_text", text: "..." }] },
+ *   ]
+ * System prompt goes into the top-level `instructions` field instead.
+ */
+function buildCopilotResponsesInput(params: {
+  prompt: string;
+  context?: string;
+  history?: Array<{ role: "user" | "assistant" | "system"; content: any }>;
+  images?: string[];
+}): Array<Record<string, unknown>> {
+  const input: Array<Record<string, unknown>> = [];
+
+  // Context as a user+assistant exchange if present
+  if (params.context?.trim()) {
+    input.push({
+      role: "user",
+      content: [{ type: "input_text", text: `Document Context:\n${params.context.trim()}` }],
+    });
+    input.push({
+      role: "assistant",
+      content: [{ type: "output_text", text: "I've reviewed the document context. How can I help you?" }],
+    });
+  }
+
+  // Add history messages
+  for (const msg of params.history || []) {
+    const text = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    if (!text.trim()) continue;
+    if (msg.role === "assistant") {
+      input.push({
+        role: "assistant",
+        content: [{ type: "output_text", text }],
+      });
+    } else if (msg.role === "user") {
+      input.push({
+        role: "user",
+        content: [{ type: "input_text", text }],
+      });
+    }
+    // system messages are handled via the instructions field
+  }
+
+  // Build the current user message with optional images
+  const contentParts: Array<Record<string, unknown>> = [];
+  contentParts.push({ type: "input_text", text: params.prompt });
+
+  const images = (params.images || []).filter(Boolean);
+  for (const dataUri of images) {
+    contentParts.push({
+      type: "input_image",
+      image_url: dataUri,
+    });
+  }
+
+  input.push({
+    role: "user",
+    content: contentParts,
+  });
+
+  return input;
+}
+
+/**
  * Build the top-level `instructions` string for the Codex backend.
  * The chatgpt.com/backend-api/codex/responses endpoint requires `instructions`
  * as a separate string field (not inside the input array).
@@ -3048,6 +3319,120 @@ async function parseOpenAICompatSSEStream(
   return fullText || "(No response text)";
 }
 
+/**
+ * Build messages in Anthropic Messages API format (user/assistant alternation).
+ * System prompt is handled separately via the `system` field in the payload.
+ */
+function buildAnthropicMessagesInput(params: {
+  prompt: string;
+  context?: string;
+  history?: Array<{ role: "user" | "assistant" | "system"; content: any }>;
+  systemPrompt?: string;
+}): Array<{ role: "user" | "assistant"; content: string }> {
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+  // Context goes as a user message prefix (system is handled via the system field)
+  if (params.context?.trim()) {
+    messages.push({ role: "user", content: `Document Context:\n${params.context.trim()}` });
+    messages.push({ role: "assistant", content: "I've reviewed the document context. How can I help you?" });
+  }
+
+  // Convert history, merging adjacent same-role messages
+  for (const msg of params.history || []) {
+    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    if (!content.trim()) continue;
+
+    if (msg.role === "system") {
+      // Anthropic doesn't have system messages in the messages array;
+      // merge into a user message instead.
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.role === "user") {
+        lastMsg.content += `\n${content}`;
+      } else {
+        messages.push({ role: "user", content });
+        messages.push({ role: "assistant", content: "Understood." });
+      }
+      continue;
+    }
+
+    const role: "user" | "assistant" = msg.role === "assistant" ? "assistant" : "user";
+
+    // Anthropic requires strict user/assistant alternation - merge adjacent same-role
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === role) {
+      lastMsg.content += `\n${content}`;
+    } else {
+      messages.push({ role, content });
+    }
+  }
+
+  // Final user prompt - merge if last message is already from user
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg?.role === "user") {
+    lastMsg.content += `\n${params.prompt}`;
+  } else {
+    messages.push({ role: "user", content: params.prompt });
+  }
+
+  return messages;
+}
+
+/**
+ * Parse a streaming SSE response from the Anthropic Messages API.
+ * Handles content_block_delta events with text_delta type.
+ */
+async function parseAnthropicSSEStream(
+  body: ReadableStream<Uint8Array>,
+  onDelta?: (delta: string) => void,
+): Promise<string> {
+  const reader = body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let fullText = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+
+        try {
+          const event = JSON.parse(data) as any;
+
+          // Anthropic uses content_block_delta with text_delta
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+            const text = event.delta.text;
+            if (typeof text === "string" && text) {
+              fullText += text;
+              onDelta?.(text);
+            }
+          }
+
+          // message_stop contains no text, but message_delta may have stop_reason
+          if (event.type === "message_delta") {
+            // We could check event.delta?.stop_reason here if needed
+          }
+        } catch {
+          // skip non-JSON data lines
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return fullText || "(No response text)";
+}
+
 export async function chatWithProviderOAuth(params: {
   provider: OAuthProviderId;
   model: string;
@@ -3090,12 +3475,25 @@ export async function chatWithProviderOAuth(params: {
     if (cred.accountId) {
       codexHeaders["ChatGPT-Account-Id"] = cred.accountId;
     }
-    const res = await getFetch()("https://chatgpt.com/backend-api/codex/responses", {
+    const res = await fetchWithTransientRetry(
+      getFetch(),
+      "https://chatgpt.com/backend-api/codex/responses",
+      {
       method: "POST",
       headers: codexHeaders,
       body: JSON.stringify(payload),
       signal: params.signal,
-    });
+      },
+      {
+        signal: params.signal,
+        onRetry: ({ attempt, maxAttempts, error }) => {
+          ztoolkit?.log?.(
+            `AIdea: Codex OAuth transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+            error,
+          );
+        },
+      },
+    );
     if (!res.ok) {
       throw new Error(`Codex OAuth HTTP ${res.status}: ${await res.text()}`);
     }
@@ -3128,50 +3526,157 @@ export async function chatWithProviderOAuth(params: {
 
 
 
-  // ---------- GitHub Copilot (OpenAI-compatible via token exchange) ----------
+  // ---------- GitHub Copilot (via token exchange) ----------
+  // Claude models use the Anthropic Messages API format; all other models
+  // (GPT, o-series, Gemini) use the OpenAI chat/completions format.
+  // This matches the OpenClaw transport-routing architecture.
   if (params.provider === "github-copilot") {
     // Ensure we have a valid Copilot API token
     const copilotResult = await ensureCopilotApiToken();
     if (!copilotResult) {
       throw new Error("GitHub Copilot is not logged in. Please complete OAuth login in Settings first.");
     }
-    const messages = buildOpenAIResponsesInput(params);
-    const payload: Record<string, unknown> = {
-      model: params.model,
-      messages,
-      stream: true,
-    };
-    if (typeof params.temperature === "number" && Number.isFinite(params.temperature)) {
-      payload.temperature = params.temperature;
-    }
-    if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
-      payload.max_tokens = params.maxTokens;
-    }
-    const copilotUrl = `${copilotResult.baseUrl}/chat/completions`;
-    const copilotHeaders: Record<string, string> = {
+
+    const copilotBaseHeaders: Record<string, string> = {
       Authorization: `Bearer ${copilotResult.token}`,
       "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      "Copilot-Integration-Id": "vscode-chat",
-      "Editor-Version": "Zotero-AIdea/1.0",
+      ...buildCopilotDynamicHeaders(),
     };
-    const res = await getFetch()(copilotUrl, {
-      method: "POST",
+
+    // ---- Claude models → Anthropic Messages API ----
+    const transportKind = resolveCopilotTransportKind(params.model);
+
+    if (transportKind === "anthropic-messages") {
+      const anthropicMessages = buildAnthropicMessagesInput(params);
+      const anthropicPayload: Record<string, unknown> = {
+        model: params.model,
+        messages: anthropicMessages,
+        max_tokens: (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens))
+          ? params.maxTokens
+          : 8192,
+        stream: true,
+      };
+      applyCopilotTemperatureIfSupported(
+        anthropicPayload,
+        params.model,
+        params.temperature,
+      );
+      if (params.systemPrompt?.trim()) {
+        anthropicPayload.system = params.systemPrompt.trim();
+      }
+      const anthropicUrl = `${copilotResult.baseUrl}/v1/messages`;
+      const anthropicHeaders: Record<string, string> = {
+        ...copilotBaseHeaders,
+        Accept: "text/event-stream",
+      };
+      const res = await postCopilotWithTemperatureFallback({
+        url: anthropicUrl,
+        headers: anthropicHeaders,
+        payload: anthropicPayload,
+        signal: params.signal,
+      });
+      if (res.body) {
+        return parseAnthropicSSEStream(res.body, params.onDelta);
+      }
+      // Fallback: non-streaming
+      const data = (await res.json()) as any;
+      const text = data?.content?.[0]?.text || JSON.stringify(data);
+      params.onDelta?.(text);
+      return text;
+    }
+
+    // ---- GPT / o-series / Gemini / Grok / other models → OpenAI Responses API ----
+    // Newer Copilot models (gpt-5.x, o4-*, gemini-*, grok-*) are only accessible
+    // via the /responses endpoint, not /chat/completions. Following OpenClaw's
+    // approach, we use the Responses API for ALL non-Claude Copilot models.
+    if (transportKind === "chat-completions") {
+      const messages = buildOpenAIResponsesInput(params);
+      const chatPayload: Record<string, unknown> = {
+        model: params.model,
+        messages,
+        stream: true,
+      };
+      if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
+        chatPayload.max_tokens = params.maxTokens;
+      }
+      applyCopilotTemperatureIfSupported(
+        chatPayload,
+        params.model,
+        params.temperature,
+      );
+      const chatUrl = `${copilotResult.baseUrl}/chat/completions`;
+      const chatHeaders: Record<string, string> = {
+        ...copilotBaseHeaders,
+        Accept: "text/event-stream",
+      };
+      const res = await postCopilotWithTemperatureFallback({
+        url: chatUrl,
+        headers: chatHeaders,
+        payload: chatPayload,
+        signal: params.signal,
+      });
+      if (res.body) {
+        return parseOpenAICompatSSEStream(res.body, params.onDelta);
+      }
+      const data = (await res.json()) as any;
+      const text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
+      params.onDelta?.(text);
+      return text;
+    }
+
+    const responsesInput = buildCopilotResponsesInput(params);
+    const responsesPayload: Record<string, unknown> = {
+      model: params.model,
+      input: responsesInput,
+      stream: true,
+    };
+    if (typeof params.maxTokens === "number" && Number.isFinite(params.maxTokens)) {
+      responsesPayload.max_output_tokens = params.maxTokens;
+    }
+    applyCopilotTemperatureIfSupported(
+      responsesPayload,
+      params.model,
+      params.temperature,
+    );
+    if (params.systemPrompt?.trim()) {
+      responsesPayload.instructions = params.systemPrompt.trim();
+    }
+    const copilotUrl = `${copilotResult.baseUrl}/responses`;
+    const copilotHeaders: Record<string, string> = {
+      ...copilotBaseHeaders,
+      Accept: "text/event-stream",
+    };
+    const res = await postCopilotWithTemperatureFallback({
+      url: copilotUrl,
       headers: copilotHeaders,
-      body: JSON.stringify(payload),
+      payload: responsesPayload,
       signal: params.signal,
     });
-    if (!res.ok) {
-      throw new Error(`Copilot OAuth HTTP ${res.status}: ${await res.text()}`);
-    }
+    // Reuse the Codex SSE parser — same response.output_text.delta event format
     if (res.body) {
-      return parseOpenAICompatSSEStream(res.body, params.onDelta);
+      return parseCodexSSEStream(res.body, params.onDelta);
     }
-    // Fallback: non-streaming
-    const data = (await res.json()) as any;
-    const text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
-    params.onDelta?.(text);
-    return text;
+    // Fallback: if body is not a ReadableStream (some Gecko builds),
+    // download the full text and parse SSE lines.
+    const raw = await res.text();
+    let fullText = "";
+    for (const line of raw.split("\n")) {
+      if (!line.trim().startsWith("data:")) continue;
+      const data = line.trim().slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const event = JSON.parse(data);
+        if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
+          fullText += event.delta;
+          params.onDelta?.(event.delta);
+        }
+        if (event.type === "response.completed" && event.response?.output_text && !fullText) {
+          fullText = event.response.output_text;
+          params.onDelta?.(fullText);
+        }
+      } catch { /* skip */ }
+    }
+    return fullText || "(No response text)";
   }
 
   // ---------- Google Gemini CLI (Cloud Code Assist streaming) ----------
@@ -3193,12 +3698,25 @@ export async function chatWithProviderOAuth(params: {
       "3. Or set env var GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID"
     );
   }
-  const res = await getFetch()(GEMINI_CODE_ASSIST_STREAM_URL, {
-    method: "POST",
-    headers: buildGeminiCodeAssistHeaders(cred, params.model),
-    body: JSON.stringify(geminiPayload),
-    signal: params.signal,
-  });
+  const res = await fetchWithTransientRetry(
+    getFetch(),
+    GEMINI_CODE_ASSIST_STREAM_URL,
+    {
+      method: "POST",
+      headers: buildGeminiCodeAssistHeaders(cred, params.model),
+      body: JSON.stringify(geminiPayload),
+      signal: params.signal,
+    },
+    {
+      signal: params.signal,
+      onRetry: ({ attempt, maxAttempts, error }) => {
+        ztoolkit?.log?.(
+          `AIdea: Gemini OAuth transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+          error,
+        );
+      },
+    },
+  );
   if (!res.ok) {
     throw new Error(`Gemini OAuth HTTP ${res.status}: ${await res.text()}`);
   }
@@ -3258,8 +3776,7 @@ export async function getOAuthProviderPingInfo(
       headers: {
         Authorization: `Bearer ${result.token}`,
         "Content-Type": "application/json",
-        "Copilot-Integration-Id": "vscode-chat",
-        "Editor-Version": "Zotero-AIdea/1.0",
+        ...buildCopilotDynamicHeaders(),
       },
     };
   }

@@ -435,7 +435,8 @@ export function initTranslateTab(body: Element): void {
         _activeController = null;
         const i18n = getPanelI18n();
         consoleLog(body, `🗑 ${i18n.trClearCache}: done`, "info");
-        updateProgress(body, 0, "");
+        resetProgressTracking();
+        updateProgress(body, 0, "", { force: true });
         _stopProgressTimer();
         _translationStartTime = 0;
         // Restore start button
@@ -476,11 +477,23 @@ let _activeController: any = null;
 /** Independent progress bar refresh timer (1s) */
 let _progressTimer: ReturnType<typeof setInterval> | null = null;
 /** Last known progress percentage for timer-based refresh */
-let _lastProgressPct = 0;
+let _targetProgressPct = 0;
+let _displayProgressPct = 0;
 /** Reference to body element for timer-based updates */
 let _translationBody: Element | null = null;
 /** Heartbeat counter — log every 15s when idle */
 let _heartbeatCounter = 0;
+
+let _lastKnownCurrentPage: number | null = null;
+let _lastKnownTotalPages: number | null = null;
+let _recentPageDurationsSec: number[] = [];
+let _lastPageBoundaryAt = 0;
+let _lastPageBoundaryPage: number | null = null;
+
+const PROGRESS_TIMER_INTERVAL_MS = 250;
+const PROGRESS_SMOOTHING_FACTOR = 0.18;
+const PROGRESS_MIN_STEP = 0.25;
+const PAGE_DURATION_HISTORY_LIMIT = 8;
 
 function setSelectedPdfPath(body: Element, pdfPath: string): void {
   _selectedPdfPath = pdfPath;
@@ -493,23 +506,114 @@ function setSelectedPdfPath(body: Element, pdfPath: string): void {
   }
 }
 
-function updateProgress(body: Element, pct: number, _text: string): void {
-  _lastProgressPct = pct;
-  _refreshProgressBar(body, pct);
+function resetProgressTracking(): void {
+  _targetProgressPct = 0;
+  _displayProgressPct = 0;
+  _lastKnownCurrentPage = null;
+  _lastKnownTotalPages = null;
+  _recentPageDurationsSec = [];
+  _lastPageBoundaryAt = 0;
+  _lastPageBoundaryPage = null;
+}
+
+function recordPageProgress(current?: number, total?: number): void {
+  if (
+    typeof current !== "number" ||
+    !Number.isFinite(current) ||
+    typeof total !== "number" ||
+    !Number.isFinite(total) ||
+    current <= 0 ||
+    total <= 0
+  ) {
+    return;
+  }
+
+  _lastKnownCurrentPage = current;
+  _lastKnownTotalPages = total;
+
+  const now = Date.now();
+  if (
+    _lastPageBoundaryPage !== null &&
+    current > _lastPageBoundaryPage &&
+    _lastPageBoundaryAt > 0
+  ) {
+    const deltaPages = current - _lastPageBoundaryPage;
+    const deltaSec = (now - _lastPageBoundaryAt) / 1000;
+    if (deltaPages > 0 && deltaSec > 0) {
+      _recentPageDurationsSec.push(deltaSec / deltaPages);
+      if (_recentPageDurationsSec.length > PAGE_DURATION_HISTORY_LIMIT) {
+        _recentPageDurationsSec = _recentPageDurationsSec.slice(-PAGE_DURATION_HISTORY_LIMIT);
+      }
+    }
+  }
+
+  if (_lastPageBoundaryPage === null || current !== _lastPageBoundaryPage) {
+    _lastPageBoundaryPage = current;
+    _lastPageBoundaryAt = now;
+  }
+}
+
+function updateProgress(
+  body: Element,
+  pct: number,
+  _text: string,
+  opts?: { current?: number; total?: number; force?: boolean },
+): void {
+  const safePct = Math.max(0, Math.min(100, pct));
+  if (opts?.force) {
+    _targetProgressPct = safePct;
+    _displayProgressPct = safePct;
+  } else {
+    _targetProgressPct = Math.max(_targetProgressPct, safePct);
+  }
+  recordPageProgress(opts?.current, opts?.total);
+  _refreshProgressBar(body);
+}
+
+function estimateRemainingSeconds(elapsedSeconds: number): number | null {
+  if (_displayProgressPct >= 100) return 0;
+
+  if (
+    _lastKnownCurrentPage !== null &&
+    _lastKnownTotalPages !== null &&
+    _recentPageDurationsSec.length > 0
+  ) {
+    const remainingPages = Math.max(0, _lastKnownTotalPages - _lastKnownCurrentPage);
+    const avgPerPage =
+      _recentPageDurationsSec.reduce((sum, value) => sum + value, 0) /
+      _recentPageDurationsSec.length;
+    return remainingPages * avgPerPage;
+  }
+
+  if (_displayProgressPct > 0 && elapsedSeconds > 0) {
+    const totalEstimated = elapsedSeconds / (_displayProgressPct / 100);
+    return Math.max(0, totalEstimated - elapsedSeconds);
+  }
+
+  return null;
+}
+
+function advanceDisplayedProgress(): void {
+  if (_displayProgressPct >= _targetProgressPct) return;
+  const delta = _targetProgressPct - _displayProgressPct;
+  const step = _targetProgressPct >= 100
+    ? delta
+    : Math.max(PROGRESS_MIN_STEP, delta * PROGRESS_SMOOTHING_FACTOR);
+  _displayProgressPct = Math.min(_targetProgressPct, _displayProgressPct + step);
 }
 
 /** Refresh progress bar time display (called by both poller and timer) */
-function _refreshProgressBar(body: Element, pct: number): void {
+function _refreshProgressBar(body: Element): void {
   const fill = body.querySelector("#llm-tr-progress-fill") as HTMLElement | null;
   if (fill) {
+    const pct = Math.max(0, Math.min(100, _displayProgressPct));
     fill.style.width = `${pct}%`;
     const i18n = getPanelI18n();
     const elapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
     const elapsedStr = formatDuration(elapsed);
     let remainStr = "--:--";
-    if (pct > 0 && pct < 100 && elapsed > 0) {
-      const totalEstimated = elapsed / (pct / 100);
-      const remaining = Math.max(0, totalEstimated - elapsed);
+    const remaining = estimateRemainingSeconds(elapsed);
+    if (remaining !== null && pct < 100) {
       remainStr = formatDuration(remaining);
     } else if (pct >= 100) {
       remainStr = "00:00";
@@ -517,7 +621,16 @@ function _refreshProgressBar(body: Element, pct: number): void {
     const isZh = i18n.tabTranslate === "翻译";
     const elapsedLabel = isZh ? "已用" : "Elapsed";
     const remainLabel = isZh ? "剩余" : "Remaining";
-    fill.textContent = pct > 0 ? `${pct}% | ${elapsedLabel}: ${elapsedStr} | ${remainLabel}: ${remainStr}` : "";
+    const pageText = (
+      _lastKnownCurrentPage !== null &&
+      _lastKnownTotalPages !== null &&
+      _lastKnownTotalPages > 0
+    )
+      ? ` | Page ${_lastKnownCurrentPage}/${_lastKnownTotalPages}`
+      : "";
+    fill.textContent = pct > 0
+      ? `${Math.round(pct)}%${pageText} | ${elapsedLabel}: ${elapsedStr} | ${remainLabel}: ${remainStr}`
+      : "";
   }
 }
 
@@ -528,9 +641,10 @@ function _startProgressTimer(body: Element): void {
   _heartbeatCounter = 0;
   _progressTimer = setInterval(() => {
     if (_translationBody && _translationStartTime > 0) {
-      _refreshProgressBar(_translationBody, _lastProgressPct);
+      advanceDisplayedProgress();
+      _refreshProgressBar(_translationBody);
     }
-  }, 1000);
+  }, PROGRESS_TIMER_INTERVAL_MS);
 }
 
 /** Stop the progress bar timer */
@@ -715,7 +829,11 @@ async function startTranslation(body: Element): Promise<void> {
     consoleLog(body, `❌ Failed to resolve credentials: ${err}`, "error");
     return;
   }
-  const authMode = creds.oauthProxy ? `OAuth (${creds.oauthProxy.provider})` : "API Key";
+  const authMode = creds.oauthProxy
+    ? creds.oauthProxy.provider === "openai-compatible"
+      ? "API Key (proxied)"
+      : `OAuth (${creds.oauthProxy.provider})`
+    : "API Key";
   consoleLog(body, `🔑 Auth: ${authMode}`, "success");
   consoleLog(body, `   Model ID: ${creds.modelId}`, "info");
   consoleLog(body, `   API Base: ${creds.apiUrl}`, "info");
@@ -736,8 +854,8 @@ async function startTranslation(body: Element): Promise<void> {
   // Reset timer and pause state
   _translationStartTime = Date.now();
   _isPaused = false;
-  _lastProgressPct = 0;
-  updateProgress(body, 0, "");
+  resetProgressTracking();
+  updateProgress(body, 0, "", { force: true });
   _startProgressTimer(body);
 
   // Show pause button, hide start button
@@ -760,7 +878,10 @@ async function startTranslation(body: Element): Promise<void> {
         const msg = event.data.message || "";
         const status = event.data.status || "";
         const detail = event.data.detail || "";
-        updateProgress(body, pct, msg);
+        updateProgress(body, pct, msg, {
+          current: event.data.current,
+          total: event.data.total,
+        });
 
         // Log page transitions (when page number is present)
         if (event.data.current !== undefined && event.data.total !== undefined) {
@@ -822,7 +943,7 @@ async function startTranslation(body: Element): Promise<void> {
       case "state":
         if (event.state === "done") {
           const totalElapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
-          updateProgress(body, 100, "");
+          updateProgress(body, 100, "", { force: true });
           consoleLog(body, `✅ ${i18n.trDone}! Total time: ${formatDuration(totalElapsed)}`, "success");
           consoleLog(body, `─── Job Finished ───`, "success");
           _translationStartTime = 0;

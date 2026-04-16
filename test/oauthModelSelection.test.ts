@@ -96,6 +96,24 @@ describe("oauthModelSelection defaults", function () {
       "grok-3-mini",
     ]);
   });
+
+  it("should ignore unsupported gpt alias ids when picking Copilot defaults", function () {
+    const selected = getDefaultSelectedModelIds(
+      "github-copilot",
+      models([
+        "gpt-41-copilot",
+        "gpt-5.4-mini",
+        "gpt-5.3-codex",
+        "gpt-4.1",
+      ]),
+    );
+
+    assert.deepEqual(selected, [
+      "gpt-5.4-mini",
+      "gpt-4.1",
+      "gpt-5.3-codex",
+    ]);
+  });
 });
 
 describe("oauthModelSelection persistence", function () {

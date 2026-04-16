@@ -47,6 +47,12 @@ import {
 import { pathToFileUrl } from "./pathFileUrl";
 import { normalizeTemperature, normalizeMaxTokens } from "./normalization";
 import {
+  fetchWithTransientRetry,
+  isRetryableTransientError,
+  parseHttpStatusFromErrorMessage,
+  withTransientRetry,
+} from "./transientRetry";
+import {
   callProviderEmbeddingsUnsupported,
   chatWithProviderOAuth,
   markerToProvider,
@@ -559,7 +565,7 @@ async function uploadAttachmentForResponses(params: {
       );
     }
 
-    const res = await getFetch()(filesUrl, {
+    const res = await fetchWithTransientRetry(getFetch(), filesUrl, {
       method: "POST",
       headers: requestHeaders,
       body: uploadRequest.body,
@@ -1377,7 +1383,7 @@ async function postWithTemperatureFallback(params: {
     "temperature",
   );
   const send = (bodyPayload: Record<string, unknown>) =>
-    getFetch()(params.url, {
+    fetchWithTransientRetry(getFetch(), params.url, {
       method: "POST",
       headers: buildHeaders(params.apiKey),
       body: JSON.stringify(bodyPayload),
@@ -1414,15 +1420,8 @@ async function postWithTemperatureFallback(params: {
   throw new Error(`${res.status} ${res.statusText} - ${firstErr}`);
 }
 
-function parseStatusFromErrorMessage(message: string): number | null {
-  const match = message.trim().match(/^(\d{3})\b/);
-  if (!match) return null;
-  const value = Number.parseInt(match[1], 10);
-  return Number.isFinite(value) ? value : null;
-}
-
 function isReasoningErrorMessage(errorMessage: string): boolean {
-  const status = parseStatusFromErrorMessage(errorMessage);
+  const status = parseHttpStatusFromErrorMessage(errorMessage);
   if (status !== 400 && status !== 422) return false;
   const text = errorMessage.toLowerCase();
   return (
@@ -1835,15 +1834,28 @@ export async function callLLMStream(
 
     while (retries <= maxRetries) {
       try {
-        return await xhrStream({
-          XHRCtor,
-          url,
-          apiKey,
-          payload,
-          signal: params.signal,
-          onDelta,
-          onReasoning,
-        });
+        return await withTransientRetry(
+          async () =>
+            xhrStream({
+              XHRCtor,
+              url,
+              apiKey,
+              payload,
+              signal: params.signal,
+              onDelta,
+              onReasoning,
+            }),
+          {
+            signal: params.signal,
+            shouldRetryError: isRetryableTransientError,
+            onRetry: ({ attempt, maxAttempts, error }) => {
+              ztoolkit.log(
+                `LLM: transient XHR upstream error, retry ${attempt}/${maxAttempts - 1}`,
+                error,
+              );
+            },
+          },
+        );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
 
@@ -1874,7 +1886,7 @@ export async function callLLMStream(
         }
 
         // Check for recoverable temperature errors (400/422 with temperature keywords)
-        const status = parseStatusFromErrorMessage(message);
+        const status = parseHttpStatusFromErrorMessage(message);
         if (
           (status === 400 || status === 422) &&
           message.toLowerCase().includes("temperature") &&
@@ -1937,7 +1949,7 @@ export async function callEmbeddings(
   };
 
   const url = resolveEndpoint(apiBase, EMBEDDINGS_ENDPOINT);
-  const res = await getFetch()(url, {
+  const res = await fetchWithTransientRetry(getFetch(), url, {
     method: "POST",
     headers: buildHeaders(apiKey),
     body: JSON.stringify(payload),

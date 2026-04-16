@@ -8,6 +8,7 @@ addon/scripts/aidea_bridge.py.
 Examples:
   python test/pdfTranslator/debug_oauth_proxy.py --provider openai-codex --model gpt-5.4
   python test/pdfTranslator/debug_oauth_proxy.py --provider google-gemini-cli --model gemini-2.5-pro
+  python test/pdfTranslator/debug_oauth_proxy.py --provider github-copilot --model gpt-5.4-mini
 """
 
 from __future__ import annotations
@@ -27,7 +28,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BRIDGE_DIR = REPO_ROOT / "addon" / "scripts"
 sys.path.insert(0, str(BRIDGE_DIR))
 
-from aidea_bridge import OAuthCompatProxyServer  # noqa: E402
+from aidea_bridge import (  # noqa: E402
+    OAuthCompatProxyServer,
+    _derive_copilot_api_base_url,
+)
 
 
 def read_json(path: Path) -> dict:
@@ -85,6 +89,39 @@ def read_gemini_cred_from_zotero_prefs() -> Tuple[str, str]:
         if token and project:
             break
     return token, project
+
+
+def read_copilot_cred_from_zotero_prefs() -> Tuple[str, str]:
+    appdata = os.environ.get("APPDATA", "").strip()
+    if not appdata:
+        return "", ""
+    profiles_dir = Path(appdata) / "Zotero" / "Zotero" / "Profiles"
+    if not profiles_dir.exists():
+        return "", ""
+
+    api_token = ""
+    api_base = ""
+    api_token_re = re.compile(
+        r'user_pref\("extensions\.zotero\.aidea\.oauthCopilotApiToken",\s*"([^"]*)"\)'
+    )
+
+    for profile in profiles_dir.iterdir():
+        prefs = profile / "prefs.js"
+        if not prefs.exists():
+            continue
+        text = prefs.read_text(encoding="utf-8", errors="ignore")
+        if not api_token:
+            m = api_token_re.search(text)
+            if m:
+                try:
+                    parsed = json.loads(m.group(1))
+                    api_token = str(parsed.get("token") or "").strip()
+                    api_base = _derive_copilot_api_base_url(api_token)
+                except Exception:
+                    pass
+        if api_token:
+            break
+    return api_token, api_base
 
 
 def post_chat_completion(base_url: str, model: str, prompt: str) -> str:
@@ -150,6 +187,7 @@ def resolve_credentials(args: argparse.Namespace) -> dict:
     token = (args.token or "").strip()
     account_id = (args.account_id or "").strip()
     project_id = (args.project_id or "").strip()
+    api_base = (args.api_base or "").strip()
     home = Path.home()
 
     if provider == "openai-codex":
@@ -180,6 +218,18 @@ def resolve_credentials(args: argparse.Namespace) -> dict:
             "projectId": project_id,
         }
 
+    if provider == "github-copilot":
+        if not token:
+            prefs_token, prefs_base = read_copilot_cred_from_zotero_prefs()
+            token = token or prefs_token
+            api_base = api_base or prefs_base
+        token = ensure_token(token)
+        return {
+            "provider": provider,
+            "accessToken": token,
+            "apiBase": api_base or _derive_copilot_api_base_url(token),
+        }
+
     raise RuntimeError(f"Unsupported provider: {provider}")
 
 
@@ -188,7 +238,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--provider",
         required=True,
-        choices=["openai-codex", "google-gemini-cli"],
+        choices=["openai-codex", "google-gemini-cli", "github-copilot"],
         help="OAuth provider to test",
     )
     p.add_argument("--model", required=True, help="Model id (e.g. gpt-5.4)")
@@ -200,6 +250,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--token", default="", help="OAuth access token")
     p.add_argument("--account-id", default="", help="Codex ChatGPT account id")
     p.add_argument("--project-id", default="", help="Gemini Google project id")
+    p.add_argument("--api-base", default="", help="Copilot API base override")
     return p.parse_args()
 
 

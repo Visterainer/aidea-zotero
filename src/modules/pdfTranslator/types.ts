@@ -90,10 +90,17 @@ export interface BridgeTask {
   protectAuthorBlock?: boolean;
   referencePolicyDebug?: boolean;
   oauthProxy?: {
-    provider: "openai-codex" | "google-gemini-cli";
+    provider:
+      | "openai-codex"
+      | "google-gemini-cli"
+      | "github-copilot"
+      | "openai-compatible";
     accessToken: string;
     accountId?: string;
     projectId?: string;
+    apiBase?: string;
+    apiKey?: string;
+    supportedEndpoints?: string[];
   };
 }
 

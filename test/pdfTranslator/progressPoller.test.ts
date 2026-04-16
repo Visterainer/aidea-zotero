@@ -113,6 +113,27 @@ console.log("\n=== ProgressPoller: done auto-stops ===");
   assert(poller.running === false, "poller auto-stopped on done");
 }
 
+console.log("\n=== ProgressPoller: start triggers immediate tick ===");
+{
+  cleanup();
+  const events: ProgressData[] = [];
+  writeProgress({
+    status: "running",
+    progress: 12,
+    current: 1,
+    total: 8,
+    message: "Translating 1/8 pages...",
+  });
+
+  const poller = new ProgressPoller(progressFile, (d) => events.push(d), 1000);
+  poller.start();
+  await new Promise((r) => setTimeout(r, 50));
+
+  assert(events.length >= 1, "callback fired before first interval boundary");
+  assert(events[0].progress === 12, "immediate tick reads current progress");
+  poller.stop();
+}
+
 console.log("\n=== ProgressPoller: error auto-stops ===");
 {
   cleanup();
