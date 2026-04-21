@@ -18,7 +18,6 @@
 <p align="center">
   🟢 <strong>OpenAI (ChatGPT)</strong><br/>
   🔵 <strong>Google Gemini</strong><br/>
-  🟣 <strong>Qwen (通义千问)</strong><br/>
   ⚫ <strong>GitHub Copilot</strong>
 </p>
 
@@ -88,7 +87,6 @@ Example outputs:
 | -------------------- | ----------------------------- | ------------------------ |
 | **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Node.js (auto-installed) |
 | **Google Gemini**    | In-plugin OAuth (PKCE)        | Node.js (auto-installed) |
-| **Qwen (通义千问)**  | In-plugin OAuth (Device Code) | None                     |
 | **GitHub Copilot**   | In-plugin OAuth (Device Code) | None                     |
 
 ### 📝 Note Export
@@ -128,7 +126,7 @@ Full support for **English** and **Chinese** (中文) — switch languages in Se
 ### Requirements
 
 - **Zotero 7 or later** (version 7.0+)
-- **Node.js** — required for OpenAI and Gemini; **auto-installed** by the plugin if missing (Qwen and GitHub Copilot do not require Node.js)
+- **Node.js** — required for OpenAI and Gemini; **auto-installed** by the plugin if missing (GitHub Copilot does not require Node.js)
 
 ### Install the Plugin
 
@@ -162,8 +160,8 @@ Sign in with your **existing account** — no API key needed. For each provider 
 
 | Button                   | What it does                                                                                                                                                                                                                                                                      |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`Install/Update Env`** | Automatically installs and configures the required CLI tool and runtime (Node.js, npm, etc.). A risk notice appears on first run — read it and confirm to proceed. For **Qwen** and **GitHub Copilot**, this step is not needed.                                                  |
-| **`OAuth Login`**        | Opens the OAuth authentication flow. For **OpenAI / Gemini**, your browser opens — sign in with your account. For **Qwen / GitHub Copilot**, a dialog shows your authorization code; click **OK** to copy it and open the browser, then paste the code to complete authorization. |
+| **`Install/Update Env`** | Automatically installs and configures the required CLI tool and runtime (Node.js, npm, etc.). A risk notice appears on first run — read it and confirm to proceed. For **GitHub Copilot**, this step is not needed.                                                              |
+| **`OAuth Login`**        | Opens the OAuth authentication flow. For **OpenAI / Gemini**, your browser opens — sign in with your account. For **GitHub Copilot**, a dialog shows your authorization code; click **OK** to copy it and open the browser, then paste the code to complete authorization.         |
 | **`Refresh Models`**     | After login, click this to load the list of available models for this provider.                                                                                                                                                                                                   |
 | **`Remove Auth`**        | Clears the saved OAuth token for this provider.                                                                                                                                                                                                                                   |
 
@@ -219,6 +217,7 @@ Click any shortcut button (**Summarize**, **Explain**, **Translate**, etc.) for 
 | **System Prompt**   | Custom instructions for the AI                         | Empty (use built-in default) |
 | **Show "Add Text"** | Show the Add Text option in the reader selection popup | ☑ On                         |
 | **Show All Models** | Show all available models vs. curated best models only | ☐ Off                        |
+| **Tab Bar**         | Show or hide the tab navigation bar                    | Hide                         |
 
 ---
 
