@@ -18,6 +18,7 @@ import {
   createGlobalPortalItem,
   resolveActiveLibraryID,
 } from "./portalScope";
+import { config } from "../../../package.json";
 import {
   createGlobalConversation,
   getLatestEmptyGlobalConversation,
@@ -35,6 +36,8 @@ interface LibraryPanelState {
   host: HTMLElement;
   notifierID: string | null;
   hasBootstrapped: boolean;
+  mutationObserver: MutationObserver | null;
+  updateTimer: number | null;
 }
 
 const panelStateByWindow = new WeakMap<Window, LibraryPanelState>();
@@ -49,7 +52,13 @@ export function getSharedLibraryPanelHost(win: Window): HTMLElement {
     ) as HTMLDivElement;
     host.id = "llm-library-panel-host";
     host.dataset.tabType = "library";
-    state = { host, notifierID: null, hasBootstrapped: false };
+    state = {
+      host,
+      notifierID: null,
+      hasBootstrapped: false,
+      mutationObserver: null,
+      updateTimer: null,
+    };
     panelStateByWindow.set(win, state);
   }
   return state.host;
@@ -135,6 +144,135 @@ function findItemMessagePane(doc: Document): Element | null {
   return doc.getElementById("zotero-item-message");
 }
 
+const STANDALONE_SIDENAV_BUTTON_ID = "llm-library-standalone-sidenav-btn";
+
+function getItemPaneElement(doc: Document) {
+  return doc.getElementById("zotero-item-pane") as
+    | (HTMLElement & {
+      mode?: string;
+      collapsed?: boolean;
+      editable?: boolean;
+      collectionTreeRow?: unknown;
+    })
+    | null;
+}
+
+function getItemMessagePaneElement(doc: Document) {
+  return doc.getElementById("zotero-item-message") as
+    | (HTMLElement & {
+        render?: (content: Node | string | { l10nId: string; l10nArgs?: Record<string, unknown> }) => void;
+        renderCustomHead?: (callback?: unknown) => void;
+      })
+    | null;
+}
+
+function getItemPaneSidenavButtonContainer(doc: Document): HTMLElement | null {
+  return doc.querySelector(
+    "#zotero-view-item-sidenav .inherit-flex",
+  ) as HTMLElement | null;
+}
+
+function getStandaloneLibrarySidenavButton(doc: Document): HTMLElement | null {
+  return doc.getElementById(STANDALONE_SIDENAV_BUTTON_ID) as HTMLElement | null;
+}
+
+function removeStandaloneLibrarySidenavButton(doc: Document): void {
+  const button = getStandaloneLibrarySidenavButton(doc);
+  button?.parentElement?.remove();
+}
+
+function ensureStandaloneLibrarySidenavButton(win: Window): void {
+  const doc = win.document;
+  if (getStandaloneLibrarySidenavButton(doc)) return;
+
+  const container = getItemPaneSidenavButtonContainer(doc);
+  if (!container) return;
+
+  const wrapper = doc.createElement("div");
+  wrapper.className = "pin-wrapper";
+
+  const button = doc.createElement("div");
+  button.id = STANDALONE_SIDENAV_BUTTON_ID;
+  button.className = "btn";
+  button.setAttribute("custom", "true");
+  button.setAttribute("tabindex", "0");
+  button.setAttribute("role", "tab");
+  button.setAttribute("aria-selected", "true");
+  button.title = "AIdea";
+  button.style.cssText = [
+    `--custom-sidenav-icon-light: url('chrome://${config.addonRef}/content/icons/icon-20.png')`,
+    `--custom-sidenav-icon-dark: url('chrome://${config.addonRef}/content/icons/icon-20.png')`,
+  ].join("; ");
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const itemPane = getItemPaneElement(doc);
+    if (itemPane?.collapsed) {
+      itemPane.collapsed = false;
+    }
+    const input = doc.querySelector("#llm-input") as HTMLTextAreaElement | null;
+    input?.focus({ preventScroll: true });
+  });
+  button.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    button.click();
+  });
+
+  wrapper.appendChild(button);
+  container.appendChild(wrapper);
+}
+
+async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
+  const doc = win.document;
+  const messagePane = getItemMessagePaneElement(doc);
+  if (!messagePane) return;
+
+  const host = getSharedLibraryPanelHost(win);
+  messagePane.renderCustomHead?.();
+  messagePane.render?.(host);
+  host.style.display = "flex";
+
+  ensureStandaloneLibrarySidenavButton(win);
+  await bootstrapSharedLibraryPanel(win, host);
+}
+
+async function runLibraryPanelVisibilityUpdate(win: Window): Promise<void> {
+  const doc = win.document;
+  const itemPane = getItemPaneElement(doc);
+  if (!itemPane) return;
+
+  if (!isLibraryTab(win)) {
+    removeStandaloneLibrarySidenavButton(doc);
+    return;
+  }
+
+  if (hasSelectedItem(win)) {
+    removeStandaloneLibrarySidenavButton(doc);
+    return;
+  }
+
+  await ensureStandaloneLibraryPanelVisible(win);
+}
+
+function scheduleLibraryPanelVisibilityUpdate(win: Window): void {
+  const state = panelStateByWindow.get(win) || (() => {
+    getSharedLibraryPanelHost(win);
+    return panelStateByWindow.get(win)!;
+  })();
+
+  if (state.updateTimer !== null) {
+    win.clearTimeout(state.updateTimer);
+  }
+
+  state.updateTimer = win.setTimeout(() => {
+    state.updateTimer = null;
+    void runLibraryPanelVisibilityUpdate(win).catch((err) => {
+      ztoolkit.log("LLM: updateLibraryPanelVisibility failed", err);
+    });
+  }, 0);
+}
+
 // ---------------------------------------------------------------------------
 // Standalone panel injection (for no-item-selected case)
 // ---------------------------------------------------------------------------
@@ -149,9 +287,51 @@ function findItemMessagePane(doc: Document): Element | null {
 export async function injectLibraryPanel(
   win: _ZoteroTypes.MainWindow,
 ): Promise<void> {
-  // We no longer need to actively inject or observe tabs for the standalone panel.
-  // The shared host is created lazily by getSharedLibraryPanelHost when index.ts
-  // requests it.
+  const state = panelStateByWindow.get(win) || (() => {
+    getSharedLibraryPanelHost(win);
+    return panelStateByWindow.get(win)!;
+  })();
+
+  if (!state.notifierID) {
+    state.notifierID = Zotero.Notifier.registerObserver(
+      {
+        notify: (_action: string, type: string) => {
+          if (type === "tab" || type === "itempane") {
+            scheduleLibraryPanelVisibilityUpdate(win);
+          }
+        },
+      },
+      ["tab", "itempane"],
+      "llm-library-panel",
+    );
+  }
+
+  if (!state.mutationObserver) {
+    const observer = new win.MutationObserver(() => {
+      scheduleLibraryPanelVisibilityUpdate(win);
+    });
+
+    const itemPane = getItemPaneElement(win.document);
+    if (itemPane) {
+      observer.observe(itemPane, {
+        attributes: true,
+        attributeFilter: ["view-type"],
+      });
+    }
+
+    const messagePane = findItemMessagePane(win.document);
+    if (messagePane) {
+      observer.observe(messagePane, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
+
+    state.mutationObserver = observer;
+  }
+
+  scheduleLibraryPanelVisibilityUpdate(win);
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +350,14 @@ export function removeLibraryPanel(win: Window): void {
     }
   }
 
+  if (state.mutationObserver) {
+    state.mutationObserver.disconnect();
+  }
+
+  if (state.updateTimer !== null) {
+    win.clearTimeout(state.updateTimer);
+  }
+
   if (state.host) {
     const heightSync = (
       state.host as typeof state.host & {
@@ -184,5 +372,5 @@ export function removeLibraryPanel(win: Window): void {
 }
 
 export function updateLibraryPanelVisibility(_win: Window): void {
-  // No-op
+  scheduleLibraryPanelVisibilityUpdate(_win);
 }
