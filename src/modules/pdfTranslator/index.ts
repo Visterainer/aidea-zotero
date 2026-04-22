@@ -75,7 +75,10 @@ export class TranslateController {
     /* 1. Check environment */
     const env = await checkEnvironment();
     if (env.status !== "ready") {
-      this.callback({ type: "error", message: `Environment not ready: ${env.status}` });
+      const diag = env.diagnostics?.length
+        ? `\n${env.diagnostics.join("\n")}`
+        : "";
+      this.callback({ type: "error", message: `Environment not ready: ${env.status}${diag}` });
       return;
     }
 

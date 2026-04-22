@@ -4,9 +4,9 @@
 
 /** Status of the Python environment for pdf2zh_next */
 export type EnvStatus =
-  | { status: "no_uv" }
-  | { status: "no_venv" }
-  | { status: "no_pdf2zh" }
+  | { status: "no_uv"; diagnostics?: string[] }
+  | { status: "no_venv"; diagnostics?: string[] }
+  | { status: "no_pdf2zh"; diagnostics?: string[] }
   | { status: "ready"; venvDir: string; pdf2zhBin: string; pythonBin: string };
 
 /** Progress data written by aidea_bridge.py, read by the plugin */

@@ -893,6 +893,11 @@ async function startTranslation(body: Element): Promise<void> {
   const envStatus = await checkEnvironment();
   if (envStatus.status !== "ready") {
     consoleLog(body, `❌ Environment not ready (status: ${envStatus.status})`, "error");
+    if (envStatus.diagnostics?.length) {
+      for (const line of envStatus.diagnostics) {
+        consoleLog(body, `   ${line}`, "info");
+      }
+    }
     consoleLog(body, `   Please click '⚙ Install Environment' button to set up the Python environment`, "error");
     return;
   }

@@ -44,17 +44,61 @@ function getPdf2zhBin(venvDir: string): string {
  *
  * A file can exist but be broken if the user quit Zotero mid-install,
  * leaving behind a 0-byte or partially written executable.
- * We verify: (1) the file exists, and (2) it has a reasonable size (>1 KB).
+ *
+ * Validation strategy — read the first 2 bytes and check the magic header:
+ *   • Windows (.exe): `MZ` (PE executable)
+ *   • Linux/macOS:    `#!` (shebang — Python entry point script)
+ *
+ * This is fast (only reads 2 bytes), cross-platform, and catches both
+ * empty files and partially written / corrupted binaries.
  */
 async function isPdf2zhBinUsable(binPath: string): Promise<boolean> {
   try {
     if (!(await IOUtils.exists(binPath))) return false;
-    const info = await IOUtils.stat(binPath);
-    // A valid pdf2zh_next binary is at least ~10 KB; broken ones are often 0 bytes.
-    // Use 1024 bytes as a conservative threshold.
-    return (info.size ?? 0) > 1024;
+    const bytes = await IOUtils.read(binPath, { maxBytes: 2 });
+    if (bytes.length < 2) return false; // empty or too short
+    const magic = String.fromCharCode(bytes[0], bytes[1]);
+    return IS_WIN ? magic === "MZ" : magic === "#!";
   } catch {
     return false;
+  }
+}
+
+/**
+ * Clean up corrupted distribution directories in site-packages.
+ *
+ * When pip install is interrupted mid-way, it can leave behind partial
+ * `.dist-info` directories with a tilde (`~`) prefix (e.g. `~ympy` for sympy,
+ * `~penai` for openai).  These trigger "Ignoring invalid distribution" warnings
+ * and can sometimes interfere with dependency resolution.
+ *
+ * This function scans the given site-packages directory and removes any
+ * tilde-prefixed entries.
+ */
+async function cleanCorruptedDistributions(
+  sitePackagesDir: string,
+  onProgress: (step: string, detail: string) => void,
+): Promise<void> {
+  try {
+    if (!(await IOUtils.exists(sitePackagesDir))) return;
+    const children = await IOUtils.getChildren(sitePackagesDir);
+    const corrupted = children.filter((child: string) => {
+      const name = child.split(/[\\/]/).pop() || "";
+      return name.startsWith("~");
+    });
+    if (corrupted.length === 0) return;
+    onProgress("install_pkg", `🧹 Cleaning ${corrupted.length} corrupted distribution(s) from site-packages...`);
+    for (const dir of corrupted) {
+      const name = dir.split(/[\\/]/).pop() || dir;
+      try {
+        await IOUtils.remove(dir, { recursive: true });
+        onProgress("install_pkg", `   Removed: ${name}`);
+      } catch {
+        onProgress("install_pkg", `   ⚠️ Could not remove: ${name}`);
+      }
+    }
+  } catch {
+    // Best effort — don’t block the install if listing fails
   }
 }
 
@@ -73,13 +117,54 @@ async function verifyPdf2zhInstall(
   args: string[],
 ): Promise<{ ok: boolean; detail?: string }> {
   try {
-    await runCmd(exe, args);
-    return { ok: true };
+    const stderr = await runCmd(exe, args);
+    return { ok: true, detail: stderr };
   } catch (err) {
     return {
       ok: false,
       detail: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+/**
+ * Diagnostic: list files in the bin/Scripts directory that match a prefix.
+ *
+ * Called when the expected pdf2zh_next binary is missing after install to
+ * reveal whether the entry point was created under a different name.
+ */
+async function listBinDirDiagnostic(
+  binDir: string,
+  prefix: string,
+  onProgress: (step: string, detail: string) => void,
+): Promise<void> {
+  try {
+    if (!(await IOUtils.exists(binDir))) {
+      onProgress("install_pkg", `   🔍 bin dir does not exist: ${binDir}`);
+      return;
+    }
+    const children = await IOUtils.getChildren(binDir);
+    const matching = children.filter((child: string) => {
+      const name = (child.split(/[\\/]/).pop() || "").toLowerCase();
+      return name.includes(prefix.toLowerCase());
+    });
+    if (matching.length === 0) {
+      onProgress("install_pkg", `   🔍 No '${prefix}*' files found in: ${binDir}`);
+      onProgress("install_pkg", `   🔍 Total files in bin/: ${children.length}`);
+    } else {
+      onProgress("install_pkg", `   🔍 Found ${matching.length} '${prefix}*' file(s) in ${binDir}:`);
+      for (const f of matching) {
+        const name = f.split(/[\\/]/).pop() || f;
+        try {
+          const info = await IOUtils.stat(f);
+          onProgress("install_pkg", `      ${name} (${info.size ?? 0} bytes)`);
+        } catch {
+          onProgress("install_pkg", `      ${name} (stat failed)`);
+        }
+      }
+    }
+  } catch {
+    onProgress("install_pkg", `   🔍 Failed to list bin directory: ${binDir}`);
   }
 }
 
@@ -120,37 +205,76 @@ async function findUvBinary(): Promise<string | null> {
  * Detect the current state of the translation environment.
  *
  * Checks conda environment first (preferred), then falls back to uv-managed venv.
+ * Collects step-by-step diagnostics so callers can display useful debug info.
  */
 export async function checkEnvironment(): Promise<EnvStatus> {
+  const diagnostics: string[] = [];
+  let hasPythonButNoPdf2zh = false;
+
   /* Try conda environment first (preferred) */
   const condaPath = await findCondaBinary();
+  diagnostics.push(condaPath ? `✓ conda found: ${condaPath}` : `✗ conda not found`);
   if (condaPath) {
     for (const envDir of getCondaEnvDirCandidates()) {
+      diagnostics.push(`  Checking conda env: ${envDir}`);
       const pythonBin = getCondaPythonBin(envDir);
-      if (!(await IOUtils.exists(pythonBin))) continue;
-      const pdf2zhBin = getCondaPdf2zhBin(envDir);
-      if (await isPdf2zhBinUsable(pdf2zhBin)) {
-        return { status: "ready", venvDir: envDir, pdf2zhBin, pythonBin };
+      if (!(await IOUtils.exists(pythonBin))) {
+        diagnostics.push(`  ✗ python not found: ${pythonBin}`);
+        continue;
       }
-      return { status: "no_pdf2zh" };
+      diagnostics.push(`  ✓ python found: ${pythonBin}`);
+      const pdf2zhBin = getCondaPdf2zhBin(envDir);
+      if (!(await IOUtils.exists(pdf2zhBin))) {
+        diagnostics.push(`  ✗ pdf2zh_next binary not found: ${pdf2zhBin}`);
+        hasPythonButNoPdf2zh = true;
+        continue;
+      }
+      const binUsable = await isPdf2zhBinUsable(pdf2zhBin);
+      if (!binUsable) {
+        diagnostics.push(`  ✗ pdf2zh_next binary exists but invalid (bad magic header): ${pdf2zhBin}`);
+        hasPythonButNoPdf2zh = true;
+        continue;
+      }
+      diagnostics.push(`  ✓ pdf2zh_next binary valid: ${pdf2zhBin}`);
+      diagnostics.push(`  → environment ready`);
+      return { status: "ready", venvDir: envDir, pdf2zhBin, pythonBin };
     }
   }
 
   /* Fallback: uv-managed venv */
   const uvPath = await findUvBinary();
+  diagnostics.push(uvPath ? `✓ uv found: ${uvPath}` : `✗ uv not found`);
   if (uvPath) {
     for (const venvDir of getUvEnvDirCandidates()) {
+      diagnostics.push(`  Checking uv env: ${venvDir}`);
       const pythonBin = getPythonBin(venvDir);
-      if (!(await IOUtils.exists(pythonBin))) continue;
-      const pdf2zhBin = getPdf2zhBin(venvDir);
-      if (await isPdf2zhBinUsable(pdf2zhBin)) {
-        return { status: "ready", venvDir, pdf2zhBin, pythonBin };
+      if (!(await IOUtils.exists(pythonBin))) {
+        diagnostics.push(`  ✗ python not found: ${pythonBin}`);
+        continue;
       }
-      return { status: "no_pdf2zh" };
+      diagnostics.push(`  ✓ python found: ${pythonBin}`);
+      const pdf2zhBin = getPdf2zhBin(venvDir);
+      if (!(await IOUtils.exists(pdf2zhBin))) {
+        diagnostics.push(`  ✗ pdf2zh_next binary not found: ${pdf2zhBin}`);
+        hasPythonButNoPdf2zh = true;
+        continue;
+      }
+      const uvBinUsable = await isPdf2zhBinUsable(pdf2zhBin);
+      if (!uvBinUsable) {
+        diagnostics.push(`  ✗ pdf2zh_next binary exists but invalid (bad magic header): ${pdf2zhBin}`);
+        hasPythonButNoPdf2zh = true;
+        continue;
+      }
+      diagnostics.push(`  ✓ pdf2zh_next binary valid: ${pdf2zhBin}`);
+      diagnostics.push(`  → environment ready`);
+      return { status: "ready", venvDir, pdf2zhBin, pythonBin };
     }
   }
 
-  return { status: "no_uv" };
+  if (hasPythonButNoPdf2zh) {
+    return { status: "no_pdf2zh", diagnostics };
+  }
+  return { status: "no_uv", diagnostics };
 }
 
 /**
@@ -172,7 +296,9 @@ export async function installEnvironment(
     try {
       await installMiniconda();
       condaPath = await findCondaBinary();
-    } catch {
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      onProgress("install_conda", `⚠️ Miniconda install failed: ${reason}`);
       condaPath = null;
     }
   }
@@ -221,25 +347,69 @@ export async function installEnvironment(
       : PathUtils.join(envDir, "bin", "pip");
     onProgress("install_pkg", "Verifying pdf2zh_next...");
     const condaCheck = await verifyPdf2zhInstall(pipBin, ["show", "pdf2zh-next"]);
-    if (!condaCheck.ok) {
-      if (await isPdf2zhBinUsable(pdf2zhBin)) {
+    const condaBinOk = await isPdf2zhBinUsable(pdf2zhBin);
+    onProgress("install_pkg", `   pip show: ${condaCheck.ok ? "OK" : "FAIL"} | binary: ${condaBinOk ? "OK" : "MISSING/INVALID"}`);
+    // Reinstall if either pip metadata or binary is missing/broken
+    const needsInstall = !condaCheck.ok || !condaBinOk;
+    if (needsInstall) {
+      if (condaCheck.ok && !condaBinOk) {
+        // pip show OK but binary missing — interrupted install left metadata but no entry_point script
+        onProgress("install_pkg", `⚠️ Package metadata exists but binary missing: ${pdf2zhBin}`);
+        onProgress("install_pkg", "Force-reinstalling pdf2zh_next to regenerate binary...");
+      } else if (condaBinOk) {
         onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
         try { await IOUtils.remove(pdf2zhBin); } catch { /* ignore */ }
       } else {
         onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
       }
+      // Clean corrupted distributions from interrupted previous installs
+      const condaSitePackages = IS_WIN
+        ? PathUtils.join(envDir, "Lib", "site-packages")
+        : PathUtils.join(envDir, "lib", `python3.12`, "site-packages");
+      await cleanCorruptedDistributions(condaSitePackages, onProgress);
       // --force-reinstall handles partially installed packages from interrupted installs
-      await runCmd(pipBin, ["install", "--force-reinstall", "pdf2zh_next"]);
-      // Verify again after reinstall
+      const pipInstallStderr = await runCmd(pipBin, ["install", "--force-reinstall", "pdf2zh_next"]);
+      if (pipInstallStderr) {
+        // Show pip's stderr output (warnings, errors) in the console
+        for (const line of pipInstallStderr.split("\n").slice(-20)) {
+          if (line.trim()) onProgress("install_pkg", `   pip: ${line.trim()}`);
+        }
+      }
+      // Verify pip metadata after reinstall
       const recheck = await verifyPdf2zhInstall(pipBin, ["show", "pdf2zh-next"]);
       if (!recheck.ok) {
+        onProgress("install_pkg", `❌ pip show failed after reinstall: ${recheck.detail || "unknown"}`);
         throw new Error(
           "pdf2zh_next installed but package verification failed (pip show).\n" +
-          (recheck.detail || "No additional details. Please check the Zotero console."),
+          (recheck.detail || "No additional details."),
         );
       }
     }
-    onProgress("install_pkg", "✅ pdf2zh_next ready");
+    // Verify binary was actually generated
+    const condaBinFinal = await isPdf2zhBinUsable(pdf2zhBin);
+    if (!condaBinFinal) {
+      onProgress("install_pkg", `❌ pdf2zh_next binary missing or invalid after install: ${pdf2zhBin}`);
+      // Diagnostic: list bin directory contents to find actual entry point name
+      const binDir = IS_WIN ? PathUtils.join(envDir, "Scripts") : PathUtils.join(envDir, "bin");
+      await listBinDirDiagnostic(binDir, "pdf2zh", onProgress);
+      throw new Error(
+        `pdf2zh_next package installed but binary not found or invalid at: ${pdf2zhBin}\n` +
+        `Try running: pip install --force-reinstall pdf2zh_next`,
+      );
+    }
+    onProgress("install_pkg", `✅ pdf2zh_next ready (${pdf2zhBin})`);
+
+    // Final cross-check: run checkEnvironment to confirm everything is coherent
+    const condaFinalCheck = await checkEnvironment();
+    if (condaFinalCheck.status !== "ready") {
+      const diag = condaFinalCheck.diagnostics || [];
+      for (const line of diag) {
+        onProgress("install_pkg", `   ${line}`);
+      }
+      throw new Error(
+        `Environment installed but final verification failed (status: ${condaFinalCheck.status}).`,
+      );
+    }
     return;
   }
 
@@ -277,26 +447,69 @@ export async function installEnvironment(
   const uvCheck = await verifyPdf2zhInstall(
     uvPath, ["pip", "show", "pdf2zh-next", "--python", pythonBin],
   );
-  if (!uvCheck.ok) {
-    if (await isPdf2zhBinUsable(pdf2zhBin)) {
+  const uvBinOk = await isPdf2zhBinUsable(pdf2zhBin);
+  onProgress("install_pkg", `   pip show: ${uvCheck.ok ? "OK" : "FAIL"} | binary: ${uvBinOk ? "OK" : "MISSING/INVALID"}`);
+  // Reinstall if either pip metadata or binary is missing/broken
+  const uvNeedsInstall = !uvCheck.ok || !uvBinOk;
+  if (uvNeedsInstall) {
+    if (uvCheck.ok && !uvBinOk) {
+      // pip show OK but binary missing — interrupted install left metadata but no entry_point script
+      onProgress("install_pkg", `⚠️ Package metadata exists but binary missing: ${pdf2zhBin}`);
+      onProgress("install_pkg", "Force-reinstalling pdf2zh_next to regenerate binary...");
+    } else if (uvBinOk) {
       onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
       try { await IOUtils.remove(pdf2zhBin); } catch { /* ignore */ }
     } else {
       onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
     }
-    await runCmd(uvPath, ["pip", "install", "--force-reinstall", "pdf2zh_next", "--python", pythonBin]);
-    // Verify again after reinstall
+    // Clean corrupted distributions from interrupted previous installs
+    const uvSitePackages = IS_WIN
+      ? PathUtils.join(venvDir, "Lib", "site-packages")
+      : PathUtils.join(venvDir, "lib", `python3.12`, "site-packages");
+    await cleanCorruptedDistributions(uvSitePackages, onProgress);
+    const uvPipStderr = await runCmd(uvPath, ["pip", "install", "--force-reinstall", "pdf2zh_next", "--python", pythonBin]);
+    if (uvPipStderr) {
+      for (const line of uvPipStderr.split("\n").slice(-20)) {
+        if (line.trim()) onProgress("install_pkg", `   pip: ${line.trim()}`);
+      }
+    }
+    // Verify pip metadata after reinstall
     const uvRecheck = await verifyPdf2zhInstall(
       uvPath, ["pip", "show", "pdf2zh-next", "--python", pythonBin],
     );
     if (!uvRecheck.ok) {
+      onProgress("install_pkg", `❌ pip show failed after reinstall: ${uvRecheck.detail || "unknown"}`);
       throw new Error(
         "pdf2zh_next installed but package verification failed (pip show).\n" +
-        (uvRecheck.detail || "No additional details. Please check the Zotero console."),
+        (uvRecheck.detail || "No additional details."),
       );
     }
   }
-  onProgress("install_pkg", "✅ pdf2zh_next ready");
+  // Verify binary was actually generated
+  const uvBinFinal = await isPdf2zhBinUsable(pdf2zhBin);
+  if (!uvBinFinal) {
+    onProgress("install_pkg", `❌ pdf2zh_next binary missing or invalid after install: ${pdf2zhBin}`);
+    // Diagnostic: list bin directory contents to find actual entry point name
+    const uvBinDir = IS_WIN ? PathUtils.join(venvDir, "Scripts") : PathUtils.join(venvDir, "bin");
+    await listBinDirDiagnostic(uvBinDir, "pdf2zh", onProgress);
+    throw new Error(
+      `pdf2zh_next package installed but binary not found or invalid at: ${pdf2zhBin}\n` +
+      `Try running: uv pip install --force-reinstall pdf2zh_next`,
+    );
+  }
+  onProgress("install_pkg", `✅ pdf2zh_next ready (${pdf2zhBin})`);
+
+  // Final cross-check: run checkEnvironment to confirm everything is coherent
+  const uvFinalCheck = await checkEnvironment();
+  if (uvFinalCheck.status !== "ready") {
+    const diag = uvFinalCheck.diagnostics || [];
+    for (const line of diag) {
+      onProgress("install_pkg", `   ${line}`);
+    }
+    throw new Error(
+      `Environment installed but final verification failed (status: ${uvFinalCheck.status}).`,
+    );
+  }
 }
 
 /* ── Conda helpers ── */
@@ -371,7 +584,7 @@ async function findCondaBinary(): Promise<string | null> {
  * On Windows: `python.exe -m conda <args>`  (condaPath = base python.exe)
  * On Unix:    `conda <args>`                 (condaPath = conda binary)
  */
-function runCondaCmd(condaPath: string, args: string[]): Promise<void> {
+function runCondaCmd(condaPath: string, args: string[]): Promise<string> {
   if (IS_WIN) {
     // condaPath is the base python.exe
     return runCmd(condaPath, ["-m", "conda", ...args]);
@@ -626,8 +839,11 @@ async function installUv(): Promise<void> {
  *   - Unix:    .sh  → /bin/sh
  * This avoids all nsIProcess issues with python.exe, conda.bat, etc.
  * stderr is captured to a temp log file for diagnostics.
+ *
+ * @returns The stderr output (may be empty). Returned even on success so
+ *          callers can surface pip warnings etc. to the user.
  */
-async function runCmd(exe: string, args: string[]): Promise<void> {
+async function runCmd(exe: string, args: string[]): Promise<string> {
   const tempDir = getTempDirOrThrow();
   const logFile = PathUtils.join(tempDir, "aidea-cmd.log");
   try {
@@ -654,6 +870,8 @@ async function runCmd(exe: string, args: string[]): Promise<void> {
       await _runNsIProcess("/bin/chmod", ["+x", scriptPath]);
       await _runNsIProcess("/bin/sh", [scriptPath]);
     }
+    // Success — return stderr content for informational purposes
+    return await readCommandLog(logFile);
   } catch (err) {
     const details = await readCommandLog(logFile);
     if (!details) throw err;
