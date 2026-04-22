@@ -3956,7 +3956,7 @@ export async function callProviderEmbeddingsUnsupported(): Promise<never> {
  */
 export async function getOAuthProviderPingInfo(
   provider: OAuthProviderId,
-): Promise<{ apiBase: string; headers: Record<string, string> } | null> {
+): Promise<{ apiBase: string; headers: Record<string, string>; projectId?: string } | null> {
   const cred = await readProviderOAuthCredential(provider);
   if (!cred?.accessToken) return null;
 
@@ -3974,8 +3974,14 @@ export async function getOAuthProviderPingInfo(
   }
 
   if (provider === "google-gemini-cli") {
-    // Gemini CLI uses Code Assist streaming API — no standard /chat/completions.
-    return null;
+    // Gemini CLI uses Code Assist streaming API.
+    // Return credential info so the caller can use pingGeminiModel.
+    const projectId = cred.projectId || "";
+    return {
+      apiBase: GEMINI_CODE_ASSIST_API_BASE,
+      headers: buildGeminiCodeAssistHeaders(cred, "gemini-2.5-flash"),
+      projectId,
+    };
   }
 
 
@@ -4067,6 +4073,37 @@ export async function pingCodexModel(
     );
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     // Any non-network response means token is at least partially valid
+    return res.status !== 401 && res.status !== 403 ? "ok" : "fail";
+  } catch {
+    return "fail";
+  }
+}
+
+/**
+ * Ping the Gemini Code Assist API to validate the OAuth token.
+ * Sends a minimal streamGenerateContent request with a tiny prompt.
+ * All Gemini models share the same token, so one ping validates all.
+ * Returns "ok" if the token is valid, "fail" otherwise.
+ */
+export async function pingGeminiModel(
+  headers: Record<string, string>,
+  projectId: string,
+): Promise<"ok" | "fail"> {
+  try {
+    const payload = buildGeminiCodeAssistRequestPayload({
+      model: "gemini-2.5-flash",
+      prompt: "hi",
+      projectId,
+    });
+    const fetchPromise = getFetch()(GEMINI_CODE_ASSIST_STREAM_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const timeoutPromise = new Promise<Response>((_resolve, reject) =>
+      setTimeout(() => reject(new Error("ping timeout")), 15_000),
+    );
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
     return res.status !== 401 && res.status !== 403 ? "ok" : "fail";
   } catch {
     return "fail";

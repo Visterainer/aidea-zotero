@@ -8,6 +8,7 @@ import {
   getProviderAccountSummary,
   getProviderLabel,
   pingCodexModel,
+  pingGeminiModel,
   pingModel,
   providerToMarker,
   removeProviderOAuthCredential,
@@ -1401,10 +1402,12 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
             if (result === "ok") okCount++; else failCount++;
           }
           renderModels();
-        } else if (provider === "google-gemini-cli") {
-          // Gemini CLI: no standard ping available, skip
+        } else if (provider === "google-gemini-cli" && pingInfo) {
+          // Gemini CLI: single token-level ping (all models share same token)
+          const result = await pingGeminiModel(pingInfo.headers, pingInfo.projectId || "");
           for (const m of models) {
-            m.status = undefined;
+            m.status = result;
+            if (result === "ok") okCount++; else failCount++;
           }
           renderModels();
         } else if (pingInfo) {
