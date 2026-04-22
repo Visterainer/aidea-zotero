@@ -1150,6 +1150,107 @@ export async function readCodexOAuthCredential(): Promise<OAuthCredential | null
   return cred;
 }
 
+/**
+ * Refresh the Gemini OAuth access token using the stored refresh token.
+ * Returns a fresh credential or null if refresh is impossible.
+ *
+ * The access token from Google OAuth has a ~1 hour lifetime.  Without
+ * this refresh, every chat request after the first hour fails with 401.
+ */
+async function refreshGeminiAccessToken(
+  cred: OAuthCredential,
+): Promise<OAuthCredential | null> {
+  if (!cred.refreshToken) return null;
+  try {
+    const clientCreds = await extractGeminiCliCredentials();
+    if (!clientCreds) {
+      ztoolkit?.log?.("AIdea: Cannot refresh Gemini token — no client credentials");
+      return null;
+    }
+    ztoolkit?.log?.("AIdea: Refreshing Gemini OAuth access token...");
+    const body = new URLSearchParams({
+      client_id: clientCreds.clientId,
+      client_secret: clientCreds.clientSecret,
+      refresh_token: cred.refreshToken,
+      grant_type: "refresh_token",
+    });
+    const res = await getFetch()("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        Accept: "*/*",
+      },
+      body: body.toString(),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      ztoolkit?.log?.("AIdea: Gemini token refresh failed:", res.status, errText.slice(0, 200));
+      return null;
+    }
+    const data = (await res.json()) as {
+      access_token?: string;
+      expires_in?: number;
+      refresh_token?: string;
+    };
+    const newAccessToken = data.access_token?.trim();
+    if (!newAccessToken) {
+      ztoolkit?.log?.("AIdea: Gemini token refresh returned no access_token");
+      return null;
+    }
+    const newExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000) - 5 * 60 * 1000;
+    // A refresh response may include a rotated refresh_token
+    const newRefreshToken = data.refresh_token?.trim() || cred.refreshToken;
+
+    // Persist to Zotero prefs
+    setOAuthPref("geminiOAuthAccessToken", newAccessToken);
+    setOAuthPref("geminiOAuthExpiresAt", String(newExpiresAt));
+    if (newRefreshToken !== cred.refreshToken) {
+      setOAuthPref("geminiOAuthRefreshToken", newRefreshToken);
+    }
+
+    // Also update the file-based credential if it exists
+    if (cred.sourcePath) {
+      try {
+        const existing = await readJsonFile(cred.sourcePath);
+        if (existing && typeof existing === "object") {
+          existing.access_token = newAccessToken;
+          if (data.expires_in) {
+            existing.expiry_date = newExpiresAt;
+          }
+          if (data.refresh_token) {
+            existing.refresh_token = newRefreshToken;
+          }
+          const raw = JSON.stringify(existing, null, 2);
+          const io = (globalThis as any).IOUtils;
+          if (io?.writeUTF8) {
+            await io.writeUTF8(cred.sourcePath, raw);
+          }
+        }
+      } catch {
+        // Best-effort file update; prefs are the authoritative store
+      }
+    }
+
+    ztoolkit?.log?.("AIdea: Gemini access token refreshed successfully");
+    return {
+      ...cred,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      expiresAt: newExpiresAt,
+    };
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: Gemini token refresh exception:", err);
+    return null;
+  }
+}
+
+/** Check if a Gemini credential's access token is expired or about to expire. */
+function isGeminiTokenExpired(cred: OAuthCredential): boolean {
+  if (!cred.expiresAt) return false; // Unknown expiry — assume valid
+  // Consider expired if within 2 minutes of expiry
+  return Date.now() >= cred.expiresAt - 2 * 60 * 1000;
+}
+
 export async function readGeminiOAuthCredential(): Promise<OAuthCredential | null> {
   // 1. Check Zotero Prefs first (from in-plugin OAuth flow)
   const prefsToken = getOAuthPref("geminiOAuthAccessToken");
@@ -1157,13 +1258,19 @@ export async function readGeminiOAuthCredential(): Promise<OAuthCredential | nul
     const refreshToken = getOAuthPref("geminiOAuthRefreshToken") || undefined;
     const expiresAt = Number(getOAuthPref("geminiOAuthExpiresAt") || "0") || undefined;
     const projectId = getOAuthPref("geminiOAuthProjectId") || undefined;
-    return {
+    let cred: OAuthCredential = {
       provider: "google-gemini-cli",
       accessToken: prefsToken,
       refreshToken,
       expiresAt,
       projectId,
     };
+    // Auto-refresh if token is expired
+    if (isGeminiTokenExpired(cred) && refreshToken) {
+      const refreshed = await refreshGeminiAccessToken(cred);
+      if (refreshed) cred = refreshed;
+    }
+    return cred;
   }
 
   // 2. Fall back to file-based credentials (~/.gemini/oauth_creds.json)
@@ -1182,11 +1289,17 @@ export async function readGeminiOAuthCredential(): Promise<OAuthCredential | nul
   const expiryRaw = data.expiry_date ?? data.expires_at ?? data.expires;
   const expiresAt =
     typeof expiryRaw === "number" && Number.isFinite(expiryRaw) ? Number(expiryRaw) : undefined;
-  const projectId =
+  let projectId =
     (typeof data.project_id === "string" && data.project_id.trim()) ||
     (typeof data.projectId === "string" && data.projectId.trim()) ||
     undefined;
-  return {
+  // Also check Zotero prefs — an earlier lazy discovery may have cached the
+  // project ID even though the credential file doesn't contain it.
+  if (!projectId) {
+    const cachedProject = getOAuthPref("geminiOAuthProjectId");
+    if (cachedProject) projectId = cachedProject;
+  }
+  let cred: OAuthCredential = {
     provider: "google-gemini-cli",
     accessToken,
     refreshToken,
@@ -1194,6 +1307,12 @@ export async function readGeminiOAuthCredential(): Promise<OAuthCredential | nul
     projectId,
     sourcePath: credPath,
   };
+  // Auto-refresh if token is expired
+  if (isGeminiTokenExpired(cred) && refreshToken) {
+    const refreshed = await refreshGeminiAccessToken(cred);
+    if (refreshed) cred = refreshed;
+  }
+  return cred;
 }
 
 // ---------- Zotero Prefs helpers for plugin-native OAuth ----------
@@ -2118,12 +2237,28 @@ setTimeout(() => { server.close(); process.exit(1); }, 120000);
   }
 }
 
-/** Simplified project discovery (adapted from reference oauth.ts discoverProject). */
+/**
+ * Project discovery aligned with the reference implementation
+ * (openclaw/extensions/google/oauth.project.ts → discoverProject).
+ *
+ * Uses IDE_UNSPECIFIED as ideType so the API returns projects that were
+ * provisioned by any IDE or the Gemini CLI.  Tries multiple Code Assist
+ * endpoints (prod → daily → autopush) and sends cloudaicompanionProject
+ * in the loadCodeAssist body when an env-var project is available.
+ */
 async function discoverGeminiProject(accessToken: string): Promise<string> {
   const fetchFn = getFetch();
-  const endpoint = "https://cloudcode-pa.googleapis.com";
-  // PLATFORM_UNSPECIFIED works for all platforms; the API rejects raw OS names like "WINDOWS"
-  const metadata = { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" };
+  const ENDPOINTS = [
+    "https://cloudcode-pa.googleapis.com",
+    "https://daily-cloudcode-pa.sandbox.googleapis.com",
+    "https://autopush-cloudcode-pa.sandbox.googleapis.com",
+  ];
+  // Match the reference exactly: IDE_UNSPECIFIED + PLATFORM_UNSPECIFIED
+  const metadata = {
+    ideType: "IDE_UNSPECIFIED",
+    platform: "PLATFORM_UNSPECIFIED",
+    pluginType: "GEMINI",
+  };
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
@@ -2132,84 +2267,132 @@ async function discoverGeminiProject(accessToken: string): Promise<string> {
     "Client-Metadata": JSON.stringify(metadata),
   };
 
-  // 1. loadCodeAssist
-  ztoolkit?.log?.("AIdea: Gemini project discovery - calling loadCodeAssist...");
-  const loadRes = await fetchFn(`${endpoint}/v1internal:loadCodeAssist`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ metadata }),
-  });
-  ztoolkit?.log?.("AIdea: loadCodeAssist status:", loadRes.status);
+  // Check env-var project upfront (used in loadCodeAssist body per reference)
+  let envProject = "";
+  try {
+    envProject = getEnv("GOOGLE_CLOUD_PROJECT") || getEnv("GOOGLE_CLOUD_PROJECT_ID") || "";
+  } catch { /* */ }
 
-  if (!loadRes.ok) {
-    const errText = await loadRes.text().catch(() => "");
-    ztoolkit?.log?.("AIdea: loadCodeAssist failed:", errText.slice(0, 300));
-    return "";
-  }
+  // ---- Step 1: loadCodeAssist (try multiple endpoints) ----
+  const loadBody: Record<string, unknown> = {
+    metadata: {
+      ...metadata,
+      ...(envProject ? { duetProject: envProject } : {}),
+    },
+    ...(envProject ? { cloudaicompanionProject: envProject } : {}),
+  };
 
-  const data = (await loadRes.json() as unknown) as {
+  type LoadData = {
     currentTier?: { id?: string };
     cloudaicompanionProject?: string | { id?: string };
     allowedTiers?: Array<{ id?: string; isDefault?: boolean }>;
   };
-  ztoolkit?.log?.("AIdea: loadCodeAssist response:", JSON.stringify(data).slice(0, 500));
+  let data: LoadData = {};
+  let activeEndpoint = ENDPOINTS[0];
+  let loadSucceeded = false;
 
-  // Extract project directly if available
-  const proj = data.cloudaicompanionProject;
-  if (typeof proj === "string" && proj) {
-    ztoolkit?.log?.("AIdea: Found project (string):", proj);
-    return proj;
-  }
-  if (typeof proj === "object" && proj?.id) {
-    ztoolkit?.log?.("AIdea: Found project (object):", proj.id);
-    return proj.id;
-  }
-
-  // If already onboarded (has currentTier but no project), need project from env
-  if (data.currentTier) {
-    ztoolkit?.log?.("AIdea: Has tier but no project in response. Tier:", data.currentTier.id);
-  }
-
-  // 2. onboardUser
-  const tierId = data.allowedTiers?.find((t) => t.isDefault)?.id || "free-tier";
-  ztoolkit?.log?.("AIdea: onboarding with tier:", tierId);
-  const onboardRes = await fetchFn(`${endpoint}/v1internal:onboardUser`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ tierId, metadata }),
-  });
-  ztoolkit?.log?.("AIdea: onboardUser status:", onboardRes.status);
-
-  if (!onboardRes.ok) {
-    const errText = await onboardRes.text().catch(() => "");
-    ztoolkit?.log?.("AIdea: onboardUser failed:", errText.slice(0, 300));
-    return "";
-  }
-
-  let lro = (await onboardRes.json() as unknown) as {
-    done?: boolean; name?: string;
-    response?: { cloudaicompanionProject?: { id?: string } };
-  };
-  ztoolkit?.log?.("AIdea: onboardUser response:", JSON.stringify(lro).slice(0, 500));
-
-  // Poll operation if not done
-  if (!lro.done && lro.name) {
-    ztoolkit?.log?.("AIdea: Polling operation:", lro.name);
-    for (let i = 0; i < 12; i++) {
-      await new Promise((r) => setTimeout(r, 5000));
-      const pollRes = await fetchFn(`${endpoint}/v1internal/${lro.name}`, { headers });
-      if (pollRes.ok) {
-        lro = (await pollRes.json() as unknown) as typeof lro;
-        ztoolkit?.log?.("AIdea: Poll result:", JSON.stringify(lro).slice(0, 300));
-        if (lro.done) break;
+  for (const ep of ENDPOINTS) {
+    try {
+      ztoolkit?.log?.("AIdea: Gemini project discovery - calling loadCodeAssist at", ep);
+      const loadRes = await fetchFn(`${ep}/v1internal:loadCodeAssist`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(loadBody),
+      });
+      ztoolkit?.log?.("AIdea: loadCodeAssist status:", loadRes.status);
+      if (!loadRes.ok) {
+        const errText = await loadRes.text().catch(() => "");
+        ztoolkit?.log?.("AIdea: loadCodeAssist failed:", errText.slice(0, 300));
+        continue;
       }
+      data = (await loadRes.json() as unknown) as LoadData;
+      ztoolkit?.log?.("AIdea: loadCodeAssist response:", JSON.stringify(data).slice(0, 500));
+      activeEndpoint = ep;
+      loadSucceeded = true;
+      break;
+    } catch (err) {
+      ztoolkit?.log?.("AIdea: loadCodeAssist exception at", ep, err);
     }
   }
-  const projId = lro.response?.cloudaicompanionProject?.id;
-  ztoolkit?.log?.("AIdea: Final project ID:", projId || "(empty)");
-  if (projId) return projId;
 
-  // Fallback 1: try gcloud CLI
+  const hasData = Boolean(data.currentTier) || Boolean(data.cloudaicompanionProject) || Boolean(data.allowedTiers?.length);
+  if (!loadSucceeded && !hasData) {
+    ztoolkit?.log?.("AIdea: All loadCodeAssist endpoints failed");
+    if (envProject) return envProject;
+    // Fall through to gcloud / env fallbacks below
+  }
+
+  // ---- Extract project if user is already onboarded ----
+  if (data.currentTier) {
+    const proj = data.cloudaicompanionProject;
+    if (typeof proj === "string" && proj) {
+      ztoolkit?.log?.("AIdea: Found project (string):", proj);
+      return proj;
+    }
+    if (typeof proj === "object" && proj?.id) {
+      ztoolkit?.log?.("AIdea: Found project (object):", proj.id);
+      return proj.id;
+    }
+    ztoolkit?.log?.("AIdea: Has tier but no project in response. Tier:", data.currentTier.id);
+    // Already onboarded but project not in response — need env/gcloud fallback
+    if (envProject) return envProject;
+  }
+
+  // ---- Step 2: onboardUser (provision new project for free-tier users) ----
+  if (hasData) {
+    const defaultTier = data.allowedTiers?.find((t) => t.isDefault);
+    const tierId = defaultTier?.id || "free-tier";
+    ztoolkit?.log?.("AIdea: onboarding with tier:", tierId);
+
+    const onboardBody: Record<string, unknown> = {
+      tierId,
+      metadata: {
+        ...metadata,
+        ...(tierId !== "free-tier" && envProject ? { duetProject: envProject } : {}),
+      },
+      ...(tierId !== "free-tier" && envProject ? { cloudaicompanionProject: envProject } : {}),
+    };
+    try {
+      const onboardRes = await fetchFn(`${activeEndpoint}/v1internal:onboardUser`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(onboardBody),
+      });
+      ztoolkit?.log?.("AIdea: onboardUser status:", onboardRes.status);
+
+      if (onboardRes.ok) {
+        let lro = (await onboardRes.json() as unknown) as {
+          done?: boolean; name?: string;
+          response?: { cloudaicompanionProject?: { id?: string } };
+        };
+        ztoolkit?.log?.("AIdea: onboardUser response:", JSON.stringify(lro).slice(0, 500));
+
+        // Poll operation if not done
+        if (!lro.done && lro.name) {
+          ztoolkit?.log?.("AIdea: Polling operation:", lro.name);
+          for (let i = 0; i < 24; i++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const pollRes = await fetchFn(`${activeEndpoint}/v1internal/${lro.name}`, { headers });
+            if (pollRes.ok) {
+              lro = (await pollRes.json() as unknown) as typeof lro;
+              ztoolkit?.log?.("AIdea: Poll result:", JSON.stringify(lro).slice(0, 300));
+              if (lro.done) break;
+            }
+          }
+        }
+        const projId = lro.response?.cloudaicompanionProject?.id;
+        ztoolkit?.log?.("AIdea: Final project ID from onboard:", projId || "(empty)");
+        if (projId) return projId;
+      } else {
+        const errText = await onboardRes.text().catch(() => "");
+        ztoolkit?.log?.("AIdea: onboardUser failed:", errText.slice(0, 300));
+      }
+    } catch (err) {
+      ztoolkit?.log?.("AIdea: onboardUser exception:", err);
+    }
+  }
+
+  // ---- Fallback 1: try gcloud CLI ----
   try {
     const gcloud = await runShellCommand("gcloud config get-value project", { hidden: true });
     const gcloudProj = gcloud.stdout?.trim();
@@ -2219,14 +2402,11 @@ async function discoverGeminiProject(accessToken: string): Promise<string> {
     }
   } catch { /* gcloud not installed */ }
 
-  // Fallback 2: environment variable
-  try {
-    const envProj = getEnv("GOOGLE_CLOUD_PROJECT") || getEnv("GOOGLE_CLOUD_PROJECT_ID") || "";
-    if (envProj) {
-      ztoolkit?.log?.("AIdea: Got project from env:", envProj);
-      return envProj;
-    }
-  } catch { /* */ }
+  // ---- Fallback 2: environment variable ----
+  if (envProject) {
+    ztoolkit?.log?.("AIdea: Got project from env:", envProject);
+    return envProject;
+  }
 
   return "";
 }
@@ -3680,17 +3860,23 @@ export async function chatWithProviderOAuth(params: {
   }
 
   // ---------- Google Gemini CLI (Cloud Code Assist streaming) ----------
-  const geminiPayload = buildGeminiCodeAssistRequestPayload({
-    model: params.model,
-    prompt: params.prompt,
-    projectId: cred.projectId || "",
-    context: params.context,
-    history: params.history,
-    systemPrompt: params.systemPrompt,
-    temperature: params.temperature,
-    maxTokens: params.maxTokens,
-  });
-  if (!cred.projectId) {
+  // Lazy project discovery: if we have a token but no project ID,
+  // attempt automatic discovery and cache the result before giving up.
+  let geminiProjectId = cred.projectId || "";
+  if (!geminiProjectId && cred.accessToken) {
+    try {
+      ztoolkit?.log?.("AIdea: Gemini lazy project discovery starting...");
+      const discovered = await discoverGeminiProject(cred.accessToken);
+      if (discovered) {
+        geminiProjectId = discovered;
+        setOAuthPref("geminiOAuthProjectId", discovered);
+        ztoolkit?.log?.("AIdea: Lazy project discovery succeeded:", discovered);
+      }
+    } catch (err) {
+      ztoolkit?.log?.("AIdea: Lazy project discovery failed:", err);
+    }
+  }
+  if (!geminiProjectId) {
     throw new Error(
       "Gemini OAuth: no GCP project ID found. Try:\n" +
       "1. Remove Auth → OAuth Login (re-authorize)\n" +
@@ -3698,25 +3884,51 @@ export async function chatWithProviderOAuth(params: {
       "3. Or set env var GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID"
     );
   }
-  const res = await fetchWithTransientRetry(
-    getFetch(),
-    GEMINI_CODE_ASSIST_STREAM_URL,
-    {
-      method: "POST",
-      headers: buildGeminiCodeAssistHeaders(cred, params.model),
-      body: JSON.stringify(geminiPayload),
-      signal: params.signal,
-    },
-    {
-      signal: params.signal,
-      onRetry: ({ attempt, maxAttempts, error }) => {
-        ztoolkit?.log?.(
-          `AIdea: Gemini OAuth transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
-          error,
-        );
+  const geminiPayload = buildGeminiCodeAssistRequestPayload({
+    model: params.model,
+    prompt: params.prompt,
+    projectId: geminiProjectId,
+    context: params.context,
+    history: params.history,
+    systemPrompt: params.systemPrompt,
+    temperature: params.temperature,
+    maxTokens: params.maxTokens,
+  });
+
+  // Helper to execute the Gemini streaming request with a given credential
+  const executeGeminiRequest = async (activeCred: OAuthCredential) => {
+    return fetchWithTransientRetry(
+      getFetch(),
+      GEMINI_CODE_ASSIST_STREAM_URL,
+      {
+        method: "POST",
+        headers: buildGeminiCodeAssistHeaders(activeCred, params.model),
+        body: JSON.stringify(geminiPayload),
+        signal: params.signal,
       },
-    },
-  );
+      {
+        signal: params.signal,
+        onRetry: ({ attempt, maxAttempts, error }) => {
+          ztoolkit?.log?.(
+            `AIdea: Gemini OAuth transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+            error,
+          );
+        },
+      },
+    );
+  };
+
+  let res = await executeGeminiRequest(cred);
+
+  // Retry on 401: refresh token and try once more
+  if (res.status === 401 && cred.refreshToken) {
+    ztoolkit?.log?.("AIdea: Gemini 401 — attempting token refresh and retry...");
+    const refreshed = await refreshGeminiAccessToken(cred);
+    if (refreshed) {
+      res = await executeGeminiRequest(refreshed);
+    }
+  }
+
   if (!res.ok) {
     throw new Error(`Gemini OAuth HTTP ${res.status}: ${await res.text()}`);
   }

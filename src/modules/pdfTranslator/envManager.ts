@@ -59,18 +59,27 @@ async function isPdf2zhBinUsable(binPath: string): Promise<boolean> {
 }
 
 /**
- * Deep-verify pdf2zh_next by running `--version`.
+ * Verify pdf2zh_next package is properly installed by running `pip show`.
+ *
+ * This is much lighter than `pdf2zh_next --version` because it only checks
+ * package metadata without importing the entire dependency chain (babeldoc,
+ * gradio, pymupdf, pydantic, etc. — 20+ packages).
  *
  * Only called from installEnvironment (button-triggered), never on tab switch.
- * Returns true if the binary runs successfully and produces output.
+ * Returns an object with `ok` flag and optional diagnostic `detail` on failure.
  */
-async function verifyPdf2zhBin(binPath: string): Promise<boolean> {
-  if (!(await isPdf2zhBinUsable(binPath))) return false;
+async function verifyPdf2zhInstall(
+  exe: string,
+  args: string[],
+): Promise<{ ok: boolean; detail?: string }> {
   try {
-    await runCmd(binPath, ["--version"]);
-    return true;
-  } catch {
-    return false;
+    await runCmd(exe, args);
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      detail: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -207,23 +216,27 @@ export async function installEnvironment(
 
     /* Install / verify pdf2zh_next via pip inside conda env */
     const pdf2zhBin = getCondaPdf2zhBin(envDir);
+    const pipBin = IS_WIN
+      ? PathUtils.join(envDir, "Scripts", "pip.exe")
+      : PathUtils.join(envDir, "bin", "pip");
     onProgress("install_pkg", "Verifying pdf2zh_next...");
-    const condaBinOk = await verifyPdf2zhBin(pdf2zhBin);
-    if (!condaBinOk) {
-      if (await IOUtils.exists(pdf2zhBin)) {
+    const condaCheck = await verifyPdf2zhInstall(pipBin, ["show", "pdf2zh-next"]);
+    if (!condaCheck.ok) {
+      if (await isPdf2zhBinUsable(pdf2zhBin)) {
         onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
         try { await IOUtils.remove(pdf2zhBin); } catch { /* ignore */ }
       } else {
         onProgress("install_pkg", "Installing pdf2zh_next (this may take a few minutes)...");
       }
-      const pipBin = IS_WIN
-        ? PathUtils.join(envDir, "Scripts", "pip.exe")
-        : PathUtils.join(envDir, "bin", "pip");
       // --force-reinstall handles partially installed packages from interrupted installs
       await runCmd(pipBin, ["install", "--force-reinstall", "pdf2zh_next"]);
       // Verify again after reinstall
-      if (!(await verifyPdf2zhBin(pdf2zhBin))) {
-        throw new Error("pdf2zh_next installed but failed verification (--version). Please retry or check logs.");
+      const recheck = await verifyPdf2zhInstall(pipBin, ["show", "pdf2zh-next"]);
+      if (!recheck.ok) {
+        throw new Error(
+          "pdf2zh_next installed but package verification failed (pip show).\n" +
+          (recheck.detail || "No additional details. Please check the Zotero console."),
+        );
       }
     }
     onProgress("install_pkg", "✅ pdf2zh_next ready");
@@ -261,9 +274,11 @@ export async function installEnvironment(
 
   const pdf2zhBin = getPdf2zhBin(venvDir);
   onProgress("install_pkg", "Verifying pdf2zh_next...");
-  const uvBinOk = await verifyPdf2zhBin(pdf2zhBin);
-  if (!uvBinOk) {
-    if (await IOUtils.exists(pdf2zhBin)) {
+  const uvCheck = await verifyPdf2zhInstall(
+    uvPath, ["pip", "show", "pdf2zh-next", "--python", pythonBin],
+  );
+  if (!uvCheck.ok) {
+    if (await isPdf2zhBinUsable(pdf2zhBin)) {
       onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
       try { await IOUtils.remove(pdf2zhBin); } catch { /* ignore */ }
     } else {
@@ -271,8 +286,14 @@ export async function installEnvironment(
     }
     await runCmd(uvPath, ["pip", "install", "--force-reinstall", "pdf2zh_next", "--python", pythonBin]);
     // Verify again after reinstall
-    if (!(await verifyPdf2zhBin(pdf2zhBin))) {
-      throw new Error("pdf2zh_next installed but failed verification (--version). Please retry or check logs.");
+    const uvRecheck = await verifyPdf2zhInstall(
+      uvPath, ["pip", "show", "pdf2zh-next", "--python", pythonBin],
+    );
+    if (!uvRecheck.ok) {
+      throw new Error(
+        "pdf2zh_next installed but package verification failed (pip show).\n" +
+        (uvRecheck.detail || "No additional details. Please check the Zotero console."),
+      );
     }
   }
   onProgress("install_pkg", "✅ pdf2zh_next ready");

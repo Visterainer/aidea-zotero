@@ -528,9 +528,9 @@ export async function copyTextToClipboard(
 /**
  * Render markdown text through renderMarkdownForNote and copy the result
  * to the clipboard as both text/html and text/plain.  When pasted into a
- * Zotero note, the HTML version is used 闂?producing the same rendering as
+ * Zotero note, the HTML version is used, producing the same rendering as
  * "Save as note".  When pasted into a plain-text editor, the raw markdown
- * is used 闂?matching "Copy chat as md".
+ * is used, matching "Copy chat as md".
  */
 export async function copyRenderedMarkdownToClipboard(
   body: Element,
@@ -2631,7 +2631,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             paperContext.year || "",
           ].filter(Boolean);
           paperMeta.textContent =
-            metaParts.join(" 閻?") || "Supplemental paper";
+            metaParts.join(" | ") || "Supplemental paper";
           paperMeta.title = paperMeta.textContent;
           paperItem.append(paperTitle, paperMeta);
           papersList.appendChild(paperItem);
@@ -2750,7 +2750,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
           const fileMeta = doc.createElement("span") as HTMLSpanElement;
           fileMeta.className = "llm-user-files-item-meta";
-          fileMeta.textContent = `${attachment.mimeType || "application/octet-stream"} 閻?${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`;
+          fileMeta.textContent = `${attachment.mimeType || "application/octet-stream"} | ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`;
 
           fileInfo.append(fileName, fileMeta);
           fileItem.append(fileType, fileInfo);

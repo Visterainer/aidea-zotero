@@ -1,4 +1,6 @@
-startup-begin = AIdea 鍔犺浇涓?startup-finish = AIdea 宸插氨缁?menuitem-label = AIdea
+startup-begin = AIdea 加载中...
+startup-finish = AIdea 已就绪
+menuitem-label = AIdea
 menupopup-label = AIdea
 menuitem-submenulabel = AIdea
 menuitem-filemenulabel = AIdea

@@ -41,8 +41,13 @@ export function isRetryableTransientStatus(status: number): boolean {
   return RETRYABLE_TRANSIENT_STATUS_CODES.has(status);
 }
 
+function createAbortError(): Error {
+  const err = new Error("Aborted");
+  err.name = "AbortError";
+  return err;
+}
+
 export function isAbortLikeError(error: unknown): boolean {
-  if (error instanceof DOMException) return error.name === "AbortError";
   if (error instanceof Error) return error.name === "AbortError";
   return String(error || "").includes("AbortError");
 }
@@ -76,7 +81,7 @@ async function delayWithSignal(ms: number, signal?: AbortSignal): Promise<void> 
     }, ms);
     const onAbort = () => {
       cleanup();
-      reject(new DOMException("Aborted", "AbortError"));
+      reject(createAbortError());
     };
     const cleanup = () => {
       clearTimeout(timer);
@@ -85,7 +90,7 @@ async function delayWithSignal(ms: number, signal?: AbortSignal): Promise<void> 
     if (signal) {
       if (signal.aborted) {
         cleanup();
-        reject(new DOMException("Aborted", "AbortError"));
+        reject(createAbortError());
         return;
       }
       signal.addEventListener("abort", onAbort, { once: true });
@@ -119,7 +124,7 @@ export async function withTransientRetry<T>(
   let attempt = 1;
   while (true) {
     if (opts?.signal?.aborted) {
-      throw new DOMException("Aborted", "AbortError");
+      throw createAbortError();
     }
     try {
       return await fn(attempt);

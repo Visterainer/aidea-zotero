@@ -135,7 +135,7 @@ ORG_KEYWORD_RE = re.compile(
 )
 
 
-PERSON_TOKEN_RE = re.compile(r"^[A-Z][A-Za-z'鈥?\-]*$")
+PERSON_TOKEN_RE = re.compile(r"^[A-Z][A-Za-z'’.\-]*$")
 AUTHOR_MARKER_RE = re.compile(r"[\*\u2020\u2021\d]+$")
 AUTHOR_ENTITY_SPLIT_RE = re.compile(r"[;,|/]+")
 PERSON_NAME_STOPWORDS = {

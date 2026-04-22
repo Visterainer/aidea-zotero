@@ -1636,12 +1636,12 @@ function xhrStream(params: {
     // Handle abort signal
     if (signal) {
       if (signal.aborted) {
-        reject(new DOMException("Aborted", "AbortError"));
+        reject(createAbortError());
         return;
       }
       signal.addEventListener("abort", () => {
         xhr.abort();
-        reject(new DOMException("Aborted", "AbortError"));
+        reject(createAbortError());
       });
     }
 
@@ -1729,7 +1729,7 @@ function xhrStream(params: {
     };
 
     xhr.onabort = () => {
-      reject(new DOMException("Aborted", "AbortError"));
+      reject(createAbortError());
     };
 
     xhr.send(JSON.stringify(payload));
