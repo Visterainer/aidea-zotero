@@ -1,0 +1,16 @@
+---
+import HomePage from "../components/HomePage.astro";
+import { pageContent } from "../content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const page = pageContent["zh-CN"];
+---
+
+<BaseLayout
+  lang="zh-CN"
+  title={page.title}
+  description={page.description}
+  path="/"
+>
+  <HomePage page={page} />
+</BaseLayout>

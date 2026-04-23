@@ -1,0 +1,153 @@
+<svg width="1600" height="1560" viewBox="0 0 1600 1560" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="1480" y2="1480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBF7F0"/>
+      <stop offset="1" stop-color="#F2EADF"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#D8734A"/>
+      <stop offset="1" stop-color="#E8B197"/>
+    </linearGradient>
+    <linearGradient id="cool" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#6F8CA4"/>
+      <stop offset="1" stop-color="#C8D6E1"/>
+    </linearGradient>
+    <linearGradient id="olive" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#85915A"/>
+      <stop offset="1" stop-color="#C6CFAC"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#584532" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#8A7561"/>
+    </marker>
+    <style>
+      .title { font: 700 38px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #171411; }
+      .subtitle { font: 500 19px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #5F5750; }
+      .section { font: 700 15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #8B593E; letter-spacing: 0.12em; text-transform: uppercase; }
+      .cardtitle { font: 700 28px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #171411; }
+      .subtitle2 { font: 700 18px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #171411; }
+      .body { font: 500 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #514A43; }
+      .small { font: 500 14px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #6A625A; }
+      .chip { font: 700 12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #7E5139; letter-spacing: 0.08em; text-transform: uppercase; }
+      .label { font: 700 15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #171411; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1560" rx="42" fill="url(#bg)"/>
+  <rect x="34" y="34" width="1532" height="1492" rx="36" stroke="white" stroke-opacity="0.78" stroke-width="2"/>
+
+  <text x="86" y="92" class="title">AIdea Architecture</text>
+  <text x="86" y="126" class="subtitle">自上而下理解：研究材料进入 Zotero 内的 AI 工作流，经过上下文与记忆编排，输出回到 Zotero。</text>
+
+  <rect x="84" y="176" width="1432" height="234" rx="30" fill="#FFFCF8" stroke="#E4D8CB" filter="url(#shadow)"/>
+  <text x="118" y="228" class="section">Layer 1</text>
+  <text x="118" y="264" class="cardtitle">Research Materials</text>
+  <text x="118" y="294" class="body">用户从不同材料形式进入同一套 AI 工作流。</text>
+
+  <rect x="118" y="326" width="250" height="58" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <rect x="138" y="341" width="28" height="28" rx="6" fill="url(#warm)"/>
+  <path d="M145 350H159M145 357H159M145 364H154" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="182" y="362" class="label">Current PDF</text>
+
+  <rect x="392" y="326" width="250" height="58" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <rect x="412" y="341" width="28" height="28" rx="14" fill="url(#cool)"/>
+  <path d="M426 348V362M419 355H433" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="456" y="362" class="label">Selected Papers</text>
+
+  <rect x="666" y="326" width="250" height="58" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <rect x="686" y="341" width="28" height="28" rx="6" fill="url(#olive)"/>
+  <path d="M692 362L700 350L708 359L715 346L722 362" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="730" y="362" class="label">Selected Text</text>
+
+  <rect x="940" y="326" width="250" height="58" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <rect x="960" y="341" width="28" height="28" rx="6" fill="url(#cool)"/>
+  <rect x="966" y="347" width="16" height="12" rx="3" stroke="white" stroke-width="2"/>
+  <circle cx="972" cy="352" r="2" fill="white"/>
+  <path d="M967 358L972 353L976 357L982 351" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1004" y="362" class="label">Screenshots / Figures</text>
+
+  <rect x="1214" y="326" width="268" height="58" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <rect x="1234" y="341" width="28" height="28" rx="6" fill="url(#warm)"/>
+  <path d="M1242 347H1256V363H1242V347Z" stroke="white" stroke-width="2"/>
+  <path d="M1246 352H1252" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <text x="1278" y="362" class="label">Files / Notes / Code</text>
+
+  <line x1="800" y1="410" x2="800" y2="478" stroke="#8A7561" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="210" y="480" width="1180" height="258" rx="30" fill="#FFFCF8" stroke="#E4D8CB" filter="url(#shadow)"/>
+  <text x="244" y="532" class="section">Layer 2</text>
+  <text x="244" y="568" class="cardtitle">Context Assembly</text>
+  <text x="244" y="598" class="body">AIdea 在发送前把论文、选段、图片和附件整理成一个清晰可用的请求。</text>
+
+  <rect x="244" y="628" width="268" height="76" rx="20" fill="#FFF8F2" stroke="#E4D2C4"/>
+  <text x="268" y="658" class="subtitle2">Paper context</text>
+  <text x="268" y="684" class="small">从当前 PDF 与增补论文中提取可用上下文</text>
+
+  <rect x="536" y="628" width="268" height="76" rx="20" fill="#FFF8F2" stroke="#E4D2C4"/>
+  <text x="560" y="658" class="subtitle2">Quoted context</text>
+  <text x="560" y="684" class="small">把用户显式选择的段落加入问题</text>
+
+  <rect x="828" y="628" width="268" height="76" rx="20" fill="#FFF8F2" stroke="#E4D2C4"/>
+  <text x="852" y="658" class="subtitle2">Image context</text>
+  <text x="852" y="684" class="small">保留图表、截图、表格等视觉信息</text>
+
+  <rect x="1120" y="628" width="236" height="76" rx="20" fill="#FFF8F2" stroke="#E4D2C4"/>
+  <text x="1144" y="658" class="subtitle2">File context</text>
+  <text x="1144" y="684" class="small">文件内容与元信息进入同一请求</text>
+
+  <rect x="550" y="558" width="500" height="34" rx="17" fill="#F1E8DC" stroke="#D9C9B7"/>
+  <text x="578" y="580" class="chip">one request pipeline inside Zotero</text>
+
+  <line x1="800" y1="738" x2="800" y2="808" stroke="#8A7561" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="152" y="812" width="1296" height="332" rx="30" fill="#FFFCF8" stroke="#E4D8CB" filter="url(#shadow)"/>
+  <text x="186" y="864" class="section">Layer 3</text>
+  <text x="186" y="900" class="cardtitle">Layered Memory</text>
+  <text x="186" y="930" class="body">系统不会把所有历史都塞进一个大 prompt，而是把记忆分层组织。</text>
+
+  <rect x="186" y="968" width="380" height="132" rx="24" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <circle cx="232" cy="1016" r="18" fill="url(#warm)"/>
+  <path d="M224 1014C224 1009 228 1005 232 1005C236 1005 240 1009 240 1014C240 1019 236 1022 232 1022C228 1022 224 1019 224 1014Z" stroke="white" stroke-width="2"/>
+  <path d="M226 1028C228 1024 236 1024 238 1028" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <text x="262" y="1008" class="subtitle2">Long-term memory</text>
+  <text x="262" y="1036" class="body">跨会话保留用户偏好、事实和决策</text>
+  <text x="262" y="1064" class="small">用于下一轮相关问题的记忆召回</text>
+
+  <rect x="610" y="968" width="380" height="132" rx="24" fill="#F5F8FB" stroke="#D7E0E7"/>
+  <circle cx="656" cy="1016" r="18" fill="url(#cool)"/>
+  <path d="M648 1018H664M648 1011H660M648 1025H658" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="686" y="1008" class="subtitle2">Compressed history</text>
+  <text x="686" y="1036" class="body">较早的对话被压缩为工作摘要</text>
+  <text x="686" y="1064" class="small">降低上下文膨胀，同时保留主题连续性</text>
+
+  <rect x="1034" y="968" width="380" height="132" rx="24" fill="#F8FAF1" stroke="#DDE4C8"/>
+  <circle cx="1080" cy="1016" r="18" fill="url(#olive)"/>
+  <path d="M1072 1016H1088M1080 1008V1024" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="1110" y="1008" class="subtitle2">Recent turns</text>
+  <text x="1110" y="1036" class="body">最近的对话保持原样，保证当前回复贴近上下文</text>
+  <text x="1110" y="1064" class="small">适合连续追问、解释与修订</text>
+
+  <line x1="800" y1="1144" x2="800" y2="1212" stroke="#8A7561" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="278" y="1216" width="1044" height="226" rx="30" fill="#FFFCF8" stroke="#E4D8CB" filter="url(#shadow)"/>
+  <text x="312" y="1268" class="section">Layer 4</text>
+  <text x="312" y="1304" class="cardtitle">Models and Zotero Outputs</text>
+  <text x="312" y="1334" class="body">统一界面连接多种模型，并把结果留在 Zotero 内部。</text>
+
+  <rect x="314" y="1362" width="312" height="52" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <text x="340" y="1394" class="label">OpenAI / Gemini / Copilot / Compatible APIs</text>
+
+  <rect x="652" y="1362" width="206" height="52" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <text x="686" y="1394" class="label">Chat answers</text>
+
+  <rect x="882" y="1362" width="180" height="52" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <text x="930" y="1394" class="label">Notes</text>
+
+  <rect x="1086" y="1362" width="204" height="52" rx="18" fill="#FFF6EF" stroke="#E4CDBF"/>
+  <text x="1116" y="1394" class="label">Translation output</text>
+
+  <path d="M1190 1362C1190 1294 1132 1248 1050 1248H930" stroke="#8A7561" stroke-width="2.6" stroke-dasharray="8 8" marker-end="url(#arrow)"/>
+  <text x="1014" y="1238" class="small">useful user information flows back into memory</text>
+</svg>

@@ -1,0 +1,59 @@
+---
+import "../styles/global.css";
+import { getLocaleDefinition, localeDefinitions } from "../i18n";
+
+type Props = {
+  lang: import("../i18n").Locale;
+  title: string;
+  description: string;
+  path: string;
+};
+
+const { lang, title, description, path } = Astro.props;
+
+const siteUrl = "https://visterainer.github.io";
+const basePath = import.meta.env.BASE_URL;
+const baseRoot = basePath.endsWith("/") ? basePath : `${basePath}/`;
+const withBase = (value: string) => `${baseRoot}${value.replace(/^\//, "")}`;
+const normalize = (value: string) =>
+  `${siteUrl}${withBase(value)}`.replace(/([^:]\/)\/+/g, "$1");
+const canonical = normalize(path);
+const themeColor = "#f3efe7";
+const locale = getLocaleDefinition(lang);
+const socialImage = normalize(
+  locale.usesChineseMedia ? "/media/chat-panel-cn.png" : "/media/chat-panel-en.png",
+);
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content={themeColor} />
+    <link rel="canonical" href={canonical} />
+    {localeDefinitions.map((item) => (
+      <link rel="alternate" hreflang={item.code} href={normalize(item.href)} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href={normalize("/")} />
+    <link rel="icon" type="image/png" href={withBase("/media/icon-96.png")} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content={locale.ogLocale} />
+    {localeDefinitions
+      .filter((item) => item.code !== lang)
+      .map((item) => <meta property="og:locale:alternate" content={item.ogLocale} />)}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={socialImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+  </head>
+  <body data-dir={locale.dir} data-locale={lang}>
+    <slot />
+  </body>
+</html>

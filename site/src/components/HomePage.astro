@@ -1,0 +1,301 @@
+---
+import type { HeadingKey, PageData } from "../content";
+import { headingFragments } from "../content";
+import { getLocaleDefinition, localeOptions } from "../i18n";
+
+type Props = {
+  page: PageData;
+};
+
+const { page } = Astro.props;
+const basePath = import.meta.env.BASE_URL;
+const baseRoot = basePath.endsWith("/") ? basePath : `${basePath}/`;
+const withBase = (value: string) => `${baseRoot}${value.replace(/^\//, "")}`;
+const locale = getLocaleDefinition(page.locale);
+const docsHref =
+  locale.usesChineseMedia
+    ? "https://github.com/Visterainer/aidea-zotero/blob/master/README_CN.md"
+    : "https://github.com/Visterainer/aidea-zotero/blob/master/README.md";
+const heroImage = locale.usesChineseMedia
+  ? withBase("/media/chat-panel-cn.png")
+  : withBase("/media/chat-panel-en.png");
+const storyImage = locale.usesChineseMedia
+  ? withBase("/media/story-chat-cn.png")
+  : withBase("/media/story-chat-en.png");
+const settingsImage = locale.usesChineseMedia
+  ? withBase("/media/settings-oauth-models-cn.png")
+  : withBase("/media/settings-oauth-models-en.png");
+const translationImage = locale.usesChineseMedia
+  ? withBase("/media/translate-panel-cn.png")
+  : withBase("/media/translate-panel-en.png");
+const releaseHref = "https://github.com/Visterainer/aidea-zotero/releases";
+const githubHref = "https://github.com/Visterainer/aidea-zotero";
+const issuesHref = "https://github.com/Visterainer/aidea-zotero/issues";
+const licenseHref = "https://github.com/Visterainer/aidea-zotero/blob/master/LICENSE";
+const languageLabel = "Language";
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const renderHeading = (key: HeadingKey, fallback: string) => {
+  const fragments = headingFragments[page.locale]?.[key];
+
+  if (!fragments?.length) {
+    return escapeHtml(fallback);
+  }
+
+  return fragments
+    .map((fragment) => {
+      const classes = ["heading-fragment"];
+
+      if (fragment.accent) {
+        classes.push("is-accent");
+      }
+
+      if (fragment.keep) {
+        classes.push("is-keep");
+      }
+
+      return `<span class="${classes.join(" ")}">${escapeHtml(fragment.text)}</span>`;
+    })
+    .join("");
+};
+---
+
+<div class="site-shell" data-locale={page.locale}>
+  <div class="page-orb orb-left"></div>
+  <div class="page-orb orb-right"></div>
+
+  <header class="site-header">
+    <a class="brand" href={page.locale === "zh-CN" ? withBase("/") : withBase("/en/")}>
+      <img src={withBase("/media/icon-96.png")} alt="AIdea icon" />
+      <span>AIdea</span>
+    </a>
+
+    <div class="header-tools">
+      <nav class="site-nav">
+        <a href="#story">{page.nav.story}</a>
+        <a href="#features">{page.nav.features}</a>
+        <a href="#install">{page.nav.install}</a>
+        <a href={githubHref} target="_blank" rel="noreferrer">{page.nav.github}</a>
+      </nav>
+
+      <details class="header-language">
+        <summary class="header-language-summary" aria-label={languageLabel}>
+          <span class="header-language-label">{languageLabel}</span>
+          <span class="header-language-current">{locale.label}</span>
+          <span class="header-language-caret" aria-hidden="true"></span>
+        </summary>
+
+        <ul class="language-list">
+          {localeOptions.map((option) => (
+            <li>
+              <a
+                class:list={["language-list-item", option.code === page.locale && "is-active"]}
+                href={withBase(option.href)}
+                lang={option.code}
+                hreflang={option.code}
+                aria-current={option.code === page.locale ? "page" : undefined}
+              >
+                {option.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero section">
+      <div class="hero-copy">
+        <div class="eyebrow-wrap">
+          <span class="badge">{page.badge}</span>
+          <p class="eyebrow">{page.hero.eyebrow}</p>
+        </div>
+        <h1 set:html={renderHeading("hero", page.hero.heading)} />
+        <p class="lede">{page.hero.subheading}</p>
+
+        <div class="cta-row">
+          <a class="button button-primary" href={releaseHref} target="_blank" rel="noreferrer">
+            {page.hero.primaryCta}
+          </a>
+          <a class="button button-secondary" href={githubHref} target="_blank" rel="noreferrer">
+            {page.hero.secondaryCta}
+          </a>
+        </div>
+
+        <div class="cta-subrow">
+          <a class="cta-inline-link" href={docsHref} target="_blank" rel="noreferrer">
+            {page.hero.tertiaryCta}
+          </a>
+          <span class="cta-divider" aria-hidden="true"></span>
+          <a class="cta-inline-link" href={issuesHref} target="_blank" rel="noreferrer">
+            {page.footer.issuesLabel}
+          </a>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-frame">
+          <div class="frame-topline"></div>
+          <img src={heroImage} alt={page.story.panelCaption} loading="eager" />
+        </div>
+
+        <div class="metrics-grid">
+          {page.hero.metrics.map((metric) => (
+            <article class="metric-card">
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section trust-section">
+      <div class="section-intro">
+        <p class="section-kicker">{page.trust.kicker}</p>
+        <h2 set:html={renderHeading("trust", page.trust.heading)} />
+      </div>
+      <div class="trust-grid">
+        {page.trust.items.map((item) => (
+          <article class="trust-card">
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section story-section" id="story">
+      <div class="section-copy">
+        <p class="section-kicker">{page.story.kicker}</p>
+        <h2 set:html={renderHeading("story", page.story.heading)} />
+        <p>{page.story.body}</p>
+        <ul class="story-list">
+          {page.story.bullets.map((bullet) => <li>{bullet}</li>)}
+        </ul>
+      </div>
+
+      <div class="stacked-showcase">
+        <article class="showcase-panel large">
+          <div class="panel-meta">
+            <span>{page.story.panelLabel}</span>
+            <p>{page.story.panelCaption}</p>
+          </div>
+          <img src={storyImage} alt={page.story.panelCaption} loading="lazy" />
+        </article>
+
+        <article class="showcase-panel small">
+          <div class="panel-meta">
+            <span>{page.story.secondaryPanelLabel}</span>
+            <p>{page.story.secondaryPanelCaption}</p>
+          </div>
+          <img src={settingsImage} alt={page.story.secondaryPanelLabel} loading="lazy" />
+        </article>
+      </div>
+    </section>
+
+    <section class="section feature-section" id="features">
+      <div class="section-intro">
+        <p class="section-kicker">{page.featureSection.kicker}</p>
+        <h2 set:html={renderHeading("feature", page.featureSection.heading)} />
+        <p>{page.featureSection.body}</p>
+      </div>
+
+      <div class="feature-grid">
+        {page.featureSection.cards.map((card) => (
+          <article class="feature-card">
+            <span class="feature-meta">{card.meta}</span>
+            <h3>{card.title}</h3>
+            <p>{card.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section translation-section">
+      <div class="translation-copy">
+        <p class="section-kicker">{page.translation.kicker}</p>
+        <h2 set:html={renderHeading("translation", page.translation.heading)} />
+        <p>{page.translation.body}</p>
+      </div>
+
+      <article class="translation-panel">
+        <img src={translationImage} alt={page.translation.panelAlt} loading="lazy" />
+      </article>
+
+      <div class="gallery-grid">
+        <figure class="gallery-card">
+          <img
+            src={withBase("/media/translate-example-architecture.png")}
+            alt={page.translation.captions[0]}
+            loading="lazy"
+          />
+          <figcaption>{page.translation.captions[0]}</figcaption>
+        </figure>
+        <figure class="gallery-card">
+          <img
+            src={withBase("/media/translate-example-formula.png")}
+            alt={page.translation.captions[1]}
+            loading="lazy"
+          />
+          <figcaption>{page.translation.captions[1]}</figcaption>
+        </figure>
+        <figure class="gallery-card">
+          <img
+            src={withBase("/media/translate-example-table.png")}
+            alt={page.translation.captions[2]}
+            loading="lazy"
+          />
+          <figcaption>{page.translation.captions[2]}</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section install-section" id="install">
+      <div class="section-copy">
+        <p class="section-kicker">{page.install.kicker}</p>
+        <h2 set:html={renderHeading("install", page.install.heading)} />
+        <p>{page.install.body}</p>
+        <p class="install-note">{page.install.note}</p>
+      </div>
+
+      <ol class="install-steps">
+        {page.install.steps.map((step) => <li>{step}</li>)}
+      </ol>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-copy">
+      <p>{page.footer.summary}</p>
+    </div>
+
+    <div class="footer-panels">
+      <section class="footer-panel">
+        <span class="footer-panel-title">{page.footer.projectTitle}</span>
+        <div class="footer-links">
+          <a href={releaseHref} target="_blank" rel="noreferrer">{page.footer.releaseLabel}</a>
+          <a href={docsHref} target="_blank" rel="noreferrer">{page.footer.docsLabel}</a>
+          <a href={githubHref} target="_blank" rel="noreferrer">{page.footer.githubLabel}</a>
+        </div>
+      </section>
+
+      <section class="footer-panel">
+        <span class="footer-panel-title">{page.footer.communityTitle}</span>
+        <p>{page.footer.communityBody}</p>
+        <div class="footer-links">
+          <a href={issuesHref} target="_blank" rel="noreferrer">{page.footer.issuesLabel}</a>
+          <a href={licenseHref} target="_blank" rel="noreferrer">{page.footer.licenseLabel}</a>
+        </div>
+      </section>
+    </div>
+  </footer>
+</div>

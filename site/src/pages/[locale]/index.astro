@@ -1,0 +1,29 @@
+---
+import HomePage from "../../components/HomePage.astro";
+import { pageContent } from "../../content";
+import type { Locale } from "../../i18n";
+import { localeDefinitions } from "../../i18n";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export const getStaticPaths = () =>
+  localeDefinitions
+    .filter((item) => item.routeSegment)
+    .map((item) => ({
+      params: { locale: item.routeSegment! },
+      props: {
+        page: {
+          ...(pageContent[item.code] ??
+            pageContent[item.code === "zh-TW" ? "zh-CN" : ("en" as Locale)] ??
+            pageContent.en),
+          locale: item.code,
+        },
+        path: item.href,
+      },
+    }));
+
+const { page, path } = Astro.props;
+---
+
+<BaseLayout lang={page.locale} title={page.title} description={page.description} path={path}>
+  <HomePage page={page} />
+</BaseLayout>
