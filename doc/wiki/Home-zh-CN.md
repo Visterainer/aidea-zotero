@@ -52,4 +52,4 @@ AIdea 面向研究工作流设计。相比在 Zotero、浏览器和外部 AI 应
 - 仓库主页: https://github.com/Visterainer/aidea-zotero
 - 发布页面: https://github.com/Visterainer/aidea-zotero/releases
 - 问题反馈: https://github.com/Visterainer/aidea-zotero/issues
-- 中文 README: https://github.com/Visterainer/aidea-zotero/blob/master/README_CN.md
+- 中文 README: https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.zh-CN.md

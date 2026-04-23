@@ -7,7 +7,7 @@
 <p align="center">
   <a href="./README.md">English</a>
   ·
-  <a href="./README_CN.md">简体中文</a>
+  <a href="./doc/readme/README.zh-CN.md">简体中文</a>
   ·
   <a href="./doc/readme/README.zh-TW.md">繁體中文</a>
   ·

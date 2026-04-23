@@ -12,10 +12,16 @@ const basePath = import.meta.env.BASE_URL;
 const baseRoot = basePath.endsWith("/") ? basePath : `${basePath}/`;
 const withBase = (value: string) => `${baseRoot}${value.replace(/^\//, "")}`;
 const locale = getLocaleDefinition(page.locale);
-const docsHref =
-  locale.usesChineseMedia
-    ? "https://github.com/Visterainer/aidea-zotero/blob/master/README_CN.md"
-    : "https://github.com/Visterainer/aidea-zotero/blob/master/README.md";
+const docsHref = {
+  en: "https://github.com/Visterainer/aidea-zotero/blob/master/README.md",
+  "zh-CN":
+    "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.zh-CN.md",
+  "zh-TW":
+    "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.zh-TW.md",
+  ja: "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.ja.md",
+  ko: "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.ko.md",
+  fr: "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.fr.md",
+}[page.locale] ?? "https://github.com/Visterainer/aidea-zotero/blob/master/README.md";
 const heroImage = locale.usesChineseMedia
   ? withBase("/media/chat-panel-cn.png")
   : withBase("/media/chat-panel-en.png");

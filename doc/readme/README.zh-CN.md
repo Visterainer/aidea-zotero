@@ -1,21 +1,21 @@
 <p align="center">
-  <img src="addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
+  <img src="../../addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
 </p>
 
 <h1 align="center">AIdea</h1>
 
 <p align="center">
-  <a href="./README.md">English</a>
+  <a href="../../README.md">English</a>
   ·
-  <a href="./README_CN.md">简体中文</a>
+  <a href="./README.zh-CN.md">简体中文</a>
   ·
-  <a href="./doc/readme/README.zh-TW.md">繁體中文</a>
+  <a href="./README.zh-TW.md">繁體中文</a>
   ·
-  <a href="./doc/readme/README.ja.md">日本語</a>
+  <a href="./README.ja.md">日本語</a>
   ·
-  <a href="./doc/readme/README.ko.md">한국어</a>
+  <a href="./README.ko.md">한국어</a>
   ·
-  <a href="./doc/readme/README.fr.md">Français</a>
+  <a href="./README.fr.md">Français</a>
 </p>
 
 <p align="center">
@@ -58,7 +58,7 @@
 在 Zotero 的侧边栏中直接与 AI 对话，**文库视图**和 **PDF 阅读器**中均可使用。提问、获取摘要、继续追问，都可以放在同一个研究工作流里完成。
 
 <p align="center">
-  <img src="doc/screenshots/chat_panel_cn.png" alt="侧边栏对话" width="800" />
+  <img src="../screenshots/chat_panel_cn.png" alt="侧边栏对话" width="800" />
 </p>
 
 ### 📄 论文感知上下文
@@ -82,21 +82,21 @@
 可直接在 Zotero 中翻译整篇论文，并导出 **双语对照 PDF** 或 **单语言 PDF**。全文翻译流程支持模型选择、输出路径配置，以及在侧边栏中的一站式执行。
 
 <p align="center">
-  <img src="doc/screenshots/translate_panel_cn.png" alt="全文翻译面板" width="800" />
+  <img src="../screenshots/translate_panel_cn.png" alt="全文翻译面板" width="800" />
 </p>
 
 示例结果：
 
 <p align="center">
-  <img src="doc/screenshots/translate_example_architecture.png" alt="双语论文翻译示例" width="800" />
+  <img src="../screenshots/translate_example_architecture.png" alt="双语论文翻译示例" width="800" />
 </p>
 
 <p align="center">
-  <img src="doc/screenshots/translate_example_formula.png" alt="公式论文翻译示例" width="800" />
+  <img src="../screenshots/translate_example_formula.png" alt="公式论文翻译示例" width="800" />
 </p>
 
 <p align="center">
-  <img src="doc/screenshots/translate_example_table.png" alt="表格与正文翻译示例" width="800" />
+  <img src="../screenshots/translate_example_table.png" alt="表格与正文翻译示例" width="800" />
 </p>
 
 ### 🌐 多服务商支持
@@ -184,7 +184,7 @@ AIdea 提供两种连接方式，可以只用其中一种，也可以同时使�
 | **`删除授权`**      | 清除本地保存的 OAuth 令牌。 |
 
 <p align="center">
-  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商与模型管理" width="700" />
+  <img src="../screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商与模型管理" width="700" />
 </p>
 
 > 💡 **提示：** 每个服务商通常只需配置一次。登录状态保存在本地，重启 Zotero 后仍然有效。
@@ -202,7 +202,7 @@ AIdea 也支持连接任意 **OpenAI 兼容聊天端点**，适合本地、自�
 | **Model**        | 是   | 可手动输入模型 ID，或点击 **自动获取模型** 获取可用模型 |
 
 <p align="center">
-  <img src="doc/screenshots/settings_api_cn.png" alt="API 模式自定义端点" width="700" />
+  <img src="../screenshots/settings_api_cn.png" alt="API 模式自定义端点" width="700" />
 </p>
 
 > **注意：** API 模式面向兼容 `/chat/completions` 的端点，不保证对服务商特有能力的完全兼容。
@@ -272,9 +272,9 @@ npm run test:unit
 
 ## 📄 许可证
 
-[AGPL-3.0-or-later](./LICENSE)
+[AGPL-3.0-or-later](../../LICENSE)
 
-本项目基于 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) 演进而来。完整第三方声明见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+本项目基于 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) 演进而来。完整第三方声明见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
 
 ---
 

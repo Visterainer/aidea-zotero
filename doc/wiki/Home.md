@@ -53,4 +53,4 @@ AIdea is designed for research workflows. Instead of switching between Zotero, b
 - Repository: https://github.com/Visterainer/aidea-zotero
 - Releases: https://github.com/Visterainer/aidea-zotero/releases
 - Issues: https://github.com/Visterainer/aidea-zotero/issues
-- Chinese README: https://github.com/Visterainer/aidea-zotero/blob/master/README_CN.md
+- Chinese README: https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.zh-CN.md
