@@ -1,5 +1,3 @@
-> 中文文档 | [English Version](README.md)
-
 <p align="center">
   <img src="addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
 </p>
@@ -7,25 +5,47 @@
 <h1 align="center">AIdea</h1>
 
 <p align="center">
+  <a href="./README.md">English</a>
+  ·
+  <a href="./README_CN.md">简体中文</a>
+  ·
+  <a href="./doc/readme/README.zh-TW.md">繁體中文</a>
+  ·
+  <a href="./doc/readme/README.ja.md">日本語</a>
+  ·
+  <a href="./doc/readme/README.ko.md">한국어</a>
+  ·
+  <a href="./doc/readme/README.fr.md">Français</a>
+</p>
+
+<p align="center">
+  <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/">https://visterainer.github.io/aidea-zotero/</a>
+</p>
+
+<p align="center">
   <strong>免费开源的 Zotero AI 助手插件</strong><br/>
-  OAuth 账号直接登录，或接入任意 OpenAI 兼容端点
+  🔐 支持 OpenAI（ChatGPT）、Google Gemini、GitHub Copilot 的 OAuth 授权登录<br/>
+  ⚙️ 支持 OpenAI 兼容 API，以及通过 Ollama、LM Studio、vLLM 等接入本地或自托管模型
 </p>
 
 <p align="center">
-  🎉🎊 <strong>现已支持最新 ChatGPT 5.4！</strong> 🚀✨
+  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
+  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
+  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
 </p>
 
 <p align="center">
-  🟢 <strong>OpenAI (ChatGPT)</strong><br/>
-  🔵 <strong>Google Gemini</strong><br/>
-  ⚫ <strong>GitHub Copilot</strong>
+  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
+  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
+  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
+  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
 </p>
 
 <p align="center">
-  <a href="./README.md">English</a> &nbsp;|&nbsp;
   <a href="#-功能特性">功能特性</a> &nbsp;|&nbsp;
   <a href="#-安装">安装</a> &nbsp;|&nbsp;
   <a href="#-快速开始">快速开始</a> &nbsp;|&nbsp;
+  <a href="#-配置选项">配置选项</a> &nbsp;|&nbsp;
   <a href="#-许可证">许可证</a>
 </p>
 
@@ -35,7 +55,7 @@
 
 ### 💬 侧边栏 AI 对话
 
-在 Zotero 的侧边栏中直接与 AI 对话 —— **文库视图**和 **PDF 阅读器**中均可使用。提问、获取摘要，与你的研究资料无缝交互。
+在 Zotero 的侧边栏中直接与 AI 对话，**文库视图**和 **PDF 阅读器**中均可使用。提问、获取摘要、继续追问，都可以放在同一个研究工作流里完成。
 
 <p align="center">
   <img src="doc/screenshots/chat_panel_cn.png" alt="侧边栏对话" width="800" />
@@ -43,23 +63,23 @@
 
 ### 📄 论文感知上下文
 
-在 PDF 阅读器中选中文本，点击 **"Add Text"** 即可将选中内容添加到上下文区域。AI 在回答时会自动引用这些内容作为参考，实现段落级的精准问答。
+在 PDF 阅读器中选中文本，点击 **Add Text** 即可将选中内容添加到上下文区域。AI 在回答时会优先结合这些原文内容，而不是只给出泛化总结。
 
 ### ⚡ 快捷操作按钮
 
-一键触发常用任务：**总结**、**解释**、**翻译**等。完全可自定义 —— 添加、编辑、排序或删除快捷按钮，打造属于你的工作流。
+支持一键触发常用任务，如 **总结**、**解释**、**翻译** 等。快捷按钮可自由添加、编辑、排序和删除，以适配不同研究习惯。
 
 ### 🖼️ 多模态支持
 
-在消息中附加图片（截图、图表、示意图）。支持拖拽、从剪贴板粘贴，或使用截图工具直接从 PDF 中捕获内容。
+可在消息中附加截图、图表、示意图等图片内容。支持拖拽、从剪贴板粘贴，以及直接从 PDF 中截图。
 
 ### 🔐 OAuth 账号登录（无需 API Key）
 
-使用你的**已有账号**通过 OAuth 登录 —— 无需 API Key，也不需要 API 平台的独立订阅。插件支持多个服务商，采用不同的 OAuth 流程实现无缝认证。
+使用已有账号通过 OAuth 登录，无需手动管理 API Key。AIdea 针对不同服务商提供各自的授权流程，以便更直接地开始使用。
 
 ### 📄 全文翻译
 
-直接在 Zotero 中翻译整篇论文，并导出 **双语对照 PDF** 或 **纯中文 Mono PDF**。全文翻译标签页现已支持模型选择、输出路径配置，以及侧边栏内的一站式任务执行。
+可直接在 Zotero 中翻译整篇论文，并导出 **双语对照 PDF** 或 **单语言 PDF**。全文翻译流程支持模型选择、输出路径配置，以及在侧边栏中的一站式执行。
 
 <p align="center">
   <img src="doc/screenshots/translate_panel_cn.png" alt="全文翻译面板" width="800" />
@@ -79,45 +99,43 @@
   <img src="doc/screenshots/translate_example_table.png" alt="表格与正文翻译示例" width="800" />
 </p>
 
-> **最新支持版本：ChatGPT 5.4**
-
 ### 🌐 多服务商支持
 
 | 服务商               | 认证方式                    | 额外安装                |
 | -------------------- | --------------------------- | ----------------------- |
-| **OpenAI (ChatGPT)** | Codex CLI OAuth             | Node.js（插件自动安装） |
+| **OpenAI（ChatGPT）** | Codex CLI OAuth             | Node.js（插件自动安装） |
 | **Google Gemini**    | 插件内 OAuth（PKCE）        | Node.js（插件自动安装） |
 | **GitHub Copilot**   | 插件内 OAuth（Device Code） | 无需额外安装            |
 
 ### 📝 笔记导出
 
-一键将 AI 回复保存为 Zotero 笔记。回复以 Markdown 格式保存，完整支持 LaTeX 数学公式渲染。
+可一键将 AI 回复保存为 Zotero 笔记。回复采用 Markdown 格式，并支持 LaTeX 数学公式渲染。
 
 ### 💾 持久化聊天记录
 
-所有对话保存在 Zotero 的本地数据库中。可在多个对话之间切换，随时继续之前的讨论，自由管理聊天历史。
+所有对话都保存在 Zotero 的本地数据库中，可以在多个会话之间切换，继续之前的讨论，并管理本地聊天历史。
 
 ### 🧠 记忆系统
 
-AI 自动捕捉并回忆跨对话的重要信息，提供个性化、上下文感知的回复，且随着使用越来越智能。
+AIdea 会在多轮对话中捕捉和回忆有价值的信息，以便后续回答更具连续性和上下文相关性。
 
-- **自动捕捉** —— 从自然对话中检测用户偏好、决策、事实和关键实体
-- **按文库隔离** —— 记忆以 Zotero 文库为单位存储，不同研究项目的记忆彼此独立
-- **智能去重** —— 使用 Jaccard 词元相似度（≥90% 阈值）防止存储重复记忆
-- **相关性排序检索** —— 多因子综合评分（词元重叠 × 0.65 + 子串包含 + 时间衰减 × 0.15 + 重要性 × 0.20）
-- **提示注入防护** —— 内置模式检测，防止恶意内容被存入记忆
-- **完全本地** —— 所有记忆存储在 Zotero 的 SQLite 数据库中，不会发送到任何外部服务器
+- **自动捕捉**：识别自然对话中的偏好、事实、决定和关键实体
+- **按文库隔离**：不同 Zotero 文库之间的记忆互不干扰
+- **智能去重**：通过 Jaccard 相似度避免重复记忆
+- **相关性排序检索**：结合词元重叠、子串匹配、时间衰减和重要性进行排序
+- **提示注入防护**：防止无关或恶意内容写入记忆
+- **完全本地**：所有记忆保存在 Zotero 的 SQLite 数据库中
 
 ### 🎨 丰富的渲染效果
 
-- 完整的 **Markdown** 渲染（标题、列表、代码块、表格）
-- **LaTeX** 数学公式支持（由 KaTeX 驱动）
-- 代码块**语法高亮**
-- 流畅的**流式输出**体验
+- 完整的 **Markdown** 渲染，包括标题、列表、代码块和表格
+- **LaTeX** 数学公式支持（KaTeX）
+- 代码块 **语法高亮**
+- 流畅的 **流式输出**
 
-### 🌍 双语界面
+### 🌍 语言支持
 
-完整支持**英文**和**中文** —— 可在设置中随时切换语言。
+插件界面当前支持 **英文** 和 **简体中文**。项目文档与网站还提供 **繁體中文**、**日本語**、**한국어** 和 **Français**。
 
 ---
 
@@ -125,20 +143,20 @@ AI 自动捕捉并回忆跨对话的重要信息，提供个性化、上下文�
 
 ### 环境要求
 
-- **Zotero 7 及以上**（7.0+ 版本）
-- **Node.js** —— OpenAI 和 Gemini 所需；**插件可自动安装**，无需手动操作（GitHub Copilot 无需 Node.js）
+- **Zotero 7 及以上**
+- **Node.js**，OpenAI 和 Gemini 需要时可由插件自动安装
 
 ### 安装插件
 
 1. 从 [Releases](https://github.com/Visterainer/aidea-zotero/releases) 下载最新的 `AIdea-x.x.x.xpi`
-2. 在 Zotero 中，进入 **工具 → 附加组件**
-3. 点击齿轮图标 ⚙️ → **从文件安装附加组件...**
+2. 在 Zotero 中进入 **工具 → 附加组件**
+3. 点击齿轮图标 ⚙️，选择 **从文件安装附加组件...**
 4. 选择下载的 `.xpi` 文件
 5. 重启 Zotero
 
 ### 升级
 
-直接安装新版 `.xpi` 文件即可自动覆盖旧版本。**所有聊天记录和设置均会保留。**
+直接安装新版 `.xpi` 文件即可覆盖旧版本。聊天记录、记忆数据和本地设置都会保留。
 
 ---
 
@@ -146,98 +164,91 @@ AI 自动捕捉并回忆跨对话的重要信息，提供个性化、上下文�
 
 ### 1. 打开设置
 
-进入 **工具 → 附加组件 → AIdea → 设置**（或 **编辑 → 首选项 → AIdea**）
+进入 **工具 → 附加组件 → AIdea → 设置**。在较旧的 Zotero 版本中，也可能出现在 **编辑 → 首选项 → AIdea**。
 
-### 2. 配置服务商
+### 2. 选择连接方式
 
-AIdea 提供两种连接方式，你可以选择其中一种或同时使用：
+AIdea 提供两种连接方式，可以只用其中一种，也可以同时使用。
 
-#### 方式一：OAuth 登录（无需 API Key）
+#### 方式一：OAuth 登录
 
-使用你的**现有账号**直接登录，无需申请 API Key。在每个服务商的卡片上，按以下顺序点击按钮完成配置：
+在每个服务商卡片中，通常按以下顺序完成设置：
 
 > **① `安装/更新环境`** → **② `OAuth 登录`** → **③ `刷新模型`**
 
-| 按钮                | 功能说明                                                                                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`安装/更新环境`** | 自动安装并配置所需的 CLI 工具及运行环境（Node.js、npm 等）。首次运行时会弹出风险提示 —— 请仔细阅读后确认继续。**GitHub Copilot** 无需此步骤。                                                        |
-| **`OAuth 登录`**    | 启动 OAuth 授权流程。**OpenAI / Gemini**：浏览器将自动打开，使用你的账号登录即可。**GitHub Copilot**：弹窗会显示授权码，点击**确定**自动复制授权码并打开浏览器，在页面中粘贴授权码完成授权。           |
-| **`刷新模型`**      | 登录成功后点击此按钮，加载该服务商下的可用模型列表。                                                                                                                                                    |
-| **`删除授权`**      | 清除该服务商已保存的 OAuth 令牌。                                                                                                                                                                       |
+| 按钮                | 功能说明 |
+| ------------------- | -------- |
+| **`安装/更新环境`** | 安装并配置所需 CLI 工具及运行环境，包括 Node.js 和 npm。GitHub Copilot 无需此步骤。 |
+| **`OAuth 登录`**    | 启动服务商对应的授权流程。OpenAI 和 Gemini 会直接打开浏览器。GitHub Copilot 会显示 device code，并打开浏览器完成授权。 |
+| **`刷新模型`**      | 登录成功后加载当前服务商可用的模型列表。 |
+| **`删除授权`**      | 清除本地保存的 OAuth 令牌。 |
 
 <p align="center">
-  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商" width="700" />
+  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商与模型管理" width="700" />
 </p>
 
-> 💡 **提示：** 每个服务商只需配置一次。登录状态保存在本地，重启 Zotero 后依然有效。
+> 💡 **提示：** 每个服务商通常只需配置一次。登录状态保存在本地，重启 Zotero 后仍然有效。
 
-#### 方式二：自定义 OpenAI 兼容端点
+#### 方式二：OpenAI 兼容 API 端点
 
-除了 OAuth 登录外，AIdea 还支持连接任意 **OpenAI 兼容聊天端点**。适合使用本地或自托管模型（如 Ollama、LM Studio、vLLM），或第三方服务（如 DeepSeek、OpenRouter、Groq）的用户。
+AIdea 也支持连接任意 **OpenAI 兼容聊天端点**，适合本地、自托管或第三方兼容服务，例如 Ollama、LM Studio、vLLM、DeepSeek、OpenRouter 或 Groq。
 
-在 **设置** 中切换到 **API Mode** 页签，填写以下字段：
+在 **设置** 中切换到 **API Mode**，填写以下字段：
 
-| 字段             | 必填 | 说明                                                                                                             |
-| ---------------- | ---- | ---------------------------------------------------------------------------------------------------------------- |
-| **API Base URL** | 是   | 端点的基地址（例如 `https://api.openai.com/v1`，或本地地址如 `http://localhost:11434/v1`）。支持本地及自托管端点。 |
-| **API Key**      | 否   | 如果端点需要认证则填写 API Key；如无需认证可留空。                                                               |
-| **Model**        | 是   | 手动输入模型 ID，或点击**自动获取模型**按钮自动发现可用模型。                                                    |
+| 字段             | 必填 | 说明 |
+| ---------------- | ---- | ---- |
+| **API Base URL** | 是   | 兼容端点的基础地址，例如 `https://api.openai.com/v1` 或 `http://localhost:11434/v1` |
+| **API Key**      | 否   | 仅当端点需要认证时填写 |
+| **Model**        | 是   | 可手动输入模型 ID，或点击 **自动获取模型** 获取可用模型 |
 
 <p align="center">
-  <img src="doc/screenshots/settings_api_cn.png" alt="API 自定义端点" width="700" />
+  <img src="doc/screenshots/settings_api_cn.png" alt="API 模式自定义端点" width="700" />
 </p>
 
-> **注意：** 此功能面向 OpenAI 兼容的 `/chat/completions` 端点，不保证对工具调用、文件上传或图片输入等服务商特定功能的兼容性。
-
-#### 可用模型
-
-两种连接方式共享统一的模型列表。你可以选择要使用的模型、按服务商管理模型，并随时刷新。
-
-<p align="center">
-  <img src="doc/screenshots/settings_oauth_models_cn.png" alt="模型列表" width="700" />
-</p>
+> **注意：** API 模式面向兼容 `/chat/completions` 的端点，不保证对服务商特有能力的完全兼容。
 
 ### 3. 开始对话
 
-- **文库面板**：在文库中选择任意条目 —— 右侧边栏将出现 AIdea 面板
-- **PDF 阅读器**：打开任意 PDF —— 阅读器侧边栏将出现 AIdea 面板
-- 输入你的问题，点击**发送**或按 `Enter`
+- 在 **文库面板** 中选择条目，并使用右侧 AIdea 面板
+- 在 **PDF 阅读器** 中打开 PDF，并使用阅读器侧边栏中的 AIdea 面板
+- 输入问题并点击 **发送**，或按 `Enter`
 
 ### 4. 使用快捷操作
 
-点击快捷按钮（**总结**、**解释**、**翻译**等）即可一键执行常用操作。右键点击可编辑或删除快捷按钮。
+点击 **总结**、**解释**、**翻译** 等快捷按钮即可一键执行常见操作。右键点击快捷按钮可编辑或删除。
 
 ---
 
 ## ⚙️ 配置选项
 
-| 设置项              | 说明                                 | 默认值               |
-| ------------------- | ------------------------------------ | -------------------- |
-| **界面语言**        | 界面语言（EN / CN）                  | EN                   |
-| **系统提示词**      | 自定义 AI 指令                       | 空（使用内置默认值） |
-| **显示 "Add Text"** | 在阅读器选择弹窗中显示 Add Text 选项 | ☑ 开启               |
-| **显示所有模型**    | 显示全部模型 vs. 精选最优模型        | ☐ 关闭               |
-| **标签栏**          | 显示或隐藏标签导航栏                 | 隐藏                 |
+| 设置项              | 说明                                 | 默认值 |
+| ------------------- | ------------------------------------ | ------ |
+| **界面语言**        | 插件界面语言                         | EN     |
+| **系统提示词**      | 模型的自定义指令                     | 空     |
+| **显示 "Add Text"** | 在阅读器选择菜单中显示 Add Text      | 开启   |
+| **显示所有模型**    | 显示全部模型而非精选模型             | 关闭   |
+| **标签栏**          | 显示或隐藏标签导航栏                 | 隐藏   |
 
 ---
 
 ## 🔒 隐私与安全
 
-- 🔑 OAuth 令牌**仅保存在本地** —— 绝不会发送至任何第三方服务器
-- 📡 所有 API 通信**直接发生在你与 AI 服务商之间**
-- 🚫 本插件**不收集任何用户数据**
-- 📖 完全**开源** —— 随时可在 [GitHub](https://github.com/Visterainer/aidea-zotero) 查看源代码
+- OAuth 令牌**仅保存在本地**
+- API 请求**直接发送**到所选服务商或你配置的端点
+- AIdea **不收集遥测或用户数据**
+- 聊天记录与记忆保存在 Zotero 的本地数据库中
+- 源码可在 [GitHub](https://github.com/Visterainer/aidea-zotero) 公开查看
 
 ---
 
 ## 🗺️ 未来计划
 
-即将推出的功能：
+计划中的方向包括：
 
-- 🔤 **划词翻译** —— 在 PDF 阅读器中选中文本，即时翻译选中段落
-- 🗂️ **一键生成框架图** —— 自动从论文内容生成结构图，一目了然地展示研究框架
+- **划词翻译**：在 PDF 阅读器中直接翻译选中文本
+- **一键生成框架图**：从论文内容中生成结构化可视图
 
-> 💡 有功能建议？欢迎提交 [Issue](https://github.com/Visterainer/aidea-zotero/issues)！
+> 💡 欢迎通过 [Issue](https://github.com/Visterainer/aidea-zotero/issues) 提出需求建议。
 
 ---
 
@@ -247,7 +258,7 @@ AIdea 提供两种连接方式，你可以选择其中一种或同时使用：
 # 安装依赖
 npm install
 
-# 开发模式（支持热重载）
+# 开发模式
 npm start
 
 # 构建生产版 XPI
@@ -263,7 +274,7 @@ npm run test:unit
 
 [AGPL-3.0-or-later](./LICENSE)
 
-本项目 fork 自 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero)（作者 Yile Wang）。完整的第三方声明请参阅 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+本项目基于 [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) 演进而来。完整第三方声明见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
 
 ---
 

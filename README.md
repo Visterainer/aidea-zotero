@@ -1,5 +1,3 @@
-> [中文文档](README_CN.md) | English Version
-
 <p align="center">
   <img src="addon/content/icons/icon-96.png" alt="AIdea Logo" width="80" />
 </p>
@@ -7,25 +5,47 @@
 <h1 align="center">AIdea</h1>
 
 <p align="center">
+  <a href="./README.md">English</a>
+  ·
+  <a href="./README_CN.md">简体中文</a>
+  ·
+  <a href="./doc/readme/README.zh-TW.md">繁體中文</a>
+  ·
+  <a href="./doc/readme/README.ja.md">日本語</a>
+  ·
+  <a href="./doc/readme/README.ko.md">한국어</a>
+  ·
+  <a href="./doc/readme/README.fr.md">Français</a>
+</p>
+
+<p align="center">
+  <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/en/">https://visterainer.github.io/aidea-zotero/en/</a>
+</p>
+
+<p align="center">
   <strong>A free, open-source AI assistant plugin for Zotero</strong><br/>
-  OAuth login with your existing account, or connect any OpenAI-compatible endpoint
+  🔐 OAuth login with OpenAI (ChatGPT), Google Gemini, and GitHub Copilot<br/>
+  ⚙️ OpenAI-compatible APIs and local or self-hosted models via Ollama, LM Studio, vLLM, and similar runtimes
 </p>
 
 <p align="center">
-  🎉🎊 <strong>Now supporting ChatGPT 5.4!</strong> 🚀✨
+  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
+  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
+  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
 </p>
 
 <p align="center">
-  🟢 <strong>OpenAI (ChatGPT)</strong><br/>
-  🔵 <strong>Google Gemini</strong><br/>
-  ⚫ <strong>GitHub Copilot</strong>
+  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
+  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
+  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
+  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
 </p>
 
 <p align="center">
-  <a href="./README_CN.md">中文版</a> &nbsp;|&nbsp;
   <a href="#-features">Features</a> &nbsp;|&nbsp;
   <a href="#-installation">Installation</a> &nbsp;|&nbsp;
   <a href="#-getting-started">Getting Started</a> &nbsp;|&nbsp;
+  <a href="#-configuration">Configuration</a> &nbsp;|&nbsp;
   <a href="#-license">License</a>
 </p>
 
@@ -33,9 +53,9 @@
 
 ## ✨ Features
 
-### 💬 AI Chat in Side Panel
+### 💬 AI Chat in the Side Panel
 
-Chat with AI directly in Zotero's side panel — available in both the **Library** view and the **PDF Reader**. Ask questions, get summaries, and interact with your research seamlessly.
+Chat with AI directly in Zotero's side panel, available in both the **Library** view and the **PDF Reader**. Ask questions, get summaries, and stay inside the same research workflow.
 
 <p align="center">
   <img src="doc/screenshots/chat_panel_en.png" alt="Side panel chat" width="800" />
@@ -43,23 +63,23 @@ Chat with AI directly in Zotero's side panel — available in both the **Library
 
 ### 📄 Paper-Aware Context
 
-Select text in the PDF reader and click **"Add Text"** to attach the selected passage to the context area. The AI will use it as reference when answering your questions — enabling precise, passage-level Q&A.
+Select text in the PDF reader and click **Add Text** to attach the selected passage to the context area. AIdea can then answer against the selected passage instead of relying on a generic summary.
 
 ### ⚡ Quick Action Shortcuts
 
-One-click shortcut buttons for common tasks like **Summarize**, **Explain**, **Translate**, and more. Fully customizable — add, edit, reorder, or remove shortcuts to fit your workflow.
+Use one-click shortcuts for common tasks such as **Summarize**, **Explain**, and **Translate**. Shortcuts can be added, edited, reordered, or removed to match your workflow.
 
 ### 🖼️ Multimodal Support
 
-Attach images (screenshots, figures, charts) to your messages. Drag & drop, paste from clipboard, or use the screenshot tool to capture content directly from your PDFs.
+Attach screenshots, figures, and charts to your messages. AIdea supports drag and drop, clipboard paste, and screenshot capture directly from PDF content.
 
-### 🔐 OAuth Account Login (No API Key Required)
+### 🔐 OAuth Login Without an API Key
 
-Sign in with your **existing account** via OAuth — no need for an API key or subscription. Supports multiple providers with different OAuth flows for seamless authentication.
+Sign in with your existing account through OAuth. AIdea supports multiple providers with provider-specific OAuth flows, so you can start without managing an API key manually.
 
-### Full-Document Translation
+### 📄 Full-Document Translation
 
-Translate entire papers directly inside Zotero and export either a **bilingual dual-column PDF** or a **Chinese-only mono PDF**. The full-document translation tab now supports model selection, output path configuration, and end-to-end task execution inside the side panel.
+Translate full papers directly inside Zotero and export either a **bilingual dual-column PDF** or a **single-language PDF**. The translation workflow supports model selection, output path configuration, and end-to-end execution in the side panel.
 
 <p align="center">
   <img src="doc/screenshots/translate_panel_en.png" alt="Full-document translation panel" width="800" />
@@ -79,8 +99,6 @@ Example outputs:
   <img src="doc/screenshots/translate_example_table.png" alt="Table and prose translation example" width="800" />
 </p>
 
-> **Latest supported version: ChatGPT 5.4**
-
 ### 🌐 Multi-Provider Support
 
 | Provider             | Auth Method                   | Extra Setup              |
@@ -91,33 +109,33 @@ Example outputs:
 
 ### 📝 Note Export
 
-Save AI responses as Zotero notes with one click. Responses are formatted in Markdown with full LaTeX math rendering support.
+Save AI responses as Zotero notes with one click. Responses are stored in Markdown and support LaTeX math rendering.
 
 ### 💾 Persistent Chat History
 
-All conversations are saved locally in Zotero's database. Switch between multiple conversations, continue where you left off, and manage your chat history.
+All conversations are stored locally in Zotero's database. You can switch between conversations, continue previous threads, and manage local chat history.
 
 ### 🧠 Memory System
 
-The AI automatically captures and recalls important information across conversations, enabling personalized, context-aware responses that improve over time.
+AIdea captures and recalls useful information across conversations to improve continuity and context awareness over time.
 
-- **Auto-Capture** — detects preferences, decisions, facts, and key entities from natural conversation
-- **Per-Library Isolation** — memories are scoped to each Zotero library, keeping research projects separate
-- **Smart Deduplication** — Jaccard token similarity (≥90%) prevents storing redundant memories
-- **Relevance-Ranked Retrieval** — multi-factor scoring (token overlap × 0.65 + substring boost + recency × 0.15 + importance × 0.20)
-- **Prompt Injection Defense** — built-in pattern detection prevents malicious content from being stored
-- **Fully Local** — all memories are stored in Zotero's SQLite database; nothing is sent externally
+- **Auto-capture** detects preferences, decisions, facts, and key entities from natural conversation
+- **Per-library isolation** keeps memories scoped to each Zotero library
+- **Smart deduplication** uses Jaccard token similarity to prevent redundant memories
+- **Relevance-ranked retrieval** combines overlap, substring match, recency, and importance
+- **Prompt injection defense** blocks malicious or irrelevant content from being stored
+- **Fully local storage** keeps memory data inside Zotero's SQLite database
 
 ### 🎨 Rich Rendering
 
-- Full **Markdown** rendering (headings, lists, code blocks, tables)
-- **LaTeX** math formula support (powered by KaTeX)
+- Full **Markdown** rendering, including headings, lists, code blocks, and tables
+- **LaTeX** math support via KaTeX
 - **Syntax highlighting** for code blocks
 - Smooth **streaming** responses
 
-### 🌍 Bilingual Interface
+### 🌍 Interface Languages
 
-Full support for **English** and **Chinese** (中文) — switch languages in Settings at any time.
+The plugin interface currently supports **English** and **Simplified Chinese**. Project documentation and the website additionally provide **Traditional Chinese**, **Japanese**, **Korean**, and **French**.
 
 ---
 
@@ -125,20 +143,20 @@ Full support for **English** and **Chinese** (中文) — switch languages in Se
 
 ### Requirements
 
-- **Zotero 7 or later** (version 7.0+)
-- **Node.js** — required for OpenAI and Gemini; **auto-installed** by the plugin if missing (GitHub Copilot does not require Node.js)
+- **Zotero 7 or later**
+- **Node.js**, required for OpenAI and Gemini, can be installed automatically by the plugin when needed
 
 ### Install the Plugin
 
 1. Download the latest `AIdea-x.x.x.xpi` from [Releases](https://github.com/Visterainer/aidea-zotero/releases)
 2. In Zotero, go to **Tools → Add-ons**
-3. Click the gear icon ⚙️ → **Install Add-on From File...**
+3. Click the gear icon ⚙️ and choose **Install Add-on From File...**
 4. Select the downloaded `.xpi` file
 5. Restart Zotero
 
 ### Upgrade
 
-Simply install the new `.xpi` file — it will automatically replace the old version. **All your chat history and settings are preserved.**
+Install the newer `.xpi` package over the existing one. Chat history, stored memory, and local settings are preserved.
 
 ---
 
@@ -146,66 +164,58 @@ Simply install the new `.xpi` file — it will automatically replace the old ver
 
 ### 1. Open Settings
 
-Go to **Tools → Add-ons → AIdea → Settings** (or **Edit → Settings → AIdea** on older Zotero)
+Go to **Tools → Add-ons → AIdea → Settings**. On older Zotero builds, the path may appear under **Edit → Settings → AIdea**.
 
-### 2. Set Up a Provider
+### 2. Choose a Connection Mode
 
-AIdea offers two connection modes. You can use one or both:
+AIdea supports two connection modes. You can use either one or combine both.
 
-#### Option A: OAuth Login (No API Key Required)
+#### Option A: OAuth Login
 
-Sign in with your **existing account** — no API key needed. For each provider you want to use, the setup flow on the **provider card** is:
+For each provider card, the typical setup order is:
 
 > **① `Install/Update Env`** → **② `OAuth Login`** → **③ `Refresh Models`**
 
-| Button                   | What it does                                                                                                                                                                                                                                                                      |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`Install/Update Env`** | Automatically installs and configures the required CLI tool and runtime (Node.js, npm, etc.). A risk notice appears on first run — read it and confirm to proceed. For **GitHub Copilot**, this step is not needed.                                                              |
-| **`OAuth Login`**        | Opens the OAuth authentication flow. For **OpenAI / Gemini**, your browser opens — sign in with your account. For **GitHub Copilot**, a dialog shows your authorization code; click **OK** to copy it and open the browser, then paste the code to complete authorization.         |
-| **`Refresh Models`**     | After login, click this to load the list of available models for this provider.                                                                                                                                                                                                   |
-| **`Remove Auth`**        | Clears the saved OAuth token for this provider.                                                                                                                                                                                                                                   |
+| Button                   | What it does |
+| ------------------------ | ------------ |
+| **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step. |
+| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI and Gemini open the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization. |
+| **`Refresh Models`**     | Loads the list of available models for the provider after login. |
+| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider. |
 
 <p align="center">
-  <img src="doc/screenshots/settings_oauth_models_en.png" alt="OAuth Providers and model management" width="700" />
+  <img src="doc/screenshots/settings_oauth_models_en.png" alt="OAuth providers and model management" width="700" />
 </p>
 
-> 💡 **Tip:** You only need to do this once per provider. The login session is saved locally and persists across Zotero restarts.
+> 💡 **Tip:** Each provider only needs to be configured once. The login session is stored locally and remains available after Zotero restarts.
 
-#### Option B: Custom OpenAI-Compatible Endpoint
+#### Option B: OpenAI-Compatible API Endpoint
 
-As an alternative to OAuth, AIdea supports connecting to any **OpenAI-compatible chat endpoint**. This is useful for users who want to use local or self-hosted models (e.g. Ollama, LM Studio, vLLM), or third-party services (e.g. DeepSeek, OpenRouter, Groq).
+AIdea can also connect to any **OpenAI-compatible chat endpoint**, including local, self-hosted, or third-party services such as Ollama, LM Studio, vLLM, DeepSeek, OpenRouter, or Groq.
 
-In **Settings**, switch to the **API Mode** tab and fill in the following fields:
+In **Settings**, switch to **API Mode** and fill in:
 
-| Field            | Required | Description                                                                                                                                                      |
-| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **API Base URL** | Yes      | The base URL of your endpoint (e.g. `https://api.openai.com/v1` or a local address like `http://localhost:11434/v1`). Local and self-hosted endpoints are supported. |
-| **API Key**      | No       | An API key if your endpoint requires authentication. Leave blank if no key is needed.                                                                            |
-| **Model**        | Yes      | Enter a model ID manually, or click **Auto Fetch Models** to discover available models automatically.                                                            |
+| Field            | Required | Description |
+| ---------------- | -------- | ----------- |
+| **API Base URL** | Yes      | The base URL of the compatible endpoint, such as `https://api.openai.com/v1` or `http://localhost:11434/v1` |
+| **API Key**      | No       | Required only when the endpoint expects authentication |
+| **Model**        | Yes      | Enter the model manually or click **Auto Fetch Models** to detect available models |
 
 <p align="center">
-  <img src="doc/screenshots/settings_api_en.png" alt="API Mode custom endpoint" width="700" />
+  <img src="doc/screenshots/settings_api_en.png" alt="API mode custom endpoint" width="700" />
 </p>
 
-> **Note:** This feature targets OpenAI-compatible `/chat/completions` endpoints. It does not guarantee compatibility with provider-specific features such as tool calling, file uploads, or image inputs beyond basic chat completion.
-
-#### Available Models
-
-Both connection modes share a unified model list. You can select which models to use, manage per-provider models, and refresh them at any time.
-
-<p align="center">
-  <img src="doc/screenshots/settings_oauth_models_en.png" alt="Available Models" width="700" />
-</p>
+> **Note:** API mode targets compatible `/chat/completions` endpoints. It does not guarantee support for provider-specific features beyond standard chat completion.
 
 ### 3. Start Chatting
 
-- **Library Panel**: Select any item in your library — the AIdea panel appears in the right sidebar
-- **PDF Reader**: Open any PDF — the AIdea panel appears in the reader's side panel
+- In the **Library Panel**, select an item and use the AIdea panel in the right sidebar
+- In the **PDF Reader**, open a PDF and use the AIdea panel in the reader sidebar
 - Type your question and press **Send** or hit `Enter`
 
 ### 4. Use Quick Actions
 
-Click any shortcut button (**Summarize**, **Explain**, **Translate**, etc.) for one-click actions. Right-click a shortcut to edit or remove it.
+Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for one-click actions. Right-click a shortcut to edit or remove it.
 
 ---
 
@@ -213,31 +223,32 @@ Click any shortcut button (**Summarize**, **Explain**, **Translate**, etc.) for 
 
 | Setting             | Description                                            | Default                      |
 | ------------------- | ------------------------------------------------------ | ---------------------------- |
-| **UI Language**     | Interface language (EN / CN)                           | EN                           |
-| **System Prompt**   | Custom instructions for the AI                         | Empty (use built-in default) |
-| **Show "Add Text"** | Show the Add Text option in the reader selection popup | ☑ On                         |
-| **Show All Models** | Show all available models vs. curated best models only | ☐ Off                        |
-| **Tab Bar**         | Show or hide the tab navigation bar                    | Hide                         |
+| **UI Language**     | Plugin interface language                              | EN                           |
+| **System Prompt**   | Custom instructions for the model                      | Empty                        |
+| **Show "Add Text"** | Show the Add Text option in the reader selection popup | On                           |
+| **Show All Models** | Show all available models instead of a curated subset  | Off                          |
+| **Tab Bar**         | Show or hide the tab navigation bar                    | Hidden                       |
 
 ---
 
 ## 🔒 Privacy & Security
 
-- 🔑 OAuth tokens are stored **locally only** — never sent to third-party servers
-- 📡 All API communication is **directly between you and the AI provider**
-- 🚫 This plugin **does not collect any user data**
-- 📖 Fully **open-source** — inspect the code anytime at [GitHub](https://github.com/Visterainer/aidea-zotero)
+- OAuth tokens are stored **locally only**
+- API requests are sent **directly** to the selected provider or configured endpoint
+- AIdea **does not collect usage telemetry or user data**
+- Chat history and memory remain in Zotero's local database
+- The code is fully available for inspection on [GitHub](https://github.com/Visterainer/aidea-zotero)
 
 ---
 
 ## 🗺️ Roadmap
 
-Planned features for upcoming releases:
+Planned directions for future releases include:
 
-- 🔤 **Highlight Translation** — Select text in the PDF reader to instantly translate highlighted passages in place
-- 🗂️ **One-Click Architecture Diagram** — Automatically generate a structural diagram from the paper's content, visualizing the research framework at a glance
+- **Highlight translation**, for translating selected passages directly inside the PDF reader
+- **One-click architecture diagrams**, for generating structural visualizations from paper content
 
-> 💡 Have a feature request? Feel free to open an [Issue](https://github.com/Visterainer/aidea-zotero/issues)!
+> 💡 Feature requests are welcome through [Issues](https://github.com/Visterainer/aidea-zotero/issues).
 
 ---
 
@@ -247,7 +258,7 @@ Planned features for upcoming releases:
 # Install dependencies
 npm install
 
-# Development mode (with hot reload)
+# Development mode
 npm start
 
 # Build production XPI
@@ -263,7 +274,7 @@ npm run test:unit
 
 [AGPL-3.0-or-later](./LICENSE)
 
-This project is a fork of [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) by Yile Wang. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for full attribution.
+This project is derived from [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) by Yile Wang. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for attribution details.
 
 ---
 
