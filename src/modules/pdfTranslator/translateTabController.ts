@@ -851,7 +851,7 @@ async function startTranslation(body: Element): Promise<void> {
   const fontFamily = ((body.querySelector("#llm-tr-font-family") as HTMLElement)?.dataset.value || "auto") as "auto" | "serif" | "sans-serif" | "script";
 
   if (!outputDirInput) {
-    consoleLog(body, "⚠️ Save path is required. Click 'Browse' and select an output folder.", "error");
+    consoleLog(body, `⚠️ ${i18n.requiredOutputFolder}`, "error");
     return;
   }
   setStringPref(TRANSLATE_PREFS.outputDir, outputDirInput);
@@ -861,15 +861,15 @@ async function startTranslation(body: Element): Promise<void> {
   const pdfBasename = _selectedPdfPath.split(/[\\/]/).pop() || _selectedPdfPath;
   consoleLog(body, `─── Translation Job Started ───`, "info");
   consoleLog(body, `📄 PDF: ${pdfBasename}`, "info");
-  consoleLog(body, `   Full path: ${_selectedPdfPath}`, "info");
+  consoleLog(body, `   ${i18n.trLogFullPath}: ${_selectedPdfPath}`, "info");
   consoleLog(body, `🤖 Model: ${modelName}`, "info");
   consoleLog(body, `🌐 Language: ${srcLang} → ${tgtLang}`, "info");
   consoleLog(body, `📁 Output: ${outputDir}`, "info");
-  consoleLog(body, `📝 Output format: Mono=${monoChecked} | Dual=${dualChecked}`, "info");
+  consoleLog(body, `📝 ${i18n.trLogOutputFormat(monoChecked, dualChecked)}`, "info");
   consoleLog(body, `⚙️ Skip references: ${skipReferencesAuto} | Compatibility: ${enhanceCompatibility}`, "info");
 
   // Resolve model credentials
-  consoleLog(body, `🔑 Resolving model credentials...`, "info");
+  consoleLog(body, `🔑 ${i18n.trLogResolvingCredentials}`, "info");
   const { resolveModelCredentialsOrThrow } = await import("./modelResolver");
   let creds;
   try {
@@ -888,17 +888,17 @@ async function startTranslation(body: Element): Promise<void> {
   consoleLog(body, `   API Base: ${creds.apiUrl}`, "info");
 
   // Check environment
-  consoleLog(body, `🔍 Checking translation environment...`, "info");
+  consoleLog(body, `🔍 ${i18n.trLogCheckingEnvironment}`, "info");
   const { checkEnvironment } = await import("./envManager");
   const envStatus = await checkEnvironment();
   if (envStatus.status !== "ready") {
-    consoleLog(body, `❌ Environment not ready (status: ${envStatus.status})`, "error");
+    consoleLog(body, `❌ ${i18n.trLogEnvironmentNotReady(envStatus.status)}`, "error");
     if (envStatus.diagnostics?.length) {
       for (const line of envStatus.diagnostics) {
         consoleLog(body, `   ${line}`, "info");
       }
     }
-    consoleLog(body, `   Please click '⚙ Install Environment' button to set up the Python environment`, "error");
+    consoleLog(body, `   ${i18n.trLogInstallEnvironmentInstruction}`, "error");
     return;
   }
   consoleLog(body, `✅ Environment ready (${envStatus.venvDir})`, "success");
@@ -1009,7 +1009,7 @@ async function startTranslation(body: Element): Promise<void> {
         // Log errors with full detail
         if (status === "error") {
           const errMsg = event.data.error || event.data.message || "Unknown error";
-          consoleLog(body, `❌ Bridge error: ${errMsg}`, "error");
+          consoleLog(body, `❌ ${i18n.trLogBridgeError(errMsg)}`, "error");
           if (event.data.errorDetail) {
             const lines = event.data.errorDetail.split("\n").slice(-10);
             for (const line of lines) {
@@ -1026,8 +1026,8 @@ async function startTranslation(body: Element): Promise<void> {
         if (event.state === "done") {
           const totalElapsed = _translationStartTime > 0 ? (Date.now() - _translationStartTime) / 1000 : 0;
           updateProgress(body, 100, "", { force: true });
-          consoleLog(body, `✅ ${i18n.trDone}! Total time: ${formatDuration(totalElapsed)}`, "success");
-          consoleLog(body, `─── Job Finished ───`, "success");
+          consoleLog(body, `✅ ${i18n.trDone}! ${i18n.trLogTotalTime(formatDuration(totalElapsed))}`, "success");
+          consoleLog(body, `─── ${i18n.trLogJobFinished} ───`, "success");
           _translationStartTime = 0;
           _activeController = null;
           _isPaused = false;
@@ -1045,9 +1045,9 @@ async function startTranslation(body: Element): Promise<void> {
           if (pauseBtn) pauseBtn.style.display = "none";
         } else if (event.state === "running") {
           lastStageLogged = "";
-          consoleLog(body, "⏳ Translation engine started...", "info");
+          consoleLog(body, `⏳ ${i18n.trLogEngineStarted}`, "info");
         } else if (event.state === "paused") {
-          consoleLog(body, "⏸ Translation paused — progress cached", "info");
+          consoleLog(body, `⏸ ${i18n.trLogPausedCached}`, "info");
         }
         break;
       case "error":
@@ -1060,7 +1060,7 @@ async function startTranslation(body: Element): Promise<void> {
   });
   _activeController = controller;
 
-  consoleLog(body, "⏳ Launching translation engine...", "info");
+  consoleLog(body, `⏳ ${i18n.trLogLaunchingEngine}`, "info");
 
   try {
     await controller.start(
@@ -1094,7 +1094,7 @@ async function startTranslation(body: Element): Promise<void> {
     );
   } catch (err) {
     if (err instanceof Error && err.stack) {
-      consoleLog(body, `Stack trace:\n${err.stack}`, "error");
+      consoleLog(body, `${i18n.trLogStackTrace}:\n${err.stack}`, "error");
     }
     consoleLog(body, `❌ ${i18n.trError}: ${err}`, "error");
     _translationStartTime = 0;

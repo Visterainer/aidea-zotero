@@ -3,15 +3,12 @@ import {
   AUTO_SCROLL_BOTTOM_THRESHOLD,
   MAX_SELECTED_IMAGES,
   MAX_SELECTED_PAPER_CONTEXTS,
-  formatFigureCountLabel,
-  formatFileCountLabel,
   FONT_SCALE_MIN_PERCENT,
   FONT_SCALE_MAX_PERCENT,
   FONT_SCALE_STEP_PERCENT,
   FONT_SCALE_DEFAULT_PERCENT,
   SELECT_TEXT_EXPANDED_LABEL,
   SELECT_TEXT_COMPACT_LABEL,
-  SCREENSHOT_EXPANDED_LABEL,
   SCREENSHOT_COMPACT_LABEL,
   UPLOAD_FILE_EXPANDED_LABEL,
   UPLOAD_FILE_COMPACT_LABEL,
@@ -625,8 +622,8 @@ export function setupHandlers(
     "llm-shortcut-btn llm-assistant-selection-action",
     {
       type: "button",
-      textContent: "❞ Quote",
-      title: "Quote selected text",
+      textContent: `❞ ${getPanelI18n().addText}`,
+      title: getPanelI18n().addTextTitle,
     },
   ) as HTMLButtonElement;
   panelRoot.appendChild(selectionPopup);
@@ -778,7 +775,7 @@ export function setupHandlers(
     }
     if (!selected) {
       hideSelectionPopup();
-      if (status) setStatus(status, "No assistant text selected", "error");
+      if (status) setStatus(status, getPanelI18n().noAssistantTextSelected, "error");
       return;
     }
     let added = false;
@@ -789,7 +786,7 @@ export function setupHandlers(
     }
     runWithChatScrollGuard(() => {
       added = addSelectedTextContext(body, activeItemId, selected, {
-        successStatusText: "Selected response text included",
+        successStatusText: getPanelI18n().addTextTitle,
         focusInput: false,
         source: "model",
       });
@@ -905,7 +902,7 @@ export function setupHandlers(
         // (for plain-text editors).  Uses the selection if present,
         // otherwise the full response.
         await copyRenderedMarkdownToClipboard(body, target.contentText);
-        if (status) setStatus(status, "Copied response", "ready");
+        if (status) setStatus(status, getPanelI18n().copiedResponse, "ready");
       });
       responseMenuNoteBtn.addEventListener("click", async (e: Event) => {
         e.preventDefault();
@@ -938,7 +935,7 @@ export function setupHandlers(
               },
             ]);
             if (status) {
-              setStatus(status, "Created a new note", "ready");
+              setStatus(status, getPanelI18n().createdNewNote, "ready");
             }
             return;
           }
@@ -951,14 +948,14 @@ export function setupHandlers(
             setStatus(
               status,
               saveResult === "appended"
-                ? "Appended to existing note"
-                : "Created a new note",
+                ? getPanelI18n().saveAsNote
+                : getPanelI18n().createdNewNote,
               "ready",
             );
           }
         } catch (err) {
           ztoolkit.log("Create note failed:", err);
-          if (status) setStatus(status, "Failed to create note", "error");
+          if (status) setStatus(status, getPanelI18n().failedToCreateNote, "error");
         }
       });
     }
@@ -1126,7 +1123,7 @@ export function setupHandlers(
           assistantTimestamp: pair.assistantMessage.timestamp,
         };
         inputBox.focus({ preventScroll: true });
-        if (status) setStatus(status, "Editing latest prompt", "ready");
+        if (status) setStatus(status, getPanelI18n().editingLatestPrompt, "ready");
       });
     }
   }
@@ -1153,13 +1150,13 @@ export function setupHandlers(
         const history = chatHistory.get(conversationKey) || [];
         const payload = buildChatHistoryNotePayload(history);
         if (!payload.noteText) {
-          if (status) setStatus(status, "No chat history detected.", "ready");
+          if (status) setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
           closeExportMenu();
           return;
         }
         // Match single-response "copy as md": copy markdown/plain text only.
         await copyTextToClipboard(body, payload.noteText);
-        if (status) setStatus(status, "Copied chat as md", "ready");
+        if (status) setStatus(status, getPanelI18n().copiedChatAsMd, "ready");
         closeExportMenu();
       });
       exportMenuNoteBtn.addEventListener("click", async (e: Event) => {
@@ -1175,7 +1172,7 @@ export function setupHandlers(
           const history = chatHistory.get(conversationKey) || [];
           const payload = buildChatHistoryNotePayload(history);
           if (!payload.noteText) {
-            if (status) setStatus(status, "No chat history detected.", "ready");
+            if (status) setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
             return;
           }
           if (isGlobalMode()) {
@@ -1187,7 +1184,7 @@ export function setupHandlers(
             await createNoteFromChatHistory(currentItem, history);
           }
           if (status)
-            setStatus(status, "Saved chat history to new note", "ready");
+            setStatus(status, getPanelI18n().savedChatHistoryToNewNote, "ready");
         } catch (err) {
           ztoolkit.log("Save chat history note failed:", err);
           const errMsg =
@@ -1522,10 +1519,10 @@ export function setupHandlers(
       filePreview.classList.remove("expanded", "collapsed");
       filePreviewExpanded.style.display = "none";
       if (filePreviewHeader) filePreviewHeader.style.display = "";
-      filePreviewMeta.textContent = formatFileCountLabel(0);
+      filePreviewMeta.textContent = "";
       filePreviewMeta.classList.remove("expanded");
       filePreviewMeta.setAttribute("aria-expanded", "false");
-      filePreviewMeta.title = "Pin files panel";
+      filePreviewMeta.title = getPanelI18n().pinFilesPanel;
       filePreviewList.innerHTML = "";
       clearSelectedFileState(item.id);
       fileCategoryExpandedCache.delete(item.id);
@@ -1617,7 +1614,7 @@ export function setupHandlers(
       });
       updateFilePreview();
       if (status) {
-        setStatus(status, `Group removed (${nextFiles.length})`, "ready");
+        setStatus(status, getPanelI18n().filesCleared, "ready");
       }
     };
 
@@ -1926,12 +1923,15 @@ export function setupHandlers(
       );
       selectedImagePreviewActiveIndexCache.set(item.id, activeIndex);
 
-      previewMeta.textContent = formatFigureCountLabel(imageCount);
+      previewMeta.textContent = getPanelI18n().figureCount(
+        imageCount,
+        MAX_SELECTED_IMAGES,
+      );
       previewMeta.classList.toggle("expanded", expanded);
       previewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
       previewMeta.title = expanded
-        ? "Unpin figures panel"
-        : "Pin figures panel";
+        ? getPanelI18n().collapseFigures
+        : getPanelI18n().pinFiguresPanel;
 
       imagePreview.style.display = "flex";
       imagePreview.classList.toggle("expanded", expanded);
@@ -2004,7 +2004,7 @@ export function setupHandlers(
           if (status) {
             setStatus(
               status,
-              `Screenshot removed (${nextImages.length})`,
+              getPanelI18n().figuresCleared,
               "ready",
             );
           }
@@ -2029,11 +2029,11 @@ export function setupHandlers(
       previewStrip.innerHTML = "";
       previewSelected.style.display = "none";
       previewSelectedImg.removeAttribute("src");
-      previewSelectedImg.alt = "Selected screenshot preview";
-      previewMeta.textContent = formatFigureCountLabel(0);
+      previewSelectedImg.alt = getPanelI18n().selectedScreenshotPreview;
+      previewMeta.textContent = "";
       previewMeta.classList.remove("expanded");
       previewMeta.setAttribute("aria-expanded", "false");
-      previewMeta.title = "Pin figures panel";
+      previewMeta.title = getPanelI18n().pinFiguresPanel;
       clearSelectedImageState(item.id);
       screenshotBtn.disabled = screenshotUnsupported;
       screenshotBtn.title = screenshotUnsupported
@@ -2752,11 +2752,11 @@ export function setupHandlers(
       } else {
         await switchGlobalConversation(pending.conversationKey);
       }
-      if (status) setStatus(status, "Conversation restored", "ready");
+      if (status) setStatus(status, getPanelI18n().conversationRestored, "ready");
       return;
     }
     await refreshGlobalHistoryHeader();
-    if (status) setStatus(status, "Conversation restored", "ready");
+    if (status) setStatus(status, getPanelI18n().conversationRestored, "ready");
   };
 
   const findHistoryEntryByKey = (
@@ -2777,7 +2777,7 @@ export function setupHandlers(
     if (entry.kind !== "global" && entry.kind !== "paper") return;
     const libraryID = getCurrentLibraryID();
     if (!libraryID) {
-      if (status) setStatus(status, "No active library for deletion", "error");
+      if (status) setStatus(status, getPanelI18n().noActiveLibraryForDeletion, "error");
       return;
     }
 
@@ -2804,7 +2804,7 @@ export function setupHandlers(
       }
       if (!newConversationKey) {
         if (status) {
-          setStatus(status, "Cannot delete active conversation right now", "error");
+          setStatus(status, getPanelI18n().cannotDeleteActiveConversation, "error");
         }
         return;
       }
@@ -2838,7 +2838,7 @@ export function setupHandlers(
     });
     showHistoryUndoToast(entry.title);
     await refreshGlobalHistoryHeader();
-    if (status) setStatus(status, "Conversation deleted. Undo available.", "ready");
+    if (status) setStatus(status, getPanelI18n().conversationDeletedUndo, "ready");
   };
 
   /** Core batch-delete logic shared by "delete unpinned" and "delete all" */
@@ -3150,7 +3150,7 @@ export function setupHandlers(
       if (status) {
         setStatus(
           status,
-          "Wait for the current response to finish before starting a new chat",
+          getPanelI18n().waitForCurrentResponse,
           "ready"
         );
       }
@@ -3171,7 +3171,7 @@ export function setupHandlers(
           resetComposePreviewUI();
           clearDraftInput();
           clearComposeState();
-          if (status) setStatus(status, "Reused existing empty paper chat", "ready");
+          if (status) setStatus(status, getPanelI18n().reusedExistingEmptyPaperChat, "ready");
           if (inputBox) inputBox.focus({ preventScroll: true });
           return;
         }
@@ -3188,7 +3188,7 @@ export function setupHandlers(
       ztoolkit.log("LLM: Failed to create new paper conversation", err);
     }
     if (!newKey) {
-      if (status) setStatus(status, "Failed to create new paper conversation", "error");
+      if (status) setStatus(status, getPanelI18n().failedToCreateNewPaperConversation, "error");
       return;
     }
 
@@ -3207,7 +3207,7 @@ export function setupHandlers(
 
     await switchPaperConversation(newKey);
 
-    if (status) setStatus(status, "Started new paper chat", "ready");
+    if (status) setStatus(status, getPanelI18n().startedNewPaperChat, "ready");
     if (inputBox) inputBox.focus({ preventScroll: true });
   };
 
@@ -3217,7 +3217,7 @@ export function setupHandlers(
       if (status) {
         setStatus(
           status,
-          "Wait for the current response to finish before starting a new chat",
+          getPanelI18n().waitForCurrentResponse,
           "ready",
         );
       }
@@ -3226,7 +3226,7 @@ export function setupHandlers(
     const libraryID = getCurrentLibraryID();
     if (!libraryID) {
       if (status) {
-        setStatus(status, "No active library for global conversation", "error");
+        setStatus(status, getPanelI18n().noActiveLibraryForGlobalConversation, "error");
       }
       return;
     }
@@ -3279,7 +3279,7 @@ export function setupHandlers(
       reuseReason = null;
     }
     if (!targetConversationKey) {
-      if (status) setStatus(status, "Failed to create conversation", "error");
+      if (status) setStatus(status, getPanelI18n().failedToCreateConversation, "error");
       return;
     }
 
@@ -3295,8 +3295,8 @@ export function setupHandlers(
       setStatus(
         status,
         reuseReason
-          ? "Reused existing new conversation"
-          : "Started new conversation",
+          ? getPanelI18n().conversationLoaded
+          : getPanelI18n().newConversation,
         "ready",
       );
     }
@@ -3480,7 +3480,7 @@ export function setupHandlers(
         e.stopPropagation();
         closeHistoryMenu();
         if (status) {
-          setStatus(status, "Wait for the response to finish before switching", "ready");
+          setStatus(status, getPanelI18n().waitForResponseBeforeSwitching, "ready");
         }
         return;
       }
@@ -3537,10 +3537,10 @@ export function setupHandlers(
 
   const setSendButtonLabel = (mode: ActionLabelMode) => {
     setActionButtonLabel(sendBtn, "Send", "↑", mode);
-    sendBtn.title = "Send";
+    sendBtn.title = getPanelI18n().send;
     setActionButtonLabel(cancelBtn, "Cancel", "X", mode);
     if (cancelBtn) {
-      cancelBtn.title = "Cancel";
+      cancelBtn.title = getPanelI18n().cancel;
     }
   };
 
@@ -3829,7 +3829,7 @@ export function setupHandlers(
       );
       setActionButtonLabel(
         screenshotBtn,
-        SCREENSHOT_EXPANDED_LABEL,
+        i18n.screenshots,
         SCREENSHOT_COMPACT_LABEL,
         "icon",
       );
@@ -5398,7 +5398,7 @@ export function setupHandlers(
         updateImagePreviewPreservingScroll();
         return;
       }
-      if (status) setStatus(status, "Select a region...", "sending");
+      if (status) setStatus(status, getPanelI18n().selectRegion, "sending");
 
       try {
         ztoolkit.log("Screenshot: Starting capture selection...");
@@ -5432,16 +5432,16 @@ export function setupHandlers(
           if (status) {
             setStatus(
               status,
-              `Screenshot captured (${nextImages.length})`,
+              getPanelI18n().screenshots,
               "ready",
             );
           }
         } else {
-          if (status) setStatus(status, "Selection cancelled", "ready");
+          if (status) setStatus(status, getPanelI18n().selectionCancelled, "ready");
         }
       } catch (err) {
         ztoolkit.log("Screenshot selection error:", err);
-        if (status) setStatus(status, "Screenshot failed", "error");
+        if (status) setStatus(status, getPanelI18n().screenshotFailed, "error");
       }
     });
   }
@@ -5708,7 +5708,7 @@ export function setupHandlers(
         const msg = history[msgIndex];
         if (!msg?.text?.trim()) return;
         void copyTextToClipboard(body, msg.text.trim()).then(() => {
-          if (status) setStatus(status, "Copied", "ready");
+          if (status) setStatus(status, getPanelI18n().copied, "ready");
         });
         return;
       }
@@ -5972,7 +5972,7 @@ export function setupHandlers(
       if (!item) return;
       clearSelectedImageState(item.id);
       updateImagePreviewPreservingScroll();
-      if (status) setStatus(status, "Figures cleared", "ready");
+      if (status) setStatus(status, getPanelI18n().figuresCleared, "ready");
     });
   }
 
@@ -6017,7 +6017,7 @@ export function setupHandlers(
       clearSelectedFileState(item.id);
       updateFilePreview();
       scheduleAttachmentGc();
-      if (status) setStatus(status, "Files cleared", "ready");
+      if (status) setStatus(status, getPanelI18n().filesCleared, "ready");
     });
   }
 
@@ -6045,7 +6045,7 @@ export function setupHandlers(
           dismissedAutoLoadPaperCache.set(item.id, dismissKey);
         }
         updatePaperPreview();
-        if (status) setStatus(status, "Paper context dismissed", "ready");
+        if (status) setStatus(status, getPanelI18n().paperContextDismissed, "ready");
         return;
       }
 
@@ -6075,7 +6075,7 @@ export function setupHandlers(
       if (status) {
         setStatus(
           status,
-          `Paper context removed (${nextPapers.length})`,
+          getPanelI18n().paperContextDismissed,
           "ready",
         );
       }
@@ -6109,7 +6109,7 @@ export function setupHandlers(
         setSelectedTextContextEntries(textContextKey, nextContexts);
         setSelectedTextExpandedIndex(textContextKey, null);
         updateSelectedTextPreviewPreservingScroll();
-        if (status) setStatus(status, "Selected text removed", "ready");
+        if (status) setStatus(status, getPanelI18n().selectedTextRemoved, "ready");
         return;
       }
 
@@ -6213,7 +6213,7 @@ export function setupHandlers(
       e.preventDefault();
       e.stopPropagation();
       cancelPanelRequest(body);
-      if (status) setStatus(status, "Ready", "ready");
+      if (status) setStatus(status, getPanelI18n().statusReady, "ready");
       // Re-enable UI
       if (sendBtn) {
         sendBtn.style.display = "";
@@ -6297,7 +6297,7 @@ export function setupHandlers(
               }
               void refreshGlobalHistoryHeader();
               scheduleAttachmentGc();
-              if (status) setStatus(status, "Cleared", "ready");
+              if (status) setStatus(status, getPanelI18n().cleared, "ready");
               return;
             }
             nextConversationKey = await createGlobalConversation(libraryID);
@@ -6317,7 +6317,7 @@ export function setupHandlers(
           void refreshGlobalHistoryHeader();
         }
         scheduleAttachmentGc();
-        if (status) setStatus(status, "Cleared", "ready");
+        if (status) setStatus(status, getPanelI18n().cleared, "ready");
       })();
     });
   }

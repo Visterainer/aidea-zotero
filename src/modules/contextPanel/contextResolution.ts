@@ -27,6 +27,7 @@ import {
   getFirstSelectionFromReader,
   getSelectionFromDocument,
 } from "./readerSelection";
+import { getPanelI18n } from "./i18n";
 
 function getActiveReaderForSelectedTab(): any | null {
   const tabs = getZoteroTabsState();
@@ -516,7 +517,7 @@ export function addSelectedTextContext(
     options.paperContext,
   );
   if (!appended) {
-    if (status) setStatus(status, "Text Context up to 5", "error");
+    if (status) setStatus(status, getPanelI18n().textContextLimit, "error");
     return false;
   }
   applySelectedTextPreview(body, itemId);
@@ -620,8 +621,8 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     previewClear.className = "llm-remove-img-btn llm-selected-context-clear";
     previewClear.dataset.contextIndex = `${index}`;
     previewClear.textContent = "×";
-    previewClear.title = "Clear selected context";
-    previewClear.setAttribute("aria-label", "Clear selected context");
+    previewClear.title = getPanelI18n().clearSelectedContext;
+    previewClear.setAttribute("aria-label", getPanelI18n().clearSelectedContext);
 
     previewHeader.append(previewMeta, previewClear);
 

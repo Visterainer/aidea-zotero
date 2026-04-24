@@ -31,6 +31,13 @@ import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n } from "./contextPanel/i18n";
 import { refreshTranslateTabI18n } from "./contextPanel/i18n";
+import {
+  detectPanelLangFromLocale,
+  getUiLanguageOption,
+  normalizeUiLanguageCode,
+  UI_LANGUAGE_OPTIONS,
+  type PanelLang,
+} from "./contextPanel/languages";
 import { getPrimaryConnectionMode } from "./contextPanel/prefHelpers";
 
 type PrefKey =
@@ -57,7 +64,7 @@ type PrefKey =
   | "primaryConnectionMode"
   | "uiLanguage";
 
-type Lang = "zh-CN" | "en-US";
+type Lang = PanelLang;
 const PROVIDERS: OAuthProviderId[] = [
   "openai-codex",
   "google-gemini-cli",
@@ -80,13 +87,13 @@ const setPref = (key: PrefKey, value: string) =>
 
 function getLang(): Lang {
   const saved = (getPref("uiLanguage") || "").trim();
-  if (saved === "en-US") return "en-US";
-  if (saved === "zh-CN") return "zh-CN";
+  const savedLang = normalizeUiLanguageCode(saved);
+  if (savedLang) return savedLang;
   // Auto-detect from Zotero locale
   try {
-    const detected: Lang = /^zh/i.test(String((Zotero as any)?.locale || ""))
-      ? "zh-CN"
-      : "en-US";
+    const detected = detectPanelLangFromLocale(
+      String((Zotero as any)?.locale || ""),
+    );
     // Persist the detected language so future opens don't re-detect
     setPref("uiLanguage", detected);
     return detected;
@@ -146,8 +153,7 @@ const I18N = {
     status: "状态",
     modelId: "模型 ID",
     source: "来源",
-    internalNote:
-      "只有勾选的模型会出现在侧边栏对话框中。",
+    internalNote: "只有勾选的模型会出现在侧边栏对话框中。",
     systemPrompt: "自定义系统提示词（可选）",
     systemPromptHint: "覆盖默认系统提示词（留空使用默认值）",
     showAddText: "在阅读器选择弹窗显示 添加文本",
@@ -169,6 +175,39 @@ const I18N = {
     clearAllHistoryDone: "已清空全部聊天记录",
     clearAllHistoryRunning: "正在清空...",
     developing: "此功能正在开发中，敬请期待！",
+    console: "控制台",
+    advanced: "高级",
+    copy: "复制",
+    providerLabel: "提供商标签:",
+    addModelLabel: "模型名称:",
+    addModelPlaceholder: "输入模型 ID",
+    manualAdd: "手动添加",
+    all: "全选",
+    clear: "清空",
+    saveSelectedModels: "💾 保存勾选模型",
+    saved: "✔ 已保存",
+    delete: "删除",
+    defaults: "默认",
+    selectAll: "全选",
+    removeProvider: "删除提供商",
+    removeProviderConfirm: "确定要删除提供商「{provider}」及其所有模型吗？",
+    removeModel: "删除模型",
+    testingModels: "✔ {n} 个模型，正在测试可用性...",
+    pingSummary: "✔ {ok} 可用, {fail} 不可用",
+    selectedSummary: "已勾选 {selected}/{total}",
+    refreshFailed: "✖ 刷新失败: {msg}",
+    systemPromptPlaceholder: "给 AI 助手的自定义指令...",
+    oauthDeviceNotice:
+      "⚠️ OAuth 授权提示\n\n将启动 Device Code OAuth 流程：\n1. 稍后会显示验证网址和授权码\n2. 打开浏览器完成授权\n\n请注意：\n• OAuth 令牌仅保存在本地设备\n• 此用法未经服务商明确授权，理论上存在账号被限制的可能性\n• 使用 AI 服务可能产生费用\n• 本插件完全免费且开源，不收集任何用户数据\n\n是否继续？",
+    oauthInstallNotice:
+      "⚠️ OAuth 授权提示\n\n“安装环境”将执行以下操作：\n1. 安装 Node.js 运行环境（如尚未安装）\n2. 安装对应提供商的 CLI 工具\n3. 通过 OAuth 协议打开浏览器登录\n\n请注意：\n• OAuth 登录生成的访问令牌仅保存在本地，不会上传至任何第三方服务器\n• 插件直接调用 AI 服务商的官方 API\n• 本插件借助 CLI 的 OAuth 令牌调用 API，此用法未经服务商明确授权，理论上存在账号被限制的可能性\n• 使用 AI 服务可能产生费用，具体取决于您的账号计费方式\n• 本插件完全免费且开源，不收集任何用户数据\n\n是否继续？",
+    authLoggedIn: "已登录",
+    authNotLoggedIn: "未登录",
+    authTokenMayBeExpired: "令牌可能已过期",
+    authTokenExpired: "令牌已过期",
+    authProject: "项目",
+    authExpiresIn: "剩余",
+    authUsed: "已使用",
   },
   "en-US": {
     primaryConnectionMode: "Primary connection mode",
@@ -192,7 +231,8 @@ const I18N = {
     fetchModels: "Auto Fetch Models",
     fetchModelsRunning: "Fetching models...",
     fetchModelsDone: "{n} models found",
-    fetchModelsFailed: "Failed to fetch models. Check API Base URL and API Key.",
+    fetchModelsFailed:
+      "Failed to fetch models. Check API Base URL and API Key.",
     fetchModelsEmpty: "No models found",
     customModeDisabled:
       "OAuth provider mode is active. Saved custom values are retained; switch back to custom mode to use them.",
@@ -222,8 +262,7 @@ const I18N = {
     status: "Status",
     modelId: "Model ID",
     source: "Source",
-    internalNote:
-      "Only checked models appear in the sidebar dropdown.",
+    internalNote: "Only checked models appear in the sidebar dropdown.",
     systemPrompt: "Custom System Prompt (Optional)",
     systemPromptHint:
       "Override the default system prompt (leave empty to use default)",
@@ -246,11 +285,1081 @@ const I18N = {
     clearAllHistoryDone: "All chat history cleared",
     clearAllHistoryRunning: "Clearing...",
     developing: "This feature is under development. Stay tuned!",
+    console: "Console",
+    advanced: "Advanced",
+    copy: "Copy",
+    providerLabel: "Provider Label:",
+    addModelLabel: "Model ID:",
+    addModelPlaceholder: "Enter model ID",
+    manualAdd: "Manual Add",
+    all: "All",
+    clear: "Clear",
+    saveSelectedModels: "💾 Save Models",
+    saved: "✔ Saved",
+    delete: "Delete",
+    defaults: "Defaults",
+    selectAll: "Select All",
+    removeProvider: "Remove Provider",
+    removeProviderConfirm: 'Remove provider "{provider}" and all its models?',
+    removeModel: "Remove model",
+    testingModels: "✔ {n} models, testing availability...",
+    pingSummary: "✔ {ok} ok, {fail} failed",
+    selectedSummary: "Selected {selected}/{total}",
+    refreshFailed: "✖ Refresh failed: {msg}",
+    systemPromptPlaceholder: "Custom instructions for the AI assistant...",
+    oauthDeviceNotice:
+      "⚠️ OAuth Authorization Notice\n\nThis will start the Device Code OAuth flow:\n1. A verification URL and code will be displayed\n2. Open your browser to authorize the application\n\nPlease note:\n• OAuth tokens are stored locally on your device only\n• This plugin uses OAuth tokens which is not officially endorsed — theoretical risk of account restrictions\n• Using AI services may incur charges\n• This plugin is free, open-source, and collects no user data\n\nDo you wish to continue?",
+    oauthInstallNotice:
+      "⚠️ OAuth Authorization Notice\n\n\"Install Environment\" will perform the following:\n1. Install Node.js runtime (if not already installed)\n2. Install the CLI tool for this provider\n3. Open your browser via OAuth to sign in\n\nPlease note:\n• OAuth tokens are stored locally on your device only and are never sent to any third-party server\n• The plugin communicates directly with the AI provider's official API\n• This plugin uses OAuth tokens which is not an officially endorsed usage — there is a theoretical risk of account restrictions\n• Using AI services may incur charges depending on your account billing plan\n• This plugin is completely free, open-source, and does not collect any user data\n\nDo you wish to continue?",
+    authLoggedIn: "Logged in",
+    authNotLoggedIn: "Not logged in",
+    authTokenMayBeExpired: "token may be expired",
+    authTokenExpired: "token expired",
+    authProject: "project",
+    authExpiresIn: "expires in",
+    authUsed: "used",
   },
 } as const;
 
 type Dict = Record<string, string>;
-const tt = (l: Lang): Dict => I18N[l] as unknown as Dict;
+const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "zh-TW": {
+    primaryConnectionMode: "主要連線模式",
+    oauthProvidersMode: "OAuth 提供商",
+    customCompatibleMode: "API 模式",
+    modelConfigTitle: "模型設定",
+    customEndpointHint:
+      "OAuth 提供商卡片會一直保留。切換到自訂模式後，請填寫 API Base URL 和 Model；API Key 可選。",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "例如：http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "OpenAI 相容端點，必須以 /v1/ 結尾。",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "可選，留空則不傳送 Authorization",
+    customApiKeyHint: "會保存在本機 Zotero 設定中。",
+    customModel: "模型 *",
+    customModelPlaceholder: "例如：llama3.1、deepseek-chat",
+    customModelHint: "側邊欄會把自訂模型列在 OAuth 模型之後。",
+    fetchModels: "取得模型",
+    fetchModelsRunning: "正在取得模型...",
+    fetchModelsDone: "已取得 {n} 個模型",
+    fetchModelsFailed: "取得模型失敗：{msg}",
+    fetchModelsEmpty: "端點未返回任何模型",
+    customModeDisabled: "若要啟用自訂 API 模式，請填寫 API Base URL 和 Model。",
+    customModeMissing: "仍缺少：{fields}",
+    customModeReady: "自訂 API 模式已就緒。",
+    installEnv: "安裝/更新環境",
+    refreshAllModels: "重新整理全部模型",
+    running: "執行中...",
+    setupDone: "設定完成",
+    setupPartialFail: "部分設定失敗",
+    accounts: "已授權帳戶",
+    models: "可用模型",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "OAuth 登入",
+    oauthDelete: "移除授權",
+    refreshModels: "重新整理模型",
+    loggingIn: "正在啟動 OAuth 登入...",
+    refreshingModels: "正在重新整理模型清單...",
+    noModels: "尚無模型（請先完成 OAuth 登入並重新整理模型清單）",
+    provider: "提供商",
+    account: "帳戶",
+    status: "狀態",
+    modelId: "模型 ID",
+    source: "來源",
+    internalNote: "只有勾選的模型會出現在側邊欄下拉選單中。",
+    systemPrompt: "自訂系統提示詞（可選）",
+    systemPromptHint: "覆寫預設系統提示詞（留空則使用預設）",
+    showAddText: "在閱讀器選取文字彈窗中顯示「Add Text」",
+    showAddTextHint: "若不想在 Zotero 文字選取彈窗中顯示 Add Text 選項，可關閉此項。",
+    showAllModels: "在下拉選單中顯示所有模型",
+    showAllModelsHint: "啟用後顯示所有可用模型；停用後只顯示每個提供商的最佳模型。",
+    hideTabNav: "分頁列：",
+    hideTabNavOn: "隱藏",
+    hideTabNavOff: "顯示",
+    restoreDefaults: "還原預設值",
+    restoreDefaultsConfirm:
+      "確定要將所有設定還原為預設值嗎？\n\n這會重設所有模型配置、系統提示詞等。",
+    restoreDefaultsDone: "已還原預設設定",
+    clearAllHistory: "清除歷史",
+    clearAllHistoryConfirm:
+      "確定要清除全部聊天歷史嗎？\n\n此操作無法復原，所有對話歷史將被永久刪除。",
+    clearAllHistoryDone: "已清除全部聊天歷史",
+    clearAllHistoryRunning: "正在清除...",
+    developing: "此功能仍在開發中，敬請期待！",
+    oauthDeviceNotice:
+      "OAuth 授權提醒\n\n這會啟動裝置碼 OAuth 流程，並要求你在瀏覽器中完成授權。\n\nOAuth Token 只會儲存在本機；使用 AI 服務可能產生費用。是否繼續？",
+    oauthInstallNotice:
+      "OAuth 授權提醒\n\n「安裝/更新環境」會安裝所需執行環境與 CLI 工具，並透過瀏覽器登入。\n\nOAuth Token 只會儲存在本機；使用 AI 服務可能產生費用。是否繼續？",
+    authLoggedIn: "已登入",
+    authNotLoggedIn: "未登入",
+    authTokenMayBeExpired: "Token 可能已過期",
+    authTokenExpired: "Token 已過期",
+    authProject: "專案",
+    authExpiresIn: "剩餘",
+    authUsed: "已使用",
+  },
+  "ja-JP": {
+    primaryConnectionMode: "主な接続モード",
+    oauthProvidersMode: "OAuth プロバイダー",
+    customCompatibleMode: "API モード",
+    modelConfigTitle: "モデル設定",
+    customEndpointHint:
+      "OAuth プロバイダーカードは常に表示されます。カスタムモードでは API Base URL と Model を入力してください。API Key は任意です。",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "例：http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "OpenAI 互換エンドポイントです。末尾は /v1/ にしてください。",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "任意。空欄の場合 Authorization は送信されません",
+    customApiKeyHint: "ローカルの Zotero 設定に保存されます。",
+    customModel: "モデル *",
+    customModelPlaceholder: "例：llama3.1、deepseek-chat",
+    customModelHint: "サイドバーではカスタムモデルが OAuth モデルの後に表示されます。",
+    fetchModels: "モデルを取得",
+    fetchModelsRunning: "モデルを取得中...",
+    fetchModelsDone: "{n} 個のモデルを取得しました",
+    fetchModelsFailed: "モデル取得に失敗しました：{msg}",
+    fetchModelsEmpty: "エンドポイントからモデルが返されませんでした",
+    customModeDisabled: "カスタム API モードを有効にするには API Base URL と Model を入力してください。",
+    customModeMissing: "不足項目：{fields}",
+    customModeReady: "カスタム API モードは使用可能です。",
+    installEnv: "環境をインストール/更新",
+    refreshAllModels: "すべてのモデルを更新",
+    running: "実行中...",
+    setupDone: "セットアップ完了",
+    setupPartialFail: "一部のセットアップに失敗しました",
+    accounts: "認証済みアカウント",
+    models: "利用可能なモデル",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "OAuth ログイン",
+    oauthDelete: "認証を削除",
+    refreshModels: "モデルを更新",
+    loggingIn: "OAuth ログインを開始中...",
+    refreshingModels: "モデル一覧を更新中...",
+    noModels: "モデルはまだありません（先に OAuth ログインとモデル更新を完了してください）",
+    provider: "プロバイダー",
+    account: "アカウント",
+    status: "状態",
+    modelId: "モデル ID",
+    source: "ソース",
+    internalNote: "チェックしたモデルだけがサイドバーのドロップダウンに表示されます。",
+    systemPrompt: "カスタムシステムプロンプト（任意）",
+    systemPromptHint: "既定のシステムプロンプトを上書きします（空欄なら既定を使用）",
+    showAddText: "リーダーの選択ポップアップに「Add Text」を表示",
+    showAddTextHint: "Zotero の文字選択ポップアップに Add Text オプションを表示したくない場合は無効にしてください。",
+    showAllModels: "ドロップダウンにすべてのモデルを表示",
+    showAllModelsHint: "有効にすると利用可能な全モデルを表示します。無効にすると各プロバイダーの推奨モデルのみ表示します。",
+    hideTabNav: "タブバー：",
+    hideTabNavOn: "非表示",
+    hideTabNavOff: "表示",
+    restoreDefaults: "既定値に戻す",
+    restoreDefaultsConfirm:
+      "すべての設定を既定値に戻しますか？\n\nモデル設定、システムプロンプトなどがリセットされます。",
+    restoreDefaultsDone: "既定設定を復元しました",
+    clearAllHistory: "履歴を消去",
+    clearAllHistoryConfirm:
+      "すべてのチャット履歴を消去しますか？\n\nこの操作は元に戻せません。すべての会話履歴が完全に削除されます。",
+    clearAllHistoryDone: "すべてのチャット履歴を消去しました",
+    clearAllHistoryRunning: "消去中...",
+    developing: "この機能は開発中です。しばらくお待ちください。",
+    oauthDeviceNotice:
+      "OAuth 認証の注意\n\nデバイスコード OAuth フローを開始し、ブラウザーで認証を完了します。\n\nOAuth トークンはローカルにのみ保存されます。AI サービスの利用には料金が発生する場合があります。続行しますか？",
+    oauthInstallNotice:
+      "OAuth 認証の注意\n\n「環境をインストール/更新」は必要なランタイムと CLI ツールをインストールし、ブラウザーでログインします。\n\nOAuth トークンはローカルにのみ保存されます。AI サービスの利用には料金が発生する場合があります。続行しますか？",
+    authLoggedIn: "ログイン済み",
+    authNotLoggedIn: "未ログイン",
+    authTokenMayBeExpired: "トークンの期限が切れている可能性があります",
+    authTokenExpired: "トークン期限切れ",
+    authProject: "プロジェクト",
+    authExpiresIn: "残り",
+    authUsed: "使用済み",
+  },
+  "ko-KR": {
+    primaryConnectionMode: "기본 연결 모드",
+    oauthProvidersMode: "OAuth 제공자",
+    customCompatibleMode: "API 모드",
+    modelConfigTitle: "모델 설정",
+    customEndpointHint:
+      "OAuth 제공자 카드는 항상 유지됩니다. 사용자 지정 모드에서는 API Base URL과 Model을 입력하세요. API Key는 선택 사항입니다.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "예: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "OpenAI 호환 엔드포인트이며 /v1/로 끝나야 합니다.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "선택 사항입니다. 비워 두면 Authorization을 보내지 않습니다",
+    customApiKeyHint: "로컬 Zotero 설정에 저장됩니다.",
+    customModel: "모델 *",
+    customModelPlaceholder: "예: llama3.1, deepseek-chat",
+    customModelHint: "사이드바에서 사용자 지정 모델은 OAuth 모델 뒤에 표시됩니다.",
+    fetchModels: "모델 가져오기",
+    fetchModelsRunning: "모델을 가져오는 중...",
+    fetchModelsDone: "모델 {n}개를 가져왔습니다",
+    fetchModelsFailed: "모델 가져오기 실패: {msg}",
+    fetchModelsEmpty: "엔드포인트가 모델을 반환하지 않았습니다",
+    customModeDisabled: "사용자 지정 API 모드를 사용하려면 API Base URL과 Model을 입력하세요.",
+    customModeMissing: "아직 부족한 항목: {fields}",
+    customModeReady: "사용자 지정 API 모드가 준비되었습니다.",
+    installEnv: "환경 설치/업데이트",
+    refreshAllModels: "모든 모델 새로고침",
+    running: "실행 중...",
+    setupDone: "설정 완료",
+    setupPartialFail: "일부 설정 실패",
+    accounts: "인증된 계정",
+    models: "사용 가능한 모델",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "OAuth 로그인",
+    oauthDelete: "인증 제거",
+    refreshModels: "모델 새로고침",
+    loggingIn: "OAuth 로그인을 시작하는 중...",
+    refreshingModels: "모델 목록을 새로고침하는 중...",
+    noModels: "아직 모델이 없습니다(OAuth 로그인 후 모델 목록을 새로고침하세요)",
+    provider: "제공자",
+    account: "계정",
+    status: "상태",
+    modelId: "모델 ID",
+    source: "출처",
+    internalNote: "선택한 모델만 사이드바 드롭다운에 표시됩니다.",
+    systemPrompt: "사용자 지정 시스템 프롬프트(선택 사항)",
+    systemPromptHint: "기본 시스템 프롬프트를 덮어씁니다(비워 두면 기본값 사용)",
+    showAddText: "리더 선택 팝업에 \"Add Text\" 표시",
+    showAddTextHint: "Zotero 텍스트 선택 팝업에서 Add Text 옵션을 보이지 않게 하려면 비활성화하세요.",
+    showAllModels: "드롭다운에 모든 모델 표시",
+    showAllModelsHint: "활성화하면 사용 가능한 모든 모델을 표시합니다. 비활성화하면 제공자별 추천 모델만 표시합니다.",
+    hideTabNav: "탭 바:",
+    hideTabNavOn: "숨기기",
+    hideTabNavOff: "표시",
+    restoreDefaults: "기본값 복원",
+    restoreDefaultsConfirm:
+      "모든 설정을 기본값으로 복원하시겠습니까?\n\n모든 모델 설정, 시스템 프롬프트 등이 초기화됩니다.",
+    restoreDefaultsDone: "기본 설정을 복원했습니다",
+    clearAllHistory: "기록 지우기",
+    clearAllHistoryConfirm:
+      "모든 채팅 기록을 지우시겠습니까?\n\n이 작업은 되돌릴 수 없으며 모든 대화 기록이 영구적으로 삭제됩니다.",
+    clearAllHistoryDone: "모든 채팅 기록을 지웠습니다",
+    clearAllHistoryRunning: "지우는 중...",
+    developing: "이 기능은 개발 중입니다. 잠시 기다려 주세요.",
+    oauthDeviceNotice:
+      "OAuth 인증 알림\n\n장치 코드 OAuth 흐름을 시작하고 브라우저에서 인증을 완료합니다.\n\nOAuth 토큰은 로컬에만 저장됩니다. AI 서비스 사용 시 요금이 발생할 수 있습니다. 계속하시겠습니까?",
+    oauthInstallNotice:
+      "OAuth 인증 알림\n\n「환경 설치/업데이트」는 필요한 런타임과 CLI 도구를 설치하고 브라우저에서 로그인합니다.\n\nOAuth 토큰은 로컬에만 저장됩니다. AI 서비스 사용 시 요금이 발생할 수 있습니다. 계속하시겠습니까?",
+    authLoggedIn: "로그인됨",
+    authNotLoggedIn: "로그인되지 않음",
+    authTokenMayBeExpired: "토큰이 만료되었을 수 있음",
+    authTokenExpired: "토큰 만료",
+    authProject: "프로젝트",
+    authExpiresIn: "남은 시간",
+    authUsed: "사용됨",
+  },
+  "fr-FR": {
+    primaryConnectionMode: "Mode de connexion principal",
+    oauthProvidersMode: "Fournisseurs OAuth",
+    customCompatibleMode: "Mode API",
+    modelConfigTitle: "Configuration du modèle",
+    customEndpointHint:
+      "Les cartes des fournisseurs OAuth restent visibles. En mode personnalisé, renseignez API Base URL et Model ; API Key est facultatif.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "Exemple : http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "Point d'accès compatible OpenAI, avec /v1/ à la fin.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "Facultatif ; vide, aucun Authorization n'est envoyé",
+    customApiKeyHint: "Enregistré dans les préférences locales de Zotero.",
+    customModel: "Modèle *",
+    customModelPlaceholder: "Exemple : llama3.1, deepseek-chat",
+    customModelHint: "Les modèles personnalisés apparaissent après les modèles OAuth dans la barre latérale.",
+    fetchModels: "Récupérer les modèles",
+    fetchModelsRunning: "Récupération des modèles...",
+    fetchModelsDone: "{n} modèles récupérés",
+    fetchModelsFailed: "Échec de la récupération : {msg}",
+    fetchModelsEmpty: "Le point d'accès n'a renvoyé aucun modèle",
+    customModeDisabled: "Pour activer le mode API personnalisé, renseignez API Base URL et Model.",
+    customModeMissing: "Champs manquants : {fields}",
+    customModeReady: "Le mode API personnalisé est prêt.",
+    installEnv: "Installer/mettre à jour l'environnement",
+    refreshAllModels: "Actualiser tous les modèles",
+    running: "En cours...",
+    setupDone: "Configuration terminée",
+    setupPartialFail: "Configuration partiellement échouée",
+    accounts: "Comptes autorisés",
+    models: "Modèles disponibles",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "Connexion OAuth",
+    oauthDelete: "Supprimer l'autorisation",
+    refreshModels: "Actualiser les modèles",
+    loggingIn: "Démarrage de la connexion OAuth...",
+    refreshingModels: "Actualisation de la liste des modèles...",
+    noModels: "Aucun modèle pour l'instant (connectez-vous via OAuth puis actualisez la liste)",
+    provider: "Fournisseur",
+    account: "Compte",
+    status: "Statut",
+    modelId: "ID du modèle",
+    source: "Source",
+    internalNote: "Seuls les modèles cochés apparaissent dans la liste déroulante de la barre latérale.",
+    systemPrompt: "Invite système personnalisée (facultatif)",
+    systemPromptHint: "Remplace l'invite système par défaut (laisser vide pour utiliser la valeur par défaut)",
+    showAddText: "Afficher « Add Text » dans la fenêtre de sélection du lecteur",
+    showAddTextHint: "Désactivez cette option si vous ne voulez pas afficher Add Text dans le menu de sélection de texte de Zotero.",
+    showAllModels: "Afficher tous les modèles dans la liste",
+    showAllModelsHint: "Activé : affiche tous les modèles disponibles. Désactivé : affiche seulement les meilleurs modèles par fournisseur.",
+    hideTabNav: "Barre d'onglets :",
+    hideTabNavOn: "Masquer",
+    hideTabNavOff: "Afficher",
+    restoreDefaults: "Restaurer les valeurs par défaut",
+    restoreDefaultsConfirm:
+      "Restaurer tous les paramètres par défaut ?\n\nCela réinitialisera les configurations de modèles, l'invite système, etc.",
+    restoreDefaultsDone: "Configuration par défaut restaurée",
+    clearAllHistory: "Effacer l'historique",
+    clearAllHistoryConfirm:
+      "Effacer tout l'historique des conversations ?\n\nCette action est irréversible. Tout l'historique sera supprimé définitivement.",
+    clearAllHistoryDone: "Tout l'historique a été effacé",
+    clearAllHistoryRunning: "Effacement...",
+    developing: "Cette fonctionnalité est en cours de développement.",
+    oauthDeviceNotice:
+      "Avis d'autorisation OAuth\n\nLe flux OAuth par code d'appareil va démarrer et vous devrez autoriser l'application dans le navigateur.\n\nLes jetons OAuth restent stockés localement. L'utilisation des services IA peut entraîner des frais. Continuer ?",
+    oauthInstallNotice:
+      "Avis d'autorisation OAuth\n\n« Installer/mettre à jour l'environnement » installe le runtime et les outils CLI nécessaires, puis ouvre la connexion dans le navigateur.\n\nLes jetons OAuth restent stockés localement. L'utilisation des services IA peut entraîner des frais. Continuer ?",
+    authLoggedIn: "Connecté",
+    authNotLoggedIn: "Non connecté",
+    authTokenMayBeExpired: "le jeton a peut-être expiré",
+    authTokenExpired: "jeton expiré",
+    authProject: "projet",
+    authExpiresIn: "expire dans",
+    authUsed: "utilisé",
+  },
+  "de-DE": {
+    primaryConnectionMode: "Primärer Verbindungsmodus",
+    oauthProvidersMode: "OAuth-Anbieter",
+    customCompatibleMode: "API-Modus",
+    modelConfigTitle: "Modellkonfiguration",
+    customEndpointHint:
+      "OAuth-Anbieterkarten bleiben sichtbar. Im benutzerdefinierten Modus API Base URL und Model ausfüllen; API Key ist optional.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "Beispiel: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "OpenAI-kompatibler Endpunkt, muss mit /v1/ enden.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "Optional; leer bedeutet ohne Authorization",
+    customApiKeyHint: "Wird in den lokalen Zotero-Einstellungen gespeichert.",
+    customModel: "Modell *",
+    customModelPlaceholder: "Beispiel: llama3.1, deepseek-chat",
+    customModelHint: "Benutzerdefinierte Modelle erscheinen in der Seitenleiste nach den OAuth-Modellen.",
+    fetchModels: "Modelle abrufen",
+    fetchModelsRunning: "Modelle werden abgerufen...",
+    fetchModelsDone: "{n} Modelle abgerufen",
+    fetchModelsFailed: "Modelle konnten nicht abgerufen werden: {msg}",
+    fetchModelsEmpty: "Der Endpunkt hat keine Modelle zurückgegeben",
+    customModeDisabled: "Zum Aktivieren des benutzerdefinierten API-Modus API Base URL und Model ausfüllen.",
+    customModeMissing: "Noch fehlend: {fields}",
+    customModeReady: "Benutzerdefinierter API-Modus ist bereit.",
+    installEnv: "Umgebung installieren/aktualisieren",
+    refreshAllModels: "Alle Modelle aktualisieren",
+    running: "Wird ausgeführt...",
+    setupDone: "Einrichtung abgeschlossen",
+    setupPartialFail: "Einrichtung teilweise fehlgeschlagen",
+    accounts: "Autorisierte Konten",
+    models: "Verfügbare Modelle",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "OAuth-Anmeldung",
+    oauthDelete: "Autorisierung entfernen",
+    refreshModels: "Modelle aktualisieren",
+    loggingIn: "OAuth-Anmeldung wird gestartet...",
+    refreshingModels: "Modellliste wird aktualisiert...",
+    noModels: "Noch keine Modelle (zuerst OAuth-Anmeldung abschließen und Modellliste aktualisieren)",
+    provider: "Anbieter",
+    account: "Konto",
+    status: "Status",
+    modelId: "Modell-ID",
+    source: "Quelle",
+    internalNote: "Nur markierte Modelle erscheinen im Seitenleisten-Dropdown.",
+    systemPrompt: "Benutzerdefinierter System-Prompt (optional)",
+    systemPromptHint: "Überschreibt den Standard-System-Prompt (leer lassen, um den Standard zu verwenden)",
+    showAddText: "\"Add Text\" im Auswahl-Popup des Readers anzeigen",
+    showAddTextHint: "Deaktivieren, wenn die Option Add Text im Zotero-Textauswahlmenü nicht angezeigt werden soll.",
+    showAllModels: "Alle Modelle im Dropdown anzeigen",
+    showAllModelsHint: "Aktiviert: alle verfügbaren Modelle. Deaktiviert: nur die besten Modelle je Anbieter.",
+    hideTabNav: "Tableiste:",
+    hideTabNavOn: "Ausblenden",
+    hideTabNavOff: "Anzeigen",
+    restoreDefaults: "Standardwerte wiederherstellen",
+    restoreDefaultsConfirm:
+      "Alle Einstellungen auf Standardwerte zurücksetzen?\n\nDadurch werden Modellkonfigurationen, System-Prompt usw. zurückgesetzt.",
+    restoreDefaultsDone: "Standardkonfiguration wiederhergestellt",
+    clearAllHistory: "Verlauf löschen",
+    clearAllHistoryConfirm:
+      "Den gesamten Chatverlauf löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden. Der gesamte Verlauf wird dauerhaft gelöscht.",
+    clearAllHistoryDone: "Gesamter Chatverlauf gelöscht",
+    clearAllHistoryRunning: "Wird gelöscht...",
+    developing: "Diese Funktion befindet sich in Entwicklung.",
+    oauthDeviceNotice:
+      "OAuth-Autorisierungshinweis\n\nDer Device-Code-OAuth-Ablauf wird gestartet und die Autorisierung im Browser abgeschlossen.\n\nOAuth-Tokens werden nur lokal gespeichert. Die Nutzung von KI-Diensten kann Kosten verursachen. Fortfahren?",
+    oauthInstallNotice:
+      "OAuth-Autorisierungshinweis\n\n\"Umgebung installieren/aktualisieren\" installiert benötigte Laufzeitumgebungen und CLI-Tools und öffnet die Anmeldung im Browser.\n\nOAuth-Tokens werden nur lokal gespeichert. Die Nutzung von KI-Diensten kann Kosten verursachen. Fortfahren?",
+    authLoggedIn: "Angemeldet",
+    authNotLoggedIn: "Nicht angemeldet",
+    authTokenMayBeExpired: "Token ist möglicherweise abgelaufen",
+    authTokenExpired: "Token abgelaufen",
+    authProject: "Projekt",
+    authExpiresIn: "läuft ab in",
+    authUsed: "verwendet",
+  },
+  "es-ES": {
+    primaryConnectionMode: "Modo de conexión principal",
+    oauthProvidersMode: "Proveedores OAuth",
+    customCompatibleMode: "Modo API",
+    modelConfigTitle: "Configuración del modelo",
+    customEndpointHint:
+      "Las tarjetas de proveedores OAuth permanecen visibles. En modo personalizado, rellena API Base URL y Model; API Key es opcional.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "Ejemplo: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "Endpoint compatible con OpenAI; debe terminar en /v1/.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "Opcional; si está vacío no se envía Authorization",
+    customApiKeyHint: "Se guarda en las preferencias locales de Zotero.",
+    customModel: "Modelo *",
+    customModelPlaceholder: "Ejemplo: llama3.1, deepseek-chat",
+    customModelHint: "Los modelos personalizados aparecen después de los modelos OAuth en la barra lateral.",
+    fetchModels: "Obtener modelos",
+    fetchModelsRunning: "Obteniendo modelos...",
+    fetchModelsDone: "{n} modelos obtenidos",
+    fetchModelsFailed: "Error al obtener modelos: {msg}",
+    fetchModelsEmpty: "El endpoint no devolvió modelos",
+    customModeDisabled: "Para activar el modo API personalizado, rellena API Base URL y Model.",
+    customModeMissing: "Falta: {fields}",
+    customModeReady: "El modo API personalizado está listo.",
+    installEnv: "Instalar/actualizar entorno",
+    refreshAllModels: "Actualizar todos los modelos",
+    running: "Ejecutando...",
+    setupDone: "Configuración completada",
+    setupPartialFail: "Configuración parcialmente fallida",
+    accounts: "Cuentas autorizadas",
+    models: "Modelos disponibles",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "Inicio de sesión OAuth",
+    oauthDelete: "Eliminar autorización",
+    refreshModels: "Actualizar modelos",
+    loggingIn: "Iniciando sesión OAuth...",
+    refreshingModels: "Actualizando lista de modelos...",
+    noModels: "Aún no hay modelos (completa el inicio OAuth y actualiza la lista)",
+    provider: "Proveedor",
+    account: "Cuenta",
+    status: "Estado",
+    modelId: "ID del modelo",
+    source: "Origen",
+    internalNote: "Solo los modelos marcados aparecen en el desplegable de la barra lateral.",
+    systemPrompt: "Prompt de sistema personalizado (opcional)",
+    systemPromptHint: "Anula el prompt de sistema predeterminado (dejar vacío para usar el predeterminado)",
+    showAddText: "Mostrar \"Add Text\" en el popup de selección del lector",
+    showAddTextHint: "Desactívalo si no quieres mostrar Add Text en el menú de selección de texto de Zotero.",
+    showAllModels: "Mostrar todos los modelos en el desplegable",
+    showAllModelsHint: "Activado: muestra todos los modelos disponibles. Desactivado: solo los mejores modelos por proveedor.",
+    hideTabNav: "Barra de pestañas:",
+    hideTabNavOn: "Ocultar",
+    hideTabNavOff: "Mostrar",
+    restoreDefaults: "Restaurar valores predeterminados",
+    restoreDefaultsConfirm:
+      "¿Restaurar todos los ajustes a los valores predeterminados?\n\nEsto restablecerá configuraciones de modelos, prompt de sistema, etc.",
+    restoreDefaultsDone: "Configuración predeterminada restaurada",
+    clearAllHistory: "Borrar historial",
+    clearAllHistoryConfirm:
+      "¿Borrar TODO el historial de chat?\n\nEsta acción no se puede deshacer. Todo el historial se eliminará permanentemente.",
+    clearAllHistoryDone: "Todo el historial de chat fue borrado",
+    clearAllHistoryRunning: "Borrando...",
+    developing: "Esta función está en desarrollo.",
+    oauthDeviceNotice:
+      "Aviso de autorización OAuth\n\nSe iniciará el flujo OAuth con código de dispositivo y deberás autorizar la aplicación en el navegador.\n\nLos tokens OAuth se guardan solo localmente. El uso de servicios de IA puede generar cargos. ¿Continuar?",
+    oauthInstallNotice:
+      "Aviso de autorización OAuth\n\n\"Instalar/actualizar entorno\" instala el runtime y las herramientas CLI necesarias, y abre el inicio de sesión en el navegador.\n\nLos tokens OAuth se guardan solo localmente. El uso de servicios de IA puede generar cargos. ¿Continuar?",
+    authLoggedIn: "Sesión iniciada",
+    authNotLoggedIn: "Sin sesión",
+    authTokenMayBeExpired: "el token puede haber expirado",
+    authTokenExpired: "token expirado",
+    authProject: "proyecto",
+    authExpiresIn: "expira en",
+    authUsed: "usado",
+  },
+  "ru-RU": {
+    primaryConnectionMode: "Основной режим подключения",
+    oauthProvidersMode: "Поставщики OAuth",
+    customCompatibleMode: "Режим API",
+    modelConfigTitle: "Настройка модели",
+    customEndpointHint:
+      "Карточки поставщиков OAuth остаются видимыми. В пользовательском режиме заполните API Base URL и Model; API Key необязателен.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "Например: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "OpenAI-совместимый эндпоинт, должен заканчиваться на /v1/.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "Необязательно; если пусто, Authorization не отправляется",
+    customApiKeyHint: "Сохраняется в локальных настройках Zotero.",
+    customModel: "Модель *",
+    customModelPlaceholder: "Например: llama3.1, deepseek-chat",
+    customModelHint: "Пользовательские модели отображаются в боковой панели после моделей OAuth.",
+    fetchModels: "Получить модели",
+    fetchModelsRunning: "Получение моделей...",
+    fetchModelsDone: "Получено моделей: {n}",
+    fetchModelsFailed: "Не удалось получить модели: {msg}",
+    fetchModelsEmpty: "Эндпоинт не вернул моделей",
+    customModeDisabled: "Чтобы включить пользовательский режим API, заполните API Base URL и Model.",
+    customModeMissing: "Не заполнено: {fields}",
+    customModeReady: "Пользовательский режим API готов.",
+    installEnv: "Установить/обновить среду",
+    refreshAllModels: "Обновить все модели",
+    running: "Выполняется...",
+    setupDone: "Настройка завершена",
+    setupPartialFail: "Настройка частично не удалась",
+    accounts: "Авторизованные аккаунты",
+    models: "Доступные модели",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "Вход OAuth",
+    oauthDelete: "Удалить авторизацию",
+    refreshModels: "Обновить модели",
+    loggingIn: "Запуск входа OAuth...",
+    refreshingModels: "Обновление списка моделей...",
+    noModels: "Моделей пока нет (сначала выполните вход OAuth и обновите список)",
+    provider: "Поставщик",
+    account: "Аккаунт",
+    status: "Статус",
+    modelId: "ID модели",
+    source: "Источник",
+    internalNote: "В выпадающем списке боковой панели отображаются только отмеченные модели.",
+    systemPrompt: "Пользовательский системный промпт (необязательно)",
+    systemPromptHint: "Переопределяет системный промпт по умолчанию (оставьте пустым для значения по умолчанию)",
+    showAddText: "Показывать \"Add Text\" во всплывающем меню выделения в ридере",
+    showAddTextHint: "Отключите, если не хотите показывать Add Text в меню выделения текста Zotero.",
+    showAllModels: "Показывать все модели в выпадающем списке",
+    showAllModelsHint: "Включено: все доступные модели. Выключено: только лучшие модели каждого поставщика.",
+    hideTabNav: "Панель вкладок:",
+    hideTabNavOn: "Скрыть",
+    hideTabNavOff: "Показать",
+    restoreDefaults: "Восстановить настройки по умолчанию",
+    restoreDefaultsConfirm:
+      "Восстановить все настройки по умолчанию?\n\nБудут сброшены конфигурации моделей, системный промпт и т. д.",
+    restoreDefaultsDone: "Настройки по умолчанию восстановлены",
+    clearAllHistory: "Очистить историю",
+    clearAllHistoryConfirm:
+      "Очистить ВСЮ историю чатов?\n\nЭто действие нельзя отменить. Вся история будет удалена навсегда.",
+    clearAllHistoryDone: "Вся история чатов очищена",
+    clearAllHistoryRunning: "Очистка...",
+    developing: "Эта функция находится в разработке.",
+    oauthDeviceNotice:
+      "Уведомление об авторизации OAuth\n\nБудет запущен OAuth-поток с кодом устройства, а авторизация завершится в браузере.\n\nOAuth-токены хранятся только локально. Использование AI-сервисов может привести к расходам. Продолжить?",
+    oauthInstallNotice:
+      "Уведомление об авторизации OAuth\n\n«Установить/обновить среду» установит нужную среду выполнения и CLI-инструменты, затем откроет вход в браузере.\n\nOAuth-токены хранятся только локально. Использование AI-сервисов может привести к расходам. Продолжить?",
+    authLoggedIn: "Выполнен вход",
+    authNotLoggedIn: "Вход не выполнен",
+    authTokenMayBeExpired: "токен мог истечь",
+    authTokenExpired: "токен истек",
+    authProject: "проект",
+    authExpiresIn: "истекает через",
+    authUsed: "использовано",
+  },
+  "pt-BR": {
+    primaryConnectionMode: "Modo de conexão principal",
+    oauthProvidersMode: "Provedores OAuth",
+    customCompatibleMode: "Modo API",
+    modelConfigTitle: "Configuração do modelo",
+    customEndpointHint:
+      "Os cartões de provedores OAuth permanecem visíveis. No modo personalizado, preencha API Base URL e Model; API Key é opcional.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "Exemplo: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "Endpoint compatível com OpenAI; deve terminar com /v1/.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "Opcional; vazio não envia Authorization",
+    customApiKeyHint: "Salvo nas preferências locais do Zotero.",
+    customModel: "Modelo *",
+    customModelPlaceholder: "Exemplo: llama3.1, deepseek-chat",
+    customModelHint: "Modelos personalizados aparecem depois dos modelos OAuth na barra lateral.",
+    fetchModels: "Buscar modelos",
+    fetchModelsRunning: "Buscando modelos...",
+    fetchModelsDone: "{n} modelos encontrados",
+    fetchModelsFailed: "Falha ao buscar modelos: {msg}",
+    fetchModelsEmpty: "O endpoint não retornou modelos",
+    customModeDisabled: "Para ativar o modo API personalizado, preencha API Base URL e Model.",
+    customModeMissing: "Ainda falta: {fields}",
+    customModeReady: "O modo API personalizado está pronto.",
+    installEnv: "Instalar/atualizar ambiente",
+    refreshAllModels: "Atualizar todos os modelos",
+    running: "Executando...",
+    setupDone: "Configuração concluída",
+    setupPartialFail: "Configuração parcialmente falhou",
+    accounts: "Contas autorizadas",
+    models: "Modelos disponíveis",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "Login OAuth",
+    oauthDelete: "Remover autorização",
+    refreshModels: "Atualizar modelos",
+    loggingIn: "Iniciando login OAuth...",
+    refreshingModels: "Atualizando lista de modelos...",
+    noModels: "Ainda não há modelos (conclua o login OAuth e atualize a lista)",
+    provider: "Provedor",
+    account: "Conta",
+    status: "Status",
+    modelId: "ID do modelo",
+    source: "Origem",
+    internalNote: "Somente modelos marcados aparecem no menu da barra lateral.",
+    systemPrompt: "Prompt de sistema personalizado (opcional)",
+    systemPromptHint: "Substitui o prompt de sistema padrão (deixe vazio para usar o padrão)",
+    showAddText: "Mostrar \"Add Text\" no popup de seleção do leitor",
+    showAddTextHint: "Desative se não quiser mostrar Add Text no menu de seleção de texto do Zotero.",
+    showAllModels: "Mostrar todos os modelos no menu",
+    showAllModelsHint: "Ativado: mostra todos os modelos disponíveis. Desativado: mostra só os melhores modelos por provedor.",
+    hideTabNav: "Barra de abas:",
+    hideTabNavOn: "Ocultar",
+    hideTabNavOff: "Mostrar",
+    restoreDefaults: "Restaurar padrões",
+    restoreDefaultsConfirm:
+      "Restaurar todas as configurações para os padrões?\n\nIsso redefinirá configurações de modelos, prompt de sistema etc.",
+    restoreDefaultsDone: "Configuração padrão restaurada",
+    clearAllHistory: "Limpar histórico",
+    clearAllHistoryConfirm:
+      "Limpar TODO o histórico de chat?\n\nEsta ação não pode ser desfeita. Todo o histórico será removido permanentemente.",
+    clearAllHistoryDone: "Todo o histórico de chat foi limpo",
+    clearAllHistoryRunning: "Limpando...",
+    developing: "Este recurso está em desenvolvimento.",
+    oauthDeviceNotice:
+      "Aviso de autorização OAuth\n\nO fluxo OAuth por código de dispositivo será iniciado e a autorização será concluída no navegador.\n\nTokens OAuth ficam salvos apenas localmente. O uso de serviços de IA pode gerar cobranças. Continuar?",
+    oauthInstallNotice:
+      "Aviso de autorização OAuth\n\n\"Instalar/atualizar ambiente\" instala o runtime e as ferramentas CLI necessárias, depois abre o login no navegador.\n\nTokens OAuth ficam salvos apenas localmente. O uso de serviços de IA pode gerar cobranças. Continuar?",
+    authLoggedIn: "Logado",
+    authNotLoggedIn: "Não logado",
+    authTokenMayBeExpired: "o token pode ter expirado",
+    authTokenExpired: "token expirado",
+    authProject: "projeto",
+    authExpiresIn: "expira em",
+    authUsed: "usado",
+  },
+  "ar-SA": {
+    primaryConnectionMode: "وضع الاتصال الأساسي",
+    oauthProvidersMode: "موفرو OAuth",
+    customCompatibleMode: "وضع API",
+    modelConfigTitle: "إعدادات النموذج",
+    customEndpointHint:
+      "تظل بطاقات موفري OAuth ظاهرة. في الوضع المخصص، أدخل API Base URL و Model؛ أما API Key فهو اختياري.",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "مثال: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "نقطة نهاية متوافقة مع OpenAI ويجب أن تنتهي بـ /v1/.",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "اختياري؛ إذا تُرك فارغًا فلن يتم إرسال Authorization",
+    customApiKeyHint: "يُحفظ في إعدادات Zotero المحلية.",
+    customModel: "النموذج *",
+    customModelPlaceholder: "مثال: llama3.1 أو deepseek-chat",
+    customModelHint: "تظهر النماذج المخصصة بعد نماذج OAuth في الشريط الجانبي.",
+    fetchModels: "جلب النماذج",
+    fetchModelsRunning: "جارٍ جلب النماذج...",
+    fetchModelsDone: "تم جلب {n} نموذج",
+    fetchModelsFailed: "فشل جلب النماذج: {msg}",
+    fetchModelsEmpty: "لم تُرجع نقطة النهاية أي نماذج",
+    customModeDisabled: "لتفعيل وضع API المخصص، أدخل API Base URL و Model.",
+    customModeMissing: "ما زال ناقصًا: {fields}",
+    customModeReady: "وضع API المخصص جاهز.",
+    installEnv: "تثبيت/تحديث البيئة",
+    refreshAllModels: "تحديث كل النماذج",
+    running: "جارٍ التنفيذ...",
+    setupDone: "اكتمل الإعداد",
+    setupPartialFail: "فشل الإعداد جزئيًا",
+    accounts: "الحسابات المصرح بها",
+    models: "النماذج المتاحة",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "تسجيل دخول OAuth",
+    oauthDelete: "إزالة التفويض",
+    refreshModels: "تحديث النماذج",
+    loggingIn: "جارٍ بدء تسجيل دخول OAuth...",
+    refreshingModels: "جارٍ تحديث قائمة النماذج...",
+    noModels: "لا توجد نماذج بعد (أكمل تسجيل دخول OAuth ثم حدّث القائمة)",
+    provider: "الموفر",
+    account: "الحساب",
+    status: "الحالة",
+    modelId: "معرّف النموذج",
+    source: "المصدر",
+    internalNote: "تظهر النماذج المحددة فقط في قائمة الشريط الجانبي.",
+    systemPrompt: "موجه النظام المخصص (اختياري)",
+    systemPromptHint: "يتجاوز موجه النظام الافتراضي (اتركه فارغًا لاستخدام الافتراضي)",
+    showAddText: "إظهار \"Add Text\" في نافذة تحديد النص بالقارئ",
+    showAddTextHint: "عطّل هذا الخيار إذا كنت لا تريد إظهار Add Text في قائمة تحديد النص في Zotero.",
+    showAllModels: "إظهار كل النماذج في القائمة",
+    showAllModelsHint: "عند التفعيل تُعرض كل النماذج المتاحة؛ وعند التعطيل تُعرض أفضل النماذج لكل موفر فقط.",
+    hideTabNav: "شريط التبويبات:",
+    hideTabNavOn: "إخفاء",
+    hideTabNavOff: "إظهار",
+    restoreDefaults: "استعادة الافتراضيات",
+    restoreDefaultsConfirm:
+      "هل تريد استعادة كل الإعدادات إلى القيم الافتراضية؟\n\nسيؤدي ذلك إلى إعادة ضبط إعدادات النماذج وموجه النظام وغير ذلك.",
+    restoreDefaultsDone: "تمت استعادة الإعدادات الافتراضية",
+    clearAllHistory: "مسح السجل",
+    clearAllHistoryConfirm:
+      "هل تريد مسح كل سجل المحادثات؟\n\nلا يمكن التراجع عن هذا الإجراء وسيتم حذف كل السجل نهائيًا.",
+    clearAllHistoryDone: "تم مسح كل سجل المحادثات",
+    clearAllHistoryRunning: "جارٍ المسح...",
+    developing: "هذه الميزة قيد التطوير.",
+    oauthDeviceNotice:
+      "تنبيه تفويض OAuth\n\nسيبدأ تدفق OAuth برمز الجهاز وستكمل التفويض في المتصفح.\n\nتُخزن رموز OAuth محليًا فقط. قد يترتب على استخدام خدمات الذكاء الاصطناعي رسوم. هل تريد المتابعة؟",
+    oauthInstallNotice:
+      "تنبيه تفويض OAuth\n\nسيقوم «تثبيت/تحديث البيئة» بتثبيت بيئة التشغيل وأدوات CLI المطلوبة، ثم فتح تسجيل الدخول في المتصفح.\n\nتُخزن رموز OAuth محليًا فقط. قد يترتب على استخدام خدمات الذكاء الاصطناعي رسوم. هل تريد المتابعة؟",
+    authLoggedIn: "تم تسجيل الدخول",
+    authNotLoggedIn: "لم يتم تسجيل الدخول",
+    authTokenMayBeExpired: "قد تكون صلاحية الرمز منتهية",
+    authTokenExpired: "انتهت صلاحية الرمز",
+    authProject: "المشروع",
+    authExpiresIn: "ينتهي خلال",
+    authUsed: "مستخدم",
+  },
+  "hi-IN": {
+    primaryConnectionMode: "मुख्य कनेक्शन मोड",
+    oauthProvidersMode: "OAuth प्रदाता",
+    customCompatibleMode: "API मोड",
+    modelConfigTitle: "मॉडल कॉन्फ़िगरेशन",
+    customEndpointHint:
+      "OAuth प्रदाता कार्ड हमेशा दिखेंगे। कस्टम मोड में API Base URL और Model भरें; API Key वैकल्पिक है।",
+    customApiBase: "API Base URL *",
+    customApiBasePlaceholder: "उदाहरण: http://127.0.0.1:11434/v1/",
+    customApiBaseHint: "OpenAI-संगत endpoint, जो /v1/ पर समाप्त होना चाहिए।",
+    customApiKey: "API Key",
+    customApiKeyPlaceholder: "वैकल्पिक; खाली होने पर Authorization नहीं भेजा जाएगा",
+    customApiKeyHint: "स्थानीय Zotero सेटिंग्स में सहेजा जाएगा।",
+    customModel: "मॉडल *",
+    customModelPlaceholder: "उदाहरण: llama3.1, deepseek-chat",
+    customModelHint: "कस्टम मॉडल साइडबार में OAuth मॉडल के बाद दिखाई देंगे।",
+    fetchModels: "मॉडल लाएँ",
+    fetchModelsRunning: "मॉडल लाए जा रहे हैं...",
+    fetchModelsDone: "{n} मॉडल मिले",
+    fetchModelsFailed: "मॉडल लाने में विफल: {msg}",
+    fetchModelsEmpty: "Endpoint ने कोई मॉडल वापस नहीं किया",
+    customModeDisabled: "कस्टम API मोड सक्षम करने के लिए API Base URL और Model भरें।",
+    customModeMissing: "अभी बाकी है: {fields}",
+    customModeReady: "कस्टम API मोड तैयार है।",
+    installEnv: "Environment इंस्टॉल/अपडेट करें",
+    refreshAllModels: "सभी मॉडल रीफ़्रेश करें",
+    running: "चल रहा है...",
+    setupDone: "सेटअप पूरा हुआ",
+    setupPartialFail: "सेटअप आंशिक रूप से विफल",
+    accounts: "अधिकृत खाते",
+    models: "उपलब्ध मॉडल",
+    language: "Language",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "OAuth लॉगिन",
+    oauthDelete: "Authorization हटाएँ",
+    refreshModels: "मॉडल रीफ़्रेश करें",
+    loggingIn: "OAuth लॉगिन शुरू हो रहा है...",
+    refreshingModels: "मॉडल सूची रीफ़्रेश हो रही है...",
+    noModels: "अभी कोई मॉडल नहीं है (पहले OAuth लॉगिन पूरा करें और मॉडल सूची रीफ़्रेश करें)",
+    provider: "प्रदाता",
+    account: "खाता",
+    status: "स्थिति",
+    modelId: "मॉडल ID",
+    source: "स्रोत",
+    internalNote: "केवल चुने गए मॉडल साइडबार dropdown में दिखाई देंगे।",
+    systemPrompt: "कस्टम सिस्टम प्रॉम्प्ट (वैकल्पिक)",
+    systemPromptHint: "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट को बदलता है (डिफ़ॉल्ट के लिए खाली छोड़ें)",
+    showAddText: "Reader selection popup में \"Add Text\" दिखाएँ",
+    showAddTextHint: "यदि Zotero के text selection menu में Add Text विकल्प नहीं दिखाना चाहते, तो इसे बंद करें।",
+    showAllModels: "Dropdown में सभी मॉडल दिखाएँ",
+    showAllModelsHint: "चालू होने पर सभी उपलब्ध मॉडल दिखेंगे। बंद होने पर हर प्रदाता के केवल श्रेष्ठ मॉडल दिखेंगे।",
+    hideTabNav: "Tab Bar:",
+    hideTabNavOn: "छिपाएँ",
+    hideTabNavOff: "दिखाएँ",
+    restoreDefaults: "डिफ़ॉल्ट पुनर्स्थापित करें",
+    restoreDefaultsConfirm:
+      "क्या आप सभी सेटिंग्स को डिफ़ॉल्ट पर लौटाना चाहते हैं?\n\nइससे सभी मॉडल कॉन्फ़िगरेशन, सिस्टम प्रॉम्प्ट आदि रीसेट हो जाएँगे।",
+    restoreDefaultsDone: "डिफ़ॉल्ट कॉन्फ़िगरेशन पुनर्स्थापित हुआ",
+    clearAllHistory: "इतिहास साफ़ करें",
+    clearAllHistoryConfirm:
+      "क्या आप पूरा चैट इतिहास साफ़ करना चाहते हैं?\n\nयह कार्य वापस नहीं होगा। पूरा वार्तालाप इतिहास स्थायी रूप से हट जाएगा।",
+    clearAllHistoryDone: "पूरा चैट इतिहास साफ़ हुआ",
+    clearAllHistoryRunning: "साफ़ हो रहा है...",
+    developing: "यह सुविधा विकास में है।",
+    oauthDeviceNotice:
+      "OAuth authorization सूचना\n\nDevice Code OAuth flow शुरू होगा और आपको browser में authorization पूरा करना होगा।\n\nOAuth tokens केवल local रूप से सहेजे जाते हैं। AI सेवाओं के उपयोग से शुल्क लग सकता है। जारी रखें?",
+    oauthInstallNotice:
+      "OAuth authorization सूचना\n\n\"Environment इंस्टॉल/अपडेट करें\" आवश्यक runtime और CLI tools इंस्टॉल करेगा, फिर browser में login खोलेगा।\n\nOAuth tokens केवल local रूप से सहेजे जाते हैं। AI सेवाओं के उपयोग से शुल्क लग सकता है। जारी रखें?",
+    authLoggedIn: "लॉगिन है",
+    authNotLoggedIn: "लॉगिन नहीं है",
+    authTokenMayBeExpired: "token समाप्त हो सकता है",
+    authTokenExpired: "token समाप्त",
+    authProject: "प्रोजेक्ट",
+    authExpiresIn: "समाप्त होने में",
+    authUsed: "उपयोग हुआ",
+  },
+};
+const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "zh-TW": {
+    console: "控制台",
+    advanced: "進階",
+    copy: "複製",
+    providerLabel: "提供商標籤:",
+    addModelLabel: "模型 ID:",
+    addModelPlaceholder: "輸入模型 ID",
+    manualAdd: "手動新增",
+    all: "全選",
+    clear: "清空",
+    saveSelectedModels: "💾 儲存勾選模型",
+    saved: "✔ 已儲存",
+    delete: "刪除",
+    defaults: "預設",
+    selectAll: "全選",
+    removeProvider: "刪除提供商",
+    removeProviderConfirm: "確定要刪除提供商「{provider}」及其所有模型嗎？",
+    removeModel: "刪除模型",
+    testingModels: "✔ {n} 個模型，正在測試可用性...",
+    pingSummary: "✔ {ok} 可用, {fail} 不可用",
+    selectedSummary: "已勾選 {selected}/{total}",
+    refreshFailed: "✖ 重新整理失敗: {msg}",
+    systemPromptPlaceholder: "給 AI 助手的自訂指令...",
+  },
+  "ja-JP": {
+    console: "コンソール",
+    advanced: "詳細",
+    copy: "コピー",
+    providerLabel: "プロバイダーラベル:",
+    addModelLabel: "モデル ID:",
+    addModelPlaceholder: "モデル ID を入力",
+    manualAdd: "手動追加",
+    all: "すべて",
+    clear: "クリア",
+    saveSelectedModels: "💾 選択モデルを保存",
+    saved: "✔ 保存済み",
+    delete: "削除",
+    defaults: "既定",
+    selectAll: "すべて選択",
+    removeProvider: "プロバイダーを削除",
+    removeProviderConfirm: "プロバイダー「{provider}」とすべてのモデルを削除しますか？",
+    removeModel: "モデルを削除",
+    testingModels: "✔ {n} 個のモデル、利用可能性をテスト中...",
+    pingSummary: "✔ {ok} 使用可, {fail} 失敗",
+    selectedSummary: "{selected}/{total} 選択済み",
+    refreshFailed: "✖ 更新失敗: {msg}",
+    systemPromptPlaceholder: "AI アシスタントへのカスタム指示...",
+  },
+  "ko-KR": {
+    console: "콘솔",
+    advanced: "고급",
+    copy: "복사",
+    providerLabel: "제공자 라벨:",
+    addModelLabel: "모델 ID:",
+    addModelPlaceholder: "모델 ID 입력",
+    manualAdd: "수동 추가",
+    all: "전체 선택",
+    clear: "지우기",
+    saveSelectedModels: "💾 선택한 모델 저장",
+    saved: "✔ 저장됨",
+    delete: "삭제",
+    defaults: "기본값",
+    selectAll: "전체 선택",
+    removeProvider: "제공자 제거",
+    removeProviderConfirm: "제공자 \"{provider}\" 및 모든 모델을 제거할까요?",
+    removeModel: "모델 제거",
+    testingModels: "✔ 모델 {n}개, 사용 가능 여부 테스트 중...",
+    pingSummary: "✔ {ok}개 사용 가능, {fail}개 실패",
+    selectedSummary: "{selected}/{total} 선택됨",
+    refreshFailed: "✖ 새로고침 실패: {msg}",
+    systemPromptPlaceholder: "AI 어시스턴트용 사용자 지정 지침...",
+  },
+  "fr-FR": {
+    console: "Console",
+    advanced: "Avancé",
+    copy: "Copier",
+    providerLabel: "Libellé du fournisseur :",
+    addModelLabel: "ID du modèle :",
+    addModelPlaceholder: "Saisir l'ID du modèle",
+    manualAdd: "Ajout manuel",
+    all: "Tout",
+    clear: "Effacer",
+    saveSelectedModels: "💾 Enregistrer les modèles",
+    saved: "✔ Enregistré",
+    delete: "Supprimer",
+    defaults: "Défauts",
+    selectAll: "Tout sélectionner",
+    removeProvider: "Supprimer le fournisseur",
+    removeProviderConfirm: "Supprimer le fournisseur « {provider} » et tous ses modèles ?",
+    removeModel: "Supprimer le modèle",
+    testingModels: "✔ {n} modèles, test de disponibilité...",
+    pingSummary: "✔ {ok} OK, {fail} échecs",
+    selectedSummary: "{selected}/{total} sélectionnés",
+    refreshFailed: "✖ Échec de l'actualisation : {msg}",
+    systemPromptPlaceholder: "Instructions personnalisées pour l'assistant IA...",
+  },
+  "de-DE": {
+    console: "Konsole",
+    advanced: "Erweitert",
+    copy: "Kopieren",
+    providerLabel: "Anbieterlabel:",
+    addModelLabel: "Modell-ID:",
+    addModelPlaceholder: "Modell-ID eingeben",
+    manualAdd: "Manuell hinzufügen",
+    all: "Alle",
+    clear: "Leeren",
+    saveSelectedModels: "💾 Modelle speichern",
+    saved: "✔ Gespeichert",
+    delete: "Löschen",
+    defaults: "Standards",
+    selectAll: "Alle auswählen",
+    removeProvider: "Anbieter entfernen",
+    removeProviderConfirm: "Anbieter „{provider}“ und alle Modelle entfernen?",
+    removeModel: "Modell entfernen",
+    testingModels: "✔ {n} Modelle, Verfügbarkeit wird getestet...",
+    pingSummary: "✔ {ok} OK, {fail} fehlgeschlagen",
+    selectedSummary: "{selected}/{total} ausgewählt",
+    refreshFailed: "✖ Aktualisierung fehlgeschlagen: {msg}",
+    systemPromptPlaceholder: "Benutzerdefinierte Anweisungen für den KI-Assistenten...",
+  },
+  "es-ES": {
+    console: "Consola",
+    advanced: "Avanzado",
+    copy: "Copiar",
+    providerLabel: "Etiqueta del proveedor:",
+    addModelLabel: "ID del modelo:",
+    addModelPlaceholder: "Introduce el ID del modelo",
+    manualAdd: "Añadir manualmente",
+    all: "Todo",
+    clear: "Borrar",
+    saveSelectedModels: "💾 Guardar modelos",
+    saved: "✔ Guardado",
+    delete: "Eliminar",
+    defaults: "Predeterminados",
+    selectAll: "Seleccionar todo",
+    removeProvider: "Eliminar proveedor",
+    removeProviderConfirm: "¿Eliminar el proveedor «{provider}» y todos sus modelos?",
+    removeModel: "Eliminar modelo",
+    testingModels: "✔ {n} modelos, probando disponibilidad...",
+    pingSummary: "✔ {ok} OK, {fail} fallidos",
+    selectedSummary: "{selected}/{total} seleccionados",
+    refreshFailed: "✖ Error al actualizar: {msg}",
+    systemPromptPlaceholder: "Instrucciones personalizadas para el asistente de IA...",
+  },
+  "ru-RU": {
+    console: "Консоль",
+    advanced: "Дополнительно",
+    copy: "Копировать",
+    providerLabel: "Метка провайдера:",
+    addModelLabel: "ID модели:",
+    addModelPlaceholder: "Введите ID модели",
+    manualAdd: "Добавить вручную",
+    all: "Все",
+    clear: "Очистить",
+    saveSelectedModels: "💾 Сохранить модели",
+    saved: "✔ Сохранено",
+    delete: "Удалить",
+    defaults: "По умолчанию",
+    selectAll: "Выбрать все",
+    removeProvider: "Удалить провайдера",
+    removeProviderConfirm: "Удалить провайдера «{provider}» и все его модели?",
+    removeModel: "Удалить модель",
+    testingModels: "✔ {n} моделей, проверка доступности...",
+    pingSummary: "✔ {ok} доступно, {fail} не удалось",
+    selectedSummary: "Выбрано {selected}/{total}",
+    refreshFailed: "✖ Ошибка обновления: {msg}",
+    systemPromptPlaceholder: "Пользовательские инструкции для AI-ассистента...",
+  },
+  "pt-BR": {
+    console: "Console",
+    advanced: "Avançado",
+    copy: "Copiar",
+    providerLabel: "Rótulo do provedor:",
+    addModelLabel: "ID do modelo:",
+    addModelPlaceholder: "Digite o ID do modelo",
+    manualAdd: "Adicionar manualmente",
+    all: "Tudo",
+    clear: "Limpar",
+    saveSelectedModels: "💾 Salvar modelos",
+    saved: "✔ Salvo",
+    delete: "Excluir",
+    defaults: "Padrões",
+    selectAll: "Selecionar tudo",
+    removeProvider: "Remover provedor",
+    removeProviderConfirm: "Remover o provedor \"{provider}\" e todos os seus modelos?",
+    removeModel: "Remover modelo",
+    testingModels: "✔ {n} modelos, testando disponibilidade...",
+    pingSummary: "✔ {ok} OK, {fail} falharam",
+    selectedSummary: "{selected}/{total} selecionados",
+    refreshFailed: "✖ Falha ao atualizar: {msg}",
+    systemPromptPlaceholder: "Instruções personalizadas para o assistente de IA...",
+  },
+  "ar-SA": {
+    console: "وحدة التحكم",
+    advanced: "متقدم",
+    copy: "نسخ",
+    providerLabel: "تسمية المزود:",
+    addModelLabel: "معرّف النموذج:",
+    addModelPlaceholder: "أدخل معرّف النموذج",
+    manualAdd: "إضافة يدوية",
+    all: "الكل",
+    clear: "مسح",
+    saveSelectedModels: "💾 حفظ النماذج",
+    saved: "✔ تم الحفظ",
+    delete: "حذف",
+    defaults: "الافتراضي",
+    selectAll: "تحديد الكل",
+    removeProvider: "إزالة المزود",
+    removeProviderConfirm: "إزالة المزود \"{provider}\" وكل نماذجه؟",
+    removeModel: "إزالة النموذج",
+    testingModels: "✔ {n} نموذج، جارٍ اختبار التوفر...",
+    pingSummary: "✔ {ok} متاح، {fail} فشل",
+    selectedSummary: "تم تحديد {selected}/{total}",
+    refreshFailed: "✖ فشل التحديث: {msg}",
+    systemPromptPlaceholder: "تعليمات مخصصة لمساعد الذكاء الاصطناعي...",
+  },
+  "hi-IN": {
+    console: "कंसोल",
+    advanced: "उन्नत",
+    copy: "कॉपी",
+    providerLabel: "प्रदाता लेबल:",
+    addModelLabel: "मॉडल ID:",
+    addModelPlaceholder: "मॉडल ID दर्ज करें",
+    manualAdd: "मैन्युअल जोड़ें",
+    all: "सभी",
+    clear: "साफ़ करें",
+    saveSelectedModels: "💾 मॉडल सहेजें",
+    saved: "✔ सहेजा गया",
+    delete: "हटाएँ",
+    defaults: "डिफ़ॉल्ट",
+    selectAll: "सभी चुनें",
+    removeProvider: "प्रदाता हटाएँ",
+    removeProviderConfirm: "प्रदाता \"{provider}\" और उसके सभी मॉडल हटाएँ?",
+    removeModel: "मॉडल हटाएँ",
+    testingModels: "✔ {n} मॉडल, उपलब्धता जाँची जा रही है...",
+    pingSummary: "✔ {ok} उपलब्ध, {fail} विफल",
+    selectedSummary: "{selected}/{total} चुने गए",
+    refreshFailed: "✖ रीफ़्रेश विफल: {msg}",
+    systemPromptPlaceholder: "AI assistant के लिए कस्टम निर्देश...",
+  },
+};
+const tt = (l: Lang): Dict =>
+  ({
+    ...(I18N["en-US"] as unknown as Dict),
+    ...((I18N as unknown as Partial<Record<Lang, Dict>>)[l] || {}),
+    ...(SETTINGS_I18N_BASE_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_OVERRIDES[l] || {}),
+  }) as Dict;
+
+function localizeAuthStatus(raw: string, L: Dict): string {
+  const status = String(raw || "");
+  if (!status) return "";
+  if (/^Not logged in$/i.test(status)) return L.authNotLoggedIn;
+  if (/^Logged in \(token may be expired\)$/i.test(status)) {
+    return `${L.authLoggedIn} (${L.authTokenMayBeExpired})`;
+  }
+  return status
+    .replace(/\bNot logged in\b/g, L.authNotLoggedIn)
+    .replace(/\bLogged in\b/g, L.authLoggedIn)
+    .replace(/\btoken may be expired\b/gi, L.authTokenMayBeExpired)
+    .replace(/\btoken expired\b/gi, L.authTokenExpired)
+    .replace(/\bproject:\s*/gi, `${L.authProject}: `)
+    .replace(/\bexpires in\s*/gi, `${L.authExpiresIn} `)
+    .replace(/\bused\b/gi, L.authUsed);
+}
 
 export function normalizeCustomApiBaseInput(value: string): string {
   const trimmed = String(value || "").trim();
@@ -318,9 +1427,7 @@ function createEl<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
-function parseModelCache(): Partial<
-  Record<string, ProviderModelOption[]>
-> {
+function parseModelCache(): Partial<Record<string, ProviderModelOption[]>> {
   const raw = (getPref("oauthModelListCache") || "").trim();
   if (!raw) return {};
   try {
@@ -333,9 +1440,7 @@ function parseModelCache(): Partial<
   }
 }
 
-function saveModelCache(
-  cache: Partial<Record<string, ProviderModelOption[]>>,
-) {
+function saveModelCache(cache: Partial<Record<string, ProviderModelOption[]>>) {
   setPref("oauthModelListCache", JSON.stringify(cache));
 }
 
@@ -354,8 +1459,15 @@ export function syncSidebarModelPrefsFromSelection(
   cache: Partial<Record<string, ProviderModelOption[]>>,
   selectionCache: ProviderModelSelectionCache,
 ) {
-  const flattened: Array<{ provider: string; model: string; apiBase?: string; apiKey?: string }> = [];
-  const activeProviders = Array.from(new Set([...PROVIDERS, ...Object.keys(cache)]));
+  const flattened: Array<{
+    provider: string;
+    model: string;
+    apiBase?: string;
+    apiKey?: string;
+  }> = [];
+  const activeProviders = Array.from(
+    new Set([...PROVIDERS, ...Object.keys(cache)]),
+  );
 
   for (const provider of activeProviders) {
     const selected = new Set(
@@ -368,7 +1480,12 @@ export function syncSidebarModelPrefsFromSelection(
     for (const row of cache[provider as OAuthProviderId] || []) {
       const id = String(row.id || "").trim();
       if (!id || !selected.has(normalizeModelId(id))) continue;
-      flattened.push({ provider, model: id, apiBase: row.apiBase, apiKey: row.apiKey });
+      flattened.push({
+        provider,
+        model: id,
+        apiBase: row.apiBase,
+        apiKey: row.apiKey,
+      });
       if (flattened.length >= 4) break;
     }
     if (flattened.length >= 4) break;
@@ -395,7 +1512,10 @@ export function syncSidebarModelPrefsFromSelection(
       setPref("apiBase", first.apiBase);
       setPref("apiKey", first.apiKey || "");
     } else {
-      setPref("apiBase", first ? providerToMarker(first.provider as OAuthProviderId) : "");
+      setPref(
+        "apiBase",
+        first ? providerToMarker(first.provider as OAuthProviderId) : "",
+      );
       setPref("apiKey", "");
     }
     setPref("model", first ? first.model : "");
@@ -512,11 +1632,15 @@ export function applyHideTabNavToAllPanels(hide: boolean): void {
       for (const w of wins) {
         if (w?.document) allDocs.add(w.document);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     try {
       const mainWin: Window | null = Zotero.getMainWindow?.() || null;
       if (mainWin?.document) allDocs.add(mainWin.document);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     try {
       const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
         Ci.nsIWindowMediator,
@@ -528,17 +1652,25 @@ export function applyHideTabNavToAllPanels(hide: boolean): void {
           if (w?.document) allDocs.add(w.document);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     for (const doc of allDocs) {
       doc.querySelectorAll("#llm-tab-nav").forEach((nav: Element) => {
         nav.classList.toggle("llm-tab-nav--auto-hide", hide);
       });
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
-export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLElement, consoleContainer: HTMLElement) {
+export async function bootstrapSettingTab(
+  doc: Document,
+  scrollContainer: HTMLElement,
+  consoleContainer: HTMLElement,
+) {
   const win = doc.defaultView;
   if (!win) return;
   await new Promise((r) => setTimeout(r, 80));
@@ -556,34 +1688,100 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const root = createEl(doc, "div", "llm-settings-root");
   scrollContainer.appendChild(root);
 
-  // ── ① Language tab bar + danger buttons toolbar ──
+  // ── ① Language dropdown + danger buttons toolbar ──
   const langBox = createEl(doc, "div", "llm-set-card llm-set-toolbar");
   const langLeft = createEl(doc, "div", "llm-set-toolbar-left");
-  const langLabel = createEl(doc, "label", "llm-set-label llm-set-label--title");
+  const langLabel = createEl(
+    doc,
+    "label",
+    "llm-set-label llm-set-label--title",
+  );
 
-  const LANG_OPTIONS: { value: Lang; label: string }[] = [
-    { value: "zh-CN", label: "CN" },
-    { value: "en-US", label: "EN" },
-  ];
-  const langTabBar = createEl(doc, "div", "llm-set-tab-bar");
-  const langTabBtns = LANG_OPTIONS.map((opt) => {
-    const btn = createEl(doc, "button", "llm-set-tab-btn", opt.label) as HTMLButtonElement;
-    btn.type = "button";
-    if (opt.value === lang) btn.classList.add("active");
-    btn.addEventListener("click", () => {
-      switchLang(opt.value);
-      langTabBtns.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
+  const langDropdown = createEl(
+    doc,
+    "div",
+    "llm-set-dropdown",
+  ) as HTMLDivElement;
+  const langTrigger = createEl(
+    doc,
+    "div",
+    "llm-set-dropdown-trigger",
+  ) as HTMLDivElement;
+  const langArrow = createEl(
+    doc,
+    "span",
+    "llm-set-dropdown-arrow",
+  ) as HTMLSpanElement;
+  langArrow.textContent = "▾";
+  langTrigger.appendChild(langArrow);
+  const langMenu = createEl(
+    doc,
+    "div",
+    "llm-set-dropdown-menu",
+  ) as HTMLDivElement;
+  langMenu.style.display = "none";
+  langDropdown.append(langTrigger, langMenu);
+
+  const updateLanguageDropdown = (next: Lang) => {
+    const option = getUiLanguageOption(next);
+    langDropdown.dataset.value = next;
+    langDropdown.lang = option.htmlLang;
+    langDropdown.dir = option.dir;
+    const arrow = langTrigger.querySelector(".llm-set-dropdown-arrow");
+    langTrigger.textContent = option.label;
+    if (arrow) langTrigger.appendChild(arrow);
+    langMenu
+      .querySelectorAll(".llm-set-dropdown-item")
+      .forEach((el: Element) => {
+        const item = el as HTMLElement;
+        item.classList.toggle("selected", item.dataset.value === next);
+      });
+  };
+
+  for (const option of UI_LANGUAGE_OPTIONS) {
+    const item = createEl(
+      doc,
+      "div",
+      "llm-set-dropdown-item",
+    ) as HTMLDivElement;
+    item.dataset.value = option.uiCode;
+    item.lang = option.htmlLang;
+    item.dir = option.dir;
+    item.textContent = option.label;
+    item.title = option.englishName;
+    item.addEventListener("click", () => {
+      switchLang(option.uiCode);
+      langMenu.style.display = "none";
+      langDropdown.classList.remove("open");
     });
-    langTabBar.appendChild(btn);
-    return btn;
+    langMenu.appendChild(item);
+  }
+
+  langTrigger.addEventListener("click", () => {
+    const open = langMenu.style.display !== "none";
+    langMenu.style.display = open ? "none" : "block";
+    langDropdown.classList.toggle("open", !open);
   });
-  langLeft.append(langLabel, langTabBar);
+  doc.addEventListener("click", (e: Event) => {
+    if (!langDropdown.contains(e.target as Node)) {
+      langMenu.style.display = "none";
+      langDropdown.classList.remove("open");
+    }
+  });
+  updateLanguageDropdown(lang);
+  langLeft.append(langLabel, langDropdown);
 
   // ── Hide Tab Nav toggle (ON = hide, OFF = show) ──
   const hideNavGroup = createEl(doc, "div", "llm-set-toolbar-left");
-  const hideNavLabel = createEl(doc, "label", "llm-set-label llm-set-label--title");
-  const HIDE_NAV_OPTIONS: { value: boolean; labelKey: "hideTabNavOn" | "hideTabNavOff" }[] = [
+  const hideNavLabel = createEl(
+    doc,
+    "label",
+    "llm-set-label llm-set-label--title",
+  );
+  const HIDE_NAV_OPTIONS: {
+    value: boolean;
+    labelKey: "hideTabNavOn" | "hideTabNavOff";
+  }[] = [
     { value: true, labelKey: "hideTabNavOn" },
     { value: false, labelKey: "hideTabNavOff" },
   ];
@@ -611,9 +1809,17 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
   // Danger buttons (moved from bottom dangerZone)
   const langRight = createEl(doc, "div", "llm-set-toolbar-right");
-  const restoreDefaultsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--warn") as HTMLButtonElement;
+  const restoreDefaultsBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--warn",
+  ) as HTMLButtonElement;
   restoreDefaultsBtn.type = "button";
-  const clearAllHistoryBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--danger") as HTMLButtonElement;
+  const clearAllHistoryBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--danger",
+  ) as HTMLButtonElement;
   clearAllHistoryBtn.type = "button";
   const dangerStatus = createEl(doc, "span", "llm-set-status");
   langRight.append(restoreDefaultsBtn, clearAllHistoryBtn);
@@ -621,6 +1827,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const switchLang = (next: Lang) => {
     lang = next;
     setPref("uiLanguage", lang);
+    updateLanguageDropdown(lang);
     renderStaticText();
     renderModels();
     void renderAccounts();
@@ -630,23 +1837,35 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
   langBox.append(langLeft, hideNavGroup, langRight, dangerStatus);
 
-  const refreshAllBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--accent") as HTMLButtonElement;
+  const refreshAllBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--accent",
+  ) as HTMLButtonElement;
   refreshAllBtn.type = "button";
   const progressText = createEl(doc, "span", "llm-set-status");
   const progressListWrap = createEl(doc, "div", "llm-set-progress-wrap");
   const progressList = createEl(doc, "div", "llm-set-progress-list");
-  const progressCopyBtn = createEl(doc, "button", "llm-set-console-copy") as HTMLButtonElement;
+  const progressCopyBtn = createEl(
+    doc,
+    "button",
+    "llm-set-console-copy",
+  ) as HTMLButtonElement;
   progressCopyBtn.type = "button";
-  progressCopyBtn.title = "Copy";
+  progressCopyBtn.title = L.copy;
   progressCopyBtn.addEventListener("click", () => {
     const text = progressList.innerText || progressList.textContent || "";
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const helper = (Components.classes as any)["@mozilla.org/widget/clipboardhelper;1"]
-        ?.getService(Components.interfaces.nsIClipboardHelper);
+      const helper = (Components.classes as any)[
+        "@mozilla.org/widget/clipboardhelper;1"
+      ]?.getService(Components.interfaces.nsIClipboardHelper);
       if (helper) helper.copyString(text);
       progressCopyBtn.classList.add("llm-set-console-copy--done");
-      setTimeout(() => progressCopyBtn.classList.remove("llm-set-console-copy--done"), 1500);
+      setTimeout(
+        () => progressCopyBtn.classList.remove("llm-set-console-copy--done"),
+        1500,
+      );
     } catch (_e) {
       ztoolkit.log("LLM: clipboard copy failed");
     }
@@ -654,22 +1873,34 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   progressListWrap.append(progressList, progressCopyBtn);
 
   const logsWrap = createEl(doc, "div", "llm-set-logs-wrap");
-  const logsBox = createEl(doc, "textarea", "llm-set-logs-area") as HTMLTextAreaElement;
+  const logsBox = createEl(
+    doc,
+    "textarea",
+    "llm-set-logs-area",
+  ) as HTMLTextAreaElement;
   logsBox.readOnly = true;
   logsBox.rows = 5;
   logsBox.value = getPref("oauthSetupLog") || "";
-  const logsCopyBtn = createEl(doc, "button", "llm-set-console-copy") as HTMLButtonElement;
+  const logsCopyBtn = createEl(
+    doc,
+    "button",
+    "llm-set-console-copy",
+  ) as HTMLButtonElement;
   logsCopyBtn.type = "button";
-  logsCopyBtn.title = "Copy";
+  logsCopyBtn.title = L.copy;
   logsCopyBtn.addEventListener("click", () => {
     const text = logsBox.value || "";
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const helper = (Components.classes as any)["@mozilla.org/widget/clipboardhelper;1"]
-        ?.getService(Components.interfaces.nsIClipboardHelper);
+      const helper = (Components.classes as any)[
+        "@mozilla.org/widget/clipboardhelper;1"
+      ]?.getService(Components.interfaces.nsIClipboardHelper);
       if (helper) helper.copyString(text);
       logsCopyBtn.classList.add("llm-set-console-copy--done");
-      setTimeout(() => logsCopyBtn.classList.remove("llm-set-console-copy--done"), 1500);
+      setTimeout(
+        () => logsCopyBtn.classList.remove("llm-set-console-copy--done"),
+        1500,
+      );
     } catch (_e) {
       ztoolkit.log("LLM: clipboard copy failed");
     }
@@ -677,9 +1908,17 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   logsWrap.append(logsBox, logsCopyBtn);
 
   // Console area — collapsible, collapsed by default
-  const consoleCard = createEl(doc, "div", "llm-set-card llm-set-collapsible-body");
+  const consoleCard = createEl(
+    doc,
+    "div",
+    "llm-set-card llm-set-collapsible-body",
+  );
   consoleCard.append(logsWrap, progressListWrap);
-  const consoleTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const consoleTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-collapsible-toggle",
+  );
   consoleTitle.dataset.collapsed = "true";
   consoleCard.style.display = "none";
   consoleTitle.addEventListener("click", () => {
@@ -690,7 +1929,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
   // ── ② Model Config — tab-bar style OAuth / Custom switcher ──
   const connectionModeBox = createEl(doc, "div", "llm-set-card");
-  const connectionModeTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const connectionModeTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-collapsible-toggle",
+  );
   const connectionModeBody = createEl(doc, "div", "llm-set-collapsible-body");
   connectionModeTitle.dataset.collapsed = "false";
   connectionModeTitle.addEventListener("click", () => {
@@ -698,7 +1941,6 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     connectionModeTitle.dataset.collapsed = c ? "false" : "true";
     connectionModeBody.style.display = c ? "" : "none";
   });
-
 
   // Hidden radios keep pref synced; visibility is driven by tab buttons
   const connectionModeGroupName = `${config.addonRef}-primary-connection-mode`;
@@ -717,9 +1959,17 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
 
   // Tab bar for connection mode
   const modeTabBar = createEl(doc, "div", "llm-set-tab-bar");
-  const oauthTabBtn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
+  const oauthTabBtn = createEl(
+    doc,
+    "button",
+    "llm-set-tab-btn",
+  ) as HTMLButtonElement;
   oauthTabBtn.type = "button";
-  const customTabBtn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
+  const customTabBtn = createEl(
+    doc,
+    "button",
+    "llm-set-tab-btn",
+  ) as HTMLButtonElement;
   customTabBtn.type = "button";
   modeTabBar.append(oauthTabBtn, customTabBtn);
 
@@ -733,54 +1983,124 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const customApiBaseField = createEl(doc, "div", "llm-set-field");
   const customApiBaseLabel = createEl(doc, "label", "llm-set-label");
   customApiBaseLabel.setAttribute("for", `${config.addonRef}-custom-api-base`);
-  const customApiBaseInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  const customApiBaseInput = createEl(
+    doc,
+    "input",
+    "llm-set-input",
+  ) as HTMLInputElement;
   customApiBaseInput.id = `${config.addonRef}-custom-api-base`;
   customApiBaseInput.type = "text";
   const customApiBaseHint = createEl(doc, "span", "llm-set-hint");
-  customApiBaseField.append(customApiBaseLabel, customApiBaseInput, customApiBaseHint);
+  customApiBaseField.append(
+    customApiBaseLabel,
+    customApiBaseInput,
+    customApiBaseHint,
+  );
 
   const customApiKeyField = createEl(doc, "div", "llm-set-field");
   const customApiKeyLabel = createEl(doc, "label", "llm-set-label");
   customApiKeyLabel.setAttribute("for", `${config.addonRef}-custom-api-key`);
-  const customApiKeyInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  const customApiKeyInput = createEl(
+    doc,
+    "input",
+    "llm-set-input",
+  ) as HTMLInputElement;
   customApiKeyInput.id = `${config.addonRef}-custom-api-key`;
   customApiKeyInput.type = "password";
   const customApiKeyHint = createEl(doc, "span", "llm-set-hint");
-  customApiKeyField.append(customApiKeyLabel, customApiKeyInput, customApiKeyHint);
+  customApiKeyField.append(
+    customApiKeyLabel,
+    customApiKeyInput,
+    customApiKeyHint,
+  );
 
   const customModelField = createEl(doc, "div", "llm-set-field");
   const customModelLabel = createEl(doc, "label", "llm-set-label");
   customModelLabel.setAttribute("for", `${config.addonRef}-custom-model`);
-  const customModelInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  const customModelInput = createEl(
+    doc,
+    "input",
+    "llm-set-input",
+  ) as HTMLInputElement;
   customModelInput.id = `${config.addonRef}-custom-model`;
   customModelInput.type = "text";
-  const customModelDatalist = doc.createElementNS(HTML_NS, "datalist") as HTMLDataListElement;
+  const customModelDatalist = doc.createElementNS(
+    HTML_NS,
+    "datalist",
+  ) as HTMLDataListElement;
   customModelDatalist.id = `${config.addonRef}-custom-model-list`;
   customModelInput.setAttribute("list", customModelDatalist.id);
-  const customModelInputRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
-  const fetchModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--primary llm-set-btn--pill") as HTMLButtonElement;
+  const customModelInputRow = createEl(
+    doc,
+    "div",
+    "llm-set-row llm-set-gap-sm",
+  );
+  const fetchModelsBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--primary llm-set-btn--pill",
+  ) as HTMLButtonElement;
   fetchModelsBtn.type = "button";
   customModelInputRow.append(customModelInput);
   const customModelHint = createEl(doc, "span", "llm-set-hint");
-  customModelField.append(customModelLabel, customModelInputRow, customModelDatalist, customModelHint);
+  customModelField.append(
+    customModelLabel,
+    customModelInputRow,
+    customModelDatalist,
+    customModelHint,
+  );
 
   const fetchedModelsBox = createEl(doc, "div", "llm-set-fetched-panel");
-  const fetchedModelsHeader = createEl(doc, "div", "llm-set-row llm-set-row--spread");
-  const fetchedModelsLabelRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
+  const fetchedModelsHeader = createEl(
+    doc,
+    "div",
+    "llm-set-row llm-set-row--spread",
+  );
+  const fetchedModelsLabelRow = createEl(
+    doc,
+    "div",
+    "llm-set-row llm-set-gap-sm",
+  );
   const fetchedModelsLabelText = createEl(doc, "label", "llm-set-label");
-  const fetchedModelsLabelInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  const fetchedModelsLabelInput = createEl(
+    doc,
+    "input",
+    "llm-set-input",
+  ) as HTMLInputElement;
   fetchedModelsLabelInput.style.width = "auto";
   fetchedModelsLabelInput.style.minWidth = "120px";
   fetchedModelsLabelInput.value = "custom api";
   fetchedModelsLabelInput.type = "text";
   let labelManuallyEdited = false;
-  fetchedModelsLabelInput.addEventListener("input", () => { labelManuallyEdited = true; });
+  fetchedModelsLabelInput.addEventListener("input", () => {
+    labelManuallyEdited = true;
+  });
   fetchedModelsLabelRow.append(fetchedModelsLabelText, fetchedModelsLabelInput);
-  const fetchedModelsHeaderRight = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
-  const selectAllFetchedBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary");
-  const clearAllFetchedBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary");
-  const saveModelsBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--success llm-set-btn--pill");
-  fetchedModelsHeaderRight.append(selectAllFetchedBtn, clearAllFetchedBtn, saveModelsBtn);
+  const fetchedModelsHeaderRight = createEl(
+    doc,
+    "div",
+    "llm-set-row llm-set-gap-sm",
+  );
+  const selectAllFetchedBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+  );
+  const clearAllFetchedBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+  );
+  const saveModelsBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--success llm-set-btn--pill",
+  );
+  fetchedModelsHeaderRight.append(
+    selectAllFetchedBtn,
+    clearAllFetchedBtn,
+    saveModelsBtn,
+  );
   fetchedModelsHeader.append(fetchedModelsLabelRow, fetchedModelsHeaderRight);
   const fetchedModelsList = createEl(doc, "div", "llm-set-fetched-list");
   fetchedModelsBox.append(fetchedModelsHeader, fetchedModelsList);
@@ -788,13 +2108,21 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   // Model add row — placed into customFieldsBox below API Key
   const addModelRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
   const addModelLabel = createEl(doc, "label", "llm-set-label");
-  const addModelInput = createEl(doc, "input", "llm-set-input") as HTMLInputElement;
+  const addModelInput = createEl(
+    doc,
+    "input",
+    "llm-set-input",
+  ) as HTMLInputElement;
   addModelInput.type = "text";
   addModelInput.style.width = "38%";
-  const addModelBtn = createEl(doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--accent") as HTMLButtonElement;
+  const addModelBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--accent",
+  ) as HTMLButtonElement;
   addModelBtn.type = "button";
   addModelRow.append(addModelLabel, addModelInput, addModelBtn, fetchModelsBtn);
-  
+
   let lastFetchedModels: { id: string; label: string; checked: boolean }[] = [];
 
   const renderFetchedModels = () => {
@@ -804,15 +2132,26 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       const cb = createEl(doc, "input") as HTMLInputElement;
       cb.type = "checkbox";
       cb.checked = m.checked;
-      cb.addEventListener("change", () => { m.checked = cb.checked; });
-      const textLabel = createNode(doc, "span", "word-break:break-all;", m.label || m.id);
-      const delBtn = createEl(doc, "button", "llm-set-fetched-delete") as HTMLButtonElement;
+      cb.addEventListener("change", () => {
+        m.checked = cb.checked;
+      });
+      const textLabel = createNode(
+        doc,
+        "span",
+        "word-break:break-all;",
+        m.label || m.id,
+      );
+      const delBtn = createEl(
+        doc,
+        "button",
+        "llm-set-fetched-delete",
+      ) as HTMLButtonElement;
       delBtn.type = "button";
-      delBtn.title = "Delete";
+      delBtn.title = L.delete;
       delBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        lastFetchedModels = lastFetchedModels.filter(x => x.id !== m.id);
+        lastFetchedModels = lastFetchedModels.filter((x) => x.id !== m.id);
         renderFetchedModels();
       });
       row.append(cb, textLabel, delBtn);
@@ -823,7 +2162,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   addModelBtn.addEventListener("click", () => {
     const trimmed = addModelInput.value.trim();
     if (!trimmed) return;
-    if (!lastFetchedModels.find(m => m.id === trimmed)) {
+    if (!lastFetchedModels.find((m) => m.id === trimmed)) {
       lastFetchedModels.unshift({ id: trimmed, label: trimmed, checked: true });
       renderFetchedModels();
     }
@@ -831,23 +2170,32 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   });
 
   selectAllFetchedBtn.addEventListener("click", () => {
-    lastFetchedModels.forEach(m => { m.checked = true; });
+    lastFetchedModels.forEach((m) => {
+      m.checked = true;
+    });
     renderFetchedModels();
   });
 
   clearAllFetchedBtn.addEventListener("click", () => {
-    lastFetchedModels.forEach(m => { m.checked = false; });
+    lastFetchedModels.forEach((m) => {
+      m.checked = false;
+    });
     renderFetchedModels();
   });
 
   saveModelsBtn.addEventListener("click", () => {
     const label = fetchedModelsLabelInput.value.trim() || "custom api";
-    const selected = lastFetchedModels.filter(m => m.checked);
+    const selected = lastFetchedModels.filter((m) => m.checked);
     const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
     const apiKey = customApiKeyInput.value.trim();
 
     // Rule 1: Replace — the checked list IS the new model list for this provider.
-    const newModels = selected.map(m => ({ id: m.id, label: m.label, apiBase, apiKey }));
+    const newModels = selected.map((m) => ({
+      id: m.id,
+      label: m.label,
+      apiBase,
+      apiKey,
+    }));
     cache = { ...cache, [label as OAuthProviderId]: newModels };
     saveModelCache(cache);
     persistSelectionState();
@@ -856,7 +2204,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     // Flash the save button to confirm success
     const origText = saveModelsBtn.textContent || "";
     const origClassName = saveModelsBtn.className;
-    saveModelsBtn.textContent = lang === "zh-CN" ? "✔ 已保存" : "✔ Saved";
+    saveModelsBtn.textContent = L.saved;
     saveModelsBtn.classList.remove("llm-set-btn--success");
     saveModelsBtn.classList.add("llm-set-btn--saved-flash");
     setTimeout(() => {
@@ -884,7 +2232,6 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     customPanel,
   );
   connectionModeBox.append(connectionModeTitle, connectionModeBody);
-
 
   const setCustomInputBorderState = (
     input: HTMLInputElement,
@@ -950,7 +2297,9 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   customApiKeyInput.value = getPref("apiKey") || "";
   customModelInput.value = getPref("model") || "";
   // Initial label set — resolve + load will happen later after helper functions are defined
-  fetchedModelsLabelInput.value = generateProviderLabel(customApiBaseInput.value);
+  fetchedModelsLabelInput.value = generateProviderLabel(
+    customApiBaseInput.value,
+  );
   const initialMode = getPrimaryConnectionMode();
   oauthModeRadio.checked = initialMode !== "custom";
   customModeRadio.checked = initialMode === "custom";
@@ -958,9 +2307,17 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const authCards = createEl(doc, "div", "llm-settings-root");
 
   const accountsBox = createEl(doc, "div", "llm-set-card");
-  const accountsTitle = createEl(doc, "div", "llm-set-title llm-set-title--sub llm-set-collapsible-toggle");
+  const accountsTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-title--sub llm-set-collapsible-toggle",
+  );
   accountsTitle.dataset.collapsed = "true";
-  const accountsTable = createEl(doc, "div", "llm-set-table llm-set-collapsible-body");
+  const accountsTable = createEl(
+    doc,
+    "div",
+    "llm-set-table llm-set-collapsible-body",
+  );
   accountsTable.style.display = "none";
   accountsTitle.addEventListener("click", () => {
     const isCollapsed = accountsTitle.dataset.collapsed === "true";
@@ -970,7 +2327,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   accountsBox.append(accountsTitle, accountsTable);
 
   const modelsBox = createEl(doc, "div", "llm-set-card");
-  const modelsTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const modelsTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-collapsible-toggle",
+  );
   const modelsBody = createEl(doc, "div", "llm-set-collapsible-body");
   modelsTitle.dataset.collapsed = "false";
   modelsTitle.addEventListener("click", () => {
@@ -978,7 +2339,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     modelsTitle.dataset.collapsed = c ? "false" : "true";
     modelsBody.style.display = c ? "" : "none";
   });
-  const modelsActionRow = createEl(doc, "div", "llm-set-row llm-set-gap-sm llm-set-row--spread");
+  const modelsActionRow = createEl(
+    doc,
+    "div",
+    "llm-set-row llm-set-gap-sm llm-set-row--spread",
+  );
   modelsActionRow.append(progressText, refreshAllBtn);
   const modelsTable = createEl(doc, "div", "llm-set-table");
   modelsBody.append(modelsActionRow, modelsTable);
@@ -1000,9 +2365,10 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     langLabel.textContent = "Language:";
     hideNavLabel.textContent = L.hideTabNav;
     HIDE_NAV_OPTIONS.forEach((opt, i) => {
-      if (hideNavBtns[i]) hideNavBtns[i].textContent = tt(lang)[opt.labelKey] as string;
+      if (hideNavBtns[i])
+        hideNavBtns[i].textContent = tt(lang)[opt.labelKey] as string;
     });
-    consoleTitle.textContent = lang === "zh-CN" ? "控制台" : "Console";
+    consoleTitle.textContent = L.console;
     refreshAllBtn.textContent = L.refreshAllModels;
     restoreDefaultsBtn.textContent = L.restoreDefaults;
     clearAllHistoryBtn.textContent = L.clearAllHistory;
@@ -1010,7 +2376,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     modelsTitle.textContent = L.models;
 
     connectionModeTitle.textContent = L.modelConfigTitle;
-    advancedTitle.textContent = lang === "zh-CN" ? "高级" : "Advanced";
+    advancedTitle.textContent = L.advanced;
     oauthTabBtn.textContent = L.oauthProvidersMode;
     customTabBtn.textContent = L.customCompatibleMode;
 
@@ -1024,13 +2390,13 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     customModelInput.placeholder = L.customModelPlaceholder;
     customModelHint.textContent = L.customModelHint;
     fetchModelsBtn.textContent = L.fetchModels;
-    fetchedModelsLabelText.textContent = lang === "zh-CN" ? "提供商标签:" : "Provider Label:";
-    addModelLabel.textContent = lang === "zh-CN" ? "模型名称:" : "Model ID:";
-    addModelInput.placeholder = lang === "zh-CN" ? "输入模型 ID" : "Enter model ID";
-    addModelBtn.textContent = lang === "zh-CN" ? "手动添加" : "Manual Add";
-    selectAllFetchedBtn.textContent = lang === "zh-CN" ? "全选" : "All";
-    clearAllFetchedBtn.textContent = lang === "zh-CN" ? "清空" : "Clear";
-    saveModelsBtn.textContent = lang === "zh-CN" ? "💾 保存勾选模型" : "💾 Save Models";
+    fetchedModelsLabelText.textContent = L.providerLabel;
+    addModelLabel.textContent = L.addModelLabel;
+    addModelInput.placeholder = L.addModelPlaceholder;
+    addModelBtn.textContent = L.manualAdd;
+    selectAllFetchedBtn.textContent = L.all;
+    clearAllFetchedBtn.textContent = L.clear;
+    saveModelsBtn.textContent = L.saveSelectedModels;
     for (const provider of PROVIDERS) {
       const refs = providerCards.get(provider);
       if (!refs) continue;
@@ -1041,6 +2407,10 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     // Update XHTML static labels
     const spl = doc.querySelector(`#${config.addonRef}-system-prompt-label`);
     if (spl) spl.textContent = L.systemPrompt;
+    const spi = doc.querySelector(
+      `#${config.addonRef}-system-prompt-input`,
+    ) as HTMLTextAreaElement | null;
+    if (spi) spi.placeholder = L.systemPromptPlaceholder;
     const sph = doc.querySelector(`#${config.addonRef}-system-prompt-hint`);
     if (sph) sph.textContent = L.systemPromptHint;
     const atl = doc.querySelector(`#${config.addonRef}-popup-add-text-label`);
@@ -1075,7 +2445,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     saveModelSelectionState(selectionCache);
     syncSidebarModelPrefsFromSelection(cache, selectionCache);
     // Notify all open Discussion tabs to refresh their model menus
-    try { doc.dispatchEvent(new Event("llm-models-changed")); } catch { /* ignore */ }
+    try {
+      doc.dispatchEvent(new Event("llm-models-changed"));
+    } catch {
+      /* ignore */
+    }
   };
 
   const setProviderSelection = (
@@ -1116,7 +2490,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       row.append(
         createEl(doc, "div", "", s.label),
         createEl(doc, "div", "", s.account),
-        createEl(doc, "div", "", s.status),
+        createEl(doc, "div", "", localizeAuthStatus(s.status, L)),
       );
       accountsTable.appendChild(row);
     }
@@ -1128,9 +2502,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   const renderModels = () => {
     modelsTable.innerHTML = "";
     let count = 0;
-    
-    const activeProviders = Array.from(new Set([...PROVIDERS, ...Object.keys(cache)]));
-    
+
+    const activeProviders = Array.from(
+      new Set([...PROVIDERS, ...Object.keys(cache)]),
+    );
+
     for (const provider of activeProviders) {
       const providerModels = cache[provider as OAuthProviderId] || [];
       if (!providerModels.length) continue;
@@ -1150,31 +2526,44 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       const section = createEl(doc, "div", "llm-set-provider-section");
       const header = createEl(doc, "div", "llm-set-row llm-set-row--spread");
       const title = createEl(
-        doc, "div", "llm-set-provider-title",
+        doc,
+        "div",
+        "llm-set-provider-title",
         getProviderLabel(provider as OAuthProviderId),
       );
-      const summaryText =
-        lang === "zh-CN"
-          ? `已勾选 ${selectedCount}/${providerModels.length}`
-          : `Selected ${selectedCount}/${providerModels.length}`;
-      const summary = createEl(doc, "div", "llm-set-provider-summary", summaryText);
+      const summaryText = L.selectedSummary
+        .replace("{selected}", String(selectedCount))
+        .replace("{total}", String(providerModels.length));
+      const summary = createEl(
+        doc,
+        "div",
+        "llm-set-provider-summary",
+        summaryText,
+      );
       header.append(title, summary);
 
       const actions = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
       const defaultBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
-        lang === "zh-CN" ? "默认" : "Defaults",
+        doc,
+        "button",
+        "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+        L.defaults,
       ) as HTMLButtonElement;
       defaultBtn.type = "button";
       defaultBtn.addEventListener("click", () => {
         setProviderSelection(
           provider as OAuthProviderId,
-          getDefaultSelectedModelIds(provider as OAuthProviderId, providerModels),
+          getDefaultSelectedModelIds(
+            provider as OAuthProviderId,
+            providerModels,
+          ),
         );
       });
       const allBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
-        lang === "zh-CN" ? "全选" : "Select All",
+        doc,
+        "button",
+        "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+        L.selectAll,
       ) as HTMLButtonElement;
       allBtn.type = "button";
       allBtn.addEventListener("click", () => {
@@ -1184,19 +2573,27 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         );
       });
       const clearBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
-        lang === "zh-CN" ? "清空" : "Clear",
+        doc,
+        "button",
+        "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+        L.clear,
       ) as HTMLButtonElement;
       clearBtn.type = "button";
       clearBtn.addEventListener("click", () => {
         setProviderSelection(provider as OAuthProviderId, []);
       });
       const perProviderRefreshBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--pill llm-set-btn--primary",
-        lang === "zh-CN" ? "刷新模型" : "Refresh",
+        doc,
+        "button",
+        "llm-set-btn llm-set-btn--pill llm-set-btn--primary",
+        L.refreshModels,
       ) as HTMLButtonElement;
       perProviderRefreshBtn.type = "button";
-      const perProviderStatus = createEl(doc, "span", "llm-set-status") as HTMLSpanElement;
+      const perProviderStatus = createEl(
+        doc,
+        "span",
+        "llm-set-status",
+      ) as HTMLSpanElement;
       // Persist status text from a previous render cycle (survives renderModels rebuilds)
       const prevStatus = providerStatusRefs.get(provider);
       if (prevStatus) {
@@ -1207,19 +2604,28 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       perProviderRefreshBtn.addEventListener("click", async () => {
         await refreshOneProvider(provider as OAuthProviderId);
       });
-      actions.append(defaultBtn, allBtn, clearBtn, perProviderRefreshBtn, perProviderStatus);
+      actions.append(
+        defaultBtn,
+        allBtn,
+        clearBtn,
+        perProviderRefreshBtn,
+        perProviderStatus,
+      );
 
       // Provider-level delete button (ghost style, requires confirm)
       const deleteProviderBtn = createEl(
-        doc, "button", "llm-set-btn llm-set-btn--ghost",
-        lang === "zh-CN" ? "删除提供商" : "Remove Provider",
+        doc,
+        "button",
+        "llm-set-btn llm-set-btn--ghost",
+        L.removeProvider,
       ) as HTMLButtonElement;
       deleteProviderBtn.type = "button";
       deleteProviderBtn.addEventListener("click", () => {
         const confirmed = win.confirm(
-          lang === "zh-CN"
-            ? `确定要删除提供商「${getProviderLabel(provider as OAuthProviderId)}」及其所有模型吗？`
-            : `Remove provider "${getProviderLabel(provider as OAuthProviderId)}" and all its models?`,
+          L.removeProviderConfirm.replace(
+            "{provider}",
+            getProviderLabel(provider as OAuthProviderId),
+          ),
         );
         if (!confirmed) return;
         // Fully remove from cache (not just clear to [])
@@ -1235,8 +2641,18 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       });
 
       const actionsLeft = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
-      actionsLeft.append(defaultBtn, allBtn, clearBtn, perProviderRefreshBtn, perProviderStatus);
-      const actionsRow = createEl(doc, "div", "llm-set-row llm-set-row--spread");
+      actionsLeft.append(
+        defaultBtn,
+        allBtn,
+        clearBtn,
+        perProviderRefreshBtn,
+        perProviderStatus,
+      );
+      const actionsRow = createEl(
+        doc,
+        "div",
+        "llm-set-row llm-set-row--spread",
+      );
       actionsRow.append(actionsLeft, deleteProviderBtn);
       section.append(header, actionsRow);
 
@@ -1244,7 +2660,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         const id = String(row.id || "").trim();
         if (!id) continue;
         const line = createEl(doc, "label", "llm-set-model-row");
-        const checkbox = createEl(doc, "input", "llm-set-checkbox") as HTMLInputElement;
+        const checkbox = createEl(
+          doc,
+          "input",
+          "llm-set-checkbox",
+        ) as HTMLInputElement;
         checkbox.type = "checkbox";
         checkbox.checked = selected.has(normalizeModelId(id));
         checkbox.addEventListener("change", () => {
@@ -1274,28 +2694,41 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         idRow.append(createEl(doc, "div", "llm-set-model-id", id));
         // Status badge
         if (row.status) {
-          const badgeCls = row.status === "ok"
-            ? "llm-set-model-status--ok"
-            : row.status === "fail"
-              ? "llm-set-model-status--fail"
-              : "llm-set-model-status--testing";
-          const badgeText = row.status === "ok" ? "\u2714"
-            : row.status === "fail" ? "\u2716" : "\u23F3";
+          const badgeCls =
+            row.status === "ok"
+              ? "llm-set-model-status--ok"
+              : row.status === "fail"
+                ? "llm-set-model-status--fail"
+                : "llm-set-model-status--testing";
+          const badgeText =
+            row.status === "ok"
+              ? "\u2714"
+              : row.status === "fail"
+                ? "\u2716"
+                : "\u23F3";
           idRow.append(createEl(doc, "span", badgeCls, badgeText));
         }
         textBox.append(idRow);
         if (row.label && row.label !== id) {
-          textBox.append(createEl(doc, "div", "llm-set-model-label", row.label));
+          textBox.append(
+            createEl(doc, "div", "llm-set-model-label", row.label),
+          );
         }
 
         // Per-model delete SVG (no confirm)
-        const delModelBtn = createEl(doc, "button", "llm-set-fetched-delete") as HTMLButtonElement;
+        const delModelBtn = createEl(
+          doc,
+          "button",
+          "llm-set-fetched-delete",
+        ) as HTMLButtonElement;
         delModelBtn.type = "button";
-        delModelBtn.title = lang === "zh-CN" ? "删除模型" : "Remove model";
+        delModelBtn.title = L.removeModel;
         delModelBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const updated = (cache[provider as OAuthProviderId] || []).filter(m => m.id !== id);
+          const updated = (cache[provider as OAuthProviderId] || []).filter(
+            (m) => m.id !== id,
+          );
           cache = { ...cache, [provider as OAuthProviderId]: updated };
           saveModelCache(cache);
           persistSelectionState();
@@ -1309,9 +2742,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       modelsTable.appendChild(section);
     }
     if (!count) {
-      modelsTable.appendChild(
-        createEl(doc, "div", "llm-set-hint", L.noModels),
-      );
+      modelsTable.appendChild(createEl(doc, "div", "llm-set-hint", L.noModels));
     }
   };
 
@@ -1347,7 +2778,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
           }
         }
         // Merge: keep all existing, add new ones from fetch
-        const existingIds = new Set(existing.map(m => m.id));
+        const existingIds = new Set(existing.map((m) => m.id));
         const merged = [...existing];
         for (const fm of fetched) {
           if (!existingIds.has(fm.id)) {
@@ -1370,13 +2801,13 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       const refs = providerCards.get(provider);
       if (refs) {
         const s = await getProviderAccountSummary(provider);
-        refs.status.textContent = s.status;
-        refs.status.style.color = /logged in/i.test(s.status) ? "green" : "#b45309";
+        refs.status.textContent = localizeAuthStatus(s.status, L);
+        refs.status.style.color = /logged in/i.test(s.status)
+          ? "green"
+          : "#b45309";
       }
 
-      const fetchMsg = lang === "zh-CN"
-        ? `✔ ${models.length} 个模型，正在测试可用性...`
-        : `✔ ${models.length} models, testing availability...`;
+      const fetchMsg = L.testingModels.replace("{n}", String(models.length));
       const liveTarget1 = getTarget();
       liveTarget1.textContent = fetchMsg;
       liveTarget1.style.color = "#555";
@@ -1399,15 +2830,20 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
           const result = await pingCodexModel(pingInfo.headers);
           for (const m of models) {
             m.status = result;
-            if (result === "ok") okCount++; else failCount++;
+            if (result === "ok") okCount++;
+            else failCount++;
           }
           renderModels();
         } else if (provider === "google-gemini-cli" && pingInfo) {
           // Gemini CLI: single token-level ping (all models share same token)
-          const result = await pingGeminiModel(pingInfo.headers, pingInfo.projectId || "");
+          const result = await pingGeminiModel(
+            pingInfo.headers,
+            pingInfo.projectId || "",
+          );
           for (const m of models) {
             m.status = result;
-            if (result === "ok") okCount++; else failCount++;
+            if (result === "ok") okCount++;
+            else failCount++;
           }
           renderModels();
         } else if (pingInfo) {
@@ -1419,7 +2855,8 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
               m.id,
               pingInfo.headers,
             );
-            if (m.status === "ok") okCount++; else failCount++;
+            if (m.status === "ok") okCount++;
+            else failCount++;
             renderModels();
             await flushUi();
           }
@@ -1435,23 +2872,26 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         const apiKey = firstModel?.apiKey || "";
         for (const m of models) {
           m.status = await pingModel(apiBase, apiKey, m.id);
-          if (m.status === "ok") okCount++; else failCount++;
+          if (m.status === "ok") okCount++;
+          else failCount++;
           renderModels();
           await flushUi();
         }
       }
 
-      const doneMsg = lang === "zh-CN"
-        ? `✔ ${okCount} 可用, ${failCount} 不可用`
-        : `✔ ${okCount} ok, ${failCount} failed`;
+      const doneMsg = L.pingSummary
+        .replace("{ok}", String(okCount))
+        .replace("{fail}", String(failCount));
       const liveTarget2 = getTarget();
       liveTarget2.textContent = doneMsg;
       liveTarget2.style.color = failCount === 0 ? "#065f46" : "#b45309";
-      appendProgress(`[${getProviderLabel(provider)}] ${doneMsg}`,
-        failCount === 0 ? "#065f46" : "#b45309");
+      appendProgress(
+        `[${getProviderLabel(provider)}] ${doneMsg}`,
+        failCount === 0 ? "#065f46" : "#b45309",
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const errMsg = lang === "zh-CN" ? `✖ 刷新失败: ${msg}` : `✖ Refresh failed: ${msg}`;
+      const errMsg = L.refreshFailed.replace("{msg}", msg);
       const liveTarget = getTarget();
       liveTarget.textContent = errMsg;
       liveTarget.style.color = "#991b1b";
@@ -1462,21 +2902,29 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   for (const provider of PROVIDERS) {
     const card = createEl(doc, "div", "llm-set-card");
     const title = createEl(
-      doc, "div", "llm-set-provider-title",
+      doc,
+      "div",
+      "llm-set-provider-title",
       getProviderLabel(provider),
     );
     const row = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
     const perProviderSetupBtn = createEl(
-      doc, "button", "llm-set-btn llm-set-btn--success",
+      doc,
+      "button",
+      "llm-set-btn llm-set-btn--success",
     ) as HTMLButtonElement;
     perProviderSetupBtn.type = "button";
     const loginBtn = createEl(
-      doc, "button", "llm-set-btn llm-set-btn--secondary",
+      doc,
+      "button",
+      "llm-set-btn llm-set-btn--secondary",
     ) as HTMLButtonElement;
     loginBtn.type = "button";
 
     const deleteBtn = createEl(
-      doc, "button", "llm-set-btn llm-set-btn--ghost",
+      doc,
+      "button",
+      "llm-set-btn llm-set-btn--ghost",
     ) as HTMLButtonElement;
     deleteBtn.type = "button";
     const status = createEl(doc, "span", "llm-set-status") as HTMLSpanElement;
@@ -1498,28 +2946,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         // Show OAuth risk warning on first click only
         const alreadyAccepted = getPref("oauthRiskAccepted") === "true";
         if (!alreadyAccepted) {
-          const riskMessage =
-            lang === "zh-CN"
-              ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
-                "\u5c06\u542f\u52a8 Device Code OAuth \u6d41\u7a0b\uff1a\n" +
-                "1. \u7a0d\u540e\u4f1a\u663e\u793a\u9a8c\u8bc1\u7f51\u5740\u548c\u6388\u6743\u7801\n" +
-                "2. \u6253\u5f00\u6d4f\u89c8\u5668\u5b8c\u6210\u6388\u6743\n\n" +
-                "\u8bf7\u6ce8\u610f\uff1a\n" +
-                "\u2022 OAuth \u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\u8bbe\u5907\n" +
-                "\u2022 \u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
-                "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\n" +
-                "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
-                "\u662f\u5426\u7ee7\u7eed\uff1f"
-              : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
-                "This will start the Device Code OAuth flow:\n" +
-                "1. A verification URL and code will be displayed\n" +
-                "2. Open your browser to authorize the application\n\n" +
-                "Please note:\n" +
-                "\u2022 OAuth tokens are stored locally on your device only\n" +
-                "\u2022 This plugin uses OAuth tokens which is not officially endorsed \u2014 theoretical risk of account restrictions\n" +
-                "\u2022 Using AI services may incur charges\n" +
-                "\u2022 This plugin is free, open-source, and collects no user data\n\n" +
-                "Do you wish to continue?";
+          const riskMessage = L.oauthDeviceNotice;
           const accepted = win.confirm(riskMessage);
           if (!accepted) return;
           setPref("oauthRiskAccepted", "true");
@@ -1542,7 +2969,6 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         }
       });
 
-
       deleteBtn.addEventListener("click", async () => {
         status.textContent = L.running;
         status.style.color = "#555";
@@ -1563,32 +2989,7 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         // Show OAuth risk warning on first click only
         const alreadyAccepted = getPref("oauthRiskAccepted") === "true";
         if (!alreadyAccepted) {
-          const riskMessage =
-            lang === "zh-CN"
-              ? "\u26a0\ufe0f OAuth \u6388\u6743\u63d0\u793a\n\n" +
-                "\u201c\u5b89\u88c5\u73af\u5883\u201d\u5c06\u6267\u884c\u4ee5\u4e0b\u64cd\u4f5c\uff1a\n" +
-                "1. \u5b89\u88c5 Node.js \u8fd0\u884c\u73af\u5883\uff08\u5982\u5c1a\u672a\u5b89\u88c5\uff09\n" +
-                "2. \u5b89\u88c5\u5bf9\u5e94\u63d0\u4f9b\u5546\u7684 CLI \u5de5\u5177\n" +
-                "3. \u901a\u8fc7 OAuth \u534f\u8bae\u6253\u5f00\u6d4f\u89c8\u5668\u767b\u5f55\n\n" +
-                "\u8bf7\u6ce8\u610f\uff1a\n" +
-                "\u2022 OAuth \u767b\u5f55\u751f\u6210\u7684\u8bbf\u95ee\u4ee4\u724c\u4ec5\u4fdd\u5b58\u5728\u672c\u5730\uff0c\u4e0d\u4f1a\u4e0a\u4f20\u81f3\u4efb\u4f55\u7b2c\u4e09\u65b9\u670d\u52a1\u5668\n" +
-                "\u2022 \u63d2\u4ef6\u76f4\u63a5\u8c03\u7528 AI \u670d\u52a1\u5546\u7684\u5b98\u65b9 API\n" +
-                "\u2022 \u672c\u63d2\u4ef6\u501f\u52a9 CLI \u7684 OAuth \u4ee4\u724c\u8c03\u7528 API\uff0c\u6b64\u7528\u6cd5\u672a\u7ecf\u670d\u52a1\u5546\u660e\u786e\u6388\u6743\uff0c\u7406\u8bba\u4e0a\u5b58\u5728\u8d26\u53f7\u88ab\u9650\u5236\u7684\u53ef\u80fd\u6027\n" +
-                "\u2022 \u4f7f\u7528 AI \u670d\u52a1\u53ef\u80fd\u4ea7\u751f\u8d39\u7528\uff0c\u5177\u4f53\u53d6\u51b3\u4e8e\u60a8\u7684\u8d26\u53f7\u8ba1\u8d39\u65b9\u5f0f\n" +
-                "\u2022 \u672c\u63d2\u4ef6\u5b8c\u5168\u514d\u8d39\u4e14\u5f00\u6e90\uff0c\u4e0d\u6536\u96c6\u4efb\u4f55\u7528\u6237\u6570\u636e\n\n" +
-                "\u662f\u5426\u7ee7\u7eed\uff1f"
-              : "\u26a0\ufe0f OAuth Authorization Notice\n\n" +
-                '"Install Environment" will perform the following:\n' +
-                "1. Install Node.js runtime (if not already installed)\n" +
-                "2. Install the CLI tool for this provider\n" +
-                "3. Open your browser via OAuth to sign in\n\n" +
-                "Please note:\n" +
-                "\u2022 OAuth tokens are stored locally on your device only and are never sent to any third-party server\n" +
-                "\u2022 The plugin communicates directly with the AI provider's official API\n" +
-                "\u2022 This plugin uses OAuth tokens which is not an officially endorsed usage \u2014 there is a theoretical risk of account restrictions\n" +
-                "\u2022 Using AI services may incur charges depending on your account billing plan\n" +
-                "\u2022 This plugin is completely free, open-source, and does not collect any user data\n\n" +
-                "Do you wish to continue?";
+          const riskMessage = L.oauthInstallNotice;
           const accepted = win.confirm(riskMessage);
           if (!accepted) return;
           setPref("oauthRiskAccepted", "true");
@@ -1648,7 +3049,6 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
           await renderAccounts();
         }
       });
-
 
       deleteBtn.addEventListener("click", async () => {
         status.textContent = L.running;
@@ -1814,12 +3214,18 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
    * Rule 1: If the existing label has same apiBase+apiKey, return as-is.
    * Rule 3: If label doesn't exist, return as-is.
    */
-  const resolveProviderLabel = (rawLabel: string, apiBase: string, apiKey: string): string => {
+  const resolveProviderLabel = (
+    rawLabel: string,
+    apiBase: string,
+    apiKey: string,
+  ): string => {
     const check = (candidate: string): boolean => {
       const existing = cache[candidate as OAuthProviderId];
       if (!existing || existing.length === 0) return true; // free slot
       const first = existing[0];
-      return (first.apiBase || "") === apiBase && (first.apiKey || "") === apiKey; // matching slot
+      return (
+        (first.apiBase || "") === apiBase && (first.apiKey || "") === apiKey
+      ); // matching slot
     };
     if (check(rawLabel)) return rawLabel;
     let suffix = 2;
@@ -1853,11 +3259,15 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       return; // label exists but credentials differ — do not load
     }
     // Build a set of IDs already in lastFetchedModels so we don't duplicate
-    const alreadyInList = new Set(lastFetchedModels.map(m => m.id));
+    const alreadyInList = new Set(lastFetchedModels.map((m) => m.id));
     let changed = false;
     for (const m of existing) {
       if (!alreadyInList.has(m.id)) {
-        lastFetchedModels.push({ id: m.id, label: m.label || m.id, checked: true });
+        lastFetchedModels.push({
+          id: m.id,
+          label: m.label || m.id,
+          checked: true,
+        });
         changed = true;
       }
     }
@@ -1869,7 +3279,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
       const rawLabel = generateProviderLabel(customApiBaseInput.value);
       const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
       const apiKey = customApiKeyInput.value.trim();
-      fetchedModelsLabelInput.value = resolveProviderLabel(rawLabel, apiBase, apiKey);
+      fetchedModelsLabelInput.value = resolveProviderLabel(
+        rawLabel,
+        apiBase,
+        apiKey,
+      );
     }
     loadExistingProviderModels();
   };
@@ -1905,7 +3319,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     const rawLabel = generateProviderLabel(customApiBaseInput.value);
     const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
     const apiKey = customApiKeyInput.value.trim();
-    fetchedModelsLabelInput.value = resolveProviderLabel(rawLabel, apiBase, apiKey);
+    fetchedModelsLabelInput.value = resolveProviderLabel(
+      rawLabel,
+      apiBase,
+      apiKey,
+    );
     loadExistingProviderModels();
   }
 
@@ -1927,7 +3345,10 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     customModelHint.style.color = "#6b7280";
     try {
       const apiKey = customApiKeyInput.value.trim();
-      const models = await fetchCustomEndpointModels(apiBase, apiKey || undefined);
+      const models = await fetchCustomEndpointModels(
+        apiBase,
+        apiKey || undefined,
+      );
       // Populate datalist
       while (customModelDatalist.firstChild) {
         customModelDatalist.removeChild(customModelDatalist.firstChild);
@@ -1938,26 +3359,29 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
         if (m.label && m.label !== m.id) opt.textContent = m.label;
         customModelDatalist.appendChild(opt);
       }
-      
+
       if (models.length > 0) {
         // Prepare dynamic list UI
-        const oldCheckState = new Map(lastFetchedModels.map(x => [x.id, x.checked]));
-        lastFetchedModels = models.map(m => ({
+        const oldCheckState = new Map(
+          lastFetchedModels.map((x) => [x.id, x.checked]),
+        );
+        lastFetchedModels = models.map((m) => ({
           id: m.id,
           label: m.label || m.id,
-          checked: oldCheckState.get(m.id) ?? false
+          checked: oldCheckState.get(m.id) ?? false,
         }));
         renderFetchedModels();
 
-        
-        customModelHint.textContent = L.fetchModelsDone.replace("{n}", String(models.length));
+        customModelHint.textContent = L.fetchModelsDone.replace(
+          "{n}",
+          String(models.length),
+        );
         customModelHint.style.color = "#065f46";
         if (!customModelInput.value.trim() && models.length > 0) {
           customModelInput.value = models[0].id;
           persistCustomModel();
         }
       } else {
-
         customModelHint.textContent = L.fetchModelsEmpty;
         customModelHint.style.color = "#b45309";
       }
@@ -1973,7 +3397,11 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   });
 
   const advancedGroup = createEl(doc, "div", "llm-set-card");
-  const advancedTitle = createEl(doc, "div", "llm-set-title llm-set-collapsible-toggle");
+  const advancedTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-collapsible-toggle",
+  );
   const advancedBody = createEl(doc, "div", "llm-set-collapsible-body");
   advancedTitle.dataset.collapsed = "true";
   advancedBody.style.display = "none";
@@ -1991,12 +3419,33 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   persistSelectionState();
 
   const systemPromptWrap = createEl(doc, "div", "llm-set-field");
-  const systemPromptLabel = createEl(doc, "label", "llm-set-label llm-set-label--md", L.systemPrompt);
-  const systemPromptInput = createEl(doc, "textarea", "llm-set-input llm-set-textarea") as HTMLTextAreaElement;
+  const systemPromptLabel = createEl(
+    doc,
+    "label",
+    "llm-set-label llm-set-label--md",
+    L.systemPrompt,
+  );
+  systemPromptLabel.id = `${config.addonRef}-system-prompt-label`;
+  const systemPromptInput = createEl(
+    doc,
+    "textarea",
+    "llm-set-input llm-set-textarea",
+  ) as HTMLTextAreaElement;
+  systemPromptInput.id = `${config.addonRef}-system-prompt-input`;
   systemPromptInput.rows = 4;
-  systemPromptInput.placeholder = "Custom instructions for the AI assistant...";
-  const systemPromptHint = createEl(doc, "span", "llm-set-hint", L.systemPromptHint);
-  systemPromptWrap.append(systemPromptLabel, systemPromptInput, systemPromptHint);
+  systemPromptInput.placeholder = L.systemPromptPlaceholder;
+  const systemPromptHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.systemPromptHint,
+  );
+  systemPromptHint.id = `${config.addonRef}-system-prompt-hint`;
+  systemPromptWrap.append(
+    systemPromptLabel,
+    systemPromptInput,
+    systemPromptHint,
+  );
   advancedBody.appendChild(systemPromptWrap);
 
   systemPromptInput.value = getPref("systemPrompt") || "";
@@ -2005,11 +3454,17 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
   );
   const popupAddTextWrap = createEl(doc, "div", "llm-set-field");
   const popupAddTextLabel = createEl(doc, "label", "llm-set-radio-label");
-  const popupInput = createEl(doc, "input", "llm-set-checkbox") as HTMLInputElement;
+  const popupInput = createEl(
+    doc,
+    "input",
+    "llm-set-checkbox",
+  ) as HTMLInputElement;
   popupInput.type = "checkbox";
   const popupText = createEl(doc, "span", "", L.showAddText);
+  popupText.id = `${config.addonRef}-popup-add-text-label`;
   popupAddTextLabel.append(popupInput, popupText);
   const popupHint = createEl(doc, "span", "llm-set-hint", L.showAddTextHint);
+  popupHint.id = `${config.addonRef}-popup-add-text-hint`;
   popupAddTextWrap.append(popupAddTextLabel, popupHint);
   advancedBody.appendChild(popupAddTextWrap);
 
@@ -2017,9 +3472,14 @@ export async function bootstrapSettingTab(doc: Document, scrollContainer: HTMLEl
     `${config.prefsPrefix}.showPopupAddText`,
     true,
   );
-  popupInput.checked = prefValue !== false && String(prefValue).toLowerCase() !== "false";
+  popupInput.checked =
+    prefValue !== false && String(prefValue).toLowerCase() !== "false";
   popupInput.addEventListener("change", () => {
-    Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, popupInput.checked, true);
+    Zotero.Prefs.set(
+      `${config.prefsPrefix}.showPopupAddText`,
+      popupInput.checked,
+      true,
+    );
   });
   // showAllModels feature is hidden from the UI but we must NOT force-write
   // the pref on every render — that would silently override any user/external value.

@@ -1,7 +1,15 @@
-## What's Changed / 更新内容
+## What's Changed
 
-• **Pin Conversations / 置顶对话**: You can now pin important conversations to the top of the history list. / 现在可以将重要的对话置顶到历史记录顶部。
-• **Rename Conversations / 重命名对话**: A pen icon was added to edit chat history titles directly inline. / 增加编辑图标，允许直接修改历史记录的标题。
-• **Multi-option Delete / 多选项删除**: The 'Delete All' button is replaced with options to Clear Unpinned or Clear All. / 将"清空历史"按钮替换为两步确认，可以选择"清理非置顶"或"全部清理"。
-• **Improved Icon Visiblity / 优化图标显示**: Action icons (Rename, Pin, Delete) are now always visible and modernized with clean SVG strokes. / 所有操作图标（重命名、置顶、删除）现已改为常驻显示并优化了SVG渲染效果。
-• **Auto-detect Language Fixed / 修复语言自动检测**: Fixed an issue where the sidebar language would improperly default to Chinese unless the settings page was opened. / 修复了如果不打开设置页，侧边栏会错误地默认显示中文的语言识别问题。
+- 🌍 **12-language UI localization**: expanded the plugin interface from English/Simplified Chinese to 12 UI languages: English, 简体中文, 繁體中文, 日本語, 한국어, Français, Deutsch, Español, Русский, Português, العربية, and हिन्दी.
+- 🎛️ **Settings language dropdown**: replaced the Settings `Language` control with a gray-theme custom dropdown matching the full-document translation language selector style.
+- 💬 **Sidebar and bubble localization**: localized the main panel, quick actions, chat bubbles, status text, and translation tab controls across the new UI language set.
+- 🔁 **Immediate language switching**: fixed Settings text that previously stayed in English until Zotero restarted, including advanced labels, hints, placeholders, and OAuth account status summaries.
+- 🧭 **Separate translation target languages**: kept the full-document translation target-language list independent and broader while restricting the UI language picker to the 12 supported interface languages.
+
+## 更新内容
+
+- 🌍 **12 种界面语言本地化**：插件界面从原来的英文/简体中文扩展为 12 种界面语言：English、简体中文、繁體中文、日本語、한국어、Français、Deutsch、Español、Русский、Português、العربية、हिन्दी。
+- 🎛️ **设置页语言下拉菜单**：将 Settings 中的 `Language` 控件改为灰色主题自定义下拉菜单，风格与全文翻译的语言选择器保持一致。
+- 💬 **侧边栏与气泡本地化**：补齐主面板、快捷操作、聊天气泡、状态文本和翻译页控件在新增界面语言下的显示。
+- 🔁 **语言切换即时生效**：修复设置页部分英文必须重启 Zotero 才会切换的问题，包括高级设置标签、提示、占位文本和 OAuth 账号状态摘要。
+- 🧭 **翻译目标语言独立保留**：界面语言选择器严格限制为 12 种，同时全文翻译继续保留更丰富的目标语言列表。

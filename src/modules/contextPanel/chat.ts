@@ -27,9 +27,8 @@ import {
   MAX_HISTORY_MESSAGES,
   AUTO_SCROLL_BOTTOM_THRESHOLD,
   MAX_SELECTED_IMAGES,
+  MAX_SELECTED_PAPER_CONTEXTS,
   GLOBAL_CONVERSATION_KEY_BASE,
-  formatFigureCountLabel,
-  formatPaperCountLabel,
   ACTIVE_PAPER_MULTI_CONTEXT_MAX_CHUNKS,
   ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH,
   CONTEXT_COMPACTION_THRESHOLD,
@@ -117,16 +116,14 @@ import { buildChatHistoryNotePayload } from "./notes";
 import { extractManagedBlobHash } from "./attachmentStorage";
 import { toFileUrl } from "../../utils/pathFileUrl";
 import { replaceOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
-import { getPanelI18n } from "./i18n";
+import { getPanelI18n, getPanelLang } from "./i18n";
+import { getUiLanguageOption } from "./languages";
 import {
   autoCaptureUserMemories,
   formatRelevantMemoriesContext,
   resolveMemoryLibraryID,
   searchMemories,
 } from "../../utils/memoryStore";
-
-/** Get AbortController constructor from global scope */
-const panelI18n = getPanelI18n();
 
 function getAbortController(): new () => AbortController {
   return (
@@ -815,14 +812,20 @@ async function buildCombinedContextForRequest(params: {
   } else if (pool.basePdfContext) {
     // Subsequent turns: use the cached context, no tab dependency.
     pdfContext = pool.basePdfContext;
-    params.setStatusSafely("Using cached document context", "sending");
+    params.setStatusSafely(
+      getPanelI18n().usingCachedDocumentContext,
+      "sending",
+    );
     ztoolkit.log(
       `LLM context: using cached basePdfContext (${pdfContext.length} chars, itemId=${pool.basePdfItemId})`,
     );
   } else if (pool.basePdfItemId !== null) {
     // Pool was restored from DB with a known item ID but empty text.
     // Rebuild from the stored ID instead of re-resolving from the current tab.
-    params.setStatusSafely("Rebuilding document context...", "sending");
+    params.setStatusSafely(
+      getPanelI18n().rebuildingDocumentContext,
+      "sending",
+    );
     try {
       const ctxItem = Zotero.Items.get(pool.basePdfItemId);
       if (ctxItem) {
@@ -958,7 +961,7 @@ async function buildCombinedContextForRequest(params: {
   }
   if (pool.supplementalContexts.size > 0) {
     params.setStatusSafely(
-      `Using ${pool.supplementalContexts.size} supplemental paper context(s)`,
+      getPanelI18n().paperCount(pool.supplementalContexts.size, Number.NaN),
       "sending",
     );
   }
@@ -1843,9 +1846,10 @@ export async function retryLatestAssistantResponse(
   advanced?: AdvancedModelParams,
 ) {
   const ui = getPanelRequestUI(body);
+  const i18n = getPanelI18n();
   if (isPanelGenerating(body)) {
     if (ui.status) {
-      setStatus(ui.status, "Wait for the current response to finish", "ready");
+      setStatus(ui.status, i18n.waitForCurrentResponse, "ready");
     }
     return;
   }
@@ -1855,13 +1859,13 @@ export async function retryLatestAssistantResponse(
   const history = chatHistory.get(conversationKey) || [];
   const retryPair = findLatestRetryPair(history);
   if (!retryPair) {
-    if (ui.status) setStatus(ui.status, "No retryable response found", "error");
+    if (ui.status) setStatus(ui.status, i18n.noRetryableResponseFound, "error");
     return;
   }
 
   const thisRequestId = nextRequestId();
   beginPanelRequest(body, thisRequestId);
-  setRequestUIBusy(body, ui, conversationKey, "Preparing retry...");
+  setRequestUIBusy(body, ui, conversationKey, i18n.preparingRetry);
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
     item,
@@ -1875,7 +1879,7 @@ export async function retryLatestAssistantResponse(
   const { question, screenshotImages, fileAttachments, paperContexts } =
     reconstructRetryPayload(retryPair.userMessage);
   if (!question.trim()) {
-    setStatusSafely("Nothing to retry for latest turn", "error");
+    setStatusSafely(i18n.nothingToRetryLatestTurn, "error");
     restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
     setHistoryControlsDisabled(body, false);
     return;
@@ -1923,7 +1927,7 @@ export async function retryLatestAssistantResponse(
     });
     if (isPanelRequestCancelled(body, thisRequestId)) {
       restoreOriginalAssistant();
-      setStatusSafely(panelI18n.cancelled, "ready");
+      setStatusSafely(i18n.cancelled, "ready");
       return;
     }
     const llmHistory = await compactConversationHistory({
@@ -1944,14 +1948,14 @@ export async function retryLatestAssistantResponse(
     );
     if (!attached) {
       restoreOriginalAssistant();
-      setStatusSafely(panelI18n.cancelled, "ready");
+      setStatusSafely(i18n.cancelled, "ready");
       return;
     }
     const panelAbortController = getPanelAbortController(body);
     if (isPanelRequestCancelled(body, thisRequestId)) {
       panelAbortController?.abort();
       restoreOriginalAssistant();
-      setStatusSafely(panelI18n.cancelled, "ready");
+      setStatusSafely(i18n.cancelled, "ready");
       return;
     }
 
@@ -2008,13 +2012,13 @@ export async function retryLatestAssistantResponse(
         timestamp: assistantMessage.timestamp,
         modelName: assistantMessage.modelName,
       });
-      setStatusSafely("Ready", "ready");
+      setStatusSafely(i18n.statusReady, "ready");
       return;
     }
 
     finalizeStreamingBubble(retryBubbleRef);
     assistantMessage.text =
-      sanitizeText(answer) || streamedAnswer || "No response.";
+      sanitizeText(answer) || streamedAnswer || i18n.noResponse;
     assistantMessage.timestamp = Date.now();
     assistantMessage.modelName = effectiveRequestConfig.model;
     assistantMessage.streaming = false;
@@ -2026,7 +2030,7 @@ export async function retryLatestAssistantResponse(
       modelName: assistantMessage.modelName,
     });
 
-    setStatusSafely("Ready", "ready");
+    setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
       item,
       conversationKey,
@@ -2051,7 +2055,7 @@ export async function retryLatestAssistantResponse(
       } else {
         restoreOriginalAssistant();
       }
-      setStatusSafely("Ready", "ready");
+      setStatusSafely(i18n.statusReady, "ready");
       return;
     }
 
@@ -2090,9 +2094,10 @@ export async function sendQuestion(
   attachments?: ChatAttachment[],
 ) {
   const ui = getPanelRequestUI(body);
+  const i18n = getPanelI18n();
   if (isPanelGenerating(body)) {
     if (ui.status) {
-      setStatus(ui.status, "Wait for the current response to finish", "ready");
+      setStatus(ui.status, i18n.waitForCurrentResponse, "ready");
     }
     return;
   }
@@ -2103,7 +2108,7 @@ export async function sendQuestion(
   const initialConversationKey = getConversationKey(item);
 
   // Show cancel, hide send
-  setRequestUIBusy(body, ui, initialConversationKey, "Preparing request...");
+  setRequestUIBusy(body, ui, initialConversationKey, i18n.preparingRequest);
 
   await ensureConversationLoaded(item);
   const conversationKey = getConversationKey(item);
@@ -2238,12 +2243,12 @@ export async function sendQuestion(
       // "cancelled" placeholder so that the user-assistant pair stays
       // intact.  This lets the user still edit / retry the last prompt
       // via findLatestRetryPair().
-      assistantMessage.text = `*(${panelI18n.cancelled})*`;
+      assistantMessage.text = `*(${i18n.cancelled})*`;
       assistantMessage.streaming = false;
       refreshChatSafely();
       await persistAssistantOnce();
     }
-    setStatusSafely("Ready", "ready");
+    setStatusSafely(i18n.statusReady, "ready");
   };
 
   try {
@@ -2325,12 +2330,12 @@ export async function sendQuestion(
 
     finalizeStreamingBubble(sendBubbleRef);
     assistantMessage.text =
-      sanitizeText(answer) || assistantMessage.text || "No response.";
+      sanitizeText(answer) || assistantMessage.text || i18n.noResponse;
     assistantMessage.streaming = false;
     refreshChatSafely();
     await persistAssistantOnce();
 
-    setStatusSafely("Ready", "ready");
+    setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
       item,
       conversationKey,
@@ -2367,15 +2372,17 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
   const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
   if (!chatBox) return;
   const doc = body.ownerDocument!;
+  const i18n = getPanelI18n();
+  const bubbleLanguage = getUiLanguageOption(getPanelLang());
   setPromptMenuTarget(null);
 
   if (!item) {
     chatBox.innerHTML = `
-      <div class="llm-welcome">
-        <div class="llm-welcome-icon">AI</div>
-        <div class="llm-welcome-text">Select an item or open a PDF to start.</div>
-      </div>
-    `;
+        <div class="llm-welcome">
+          <div class="llm-welcome-icon">AI</div>
+        <div class="llm-welcome-text">${i18n.statusSelectItem}</div>
+        </div>
+      `;
     return;
   }
 
@@ -2431,6 +2438,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
     const bubble = doc.createElement("div") as HTMLDivElement;
     bubble.className = `llm-bubble ${isUser ? "user" : "assistant"}`;
+    bubble.lang = bubbleLanguage.htmlLang;
+    bubble.dir = bubbleLanguage.dir === "rtl" ? "rtl" : "auto";
 
     if (isUser) {
       const contextBadgesRow = doc.createElement("div") as HTMLDivElement;
@@ -2463,12 +2472,13 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
         screenshotIcon.className = "llm-user-screenshots-icon";
-        screenshotIcon.textContent = "IMG";
+        screenshotIcon.textContent = i18n.figureBadgeIcon;
 
         const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
         screenshotLabel.className = "llm-user-screenshots-label";
-        screenshotLabel.textContent = formatFigureCountLabel(
+        screenshotLabel.textContent = i18n.figureCount(
           screenshotImages.length,
+          MAX_SELECTED_IMAGES,
         );
 
         screenshotBar.append(screenshotIcon, screenshotLabel);
@@ -2484,7 +2494,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         previewWrap.className = "llm-user-screenshots-preview";
         const previewImg = doc.createElement("img") as HTMLImageElement;
         previewImg.className = "llm-user-screenshots-preview-img";
-        previewImg.alt = "Screenshot preview";
+        previewImg.alt = i18n.selectedScreenshotPreview;
         previewWrap.appendChild(previewImg);
 
         const thumbButtons: HTMLButtonElement[] = [];
@@ -2492,12 +2502,12 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           const thumbBtn = doc.createElement("button") as HTMLButtonElement;
           thumbBtn.type = "button";
           thumbBtn.className = "llm-user-screenshot-thumb";
-          thumbBtn.title = `Screenshot ${index + 1}`;
+          thumbBtn.title = i18n.screenshotNth(index + 1);
 
           const thumbImg = doc.createElement("img") as HTMLImageElement;
           thumbImg.className = "llm-user-screenshot-thumb-img";
           thumbImg.src = imageUrl;
-          thumbImg.alt = `Screenshot ${index + 1}`;
+          thumbImg.alt = i18n.screenshotNth(index + 1);
           thumbBtn.appendChild(thumbImg);
 
           const activateScreenshotThumb = (e: Event) => {
@@ -2550,8 +2560,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             btn.classList.toggle("active", index === activeIndex);
           });
           screenshotBar.title = expanded
-            ? "Collapse figures"
-            : "Expand figures";
+            ? i18n.collapseFigures
+            : i18n.expandFigures;
         };
 
         const toggleScreenshotsExpanded = () => {
@@ -2592,11 +2602,14 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const papersIcon = doc.createElement("span") as HTMLSpanElement;
         papersIcon.className = "llm-user-papers-icon";
-        papersIcon.textContent = "REF";
+        papersIcon.textContent = i18n.paperBadgeIcon;
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
         papersLabel.className = "llm-user-papers-label";
-        papersLabel.textContent = formatPaperCountLabel(paperContexts.length);
+        papersLabel.textContent = i18n.paperCount(
+          paperContexts.length,
+          MAX_SELECTED_PAPER_CONTEXTS,
+        );
         papersLabel.title = paperContexts
           .map((entry) => entry.title)
           .join("\n");
@@ -2630,8 +2643,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             paperContext.firstCreator || "",
             paperContext.year || "",
           ].filter(Boolean);
-          paperMeta.textContent =
-            metaParts.join(" | ") || "Supplemental paper";
+          paperMeta.textContent = metaParts.join(" | ") || i18n.supplementalPaper;
           paperMeta.title = paperMeta.textContent;
           paperItem.append(paperTitle, paperMeta);
           papersList.appendChild(paperItem);
@@ -2644,7 +2656,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           papersBar.setAttribute("aria-expanded", expanded ? "true" : "false");
           papersExpandedEl.hidden = !expanded;
           papersExpandedEl.style.display = expanded ? "block" : "none";
-          papersBar.title = expanded ? "Collapse papers" : "Expand papers";
+          papersBar.title = expanded ? i18n.collapsePapers : i18n.expandPapers;
         };
         const togglePapersExpanded = () => {
           msg.paperContextsExpanded = !msg.paperContextsExpanded;
@@ -2690,11 +2702,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const filesIcon = doc.createElement("span") as HTMLSpanElement;
         filesIcon.className = "llm-user-files-icon";
-        filesIcon.textContent = "FILE";
+        filesIcon.textContent = i18n.fileBadgeIcon;
 
         const filesLabel = doc.createElement("span") as HTMLSpanElement;
         filesLabel.className = "llm-user-files-label";
-        filesLabel.textContent = `Files (${fileAttachments.length})`;
+        filesLabel.textContent = i18n.fileCount(fileAttachments.length);
         filesLabel.title = fileAttachments.map((f) => f.name).join("\n");
 
         filesBar.append(filesIcon, filesLabel);
@@ -2714,7 +2726,9 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           if (canOpen) {
             fileItem.classList.add("llm-user-files-item-openable");
             (fileItem as HTMLButtonElement).type = "button";
-            (fileItem as HTMLButtonElement).title = `Open ${attachment.name}`;
+            (fileItem as HTMLButtonElement).title = i18n.openAttachment(
+              attachment.name,
+            );
             fileItem.addEventListener("mousedown", (e: Event) => {
               const mouse = e as MouseEvent;
               if (mouse.button !== 0) return;
@@ -2737,7 +2751,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           const fileType = doc.createElement("span") as HTMLSpanElement;
           fileType.className = "llm-user-files-item-type";
           fileType.textContent = getAttachmentTypeLabel(attachment);
-          fileType.title = attachment.mimeType || attachment.category || "file";
+          fileType.title =
+            attachment.mimeType || attachment.category || i18n.fileFallback;
           fileType.setAttribute("data-category", attachment.category || "file");
 
           const fileInfo = doc.createElement("div") as HTMLDivElement;
@@ -2764,7 +2779,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           filesBar.setAttribute("aria-expanded", expanded ? "true" : "false");
           filesExpandedEl.hidden = !expanded;
           filesExpandedEl.style.display = expanded ? "block" : "none";
-          filesBar.title = expanded ? "Collapse files" : "Expand files";
+          filesBar.title = expanded ? i18n.collapseFiles : i18n.expandFiles;
         };
         const toggleFilesExpanded = () => {
           msg.attachmentsExpanded = !msg.attachmentsExpanded;
@@ -3028,8 +3043,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       const copyBtn = doc.createElement("button") as HTMLButtonElement;
       copyBtn.type = "button";
       copyBtn.className = "llm-msg-copy-btn";
-      copyBtn.title = panelI18n.copy;
-      copyBtn.setAttribute("aria-label", panelI18n.copy);
+      copyBtn.title = i18n.copy;
+      copyBtn.setAttribute("aria-label", i18n.copy);
       copyBtn.dataset.msgIndex = String(index);
       meta.appendChild(copyBtn);
 
@@ -3037,8 +3052,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       const noteBtn = doc.createElement("button") as HTMLButtonElement;
       noteBtn.type = "button";
       noteBtn.className = "llm-msg-note-btn";
-      noteBtn.title = panelI18n.saveAsNote;
-      noteBtn.setAttribute("aria-label", panelI18n.saveAsNote);
+      noteBtn.title = i18n.saveAsNote;
+      noteBtn.setAttribute("aria-label", i18n.saveAsNote);
       noteBtn.dataset.msgIndex = String(index);
       meta.appendChild(noteBtn);
     }
@@ -3051,8 +3066,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       editBtn.type = "button";
       editBtn.className = "llm-edit-latest";
       editBtn.textContent = "";
-      editBtn.title = panelI18n.edit;
-      editBtn.setAttribute("aria-label", panelI18n.edit);
+      editBtn.title = i18n.edit;
+      editBtn.setAttribute("aria-label", i18n.edit);
       editBtn.dataset.userTimestamp = String(
         latestEditableUserTimestamp as number,
       );
@@ -3072,8 +3087,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       retryBtn.type = "button";
       retryBtn.className = "llm-retry-latest";
       retryBtn.textContent = "";
-      retryBtn.title = panelI18n.retry;
-      retryBtn.setAttribute("aria-label", panelI18n.retry);
+      retryBtn.title = i18n.retry;
+      retryBtn.setAttribute("aria-label", i18n.retry);
       meta.appendChild(retryBtn);
     }
 

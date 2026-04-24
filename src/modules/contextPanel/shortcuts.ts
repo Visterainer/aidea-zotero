@@ -241,7 +241,7 @@ export async function renderShortcuts(
     const prompt = updated.prompt.trim();
     if (!prompt) {
       const status = body.querySelector("#llm-status") as HTMLElement | null;
-      if (status) setStatus(status, "Shortcut prompt cannot be empty", "error");
+      if (status) setStatus(status, getPanelI18n().shortcutPromptEmpty, "error");
       return;
     }
 
@@ -384,7 +384,7 @@ export async function renderShortcuts(
       ) as HTMLSpanElement;
       handle.className = "llm-shortcut-drag-handle";
       handle.textContent = "≡";
-      handle.title = "Drag to reorder";
+      handle.title = getPanelI18n().dragToReorder;
       handle.draggable = false;
       handle.addEventListener("click", (e: Event) => {
         e.preventDefault();
@@ -581,7 +581,7 @@ export async function renderShortcuts(
       if (!nextPrompt) {
         const status = body.querySelector("#llm-status") as HTMLElement | null;
         if (status)
-          setStatus(status, "Shortcut prompt cannot be empty", "error");
+          setStatus(status, getPanelI18n().shortcutPromptEmpty, "error");
         menu.style.display = "none";
         return;
       }

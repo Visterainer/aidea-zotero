@@ -135,7 +135,7 @@ AIdea captures and recalls useful information across conversations to improve co
 
 ### 🌍 Interface Languages
 
-The plugin interface currently supports **English** and **Simplified Chinese**. Project documentation and the website additionally provide **Traditional Chinese**, **Japanese**, **Korean**, and **French**.
+The plugin interface now supports **12 UI languages**: **English**, **简体中文**, **繁體中文**, **日本語**, **한국어**, **Français**, **Deutsch**, **Español**, **Русский**, **Português**, **العربية**, and **हिन्दी**. Full-document translation keeps its broader target-language list independent from the UI language list.
 
 ---
 
@@ -223,7 +223,7 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 
 | Setting             | Description                                            | Default                      |
 | ------------------- | ------------------------------------------------------ | ---------------------------- |
-| **UI Language**     | Plugin interface language                              | EN                           |
+| **UI Language**     | Plugin interface language                              | Auto-detected, fallback EN   |
 | **System Prompt**   | Custom instructions for the model                      | Empty                        |
 | **Show "Add Text"** | Show the Add Text option in the reader selection popup | On                           |
 | **Show All Models** | Show all available models instead of a curated subset  | Off                          |

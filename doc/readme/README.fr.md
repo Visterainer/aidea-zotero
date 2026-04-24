@@ -110,7 +110,7 @@ Pour la traduction intégrale, passez à l'onglet de traduction, définissez le 
 
 ## Prise en charge des langues
 
-- **Interface du plugin :** anglais, chinois simplifié
+- **Interface du plugin :** English, 简体中文, 繁體中文, 日本語, 한국어, Français, Deutsch, Español, Русский, Português, العربية, हिन्दी
 - **Documentation et site du projet :** English, 简体中文, 繁體中文, 日本語, 한국어, Français
 
 ## Confidentialité et traitement des données
