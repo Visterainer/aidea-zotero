@@ -39,6 +39,82 @@ const githubHref = "https://github.com/Visterainer/aidea-zotero";
 const issuesHref = "https://github.com/Visterainer/aidea-zotero/issues";
 const licenseHref = "https://github.com/Visterainer/aidea-zotero/blob/master/LICENSE";
 const languageLabel = "Language";
+const modelAccessContent = {
+  "zh-CN": {
+    kicker: "模型接入",
+    heading: "连接模型，开始对话",
+    headingAccent: "连接模型",
+    headingRest: "，开始对话",
+    body: "支持 OAuth 授权和 API / 本地模型接入两种方式，你可以按自己的使用习惯选择。",
+    note: "之后也可以在插件设置中随时切换接入方式。",
+    options: [
+      {
+        label: "OAuth 授权",
+        tag: "推荐",
+        title: "登录服务商账号，授权后即可使用",
+        body: "无需手动填写 API Key，适合希望快速开始模型对话的大多数用户。",
+        points: ["点击授权登录", "自动保存授权状态", "适合 OpenAI、Gemini、GitHub Copilot 等服务"],
+      },
+      {
+        label: "API / 本地模型",
+        tag: "灵活",
+        title: "填写接口地址和模型名称，连接自己的模型服务",
+        body: "按服务要求填写 API Key，可连接云端 API、自部署服务，或本地模型接口。",
+        points: ["支持 OpenAI 兼容接口", "可自定义服务地址和模型名称", "适合 Ollama、LM Studio、vLLM 等本地模型"],
+      },
+    ],
+  },
+  "zh-TW": {
+    kicker: "模型接入",
+    heading: "連接模型，開始對話",
+    headingAccent: "連接模型",
+    headingRest: "，開始對話",
+    body: "支援 OAuth 授權和 API / 本地模型接入兩種方式，你可以依照自己的使用習慣選擇。",
+    note: "之後也可以在外掛設定中隨時切換接入方式。",
+    options: [
+      {
+        label: "OAuth 授權",
+        tag: "推薦",
+        title: "登入服務商帳號，授權後即可使用",
+        body: "不需要手動填寫 API Key，適合希望快速開始模型對話的大多數使用者。",
+        points: ["點擊授權登入", "自動保存授權狀態", "適合 OpenAI、Gemini、GitHub Copilot 等服務"],
+      },
+      {
+        label: "API / 本地模型",
+        tag: "彈性",
+        title: "填寫接口地址和模型名稱，連接自己的模型服務",
+        body: "依服務要求填寫 API Key，可連接雲端 API、自部署服務，或本地模型接口。",
+        points: ["支援 OpenAI 相容接口", "可自訂服務地址和模型名稱", "適合 Ollama、LM Studio、vLLM 等本地模型"],
+      },
+    ],
+  },
+  en: {
+    kicker: "Model Access",
+    heading: "Connect a model and start chatting",
+    headingAccent: "Connect a model",
+    headingRest: " and start chatting",
+    body: "AIdea supports both OAuth sign-in and API / local model access, so you can choose the setup that fits your workflow.",
+    note: "You can switch connection methods later from the plugin settings.",
+    options: [
+      {
+        label: "OAuth",
+        tag: "Recommended",
+        title: "Sign in with a provider account and start after authorization",
+        body: "No manual API key entry is needed, which makes this the simplest path for most users.",
+        points: ["Authorize from the provider", "Keep the authorization state locally", "Works well for OpenAI, Gemini, GitHub Copilot, and similar services"],
+      },
+      {
+        label: "API / Local Models",
+        tag: "Flexible",
+        title: "Enter an endpoint and model name to use your own model service",
+        body: "Add an API key when your service requires one, and connect cloud APIs, self-hosted endpoints, or local model servers.",
+        points: ["Supports OpenAI-compatible APIs", "Custom endpoint and model name", "Fits Ollama, LM Studio, vLLM, and other local setups"],
+      },
+    ],
+  },
+};
+const modelAccess =
+  modelAccessContent[page.locale as keyof typeof modelAccessContent] ?? modelAccessContent.en;
 
 const escapeHtml = (value: string) =>
   value
@@ -161,6 +237,34 @@ const renderHeading = (key: HeadingKey, fallback: string) => {
             </article>
           ))}
         </div>
+      </div>
+    </section>
+
+    <section class="section model-access-section" aria-labelledby="model-access-title">
+      <div class="model-access-copy">
+        <p class="section-kicker">{modelAccess.kicker}</p>
+        <h2 id="model-access-title">
+          <span class="heading-fragment is-accent is-keep">{modelAccess.headingAccent}</span>
+          {modelAccess.headingRest}
+        </h2>
+        <p>{modelAccess.body}</p>
+        <p class="model-access-note">{modelAccess.note}</p>
+      </div>
+
+      <div class="model-access-grid">
+        {modelAccess.options.map((option) => (
+          <article class="access-card">
+            <div class="access-card-head">
+              <span class="access-label">{option.label}</span>
+              <span class="access-tag">{option.tag}</span>
+            </div>
+            <h3>{option.title}</h3>
+            <p>{option.body}</p>
+            <ul class="access-points">
+              {option.points.map((point) => <li>{point}</li>)}
+            </ul>
+          </article>
+        ))}
       </div>
     </section>
 

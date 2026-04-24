@@ -370,6 +370,7 @@ body[data-dir="rtl"] .language-list-item {
 
 .hero-copy,
 .hero-visual,
+.access-card,
 .trust-card,
 .showcase-panel,
 .feature-card,
@@ -608,6 +609,7 @@ h3 {
 .translation-panel,
 .showcase-panel,
 .install-steps,
+.access-card,
 .trust-card,
 .feature-card,
 .gallery-card {
@@ -668,6 +670,125 @@ h3 {
   max-width: 38rem;
 }
 
+.model-access-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.74fr) minmax(0, 1.26fr);
+  gap: 1.2rem;
+  align-items: stretch;
+  padding-top: 2.2rem;
+}
+
+.model-access-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.model-access-copy h2 {
+  margin-top: 0.95rem;
+  max-width: 11ch;
+  overflow-wrap: anywhere;
+}
+
+.model-access-copy p {
+  color: var(--muted);
+  font-size: 1.04rem;
+  overflow-wrap: anywhere;
+}
+
+.model-access-copy > p:not(.section-kicker) {
+  margin: 1rem 0 0;
+}
+
+.model-access-note {
+  padding-left: 1rem;
+  border-left: 2px solid rgba(184, 92, 54, 0.35);
+}
+
+.model-access-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.access-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 1.45rem;
+  border-radius: var(--radius-lg);
+}
+
+.access-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.access-label,
+.access-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.access-label {
+  padding: 0 0.8rem;
+  color: #f8f3ec;
+  background: rgba(25, 22, 19, 0.92);
+}
+
+.access-tag {
+  padding: 0 0.65rem;
+  color: var(--accent);
+  background: rgba(184, 92, 54, 0.1);
+}
+
+.access-card h3 {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.access-card p {
+  margin: 0.85rem 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.access-points {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.access-points li {
+  position: relative;
+  padding-left: 1.05rem;
+  color: var(--text);
+  font-size: 0.96rem;
+  overflow-wrap: anywhere;
+}
+
+.access-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.58rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent), #6b899e);
+}
+
 .hero-copy h1 {
   max-width: 11.5ch;
 }
@@ -680,6 +801,7 @@ h3 {
 }
 
 .hero-copy h1 .heading-fragment.is-accent,
+.model-access-copy h2 .heading-fragment.is-accent,
 .section-intro h2 .heading-fragment.is-accent,
 .section-copy h2 .heading-fragment.is-accent,
 .translation-copy h2 .heading-fragment.is-accent {
@@ -703,6 +825,7 @@ h3 {
 }
 
 body[data-locale="ko"] .hero-copy h1 .heading-fragment.is-accent,
+body[data-locale="ko"] .model-access-copy h2 .heading-fragment.is-accent,
 body[data-locale="ko"] .section-intro h2 .heading-fragment.is-accent,
 body[data-locale="ko"] .section-copy h2 .heading-fragment.is-accent,
 body[data-locale="ko"] .translation-copy h2 .heading-fragment.is-accent {
@@ -710,10 +833,12 @@ body[data-locale="ko"] .translation-copy h2 .heading-fragment.is-accent {
 }
 
 body[data-locale="ar"] .hero-copy h1 .heading-fragment.is-accent,
+body[data-locale="ar"] .model-access-copy h2 .heading-fragment.is-accent,
 body[data-locale="ar"] .section-intro h2 .heading-fragment.is-accent,
 body[data-locale="ar"] .section-copy h2 .heading-fragment.is-accent,
 body[data-locale="ar"] .translation-copy h2 .heading-fragment.is-accent,
 body[data-locale="hi"] .hero-copy h1 .heading-fragment.is-accent,
+body[data-locale="hi"] .model-access-copy h2 .heading-fragment.is-accent,
 body[data-locale="hi"] .section-intro h2 .heading-fragment.is-accent,
 body[data-locale="hi"] .section-copy h2 .heading-fragment.is-accent,
 body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent {
@@ -724,6 +849,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent {
 }
 
 .hero-copy h1 .heading-fragment.is-accent.is-keep::after,
+.model-access-copy h2 .heading-fragment.is-accent.is-keep::after,
 .section-intro h2 .heading-fragment.is-accent.is-keep::after,
 .section-copy h2 .heading-fragment.is-accent.is-keep::after,
 .translation-copy h2 .heading-fragment.is-accent.is-keep::after {
@@ -745,10 +871,12 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent {
 }
 
 body[data-locale="ar"] .hero-copy h1 .heading-fragment.is-accent::after,
+body[data-locale="ar"] .model-access-copy h2 .heading-fragment.is-accent::after,
 body[data-locale="ar"] .section-intro h2 .heading-fragment.is-accent::after,
 body[data-locale="ar"] .section-copy h2 .heading-fragment.is-accent::after,
 body[data-locale="ar"] .translation-copy h2 .heading-fragment.is-accent::after,
 body[data-locale="hi"] .hero-copy h1 .heading-fragment.is-accent::after,
+body[data-locale="hi"] .model-access-copy h2 .heading-fragment.is-accent::after,
 body[data-locale="hi"] .section-intro h2 .heading-fragment.is-accent::after,
 body[data-locale="hi"] .section-copy h2 .heading-fragment.is-accent::after,
 body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
@@ -995,6 +1123,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 
 @media (max-width: 1080px) {
   .hero,
+  .model-access-section,
   .story-section,
   .install-section,
   .site-footer {
@@ -1041,6 +1170,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
   }
 
   .metrics-grid,
+  .model-access-grid,
   .trust-grid,
   .feature-grid,
   .gallery-grid,
