@@ -151,7 +151,8 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px;
+  padding: 9px;
+  background: #f1f2f4;
 }
 
 .llm-setting-console {
@@ -191,18 +192,20 @@
 .llm-settings-root {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 9px;
 }
 
 /* ── Section Card — borderless, flat ── */
 .llm-set-card {
-  border: none;
-  border-radius: 0;
-  padding: 4px 0;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  padding: 10px 11px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background: transparent;
+  gap: 9px;
+  background: #fbfbfc;
+  color: #1f2937;
+  box-shadow: none;
 }
 
 .llm-set-card--inline {
@@ -212,46 +215,46 @@
 }
 
 .llm-set-card--dashed {
-  border: none;
+  border-style: dashed;
 }
 
 /* ── Section Title — PyCharm-style: text + horizontal line ── */
 .llm-set-title {
   font-weight: 600;
   font-size: var(--llm-fs-12, 12px);
-  color: var(--fill-secondary, #888);
+  color: #1f2937;
   letter-spacing: 0;
   display: flex;
   align-items: center;
   gap: 10px;
   white-space: nowrap;
-  padding: 6px 0 2px 0;
+  padding: 0 0 4px 0;
 }
 
 .llm-set-title::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+  background: #e1e4e8;
 }
 
 /* Sub-section title (e.g. "授权账号") — smaller, dark */
 .llm-set-title--sub {
   font-size: var(--llm-fs-11, 11px);
-  color: #000;
+  color: #1f2937;
 }
 
 /* ── Hint / Description Text ── */
 .llm-set-hint {
   font-size: var(--llm-fs-11, 11px);
-  color: var(--fill-tertiary, #888);
+  color: #6b7280;
   line-height: 1.5;
   padding-left: 2px;
 }
 
 .llm-set-status {
   font-size: var(--llm-fs-10, 10px);
-  color: var(--fill-tertiary, #888);
+  color: #6b7280;
   white-space: pre-wrap;
   line-height: 1.5;
 }
@@ -260,7 +263,7 @@
 .llm-set-label {
   font-weight: 500;
   font-size: var(--llm-fs-10, 10px);
-  color: var(--fill-primary, #ddd);
+  color: #374151;
 }
 
 /* Label variant for form fields (system prompt, etc.) */
@@ -272,7 +275,7 @@
 .llm-set-label--title {
   font-size: var(--llm-fs-12, 12px);
   font-weight: 600;
-  color: var(--fill-secondary, #888);
+  color: #111827;
 }
 
 /* ── Text Input / Textarea ── */
@@ -280,17 +283,12 @@
   width: 100%;
   padding: 5px 10px;
   font-size: var(--llm-fs-10, 10px);
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 20%, transparent);
+  border: 1px solid #d1d5db;
   border-radius: 4px;
   box-sizing: border-box;
-  color: var(--fill-primary, #ddd);
-  caret-color: var(--fill-primary, #ddd);
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 92%,
-    var(--fill-primary, #fff) 8%
-  );
+  color: #111827;
+  caret-color: #111827;
+  background: #fff;
   transition: border-color 0.15s ease;
   font-family: inherit;
 }
@@ -301,12 +299,12 @@
 }
 
 .llm-set-input::placeholder {
-  color: var(--fill-tertiary, #666);
+  color: #9ca3af;
 }
 
 .llm-set-input--error {
   border-color: #f44747 !important;
-  background: color-mix(in srgb, #f44747 6%, var(--material-sidepane, #2b2b2b));
+  background: #fff7f7;
 }
 
 .llm-set-textarea {
@@ -504,7 +502,7 @@
   font-size: var(--llm-fs-11, 11px);
   font-weight: 500;
   cursor: pointer;
-  color: var(--fill-primary, #ddd);
+  color: #374151;
 }
 
 /* ── Custom Endpoint Fields Box ── */
@@ -513,9 +511,8 @@
   flex-direction: column;
   gap: 8px;
   padding-top: 6px;
-  padding-left: 4px;
-  border-top: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+  padding-left: 0;
+  border-top: 1px solid #eef0f3;
 }
 
 /* ── Fetched Models Panel ── */
@@ -523,11 +520,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 15%, transparent);
+  border: 1px solid #e7e9ed;
   border-radius: 4px;
   padding: 10px;
-  background: transparent;
+  background: #f7f8fa;
   margin-top: 2px;
 }
 
@@ -537,13 +533,8 @@
   gap: 1px;
   height: 150px;
   overflow-y: auto;
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 92%,
-    var(--fill-primary, #fff) 8%
-  );
+  border: 1px solid #e7e9ed;
+  background: #fbfbfc;
   padding: 4px;
   border-radius: 4px;
 }
@@ -557,18 +548,19 @@
   padding: 3px 6px;
   border-radius: 3px;
   transition: background 0.08s ease;
+  color: #374151;
 }
 
 .llm-set-fetched-row:hover {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 6%, transparent);
+  background: #f0f3f8;
 }
 
 .llm-set-fetched-row:nth-child(odd) {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 3%, transparent);
+  background: #f6f7f9;
 }
 
 .llm-set-fetched-row:nth-child(odd):hover {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 8%, transparent);
+  background: #f0f3f8;
 }
 
 .llm-set-fetched-row span {
@@ -613,9 +605,8 @@
   font-weight: 600;
   margin-bottom: 4px;
   padding-bottom: 4px;
-  color: var(--fill-primary, #ddd);
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+  color: #374151;
+  border-bottom: 1px solid #e1e4e8;
 }
 
 .llm-set-table-row {
@@ -623,7 +614,7 @@
   grid-template-columns: 2fr 1fr 2fr;
   gap: 8px;
   padding: 4px 0;
-  color: var(--fill-primary, #ddd);
+  color: #374151;
 }
 
 /* ── Model Provider Section ── */
@@ -638,7 +629,7 @@
 .llm-set-provider-title {
   font-weight: 600;
   font-size: var(--llm-fs-11, 11px);
-  color: var(--fill-secondary, #888);
+  color: #1f2937;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -649,12 +640,12 @@
   content: "";
   flex: 1;
   height: 1px;
-  background: color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+  background: #e1e4e8;
 }
 
 .llm-set-provider-summary {
   font-size: var(--llm-fs-11, 11px);
-  color: var(--fill-tertiary, #666);
+  color: #6b7280;
 }
 
 /* ── Model Checkbox Row — flat, no border ── */
@@ -670,15 +661,15 @@
 }
 
 .llm-set-model-row:hover {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 6%, transparent);
+  background: #f0f3f8;
 }
 
 .llm-set-model-row:nth-child(odd) {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 3%, transparent);
+  background: #f6f7f9;
 }
 
 .llm-set-model-row:nth-child(odd):hover {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 8%, transparent);
+  background: #f0f3f8;
 }
 
 /* Delete SVG inside model rows — always visible, brighter on hover */
@@ -703,7 +694,7 @@
 
 .llm-set-model-id {
   font-size: var(--llm-fs-10, 10px);
-  color: var(--fill-primary, #ddd);
+  color: #111827;
 }
 
 /* Status badges */
@@ -735,7 +726,7 @@
 
 .llm-set-model-label {
   font-size: var(--llm-fs-11, 11px);
-  color: var(--fill-tertiary, #666);
+  color: #6b7280;
 }
 
 /* ── Checkbox Align ── */
@@ -752,19 +743,14 @@
 }
 
 .llm-set-progress-list {
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+  border: 1px solid #e7e9ed;
   border-radius: 4px;
   padding: 6px;
   height: 150px;
   box-sizing: border-box;
   overflow: auto;
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 92%,
-    var(--fill-primary, #fff) 8%
-  );
-  color: #3ddc84;
+  background: #f7f8fa;
+  color: #166534;
   font-size: var(--llm-fs-10, 10px);
   line-height: 1.4;
 }
@@ -774,18 +760,13 @@
   min-height: 80px;
   height: 80px;
   padding: 6px;
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+  border: 1px solid #e7e9ed;
   border-radius: 4px;
   box-sizing: border-box;
   font-size: var(--llm-fs-10, 10px);
   font-family: inherit;
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 92%,
-    var(--fill-primary, #fff) 8%
-  ) !important;
-  color: var(--fill-primary, #ddd);
+  background: #f7f8fa !important;
+  color: #111827;
   overflow: auto;
   resize: none;
 }
@@ -848,7 +829,7 @@
 }
 
 .llm-set-collapsible-toggle:hover {
-  color: var(--fill-primary);
+  color: #111827;
 }
 
 .llm-set-collapsible-toggle:hover::before {
@@ -861,7 +842,7 @@
 
 /* Collapsible body indent */
 .llm-set-collapsible-body {
-  padding-left: 14px;
+  padding-left: 0;
 }
 
 /* ── Settings Tab Bar (mini tab switcher for lang / connection mode) ── */
@@ -871,7 +852,7 @@
   margin-left: auto;
   margin-right: auto;
   gap: 1px;
-  background: color-mix(in srgb, var(--fill-primary, #333) 10%, transparent);
+  background: #e8eaee;
   border-radius: 4px;
   padding: 1px;
   flex-shrink: 0;
@@ -888,7 +869,7 @@
   border-radius: 3px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--fill-secondary, #888);
+  color: #6b7280;
   cursor: pointer;
   text-align: center;
   white-space: nowrap;
@@ -897,8 +878,8 @@
 }
 
 .llm-set-tab-btn:hover {
-  color: var(--fill-primary, #ddd);
-  background: color-mix(in srgb, var(--fill-primary, #fff) 6%, transparent);
+  color: #111827;
+  background: #f7f8fa;
 }
 
 .llm-set-tab-btn.active {
@@ -921,15 +902,10 @@
   min-height: 22px;
   padding: 3px 9px;
   box-sizing: border-box;
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 18%, transparent);
+  border: 1px solid #d1d5db;
   border-radius: 4px;
-  color: var(--fill-primary, #ddd);
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 94%,
-    var(--fill-primary, #fff) 6%
-  );
+  color: #111827;
+  background: #fff;
   font-size: var(--llm-fs-10, 10px);
   font-weight: 600;
   cursor: pointer;
@@ -940,21 +916,13 @@
 }
 
 .llm-set-dropdown-trigger:hover {
-  border-color: color-mix(in srgb, var(--fill-primary, #fff) 30%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 90%,
-    var(--fill-primary, #fff) 10%
-  );
+  border-color: #9ca3af;
+  background: #f7f8fa;
 }
 
 .llm-set-dropdown.open .llm-set-dropdown-trigger {
   border-color: #565656;
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 86%,
-    var(--fill-primary, #fff) 14%
-  );
+  background: #f7f8fa;
 }
 
 .llm-set-dropdown-arrow {
@@ -977,20 +945,15 @@
   max-height: 260px;
   overflow-y: auto;
   padding: 4px 0;
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 22%, transparent);
+  border: 1px solid #d1d5db;
   border-radius: 4px;
-  background: color-mix(
-    in srgb,
-    var(--material-sidepane, #2b2b2b) 96%,
-    var(--fill-primary, #fff) 4%
-  );
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+  background: #fbfbfc;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
 }
 
 .llm-set-dropdown-item {
   padding: 5px 11px;
-  color: var(--fill-primary, #ddd);
+  color: #374151;
   font-size: var(--llm-fs-10, 10px);
   line-height: 1.25;
   cursor: pointer;
@@ -998,7 +961,7 @@
 }
 
 .llm-set-dropdown-item:hover {
-  background: color-mix(in srgb, var(--fill-primary, #fff) 9%, transparent);
+  background: #f0f3f8;
 }
 
 .llm-set-dropdown-item.selected {
@@ -1013,7 +976,7 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 4px 8px;
+  gap: 3px 8px;
   flex-wrap: wrap;
 }
 
