@@ -4,7 +4,10 @@ import {
   isLikelyCorruptedSelectedText,
   setStatus,
 } from "./textUtils";
-import { normalizePaperContextRefs, normalizeSelectedTextSource } from "./normalizers";
+import {
+  normalizePaperContextRefs,
+  normalizeSelectedTextSource,
+} from "./normalizers";
 import {
   GLOBAL_CONVERSATION_KEY_BASE,
   MAX_SELECTED_TEXT_CONTEXTS,
@@ -314,7 +317,10 @@ export function getActiveReaderSelectionText(
   if (fromReader) return fromReader;
 
   // 3. Check the panel document and its iframes
-  const fromPanelDoc = getSelectionFromDocument(panelDoc, normalizeSelectedText);
+  const fromPanelDoc = getSelectionFromDocument(
+    panelDoc,
+    normalizeSelectedText,
+  );
   if (fromPanelDoc) return fromPanelDoc;
 
   const iframes = Array.from(
@@ -371,8 +377,9 @@ function normalizeSelectedTextContexts(value: unknown): SelectedTextContext[] {
         typeof typed.text === "string" ? typed.text : "",
       );
       if (!normalizedText) continue;
-      const normalizedPaperContext =
-        normalizePaperContextRefs([typed.paperContext])[0];
+      const normalizedPaperContext = normalizePaperContextRefs([
+        typed.paperContext,
+      ])[0];
       out.push({
         text: normalizedText,
         source: normalizeSelectedTextSource(typed.source),
@@ -564,7 +571,10 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
   previewList.style.display = "contents";
   previewList.innerHTML = "";
 
-  for (const [index, selectedContext] of selectedContexts.entries()) {
+  const renderSelectedContext = (
+    selectedContext: SelectedTextContext,
+    index: number,
+  ) => {
     const selectedText = selectedContext.text;
     const selectedSource = selectedContext.source;
     const isExpanded = expandedIndex === index;
@@ -622,7 +632,10 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     previewClear.dataset.contextIndex = `${index}`;
     previewClear.textContent = "×";
     previewClear.title = getPanelI18n().clearSelectedContext;
-    previewClear.setAttribute("aria-label", getPanelI18n().clearSelectedContext);
+    previewClear.setAttribute(
+      "aria-label",
+      getPanelI18n().clearSelectedContext,
+    );
 
     previewHeader.append(previewMeta, previewClear);
 
@@ -645,6 +658,10 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     previewExpanded.append(previewText, previewWarning);
     previewBox.append(previewHeader, previewExpanded);
     previewList.appendChild(previewBox);
+  };
+
+  for (const [index, selectedContext] of selectedContexts.entries()) {
+    renderSelectedContext(selectedContext, index);
   }
 
   if (selectTextBtn) {

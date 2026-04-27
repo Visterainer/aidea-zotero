@@ -263,20 +263,6 @@ function getMessageSelectedTexts(message: Message): string[] {
   return normalizeSelectedTexts(message.selectedTexts, message.selectedText);
 }
 
-function getMessageSelectedTextExpandedIndex(
-  message: Message,
-  count: number,
-): number {
-  if (count <= 0) return -1;
-  const rawIndex = message.selectedTextExpandedIndex;
-  if (typeof rawIndex === "number" && Number.isFinite(rawIndex)) {
-    const normalized = Math.floor(rawIndex);
-    if (normalized >= 0 && normalized < count) return normalized;
-  }
-  if (message.selectedTextExpanded === true) return 0;
-  return -1;
-}
-
 function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
   const children = Array.from(wrapper.children) as HTMLElement[];
   for (const child of children) {
@@ -1285,7 +1271,7 @@ export const zoneBSummaryCache = new Map<number, string>();
 function estimateHistoryLength(messages: Message[]): number {
   let total = 0;
   for (const msg of messages) {
-    total += (msg.text || "").length;
+    total += stripGeneratedImageMarkdown(msg.text).length;
     if (msg.selectedText) total += msg.selectedText.length;
     if (Array.isArray(msg.selectedTexts)) {
       for (const t of msg.selectedTexts) total += (t || "").length;
@@ -1320,7 +1306,7 @@ function formatMessagesForSummary(messages: Message[]): string {
   return messages
     .map((msg) => {
       const role = msg.role === "user" ? "User" : "Assistant";
-      return `[${role}]: ${(msg.text || "").slice(0, 2000)}`;
+      return `[${role}]: ${stripGeneratedImageMarkdown(msg.text).slice(0, 2000)}`;
     })
     .join("\n\n");
 }
@@ -1481,6 +1467,46 @@ type AssistantMessageSnapshot = Pick<
   "text" | "timestamp" | "modelName"
 >;
 
+const GENERATED_IMAGE_MARKDOWN_RE =
+  /!\[[^\]]*?\]\((data:image\/[a-z0-9.+-]+;base64,[^)]+)\)/gi;
+
+function extractGeneratedImageDataUrls(text: string | undefined): string[] {
+  const source = typeof text === "string" ? text : "";
+  const out: string[] = [];
+  GENERATED_IMAGE_MARKDOWN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = GENERATED_IMAGE_MARKDOWN_RE.exec(source))) {
+    const dataUrl = (match[1] || "").trim();
+    if (dataUrl && !out.includes(dataUrl)) out.push(dataUrl);
+  }
+  return out;
+}
+
+function stripGeneratedImageMarkdown(text: string | undefined): string {
+  return sanitizeText(
+    (typeof text === "string" ? text : "").replace(
+      GENERATED_IMAGE_MARKDOWN_RE,
+      "[Generated image]",
+    ),
+  );
+}
+
+function collectRecentGeneratedImageDataUrls(
+  history: Message[],
+  limit = MAX_SELECTED_IMAGES,
+): string[] {
+  const out: string[] = [];
+  for (let i = history.length - 1; i >= 0 && out.length < limit; i--) {
+    const msg = history[i];
+    if (msg.role !== "assistant") continue;
+    for (const dataUrl of extractGeneratedImageDataUrls(msg.text)) {
+      if (!out.includes(dataUrl)) out.push(dataUrl);
+      if (out.length >= limit) break;
+    }
+  }
+  return out.reverse();
+}
+
 export function findLatestRetryPair(
   history: Message[],
 ): LatestRetryPair | null {
@@ -1601,7 +1627,7 @@ function buildHistoryMessageForLLM(message: Message): ChatMessage {
   if (message.role === "assistant") {
     return {
       role: "assistant",
-      content: sanitizeText(message.text || ""),
+      content: stripGeneratedImageMarkdown(message.text),
     };
   }
   const { question } = reconstructRetryPayload(message);
@@ -1873,6 +1899,8 @@ export async function retryLatestAssistantResponse(
   const historyForLLM = history
     .slice(0, retryPair.userIndex)
     .slice(-MAX_HISTORY_MESSAGES);
+  const generatedImageContext =
+    collectRecentGeneratedImageDataUrls(historyForLLM);
   const { question, screenshotImages, fileAttachments, paperContexts } =
     reconstructRetryPayload(retryPair.userMessage);
   if (!question.trim()) {
@@ -1972,13 +2000,17 @@ export async function retryLatestAssistantResponse(
       });
     });
 
+    const requestImages = [...generatedImageContext, ...screenshotImages].slice(
+      -MAX_SELECTED_IMAGES,
+    );
+
     const answer = await callLLMStream(
       {
         prompt: question,
         context: combinedContext,
         history: llmHistory,
         signal: panelAbortController?.signal,
-        images: screenshotImages,
+        images: requestImages,
         attachments: fileAttachments,
         model: effectiveRequestConfig.model,
         apiBase: effectiveRequestConfig.apiBase,
@@ -2122,6 +2154,7 @@ export async function sendQuestion(
   }
   const history = chatHistory.get(conversationKey)!;
   const historyForLLM = history.slice(-MAX_HISTORY_MESSAGES);
+  const generatedImageContext = collectRecentGeneratedImageDataUrls(history);
   const requestFileAttachments = normalizeModelFileAttachments(attachments);
   let effectiveRequestConfig: EffectiveRequestConfig;
   try {
@@ -2297,13 +2330,18 @@ export async function sendQuestion(
       });
     });
 
+    const requestImages = [
+      ...generatedImageContext,
+      ...screenshotImagesForMessage,
+    ].slice(-MAX_SELECTED_IMAGES);
+
     const answer = await callLLMStream(
       {
         prompt: question,
         context: combinedContext,
         history: llmHistory,
         signal: panelAbortController?.signal,
-        images: images,
+        images: requestImages,
         attachments: requestFileAttachments,
         model: effectiveRequestConfig.model,
         apiBase: effectiveRequestConfig.apiBase,
@@ -2820,21 +2858,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       }
 
       if (hasSelectedTextContext) {
-        let selectedTextExpandedIndex = getMessageSelectedTextExpandedIndex(
-          msg,
-          selectedTexts.length,
-        );
-        const syncSelectedTextExpandedState = () => {
-          msg.selectedTextExpandedIndex = selectedTextExpandedIndex;
-          msg.selectedTextExpanded = selectedTextExpandedIndex === 0;
-        };
-        syncSelectedTextExpandedState();
-        const applySelectedTextStates: Array<() => void> = [];
-        const renderSelectedTextStates = () => {
-          for (const applyState of applySelectedTextStates) {
-            applyState();
-          }
-        };
+        msg.selectedTextExpandedIndex = -1;
+        msg.selectedTextExpanded = false;
 
         selectedTexts.forEach((selectedText, contextIndex) => {
           const selectedSource = selectedTextSources[contextIndex] || "pdf";
@@ -2846,8 +2871,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             selectedTextPaperContext
               ? formatPaperCitationLabel(selectedTextPaperContext)
               : "";
-          const selectedBar = doc.createElement("button") as HTMLButtonElement;
-          selectedBar.type = "button";
+          const selectedBar = doc.createElement("div") as HTMLDivElement;
           selectedBar.className = "llm-user-selected-text";
           selectedBar.dataset.contextSource = selectedSource;
 
@@ -2861,56 +2885,12 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             ? `${selectedTextPaperLabel} - ${selectedText}`
             : selectedText;
 
-          const selectedExpanded = doc.createElement("div") as HTMLDivElement;
-          selectedExpanded.className = "llm-user-selected-text-expanded";
-          selectedExpanded.textContent = selectedTextPaperLabel
-            ? `${selectedTextPaperLabel}\n\n${selectedText}`
-            : selectedText;
-
           selectedBar.append(selectedIcon, selectedContent);
-          const applySelectedTextState = () => {
-            const expanded = selectedTextExpandedIndex === contextIndex;
-            selectedBar.classList.toggle("expanded", expanded);
-            selectedBar.setAttribute(
-              "aria-expanded",
-              expanded ? "true" : "false",
-            );
-            selectedExpanded.hidden = !expanded;
-            selectedExpanded.style.display = expanded ? "block" : "none";
-            selectedBar.title = expanded
-              ? "Collapse selected text"
-              : "Expand selected text";
-          };
-          const toggleSelectedTextExpanded = () => {
-            mutateChatWithScrollGuard(() => {
-              selectedTextExpandedIndex =
-                selectedTextExpandedIndex === contextIndex ? -1 : contextIndex;
-              syncSelectedTextExpandedState();
-              renderSelectedTextStates();
-            });
-          };
-          applySelectedTextStates.push(applySelectedTextState);
-          selectedBar.addEventListener("mousedown", (e: Event) => {
-            const mouse = e as MouseEvent;
-            if (mouse.button !== 0) return;
-            mouse.preventDefault();
-            mouse.stopPropagation();
-            toggleSelectedTextExpanded();
-          });
-          selectedBar.addEventListener("click", (e: Event) => {
-            e.preventDefault();
-            e.stopPropagation();
-          });
-          selectedBar.addEventListener("keydown", (e: KeyboardEvent) => {
-            if (e.key !== "Enter" && e.key !== " ") return;
-            e.preventDefault();
-            e.stopPropagation();
-            toggleSelectedTextExpanded();
-          });
+          selectedBar.title = selectedTextPaperLabel
+            ? `${selectedTextPaperLabel} - selected text context`
+            : "Selected text context";
           wrapper.appendChild(selectedBar);
-          wrapper.appendChild(selectedExpanded);
         });
-        renderSelectedTextStates();
       }
       bubble.textContent = sanitizeText(msg.text || "");
       if (canEditLatestUserPrompt) {

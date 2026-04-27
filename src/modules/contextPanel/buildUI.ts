@@ -1202,7 +1202,25 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       id: "llm-paper-context-list",
     },
   );
-  paperPreview.append(paperPreviewList);
+  const paperPreviewExpanded = createElement(
+    doc,
+    "div",
+    "llm-image-preview-expanded llm-paper-context-expanded",
+    {
+      id: "llm-paper-context-expanded",
+    },
+  );
+  paperPreviewExpanded.style.display = "none";
+  const paperPreviewExpandedList = createElement(
+    doc,
+    "div",
+    "llm-paper-context-list",
+    {
+      id: "llm-paper-context-expanded-list",
+    },
+  );
+  paperPreviewExpanded.append(paperPreviewExpandedList);
+  paperPreview.append(paperPreviewList, paperPreviewExpanded);
   contextPreviews.appendChild(paperPreview);
 
   // Image preview area (shows selected screenshot)

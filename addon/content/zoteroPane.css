@@ -51,6 +51,12 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
+/* Discussion tab stays AIdea blue instead of following OS/Zotero accent color. */
+.llm-tab-btn.active[data-tab="discussion"] {
+  background: #2563eb;
+  color: white;
+}
+
 /* Setting tab uses dark gray when active */
 .llm-tab-btn.active[data-tab="setting"] {
   background: #565656;
@@ -84,6 +90,7 @@
   overflow: hidden;
   resize: vertical;
   position: relative;
+  z-index: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -96,9 +103,12 @@
   height: 28vh;
   min-height: 20vh;
   max-height: 50vh;
+  box-sizing: border-box;
+  padding: 0 12px 12px 0;
   overflow: hidden;
   resize: vertical;
   position: relative;
+  z-index: 20;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2169,7 +2179,7 @@
   background: rgba(255, 255, 255, 0.03);
   color: var(--fill-secondary);
   text-align: left;
-  cursor: pointer;
+  cursor: default;
   font-size: var(--llm-fs-12);
   line-height: 1.25;
   overflow: hidden;
@@ -3333,6 +3343,7 @@
   width: 100%;
   container-type: inline-size;
   position: relative;
+  overflow: visible;
 }
 
 .llm-context-previews > #llm-selected-context-list {
@@ -3605,14 +3616,16 @@
   border: 1px solid var(--stroke-secondary);
   border-radius: 10px;
   background: var(--material-background);
-  position: absolute;
+  position: fixed;
   left: 0;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 24;
+  right: auto;
+  top: 0;
+  bottom: auto;
+  z-index: 120;
   width: auto;
   max-height: min(68vh, 560px);
   overflow: auto;
+  box-sizing: border-box;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
   opacity: 0;
   visibility: hidden;
@@ -3624,7 +3637,6 @@
     visibility 0.14s ease;
 }
 
-.llm-selected-context:hover .llm-selected-context-expanded,
 .llm-selected-context.expanded .llm-selected-context-expanded {
   opacity: 1;
   visibility: visible;
@@ -4517,14 +4529,16 @@
   border: 1px solid var(--stroke-secondary);
   border-radius: 10px;
   background: var(--material-background);
-  position: absolute;
+  position: fixed;
   left: 0;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 24;
+  right: auto;
+  top: 0;
+  bottom: auto;
+  z-index: 120;
   width: auto;
   max-height: min(68vh, 560px);
   overflow: auto;
+  box-sizing: border-box;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
   opacity: 0;
   visibility: hidden;
@@ -4898,7 +4912,6 @@
   color: var(--fill-primary);
 }
 
-.llm-image-preview:hover .llm-image-preview-expanded,
 .llm-image-preview.expanded .llm-image-preview-expanded {
   opacity: 1;
   visibility: visible;
@@ -4907,6 +4920,17 @@
 
 .llm-image-preview.expanded .llm-image-preview-expanded {
   pointer-events: auto;
+}
+
+#llm-paper-context-preview.expanded .llm-paper-context-expanded {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+#llm-image-preview .llm-image-preview-expanded {
+  grid-template-rows: auto;
 }
 
 .llm-image-preview-strip {
@@ -4921,6 +4945,30 @@
   padding-bottom: 4px;
   gap: 8px;
   grid-row: 2;
+}
+
+#llm-image-preview .llm-image-preview-strip {
+  grid-row: 1;
+}
+
+#llm-image-preview .llm-image-preview-selected {
+  display: none;
+}
+
+#llm-image-preview.llm-image-preview-large-thumbs .llm-image-preview-strip {
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px;
+}
+
+#llm-image-preview.llm-image-preview-large-thumbs .llm-preview-item {
+  flex: 0 0 200px;
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
+  height: 200px;
+  min-height: 200px;
+  max-height: 200px;
 }
 
 .llm-preview-item {

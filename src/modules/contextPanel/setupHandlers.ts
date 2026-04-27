@@ -1,6 +1,7 @@
 import { createElement } from "../../utils/domHelpers";
 import {
   AUTO_SCROLL_BOTTOM_THRESHOLD,
+  INLINE_CONTEXT_COLLAPSE_THRESHOLD,
   MAX_SELECTED_IMAGES,
   MAX_SELECTED_PAPER_CONTEXTS,
   FONT_SCALE_MIN_PERCENT,
@@ -289,6 +290,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     filePreviewClear,
     paperPreview,
     paperPreviewList,
+    paperPreviewExpanded,
+    paperPreviewExpandedList,
     paperPicker,
     paperPickerList,
     responseMenu,
@@ -1300,6 +1303,119 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const runWithChatScrollGuard = (fn: () => void) => {
     withScrollGuard(chatBox, conversationKey, fn);
   };
+  const positionContextPopup = (
+    anchor: HTMLElement | null,
+    popup: HTMLElement | null,
+    options: { preferredWidth?: number } = {},
+  ) => {
+    if (!anchor || !popup || !panelRoot) return;
+    const win = body.ownerDocument?.defaultView;
+    if (!win) return;
+    if (popup.hidden || popup.style.display === "none") return;
+
+    const panelRect = panelRoot.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    if (!panelRect.width || !anchorRect.width) return;
+
+    const margin = 10;
+    const gap = 8;
+    const maxWidth = Math.max(180, panelRect.width - margin * 2);
+    const preferredWidth =
+      typeof options.preferredWidth === "number" && options.preferredWidth > 0
+        ? options.preferredWidth
+        : Math.max(anchorRect.width, Math.min(620, maxWidth));
+    const width = Math.min(
+      maxWidth,
+      Math.max(anchorRect.width, preferredWidth),
+    );
+    const left = Math.max(
+      panelRect.left + margin,
+      Math.min(anchorRect.left, panelRect.right - margin - width),
+    );
+
+    popup.style.position = "fixed";
+    popup.style.left = `${Math.round(left)}px`;
+    popup.style.right = "auto";
+    popup.style.bottom = "auto";
+    popup.style.width = `${Math.round(width)}px`;
+    popup.style.top = "0px";
+
+    const measured = popup.getBoundingClientRect();
+    const height = measured.height || Math.min(popup.scrollHeight, 560);
+    const minTop = panelRect.top + margin;
+    let top = anchorRect.top - height - gap;
+    if (top < minTop) {
+      top = Math.min(
+        anchorRect.bottom + gap,
+        win.innerHeight - height - margin,
+      );
+    }
+    popup.style.top = `${Math.max(margin, Math.round(top))}px`;
+  };
+
+  const positionExpandedContextPanels = () => {
+    if (!panelRoot) return;
+
+    const textPanels = Array.from(
+      panelRoot.querySelectorAll(
+        ".llm-selected-context.expanded:not(.llm-selected-context-summary)",
+      ),
+    ) as HTMLElement[];
+    for (const panel of textPanels) {
+      positionContextPopup(
+        panel.querySelector(
+          ".llm-selected-context-header",
+        ) as HTMLElement | null,
+        panel.querySelector(
+          ".llm-selected-context-expanded",
+        ) as HTMLElement | null,
+      );
+    }
+
+    if (imagePreview?.classList.contains("expanded")) {
+      const imageCount = item
+        ? (selectedImageCache.get(item.id) || []).length
+        : 0;
+      const preferredWidth = imageCount * 210 + 24;
+      positionContextPopup(
+        imagePreview.querySelector(
+          "#llm-image-preview-header",
+        ) as HTMLElement | null,
+        previewExpanded,
+        { preferredWidth },
+      );
+    }
+
+    if (filePreview?.classList.contains("expanded")) {
+      const expandedFileCategories = item
+        ? fileCategoryExpandedCache.get(item.id)
+        : undefined;
+      const fileAnchor =
+        inlineFileChips.find((chip) => {
+          const category = chip.dataset.category || "file";
+          return expandedFileCategories?.has(category);
+        }) ||
+        inlineFileChips[0] ||
+        filePreview;
+      positionContextPopup(fileAnchor, filePreviewExpanded, {
+        preferredWidth: 620,
+      });
+    }
+
+    if (paperPreview?.classList.contains("expanded")) {
+      const paperAnchor =
+        (paperPreview.querySelector(
+          ".llm-paper-context-summary",
+        ) as HTMLElement | null) ||
+        (paperPreviewList?.querySelector(
+          ".llm-paper-context-chip",
+        ) as HTMLElement | null) ||
+        paperPreview;
+      positionContextPopup(paperAnchor, paperPreviewExpanded, {
+        preferredWidth: 620,
+      });
+    }
+  };
   const EDIT_STALE_STATUS_TEXT =
     "Edit target changed. Please edit latest prompt again.";
   const getLatestEditablePair = async () => {
@@ -1442,7 +1558,15 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
     if (!selectedPapers.length && !autoLoadedPaperContext && !hasBasePdf) {
       paperPreview.style.display = "none";
+      paperPreview.classList.remove("expanded", "collapsed");
       paperPreviewList.innerHTML = "";
+      if (paperPreviewExpanded) {
+        paperPreviewExpanded.hidden = true;
+        paperPreviewExpanded.style.display = "none";
+      }
+      if (paperPreviewExpandedList) {
+        paperPreviewExpandedList.innerHTML = "";
+      }
       clearSelectedPaperState(item.id);
       return;
     }
@@ -1451,7 +1575,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     } else {
       clearSelectedPaperState(item.id);
     }
-    selectedPaperPreviewExpandedCache.set(item.id, false);
+    const paperPanelWasExpanded =
+      selectedPaperPreviewExpandedCache.get(item.id) === true;
     paperPreview.style.display = "contents";
     paperPreviewList.style.display = "contents";
     paperPreviewList.innerHTML = "";
@@ -1545,6 +1670,93 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         });
       });
     }
+    const paperChips = Array.from(paperPreviewList.children) as HTMLElement[];
+    if (
+      paperPreviewExpanded &&
+      paperPreviewExpandedList &&
+      paperChips.length > INLINE_CONTEXT_COLLAPSE_THRESHOLD
+    ) {
+      const paperExpanded = paperPanelWasExpanded;
+      selectedPaperPreviewExpandedCache.set(item.id, paperExpanded);
+      paperPreview.classList.toggle("expanded", paperExpanded);
+      paperPreview.classList.toggle("collapsed", !paperExpanded);
+      paperPreviewExpanded.hidden = !paperExpanded;
+      paperPreviewExpanded.style.display = paperExpanded ? "grid" : "none";
+      paperPreviewExpandedList.innerHTML = "";
+
+      const summaryChip = createElement(
+        ownerDoc,
+        "div",
+        "llm-selected-context llm-paper-context-chip llm-file-chip-inline llm-paper-context-summary",
+      );
+      summaryChip.classList.add("collapsed");
+      summaryChip.dataset.category = "pdf";
+      summaryChip.style.cursor = "pointer";
+      const summaryHeader = createElement(
+        ownerDoc,
+        "div",
+        "llm-image-preview-header llm-selected-context-header llm-paper-context-chip-header",
+      );
+      const summaryLabel = createElement(
+        ownerDoc,
+        "span",
+        "llm-paper-context-chip-label",
+        {
+          textContent: `PDF (${paperChips.length})`,
+          title: paperExpanded
+            ? "Click to collapse PDFs"
+            : "Click to expand PDFs",
+        },
+      );
+      const summaryIndicator = createElement(ownerDoc, "span", "", {
+        textContent: paperExpanded ? " ▲" : " ▼",
+      });
+      summaryIndicator.style.opacity = "0.5";
+      summaryIndicator.style.fontSize = "10px";
+      summaryIndicator.style.marginLeft = "4px";
+      summaryLabel.appendChild(summaryIndicator);
+      summaryHeader.append(summaryLabel);
+      summaryChip.append(summaryHeader);
+      summaryChip.addEventListener("click", (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!item) return;
+        const nextExpanded =
+          selectedPaperPreviewExpandedCache.get(item.id) !== true;
+        selectedPaperPreviewExpandedCache.set(item.id, nextExpanded);
+        if (nextExpanded) {
+          const textContextKey = getTextContextConversationKey();
+          if (textContextKey) {
+            setSelectedTextExpandedIndex(textContextKey, null);
+          }
+          selectedImagePreviewExpandedCache.set(item.id, false);
+          selectedFilePreviewExpandedCache.set(item.id, false);
+        }
+        updateFilePreview();
+        updateImagePreview();
+        updateSelectedTextPreview();
+        updatePaperPreview();
+      });
+
+      paperPreviewList.innerHTML = "";
+      paperPreviewList.appendChild(summaryChip);
+      if (paperExpanded) {
+        paperChips.forEach((chip) => {
+          paperPreviewExpandedList.appendChild(chip);
+        });
+      }
+    } else {
+      selectedPaperPreviewExpandedCache.set(item.id, false);
+      paperPreview.classList.remove("expanded", "collapsed");
+      if (paperPreviewExpanded) {
+        paperPreviewExpanded.hidden = true;
+        paperPreviewExpanded.style.display = "none";
+      }
+      if (paperPreviewExpandedList) {
+        paperPreviewExpandedList.innerHTML = "";
+      }
+    }
+    positionExpandedContextPanels();
     if (composeHook.save) composeHook.save();
   };
 
@@ -1867,7 +2079,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
     // ── Render each category group ──
     groups.forEach((catFiles, cat) => {
-      if (catFiles.length <= 3) {
+      if (catFiles.length <= INLINE_CONTEXT_COLLAPSE_THRESHOLD) {
         // Individual chips for each file
         catFiles.forEach(({ attachment, index }) => {
           const chip = createFileChip(attachment, index);
@@ -1903,7 +2115,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
       // Render rows for all expanded groups
       groups.forEach((catFiles, cat) => {
-        if (catFiles.length > 3 && expandedSet!.has(cat)) {
+        if (
+          catFiles.length > INLINE_CONTEXT_COLLAPSE_THRESHOLD &&
+          expandedSet!.has(cat)
+        ) {
           catFiles.forEach(({ attachment, index }) => {
             const row = createElement(ownerDoc, "div", "llm-file-context-item");
             if (attachment.processing) {
@@ -1963,6 +2178,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         }
       });
     }
+    positionExpandedContextPanels();
     if (composeHook.save) composeHook.save();
   };
 
@@ -2020,6 +2236,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       imagePreview.style.display = "flex";
       imagePreview.classList.toggle("expanded", expanded);
       imagePreview.classList.toggle("collapsed", !expanded);
+      imagePreview.classList.add("llm-image-preview-large-thumbs");
+      imagePreview.classList.remove("llm-image-preview-folded-thumbs");
       previewExpanded.hidden = false;
       previewExpanded.style.display = "grid";
       previewSelected.style.display = "";
@@ -2103,7 +2321,12 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           : `Add screenshot (${imageCount})`;
     } else {
       imagePreview.style.display = "none";
-      imagePreview.classList.remove("expanded", "collapsed");
+      imagePreview.classList.remove(
+        "expanded",
+        "collapsed",
+        "llm-image-preview-large-thumbs",
+        "llm-image-preview-folded-thumbs",
+      );
       previewExpanded.hidden = true;
       previewExpanded.style.display = "none";
       previewStrip.innerHTML = "";
@@ -2121,6 +2344,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         : "Select figure screenshot";
     }
     applyResponsiveActionButtonsLayout();
+    positionExpandedContextPanels();
     if (composeHook.save) composeHook.save();
   };
 
@@ -2129,6 +2353,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     const textContextKey = getTextContextConversationKey();
     if (!textContextKey) return;
     applySelectedTextPreview(body, textContextKey);
+    positionExpandedContextPanels();
     if (composeHook.save) composeHook.save();
   };
   const updatePaperPreviewPreservingScroll = () => {
@@ -4570,6 +4795,14 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   body.addEventListener("pointerenter", () => {
     withScrollGuard(chatBox, conversationKey, syncModelFromPrefs);
   });
+  body.ownerDocument?.defaultView?.addEventListener(
+    "resize",
+    positionExpandedContextPanels,
+    { passive: true },
+  );
+  chatBox?.addEventListener("scroll", positionExpandedContextPanels, {
+    passive: true,
+  });
   const ResizeObserverCtor = body.ownerDocument?.defaultView?.ResizeObserver;
   if (ResizeObserverCtor && panelRoot && modelBtn) {
     const ro = new ResizeObserverCtor(() => {
@@ -4582,6 +4815,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           applyResponsiveActionButtonsLayout();
           syncUserContextAlignmentWidths(body);
           positionPaperPicker();
+          positionExpandedContextPanels();
         },
         "relative",
       );
@@ -4611,6 +4845,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           if (Math.abs(chatBox.scrollTop - targetBottom) > 1) {
             chatBox.scrollTop = chatBox.scrollHeight;
           }
+          positionExpandedContextPanels();
           captureChatBoxViewportState();
           if (item && chatBox.childElementCount) {
             persistChatScrollSnapshot(item, chatBox);
@@ -4631,6 +4866,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           if (Math.abs(chatBox.scrollTop - targetScrollTop) > 1) {
             chatBox.scrollTop = targetScrollTop;
           }
+          positionExpandedContextPanels();
           captureChatBoxViewportState();
           if (item && chatBox.childElementCount) {
             persistChatScrollSnapshot(item, chatBox);
@@ -4638,6 +4874,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           return;
         }
         chatBoxViewportState = current;
+        positionExpandedContextPanels();
       });
       chatBoxResizeObserver.observe(chatBox);
     }
@@ -5298,6 +5535,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     let fileDragDepth = 0;
 
     inputBox.addEventListener("scroll", positionPaperPicker, {
+      passive: true,
+    });
+    inputBox.addEventListener("scroll", positionExpandedContextPanels, {
       passive: true,
     });
 
@@ -6423,6 +6663,22 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       if (!item) return;
       const target = e.target as Element | null;
       if (!target) return;
+
+      const clearAllBtn = target.closest(
+        ".llm-selected-context-clear-all",
+      ) as HTMLButtonElement | null;
+      if (clearAllBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const textContextKey = getTextContextConversationKey();
+        if (!textContextKey) return;
+        setSelectedTextContextEntries(textContextKey, []);
+        setSelectedTextExpandedIndex(textContextKey, null);
+        updateSelectedTextPreviewPreservingScroll();
+        if (status)
+          setStatus(status, getPanelI18n().selectedTextRemoved, "ready");
+        return;
+      }
 
       const clearBtn = target.closest(
         ".llm-selected-context-clear",

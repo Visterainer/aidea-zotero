@@ -20,6 +20,7 @@ pref("systemPrompt", "");
 pref("oauthModelListCache", "");
 pref("oauthModelSelectionCache", "");
 pref("oauthSetupLog", "");
+pref("updateNoticeSeen", "");
 pref("showPopupAddText", true);
 pref("temperaturePrimary", "0.3");
 pref("maxTokensPrimary", "4096");

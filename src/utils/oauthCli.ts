@@ -3740,6 +3740,43 @@ function extractOAuthOutputImageMarkdown(
   return `![${alt}](data:${mimeType};base64,${base64.trim()})`;
 }
 
+function extractOAuthOutputText(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  const obj = value as {
+    type?: unknown;
+    text?: unknown;
+    output_text?: unknown;
+    content?: unknown;
+    output?: unknown;
+    response?: unknown;
+  };
+  const type = typeof obj.type === "string" ? obj.type : "";
+  if (type === "output_text" && typeof obj.text === "string") {
+    return obj.text;
+  }
+  if (typeof obj.output_text === "string") {
+    return obj.output_text;
+  }
+  const parts: string[] = [];
+  if (Array.isArray(obj.content)) {
+    for (const part of obj.content) {
+      const text = extractOAuthOutputText(part);
+      if (text) parts.push(text);
+    }
+  }
+  if (Array.isArray(obj.output)) {
+    for (const part of obj.output) {
+      const text = extractOAuthOutputText(part);
+      if (text) parts.push(text);
+    }
+  }
+  if (obj.response) {
+    const text = extractOAuthOutputText(obj.response);
+    if (text) parts.push(text);
+  }
+  return parts.join("");
+}
+
 /**
  * Parse a streaming SSE response from the Codex backend incrementally.
  * Calls `onDelta` for each `response.output_text.delta` event as it arrives.
@@ -3792,13 +3829,19 @@ async function parseCodexSSEStream(
           }
           // Fallback: if we get a completed response with output_text and no
           // streaming deltas were received, use the full text.
-          if (
-            event.type === "response.completed" &&
-            typeof event.response?.output_text === "string" &&
-            !fullText
-          ) {
-            fullText = event.response.output_text;
-            onDelta?.(fullText);
+          if (event.type === "response.completed" && !fullText) {
+            const completedText = extractOAuthOutputText(event.response);
+            if (completedText) {
+              fullText = completedText;
+              onDelta?.(fullText);
+            }
+          }
+          if (event.type === "response.output_item.done" && !fullText) {
+            const itemText = extractOAuthOutputText(event.item);
+            if (itemText) {
+              fullText = itemText;
+              onDelta?.(fullText);
+            }
           }
           if (
             event.type === "response.output_item.done" ||
@@ -3869,13 +3912,19 @@ function parseCodexSSERaw(
         fullText += event.delta;
         onDelta?.(event.delta);
       }
-      if (
-        event.type === "response.completed" &&
-        event.response?.output_text &&
-        !fullText
-      ) {
-        fullText = event.response.output_text;
-        onDelta?.(fullText);
+      if (event.type === "response.completed" && !fullText) {
+        const completedText = extractOAuthOutputText(event.response);
+        if (completedText) {
+          fullText = completedText;
+          onDelta?.(fullText);
+        }
+      }
+      if (event.type === "response.output_item.done" && !fullText) {
+        const itemText = extractOAuthOutputText(event.item);
+        if (itemText) {
+          fullText = itemText;
+          onDelta?.(fullText);
+        }
       }
       if (
         event.type === "response.output_item.done" ||
