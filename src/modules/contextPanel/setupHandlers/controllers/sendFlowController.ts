@@ -7,10 +7,7 @@ import type {
   SelectedTextContext,
 } from "../../types";
 import type { SelectedTextSource } from "../../types";
-import type {
-  EditLatestTurnMarker,
-  EditLatestTurnResult,
-} from "../../chat";
+import type { EditLatestTurnMarker, EditLatestTurnResult } from "../../chat";
 
 type StatusLevel = "ready" | "warning" | "error";
 
@@ -134,7 +131,10 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
 } {
   const doSend = async () => {
     if (deps.isPanelGenerating()) {
-      deps.setStatusMessage?.("Wait for the current response to finish", "ready");
+      deps.setStatusMessage?.(
+        "Wait for the current response to finish",
+        "ready",
+      );
       return;
     }
 

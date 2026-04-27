@@ -23,6 +23,9 @@ export type PanelI18n = {
   copyChatMd: string;
   saveChatAsNote: string;
   send: string;
+  generateImage: string;
+  generateImageActive: string;
+  imagePromptPlaceholder: string;
   cancel: string;
   statusNoContext: string;
   statusReady: string;
@@ -159,6 +162,7 @@ export type PanelI18n = {
   nothingToRetryLatestTurn: string;
   preparingRetry: string;
   preparingRequest: string;
+  generatingImage: string;
   noResponse: string;
   noAssistantTextSelected: string;
   copiedResponse: string;
@@ -1034,12 +1038,12 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     shortcutPromptEmpty: "快捷指令提示詞不可為空",
     dragToReorder: "拖曳以排序",
     trLogFullPath: "完整路徑",
-    trLogOutputFormat: (mono, dual) =>
-      `輸出格式：單語=${mono} | 雙語=${dual}`,
+    trLogOutputFormat: (mono, dual) => `輸出格式：單語=${mono} | 雙語=${dual}`,
     trLogResolvingCredentials: "正在解析模型憑證...",
     trLogCheckingEnvironment: "正在檢查翻譯環境...",
     trLogEnvironmentNotReady: (status) => `環境尚未就緒（狀態：${status}）`,
-    trLogInstallEnvironmentInstruction: "請點擊「安裝環境」按鈕設定 Python 環境",
+    trLogInstallEnvironmentInstruction:
+      "請點擊「安裝環境」按鈕設定 Python 環境",
     trLogBridgeError: (message) => `橋接錯誤：${message}`,
     trLogTotalTime: (duration) => `總耗時：${duration}`,
     trLogJobFinished: "任務完成",
@@ -1052,14 +1056,17 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "チャットを Markdown としてコピー",
     saveChatAsNote: "チャットをノートとして保存",
-    statusNoContext: "有効な論文コンテキストがありません。@ で論文を追加できます。",
+    statusNoContext:
+      "有効な論文コンテキストがありません。@ で論文を追加できます。",
     modelClickChoose: "クリックしてモデルを選択",
     modelOnlyOne: "設定済みのモデルは 1 つだけです",
     conversationLoaded: "会話を読み込みました",
     noEditableLatestPrompt: "編集できる最新の質問がありません",
-    referencePickerReady: "文献ピッカーの準備ができました。@ の後に入力して検索してください。",
+    referencePickerReady:
+      "文献ピッカーの準備ができました。@ の後に入力して検索してください。",
     paperAlreadySelected: "この論文はすでに追加されています",
-    paperContextAdded: (n, max) => `論文コンテキストを追加しました（${n}/${max}）`,
+    paperContextAdded: (n, max) =>
+      `論文コンテキストを追加しました（${n}/${max}）`,
     cancelled: "キャンセルしました",
     addTextPopupTitle: "選択したテキストを LLM パネルに追加",
     addTextTitle: "リーダーで選択したテキストを追加",
@@ -1094,18 +1101,24 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "スクリプト",
     trHintPoolMaxWorker:
       "同時に翻訳する段落数。大きいほど速くなりますが、API 制限にかかる可能性があります。",
-    trHintSkipReferences: "見出しで参考文献セクションを検出し、そのページを翻訳しません。",
+    trHintSkipReferences:
+      "見出しで参考文献セクションを検出し、そのページを翻訳しません。",
     trHintKeepAppendix: "参考文献の後にある付録も翻訳します。",
-    trHintProtectAuthor: "タイトルページの著者名、メール、所属を翻訳せず保持します。",
+    trHintProtectAuthor:
+      "タイトルページの著者名、メール、所属を翻訳せず保持します。",
     trHintDisableRichText:
       "太字や斜体の保持を無効化し、プレーンテキストで出力します。",
     trHintEnhanceCompat:
       "より保守的な PDF レンダリングで互換性を高めます。レイアウト品質が少し下がる場合があります。",
-    trHintTranslateTable: "表内テキストを翻訳します。複雑な表ではずれる可能性があります。",
-    trHintOcr: "すべてのページで OCR を強制します。文字層が壊れた PDF に有効です。",
-    trHintAutoOcr: "スキャン PDF を自動検出し、必要に応じて OCR を有効化します。",
+    trHintTranslateTable:
+      "表内テキストを翻訳します。複雑な表ではずれる可能性があります。",
+    trHintOcr:
+      "すべてのページで OCR を強制します。文字層が壊れた PDF に有効です。",
+    trHintAutoOcr:
+      "スキャン PDF を自動検出し、必要に応じて OCR を有効化します。",
     trHintSaveGlossary: "翻訳時に用語集を自動抽出して保存します。",
-    trHintDisableGlossary: "用語の自動抽出を完全に無効化します。一貫性が下がる場合があります。",
+    trHintDisableGlossary:
+      "用語の自動抽出を完全に無効化します。一貫性が下がる場合があります。",
     trHintFontFamily:
       "自動=エンジンが最適選択；セリフ=Song/Times；サンセリフ=Hei/Arial；スクリプト=斜体/筆記体。",
     trHintQps:
@@ -1161,7 +1174,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     reusedExistingEmptyPaperChat: "既存の空の論文チャットを再利用しました",
     failedToCreateNewPaperConversation: "新しい論文会話の作成に失敗しました",
     startedNewPaperChat: "新しい論文チャットを開始しました",
-    noActiveLibraryForGlobalConversation: "グローバル会話用のアクティブライブラリがありません",
+    noActiveLibraryForGlobalConversation:
+      "グローバル会話用のアクティブライブラリがありません",
     failedToCreateConversation: "会話の作成に失敗しました",
     waitForResponseBeforeSwitching: "切り替える前に応答の完了を待ってください",
     selectRegion: "範囲を選択...",
@@ -1182,7 +1196,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `出力形式：単一=${mono} | 二言語=${dual}`,
     trLogResolvingCredentials: "モデル認証情報を解決中...",
     trLogCheckingEnvironment: "翻訳環境を確認中...",
-    trLogEnvironmentNotReady: (status) => `環境の準備ができていません（状態：${status}）`,
+    trLogEnvironmentNotReady: (status) =>
+      `環境の準備ができていません（状態：${status}）`,
     trLogInstallEnvironmentInstruction:
       "Python 環境を設定するには「環境をインストール」をクリックしてください",
     trLogBridgeError: (message) => `ブリッジエラー：${message}`,
@@ -1197,14 +1212,17 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "채팅을 Markdown으로 복사",
     saveChatAsNote: "채팅을 노트로 저장",
-    statusNoContext: "활성 논문 컨텍스트가 없습니다. @를 입력해 논문을 추가하세요.",
+    statusNoContext:
+      "활성 논문 컨텍스트가 없습니다. @를 입력해 논문을 추가하세요.",
     modelClickChoose: "클릭하여 모델 선택",
     modelOnlyOne: "설정된 모델이 하나뿐입니다",
     conversationLoaded: "대화를 불러왔습니다",
     noEditableLatestPrompt: "편집할 최신 질문이 없습니다",
-    referencePickerReady: "참고문헌 선택기가 준비되었습니다. @ 뒤에 입력해 논문을 검색하세요.",
+    referencePickerReady:
+      "참고문헌 선택기가 준비되었습니다. @ 뒤에 입력해 논문을 검색하세요.",
     paperAlreadySelected: "이미 추가된 논문입니다",
-    paperContextAdded: (n, max) => `논문 컨텍스트가 추가되었습니다 (${n}/${max})`,
+    paperContextAdded: (n, max) =>
+      `논문 컨텍스트가 추가되었습니다 (${n}/${max})`,
     cancelled: "취소됨",
     addTextPopupTitle: "선택한 텍스트를 LLM 패널에 추가",
     addTextTitle: "리더에서 선택한 텍스트 포함",
@@ -1239,18 +1257,23 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "스크립트",
     trHintPoolMaxWorker:
       "동시에 번역할 문단 수입니다. 높을수록 빠르지만 API 제한에 걸릴 수 있습니다.",
-    trHintSkipReferences: "제목으로 참고문헌 섹션을 감지하고 해당 페이지 번역을 건너뜁니다.",
+    trHintSkipReferences:
+      "제목으로 참고문헌 섹션을 감지하고 해당 페이지 번역을 건너뜁니다.",
     trHintKeepAppendix: "참고문헌 뒤의 부록도 계속 번역합니다.",
-    trHintProtectAuthor: "제목 페이지의 저자명, 이메일, 소속을 번역하지 않고 보존합니다.",
+    trHintProtectAuthor:
+      "제목 페이지의 저자명, 이메일, 소속을 번역하지 않고 보존합니다.",
     trHintDisableRichText:
       "굵게/기울임 같은 스타일 보존을 끕니다. 더 깔끔하지만 서식은 사라집니다.",
     trHintEnhanceCompat:
       "더 보수적인 PDF 렌더링을 사용해 호환성을 높입니다. 배치 품질이 조금 낮아질 수 있습니다.",
-    trHintTranslateTable: "표 안의 텍스트를 번역합니다. 복잡한 표는 깨질 수 있습니다.",
-    trHintOcr: "모든 페이지에 OCR을 강제합니다. 텍스트 레이어가 손상된 PDF에 사용하세요.",
+    trHintTranslateTable:
+      "표 안의 텍스트를 번역합니다. 복잡한 표는 깨질 수 있습니다.",
+    trHintOcr:
+      "모든 페이지에 OCR을 강제합니다. 텍스트 레이어가 손상된 PDF에 사용하세요.",
     trHintAutoOcr: "스캔 PDF를 자동 감지하고 필요 시 OCR을 켭니다.",
     trHintSaveGlossary: "번역 중 용어집을 자동 추출해 저장합니다.",
-    trHintDisableGlossary: "용어 자동 추출을 완전히 끕니다. 번역 일관성이 낮아질 수 있습니다.",
+    trHintDisableGlossary:
+      "용어 자동 추출을 완전히 끕니다. 번역 일관성이 낮아질 수 있습니다.",
     trHintFontFamily:
       "자동=엔진이 최적 선택; 세리프=Song/Times; 산세리프=Hei/Arial; 스크립트=필기/기울임.",
     trHintQps:
@@ -1306,9 +1329,11 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     reusedExistingEmptyPaperChat: "기존 빈 논문 채팅을 재사용했습니다",
     failedToCreateNewPaperConversation: "새 논문 대화 생성 실패",
     startedNewPaperChat: "새 논문 채팅을 시작했습니다",
-    noActiveLibraryForGlobalConversation: "전역 대화에 사용할 활성 라이브러리가 없습니다",
+    noActiveLibraryForGlobalConversation:
+      "전역 대화에 사용할 활성 라이브러리가 없습니다",
     failedToCreateConversation: "대화 생성 실패",
-    waitForResponseBeforeSwitching: "전환하기 전에 응답이 끝날 때까지 기다리세요",
+    waitForResponseBeforeSwitching:
+      "전환하기 전에 응답이 끝날 때까지 기다리세요",
     selectRegion: "영역을 선택하세요...",
     selectionCancelled: "선택이 취소되었습니다",
     screenshotFailed: "스크린샷 실패",
@@ -1323,11 +1348,11 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     shortcutPromptEmpty: "단축 프롬프트는 비워 둘 수 없습니다",
     dragToReorder: "드래그하여 순서 변경",
     trLogFullPath: "전체 경로",
-    trLogOutputFormat: (mono, dual) =>
-      `출력 형식: 단일=${mono} | 이중=${dual}`,
+    trLogOutputFormat: (mono, dual) => `출력 형식: 단일=${mono} | 이중=${dual}`,
     trLogResolvingCredentials: "모델 자격 증명 확인 중...",
     trLogCheckingEnvironment: "번역 환경 확인 중...",
-    trLogEnvironmentNotReady: (status) => `환경이 준비되지 않았습니다 (상태: ${status})`,
+    trLogEnvironmentNotReady: (status) =>
+      `환경이 준비되지 않았습니다 (상태: ${status})`,
     trLogInstallEnvironmentInstruction:
       "'환경 설치' 버튼을 클릭해 Python 환경을 설정하세요",
     trLogBridgeError: (message) => `브리지 오류: ${message}`,
@@ -1342,12 +1367,14 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "Copier le chat en Markdown",
     saveChatAsNote: "Enregistrer le chat comme note",
-    statusNoContext: "Aucun contexte d'article actif. Tapez @ pour ajouter des articles.",
+    statusNoContext:
+      "Aucun contexte d'article actif. Tapez @ pour ajouter des articles.",
     modelClickChoose: "Cliquer pour choisir un modèle",
     modelOnlyOne: "Un seul modèle est configuré",
     conversationLoaded: "Conversation chargée",
     noEditableLatestPrompt: "Aucune dernière question modifiable",
-    referencePickerReady: "Sélecteur de références prêt. Tapez après @ pour chercher des articles.",
+    referencePickerReady:
+      "Sélecteur de références prêt. Tapez après @ pour chercher des articles.",
     paperAlreadySelected: "Article déjà ajouté",
     paperContextAdded: (n, max) => `Contexte d'article ajouté (${n}/${max})`,
     cancelled: "Annulé",
@@ -1384,17 +1411,23 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "Script",
     trHintPoolMaxWorker:
       "Nombre de paragraphes traduits en parallèle. Plus haut = plus rapide, mais risque de limite API.",
-    trHintSkipReferences: "Détecte la section Références par titre et ignore sa traduction.",
+    trHintSkipReferences:
+      "Détecte la section Références par titre et ignore sa traduction.",
     trHintKeepAppendix: "Continue à traduire les annexes après les références.",
-    trHintProtectAuthor: "Conserve les noms, e-mails et affiliations de la page de titre.",
+    trHintProtectAuthor:
+      "Conserve les noms, e-mails et affiliations de la page de titre.",
     trHintDisableRichText:
       "Désactive la conservation gras/italique. Sortie plus propre mais sans style.",
     trHintEnhanceCompat:
       "Utilise un rendu PDF plus conservateur pour une meilleure compatibilité.",
-    trHintTranslateTable: "Traduit le texte des tableaux. Les tableaux complexes peuvent se décaler.",
-    trHintOcr: "Force l'OCR sur toutes les pages pour les PDF scannés ou au texte défectueux.",
-    trHintAutoOcr: "Détecte automatiquement les PDF scannés et active l'OCR si nécessaire.",
-    trHintSaveGlossary: "Extrait et enregistre automatiquement un glossaire terminologique.",
+    trHintTranslateTable:
+      "Traduit le texte des tableaux. Les tableaux complexes peuvent se décaler.",
+    trHintOcr:
+      "Force l'OCR sur toutes les pages pour les PDF scannés ou au texte défectueux.",
+    trHintAutoOcr:
+      "Détecte automatiquement les PDF scannés et active l'OCR si nécessaire.",
+    trHintSaveGlossary:
+      "Extrait et enregistre automatiquement un glossaire terminologique.",
     trHintDisableGlossary: "Désactive complètement l'extraction du glossaire.",
     trHintFontFamily:
       "Auto = meilleur choix moteur ; Serif = Song/Times ; Sans-serif = Hei/Arial ; Script = italique/cursif.",
@@ -1422,7 +1455,9 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       Number.isFinite(max) ? `Figures (${count}/${max})` : `Figures (${count})`,
     fileCount: (count) => `Fichiers (${count})`,
     paperCount: (count, max) =>
-      Number.isFinite(max) ? `Articles (${count}/${max})` : `Articles (${count})`,
+      Number.isFinite(max)
+        ? `Articles (${count}/${max})`
+        : `Articles (${count})`,
     screenshotNth: (n) => `Capture ${n}`,
     openAttachment: (name) => `Ouvrir ${name}`,
     fileFallback: "fichier",
@@ -1445,15 +1480,20 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     pinFilesPanel: "Épingler le panneau fichiers",
     pinFiguresPanel: "Épingler le panneau figures",
     conversationRestored: "Conversation restaurée",
-    noActiveLibraryForDeletion: "Aucune bibliothèque active pour la suppression",
-    cannotDeleteActiveConversation: "Impossible de supprimer la conversation active maintenant",
+    noActiveLibraryForDeletion:
+      "Aucune bibliothèque active pour la suppression",
+    cannotDeleteActiveConversation:
+      "Impossible de supprimer la conversation active maintenant",
     conversationDeletedUndo: "Conversation supprimée. Annulation disponible.",
     reusedExistingEmptyPaperChat: "Chat d'article vide existant réutilisé",
-    failedToCreateNewPaperConversation: "Échec de création d'une conversation d'article",
+    failedToCreateNewPaperConversation:
+      "Échec de création d'une conversation d'article",
     startedNewPaperChat: "Nouveau chat d'article démarré",
-    noActiveLibraryForGlobalConversation: "Aucune bibliothèque active pour la conversation globale",
+    noActiveLibraryForGlobalConversation:
+      "Aucune bibliothèque active pour la conversation globale",
     failedToCreateConversation: "Échec de création de la conversation",
-    waitForResponseBeforeSwitching: "Attendez la fin de la réponse avant de changer",
+    waitForResponseBeforeSwitching:
+      "Attendez la fin de la réponse avant de changer",
     selectRegion: "Sélectionnez une zone...",
     selectionCancelled: "Sélection annulée",
     screenshotFailed: "Échec de la capture",
@@ -1471,8 +1511,10 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trLogOutputFormat: (mono, dual) =>
       `Format de sortie : Mono=${mono} | Bilingue=${dual}`,
     trLogResolvingCredentials: "Résolution des identifiants du modèle...",
-    trLogCheckingEnvironment: "Vérification de l'environnement de traduction...",
-    trLogEnvironmentNotReady: (status) => `Environnement non prêt (statut : ${status})`,
+    trLogCheckingEnvironment:
+      "Vérification de l'environnement de traduction...",
+    trLogEnvironmentNotReady: (status) =>
+      `Environnement non prêt (statut : ${status})`,
     trLogInstallEnvironmentInstruction:
       "Cliquez sur « Installer l'environnement » pour configurer l'environnement Python",
     trLogBridgeError: (message) => `Erreur de pont : ${message}`,
@@ -1487,12 +1529,14 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "Chat als Markdown kopieren",
     saveChatAsNote: "Chat als Notiz speichern",
-    statusNoContext: "Kein aktiver Paper-Kontext. Tippen Sie @, um Paper hinzuzufügen.",
+    statusNoContext:
+      "Kein aktiver Paper-Kontext. Tippen Sie @, um Paper hinzuzufügen.",
     modelClickChoose: "Klicken, um ein Modell auszuwählen",
     modelOnlyOne: "Nur ein Modell ist konfiguriert",
     conversationLoaded: "Unterhaltung geladen",
     noEditableLatestPrompt: "Keine bearbeitbare letzte Frage",
-    referencePickerReady: "Referenzauswahl bereit. Tippen Sie nach @, um Paper zu suchen.",
+    referencePickerReady:
+      "Referenzauswahl bereit. Tippen Sie nach @, um Paper zu suchen.",
     paperAlreadySelected: "Paper bereits ausgewählt",
     paperContextAdded: (n, max) => `Paper-Kontext hinzugefügt (${n}/${max})`,
     cancelled: "Abgebrochen",
@@ -1529,18 +1573,25 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "Schreibschrift",
     trHintPoolMaxWorker:
       "Anzahl der gleichzeitig übersetzten Absätze. Höher = schneller, kann aber API-Limits auslösen.",
-    trHintSkipReferences: "Erkennt den Referenzabschnitt per Überschrift und überspringt diese Seiten.",
+    trHintSkipReferences:
+      "Erkennt den Referenzabschnitt per Überschrift und überspringt diese Seiten.",
     trHintKeepAppendix: "Übersetzt Anhänge nach dem Referenzabschnitt weiter.",
-    trHintProtectAuthor: "Erhält Namen, E-Mails und Affiliations auf der Titelseite.",
+    trHintProtectAuthor:
+      "Erhält Namen, E-Mails und Affiliations auf der Titelseite.",
     trHintDisableRichText:
       "Deaktiviert Fett/Kursiv-Erhaltung. Sauberer Text, aber ohne Formatierung.",
     trHintEnhanceCompat:
       "Nutzt konservativeres PDF-Rendering für bessere Reader-Kompatibilität.",
-    trHintTranslateTable: "Übersetzt Text in Tabellen. Komplexe Tabellen können verrutschen.",
-    trHintOcr: "Erzwingt OCR auf allen Seiten. Für PDFs mit defekter Textebene.",
-    trHintAutoOcr: "Erkennt gescannte PDFs automatisch und aktiviert OCR bei Bedarf.",
-    trHintSaveGlossary: "Extrahiert und speichert automatisch ein Terminologie-Glossar.",
-    trHintDisableGlossary: "Deaktiviert die automatische Terminologieextraktion vollständig.",
+    trHintTranslateTable:
+      "Übersetzt Text in Tabellen. Komplexe Tabellen können verrutschen.",
+    trHintOcr:
+      "Erzwingt OCR auf allen Seiten. Für PDFs mit defekter Textebene.",
+    trHintAutoOcr:
+      "Erkennt gescannte PDFs automatisch und aktiviert OCR bei Bedarf.",
+    trHintSaveGlossary:
+      "Extrahiert und speichert automatisch ein Terminologie-Glossar.",
+    trHintDisableGlossary:
+      "Deaktiviert die automatische Terminologieextraktion vollständig.",
     trHintFontFamily:
       "Auto = beste Engine-Auswahl; Serif = Song/Times; Sans-serif = Hei/Arial; Script = kursiv/Schreibschrift.",
     trHintQps:
@@ -1564,14 +1615,17 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     paperBadgeIcon: "REF",
     fileBadgeIcon: "DATEI",
     figureCount: (count, max) =>
-      Number.isFinite(max) ? `Abbildungen (${count}/${max})` : `Abbildungen (${count})`,
+      Number.isFinite(max)
+        ? `Abbildungen (${count}/${max})`
+        : `Abbildungen (${count})`,
     fileCount: (count) => `Dateien (${count})`,
     paperCount: (count, max) =>
       Number.isFinite(max) ? `Paper (${count}/${max})` : `Paper (${count})`,
     screenshotNth: (n) => `Screenshot ${n}`,
     openAttachment: (name) => `${name} öffnen`,
     fileFallback: "Datei",
-    usingCachedDocumentContext: "Zwischengespeicherten Dokumentkontext verwenden",
+    usingCachedDocumentContext:
+      "Zwischengespeicherten Dokumentkontext verwenden",
     rebuildingDocumentContext: "Dokumentkontext wird neu aufgebaut...",
     waitForCurrentResponse: "Warten Sie, bis die aktuelle Antwort fertig ist",
     noRetryableResponseFound: "Keine wiederholbare Antwort gefunden",
@@ -1591,14 +1645,19 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     pinFiguresPanel: "Abbildungspanel anheften",
     conversationRestored: "Unterhaltung wiederhergestellt",
     noActiveLibraryForDeletion: "Keine aktive Bibliothek zum Löschen",
-    cannotDeleteActiveConversation: "Aktive Unterhaltung kann derzeit nicht gelöscht werden",
+    cannotDeleteActiveConversation:
+      "Aktive Unterhaltung kann derzeit nicht gelöscht werden",
     conversationDeletedUndo: "Unterhaltung gelöscht. Rückgängig verfügbar.",
-    reusedExistingEmptyPaperChat: "Vorhandenen leeren Paper-Chat wiederverwendet",
-    failedToCreateNewPaperConversation: "Neue Paper-Unterhaltung konnte nicht erstellt werden",
+    reusedExistingEmptyPaperChat:
+      "Vorhandenen leeren Paper-Chat wiederverwendet",
+    failedToCreateNewPaperConversation:
+      "Neue Paper-Unterhaltung konnte nicht erstellt werden",
     startedNewPaperChat: "Neuen Paper-Chat gestartet",
-    noActiveLibraryForGlobalConversation: "Keine aktive Bibliothek für globale Unterhaltung",
+    noActiveLibraryForGlobalConversation:
+      "Keine aktive Bibliothek für globale Unterhaltung",
     failedToCreateConversation: "Unterhaltung konnte nicht erstellt werden",
-    waitForResponseBeforeSwitching: "Warten Sie vor dem Wechsel auf die fertige Antwort",
+    waitForResponseBeforeSwitching:
+      "Warten Sie vor dem Wechsel auf die fertige Antwort",
     selectRegion: "Bereich auswählen...",
     selectionCancelled: "Auswahl abgebrochen",
     screenshotFailed: "Screenshot fehlgeschlagen",
@@ -1617,7 +1676,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `Ausgabeformat: Mono=${mono} | Zweisprachig=${dual}`,
     trLogResolvingCredentials: "Modellanmeldedaten werden aufgelöst...",
     trLogCheckingEnvironment: "Übersetzungsumgebung wird geprüft...",
-    trLogEnvironmentNotReady: (status) => `Umgebung nicht bereit (Status: ${status})`,
+    trLogEnvironmentNotReady: (status) =>
+      `Umgebung nicht bereit (Status: ${status})`,
     trLogInstallEnvironmentInstruction:
       "Klicken Sie auf „Umgebung installieren“, um die Python-Umgebung einzurichten",
     trLogBridgeError: (message) => `Bridge-Fehler: ${message}`,
@@ -1632,12 +1692,14 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "Copiar chat como Markdown",
     saveChatAsNote: "Guardar chat como nota",
-    statusNoContext: "No hay contexto de artículo activo. Escribe @ para añadir artículos.",
+    statusNoContext:
+      "No hay contexto de artículo activo. Escribe @ para añadir artículos.",
     modelClickChoose: "Haz clic para elegir un modelo",
     modelOnlyOne: "Solo hay un modelo configurado",
     conversationLoaded: "Conversación cargada",
     noEditableLatestPrompt: "No hay una última pregunta editable",
-    referencePickerReady: "Selector de referencias listo. Escribe después de @ para buscar artículos.",
+    referencePickerReady:
+      "Selector de referencias listo. Escribe después de @ para buscar artículos.",
     paperAlreadySelected: "Artículo ya seleccionado",
     paperContextAdded: (n, max) => `Contexto de artículo añadido (${n}/${max})`,
     cancelled: "Cancelado",
@@ -1674,22 +1736,28 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "Script",
     trHintPoolMaxWorker:
       "Número de párrafos traducidos en paralelo. Más alto = más rápido, pero puede activar límites de API.",
-    trHintSkipReferences: "Detecta la sección Referencias por encabezado y omite esas páginas.",
-    trHintKeepAppendix: "Continúa traduciendo apéndices después de las referencias.",
-    trHintProtectAuthor: "Conserva nombres, correos y afiliaciones en la portada.",
+    trHintSkipReferences:
+      "Detecta la sección Referencias por encabezado y omite esas páginas.",
+    trHintKeepAppendix:
+      "Continúa traduciendo apéndices después de las referencias.",
+    trHintProtectAuthor:
+      "Conserva nombres, correos y afiliaciones en la portada.",
     trHintDisableRichText:
       "Desactiva la conservación de negrita/cursiva. Más limpio, pero pierde formato.",
     trHintEnhanceCompat:
       "Usa renderizado PDF conservador para mayor compatibilidad.",
-    trHintTranslateTable: "Traduce texto dentro de tablas. Las tablas complejas pueden desalinearse.",
-    trHintOcr: "Fuerza OCR en todas las páginas. Útil para PDF escaneados o con texto dañado.",
+    trHintTranslateTable:
+      "Traduce texto dentro de tablas. Las tablas complejas pueden desalinearse.",
+    trHintOcr:
+      "Fuerza OCR en todas las páginas. Útil para PDF escaneados o con texto dañado.",
     trHintAutoOcr: "Detecta PDF escaneados y activa OCR si es necesario.",
-    trHintSaveGlossary: "Extrae y guarda automáticamente un glosario terminológico.",
-    trHintDisableGlossary: "Desactiva por completo la extracción automática de glosario.",
+    trHintSaveGlossary:
+      "Extrae y guarda automáticamente un glosario terminológico.",
+    trHintDisableGlossary:
+      "Desactiva por completo la extracción automática de glosario.",
     trHintFontFamily:
       "Auto = el motor elige; Serif = Song/Times; Sans-serif = Hei/Arial; Script = cursiva/manuscrita.",
-    trHintQps:
-      "Solicitudes API por segundo. API gratis: 3-5; de pago: 10-20.",
+    trHintQps: "Solicitudes API por segundo. API gratis: 3-5; de pago: 10-20.",
     scrollToBottom: "Desplazar al final",
     requiredOutputFolder: "Obligatorio: elige una carpeta de salida",
     expandFigures: "Expandir figuras",
@@ -1712,7 +1780,9 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       Number.isFinite(max) ? `Figuras (${count}/${max})` : `Figuras (${count})`,
     fileCount: (count) => `Archivos (${count})`,
     paperCount: (count, max) =>
-      Number.isFinite(max) ? `Artículos (${count}/${max})` : `Artículos (${count})`,
+      Number.isFinite(max)
+        ? `Artículos (${count}/${max})`
+        : `Artículos (${count})`,
     screenshotNth: (n) => `Captura ${n}`,
     openAttachment: (name) => `Abrir ${name}`,
     fileFallback: "archivo",
@@ -1736,14 +1806,18 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     pinFiguresPanel: "Fijar panel de figuras",
     conversationRestored: "Conversación restaurada",
     noActiveLibraryForDeletion: "No hay biblioteca activa para eliminar",
-    cannotDeleteActiveConversation: "No se puede eliminar la conversación activa ahora",
+    cannotDeleteActiveConversation:
+      "No se puede eliminar la conversación activa ahora",
     conversationDeletedUndo: "Conversación eliminada. Puedes deshacer.",
     reusedExistingEmptyPaperChat: "Chat de artículo vacío reutilizado",
-    failedToCreateNewPaperConversation: "No se pudo crear la conversación de artículo",
+    failedToCreateNewPaperConversation:
+      "No se pudo crear la conversación de artículo",
     startedNewPaperChat: "Nuevo chat de artículo iniciado",
-    noActiveLibraryForGlobalConversation: "No hay biblioteca activa para conversación global",
+    noActiveLibraryForGlobalConversation:
+      "No hay biblioteca activa para conversación global",
     failedToCreateConversation: "No se pudo crear la conversación",
-    waitForResponseBeforeSwitching: "Espera a que termine la respuesta antes de cambiar",
+    waitForResponseBeforeSwitching:
+      "Espera a que termine la respuesta antes de cambiar",
     selectRegion: "Selecciona una región...",
     selectionCancelled: "Selección cancelada",
     screenshotFailed: "Error de captura",
@@ -1762,7 +1836,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `Formato de salida: Mono=${mono} | Bilingüe=${dual}`,
     trLogResolvingCredentials: "Resolviendo credenciales del modelo...",
     trLogCheckingEnvironment: "Comprobando entorno de traducción...",
-    trLogEnvironmentNotReady: (status) => `Entorno no listo (estado: ${status})`,
+    trLogEnvironmentNotReady: (status) =>
+      `Entorno no listo (estado: ${status})`,
     trLogInstallEnvironmentInstruction:
       "Haz clic en 'Instalar entorno' para configurar el entorno Python",
     trLogBridgeError: (message) => `Error de puente: ${message}`,
@@ -1777,12 +1852,14 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "Копировать чат как Markdown",
     saveChatAsNote: "Сохранить чат как заметку",
-    statusNoContext: "Нет активного контекста статьи. Введите @, чтобы добавить статьи.",
+    statusNoContext:
+      "Нет активного контекста статьи. Введите @, чтобы добавить статьи.",
     modelClickChoose: "Нажмите, чтобы выбрать модель",
     modelOnlyOne: "Настроена только одна модель",
     conversationLoaded: "Диалог загружен",
     noEditableLatestPrompt: "Нет последнего вопроса для редактирования",
-    referencePickerReady: "Выбор ссылок готов. Введите текст после @ для поиска статей.",
+    referencePickerReady:
+      "Выбор ссылок готов. Введите текст после @ для поиска статей.",
     paperAlreadySelected: "Статья уже выбрана",
     paperContextAdded: (n, max) => `Контекст статьи добавлен (${n}/${max})`,
     cancelled: "Отменено",
@@ -1802,7 +1879,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trEnvNotReady: "Среда перевода не готова",
     trQps: "QPS (запросов/сек)",
     trPoolMaxWorker: "Параллельные обработчики",
-    trSkipReferencesAuto: "Автоматически обнаруживать и пропускать список литературы",
+    trSkipReferencesAuto:
+      "Автоматически обнаруживать и пропускать список литературы",
     trKeepAppendixTranslated: "Продолжать перевод приложений",
     trProtectAuthorBlock: "Защищать авторов/аффилиации",
     trDisableRichTextTranslate: "Отключить перевод с форматированием",
@@ -1819,18 +1897,26 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "Рукописный",
     trHintPoolMaxWorker:
       "Число абзацев, переводимых одновременно. Больше = быстрее, но возможны лимиты API.",
-    trHintSkipReferences: "Определяет раздел References по заголовку и пропускает эти страницы.",
-    trHintKeepAppendix: "Продолжает перевод приложений после списка литературы.",
-    trHintProtectAuthor: "Сохраняет имена авторов, e-mail и организации на титульной странице.",
+    trHintSkipReferences:
+      "Определяет раздел References по заголовку и пропускает эти страницы.",
+    trHintKeepAppendix:
+      "Продолжает перевод приложений после списка литературы.",
+    trHintProtectAuthor:
+      "Сохраняет имена авторов, e-mail и организации на титульной странице.",
     trHintDisableRichText:
       "Отключает сохранение жирного/курсива. Текст чище, но форматирование теряется.",
     trHintEnhanceCompat:
       "Использует более консервативный рендеринг PDF для лучшей совместимости.",
-    trHintTranslateTable: "Переводит текст в таблицах. Сложные таблицы могут смещаться.",
-    trHintOcr: "Принудительно применяет OCR ко всем страницам. Для сканов и поврежденного текстового слоя.",
-    trHintAutoOcr: "Автоматически обнаруживает сканы PDF и включает OCR при необходимости.",
-    trHintSaveGlossary: "Автоматически извлекает и сохраняет терминологический глоссарий.",
-    trHintDisableGlossary: "Полностью отключает автоматическое извлечение терминов.",
+    trHintTranslateTable:
+      "Переводит текст в таблицах. Сложные таблицы могут смещаться.",
+    trHintOcr:
+      "Принудительно применяет OCR ко всем страницам. Для сканов и поврежденного текстового слоя.",
+    trHintAutoOcr:
+      "Автоматически обнаруживает сканы PDF и включает OCR при необходимости.",
+    trHintSaveGlossary:
+      "Автоматически извлекает и сохраняет терминологический глоссарий.",
+    trHintDisableGlossary:
+      "Полностью отключает автоматическое извлечение терминов.",
     trHintFontFamily:
       "Авто = выбор движка; Serif = Song/Times; Sans-serif = Hei/Arial; Script = курсив/рукописный.",
     trHintQps:
@@ -1884,11 +1970,14 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     cannotDeleteActiveConversation: "Сейчас нельзя удалить активный диалог",
     conversationDeletedUndo: "Диалог удален. Доступна отмена.",
     reusedExistingEmptyPaperChat: "Повторно использован пустой чат статьи",
-    failedToCreateNewPaperConversation: "Не удалось создать новый диалог статьи",
+    failedToCreateNewPaperConversation:
+      "Не удалось создать новый диалог статьи",
     startedNewPaperChat: "Начат новый чат статьи",
-    noActiveLibraryForGlobalConversation: "Нет активной библиотеки для глобального диалога",
+    noActiveLibraryForGlobalConversation:
+      "Нет активной библиотеки для глобального диалога",
     failedToCreateConversation: "Не удалось создать диалог",
-    waitForResponseBeforeSwitching: "Дождитесь завершения ответа перед переключением",
+    waitForResponseBeforeSwitching:
+      "Дождитесь завершения ответа перед переключением",
     selectRegion: "Выберите область...",
     selectionCancelled: "Выбор отменен",
     screenshotFailed: "Скриншот не удался",
@@ -1922,14 +2011,17 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "Copiar chat como Markdown",
     saveChatAsNote: "Salvar chat como nota",
-    statusNoContext: "Nenhum contexto de artigo ativo. Digite @ para adicionar artigos.",
+    statusNoContext:
+      "Nenhum contexto de artigo ativo. Digite @ para adicionar artigos.",
     modelClickChoose: "Clique para escolher um modelo",
     modelOnlyOne: "Apenas um modelo está configurado",
     conversationLoaded: "Conversa carregada",
     noEditableLatestPrompt: "Nenhuma pergunta recente editável",
-    referencePickerReady: "Seletor de referências pronto. Digite após @ para buscar artigos.",
+    referencePickerReady:
+      "Seletor de referências pronto. Digite após @ para buscar artigos.",
     paperAlreadySelected: "Artigo já selecionado",
-    paperContextAdded: (n, max) => `Contexto de artigo adicionado (${n}/${max})`,
+    paperContextAdded: (n, max) =>
+      `Contexto de artigo adicionado (${n}/${max})`,
     cancelled: "Cancelado",
     addTextPopupTitle: "Adicionar texto selecionado ao painel LLM",
     addTextTitle: "Incluir texto selecionado no leitor",
@@ -1964,18 +2056,25 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "Script",
     trHintPoolMaxWorker:
       "Número de parágrafos traduzidos em paralelo. Maior = mais rápido, mas pode atingir limites da API.",
-    trHintSkipReferences: "Detecta a seção Referências pelo título e pula essas páginas.",
+    trHintSkipReferences:
+      "Detecta a seção Referências pelo título e pula essas páginas.",
     trHintKeepAppendix: "Continua traduzindo apêndices após as referências.",
-    trHintProtectAuthor: "Preserva nomes, e-mails e afiliações na página de título.",
+    trHintProtectAuthor:
+      "Preserva nomes, e-mails e afiliações na página de título.",
     trHintDisableRichText:
       "Desativa preservação de negrito/itálico. Saída mais limpa, mas sem estilo.",
     trHintEnhanceCompat:
       "Usa renderização PDF mais conservadora para melhor compatibilidade.",
-    trHintTranslateTable: "Traduz texto dentro de tabelas. Tabelas complexas podem desalinha.",
-    trHintOcr: "Força OCR em todas as páginas. Use para PDFs escaneados ou com camada de texto ruim.",
-    trHintAutoOcr: "Detecta PDFs escaneados automaticamente e ativa OCR quando necessário.",
-    trHintSaveGlossary: "Extrai e salva automaticamente um glossário terminológico.",
-    trHintDisableGlossary: "Desativa completamente a extração automática de termos.",
+    trHintTranslateTable:
+      "Traduz texto dentro de tabelas. Tabelas complexas podem desalinha.",
+    trHintOcr:
+      "Força OCR em todas as páginas. Use para PDFs escaneados ou com camada de texto ruim.",
+    trHintAutoOcr:
+      "Detecta PDFs escaneados automaticamente e ativa OCR quando necessário.",
+    trHintSaveGlossary:
+      "Extrai e salva automaticamente um glossário terminológico.",
+    trHintDisableGlossary:
+      "Desativa completamente a extração automática de termos.",
     trHintFontFamily:
       "Auto = melhor escolha do motor; Serifada = Song/Times; Sem serifa = Hei/Arial; Script = cursiva.",
     trHintQps:
@@ -2026,14 +2125,18 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     pinFiguresPanel: "Fixar painel de figuras",
     conversationRestored: "Conversa restaurada",
     noActiveLibraryForDeletion: "Nenhuma biblioteca ativa para exclusão",
-    cannotDeleteActiveConversation: "Não é possível excluir a conversa ativa agora",
+    cannotDeleteActiveConversation:
+      "Não é possível excluir a conversa ativa agora",
     conversationDeletedUndo: "Conversa excluída. Desfazer disponível.",
     reusedExistingEmptyPaperChat: "Chat de artigo vazio reutilizado",
-    failedToCreateNewPaperConversation: "Falha ao criar nova conversa de artigo",
+    failedToCreateNewPaperConversation:
+      "Falha ao criar nova conversa de artigo",
     startedNewPaperChat: "Novo chat de artigo iniciado",
-    noActiveLibraryForGlobalConversation: "Nenhuma biblioteca ativa para conversa global",
+    noActiveLibraryForGlobalConversation:
+      "Nenhuma biblioteca ativa para conversa global",
     failedToCreateConversation: "Falha ao criar conversa",
-    waitForResponseBeforeSwitching: "Aguarde a resposta terminar antes de trocar",
+    waitForResponseBeforeSwitching:
+      "Aguarde a resposta terminar antes de trocar",
     selectRegion: "Selecione uma região...",
     selectionCancelled: "Seleção cancelada",
     screenshotFailed: "Falha na captura",
@@ -2052,7 +2155,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `Formato de saída: Mono=${mono} | Bilíngue=${dual}`,
     trLogResolvingCredentials: "Resolvendo credenciais do modelo...",
     trLogCheckingEnvironment: "Verificando ambiente de tradução...",
-    trLogEnvironmentNotReady: (status) => `Ambiente não pronto (status: ${status})`,
+    trLogEnvironmentNotReady: (status) =>
+      `Ambiente não pronto (status: ${status})`,
     trLogInstallEnvironmentInstruction:
       "Clique em 'Instalar ambiente' para configurar o ambiente Python",
     trLogBridgeError: (message) => `Erro de ponte: ${message}`,
@@ -2111,20 +2215,20 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       "عدد الفقرات المترجمة بالتوازي. قيمة أعلى تعني سرعة أكبر لكنها قد تصطدم بحدود API.",
     trHintSkipReferences: "يكتشف قسم المراجع من العنوان ويتجاوز ترجمته.",
     trHintKeepAppendix: "يواصل ترجمة الملاحق بعد قسم المراجع.",
-    trHintProtectAuthor: "يحافظ على أسماء المؤلفين والبريد والانتماءات في صفحة العنوان.",
+    trHintProtectAuthor:
+      "يحافظ على أسماء المؤلفين والبريد والانتماءات في صفحة العنوان.",
     trHintDisableRichText:
       "يعطل الحفاظ على الغامق/المائل. الناتج أنظف لكنه يفقد التنسيق.",
-    trHintEnhanceCompat:
-      "يستخدم عرض PDF أكثر تحفظًا لتحسين التوافق مع القراء.",
+    trHintEnhanceCompat: "يستخدم عرض PDF أكثر تحفظًا لتحسين التوافق مع القراء.",
     trHintTranslateTable: "يترجم النص داخل الجداول. قد تختل الجداول المعقدة.",
-    trHintOcr: "يفرض OCR على كل الصفحات. مفيد لملفات PDF الممسوحة أو ذات طبقة نص تالفة.",
+    trHintOcr:
+      "يفرض OCR على كل الصفحات. مفيد لملفات PDF الممسوحة أو ذات طبقة نص تالفة.",
     trHintAutoOcr: "يكتشف ملفات PDF الممسوحة تلقائيًا ويفعل OCR عند الحاجة.",
     trHintSaveGlossary: "يستخرج ويحفظ قاموس مصطلحات تلقائيًا أثناء الترجمة.",
     trHintDisableGlossary: "يعطل استخراج المصطلحات تلقائيًا بالكامل.",
     trHintFontFamily:
       "تلقائي=اختيار المحرك؛ Serif=Song/Times؛ Sans-serif=Hei/Arial؛ Script=مائل/يدوي.",
-    trHintQps:
-      "طلبات API في الثانية. المجانية: 3-5؛ المدفوعة: 10-20.",
+    trHintQps: "طلبات API في الثانية. المجانية: 3-5؛ المدفوعة: 10-20.",
     scrollToBottom: "التمرير إلى الأسفل",
     requiredOutputFolder: "مطلوب: اختر مجلد الإخراج",
     expandFigures: "توسيع الصور",
@@ -2197,7 +2301,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `تنسيق الإخراج: أحادي=${mono} | ثنائي=${dual}`,
     trLogResolvingCredentials: "جارٍ حل بيانات اعتماد النموذج...",
     trLogCheckingEnvironment: "جارٍ فحص بيئة الترجمة...",
-    trLogEnvironmentNotReady: (status) => `البيئة غير جاهزة (الحالة: ${status})`,
+    trLogEnvironmentNotReady: (status) =>
+      `البيئة غير جاهزة (الحالة: ${status})`,
     trLogInstallEnvironmentInstruction:
       "انقر زر 'تثبيت البيئة' لإعداد بيئة Python",
     trLogBridgeError: (message) => `خطأ الجسر: ${message}`,
@@ -2212,12 +2317,14 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "चैट को Markdown के रूप में कॉपी करें",
     saveChatAsNote: "चैट को नोट के रूप में सहेजें",
-    statusNoContext: "कोई सक्रिय पेपर संदर्भ नहीं है। पेपर जोड़ने के लिए @ टाइप करें।",
+    statusNoContext:
+      "कोई सक्रिय पेपर संदर्भ नहीं है। पेपर जोड़ने के लिए @ टाइप करें।",
     modelClickChoose: "मॉडल चुनने के लिए क्लिक करें",
     modelOnlyOne: "केवल एक मॉडल कॉन्फ़िगर है",
     conversationLoaded: "बातचीत लोड हुई",
     noEditableLatestPrompt: "संपादित करने योग्य नवीनतम प्रश्न नहीं है",
-    referencePickerReady: "संदर्भ चयन तैयार है। पेपर खोजने के लिए @ के बाद टाइप करें।",
+    referencePickerReady:
+      "संदर्भ चयन तैयार है। पेपर खोजने के लिए @ के बाद टाइप करें।",
     paperAlreadySelected: "पेपर पहले से चुना गया है",
     paperContextAdded: (n, max) => `पेपर संदर्भ जोड़ा गया (${n}/${max})`,
     cancelled: "रद्द किया गया",
@@ -2254,22 +2361,26 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     trFontFamilyScript: "Script",
     trHintPoolMaxWorker:
       "एक साथ अनुवादित पैराग्राफ़ों की संख्या। अधिक मान तेज़ है, पर API सीमा लग सकती है।",
-    trHintSkipReferences: "शीर्षक से References अनुभाग पहचानकर उन पृष्ठों को छोड़ता है।",
-    trHintKeepAppendix: "References के बाद आने वाले परिशिष्टों का अनुवाद जारी रखता है।",
-    trHintProtectAuthor: "शीर्षक पृष्ठ पर लेखक, ईमेल और संस्था जानकारी को अनुवाद से बचाता है।",
+    trHintSkipReferences:
+      "शीर्षक से References अनुभाग पहचानकर उन पृष्ठों को छोड़ता है।",
+    trHintKeepAppendix:
+      "References के बाद आने वाले परिशिष्टों का अनुवाद जारी रखता है।",
+    trHintProtectAuthor:
+      "शीर्षक पृष्ठ पर लेखक, ईमेल और संस्था जानकारी को अनुवाद से बचाता है।",
     trHintDisableRichText:
       "बोल्ड/इटैलिक शैली संरक्षण बंद करता है। आउटपुट साफ़ होगा पर फ़ॉर्मेट खो सकता है।",
     trHintEnhanceCompat:
       "अधिक संगत PDF रेंडरिंग का उपयोग करता है। लेआउट गुणवत्ता थोड़ी घट सकती है।",
-    trHintTranslateTable: "तालिका के अंदर टेक्स्ट का अनुवाद करता है। जटिल तालिकाएँ बिगड़ सकती हैं।",
-    trHintOcr: "सभी पृष्ठों पर OCR बाध्य करता है। स्कैन या खराब टेक्स्ट-लेयर PDF के लिए।",
+    trHintTranslateTable:
+      "तालिका के अंदर टेक्स्ट का अनुवाद करता है। जटिल तालिकाएँ बिगड़ सकती हैं।",
+    trHintOcr:
+      "सभी पृष्ठों पर OCR बाध्य करता है। स्कैन या खराब टेक्स्ट-लेयर PDF के लिए।",
     trHintAutoOcr: "स्कैन PDF स्वतः पहचानता है और ज़रूरत पर OCR सक्षम करता है।",
     trHintSaveGlossary: "अनुवाद के दौरान शब्दावली स्वतः निकालकर सहेजता है।",
     trHintDisableGlossary: "स्वचालित शब्दावली निष्कर्षण पूरी तरह बंद करता है।",
     trHintFontFamily:
       "स्वतः=इंजन चुनेगा; Serif=Song/Times; Sans-serif=Hei/Arial; Script=इटैलिक/हस्तलिपि।",
-    trHintQps:
-      "प्रति सेकंड API अनुरोध। मुफ़्त API: 3-5; पेड API: 10-20।",
+    trHintQps: "प्रति सेकंड API अनुरोध। मुफ़्त API: 3-5; पेड API: 10-20।",
     scrollToBottom: "नीचे स्क्रॉल करें",
     requiredOutputFolder: "आवश्यक: आउटपुट फ़ोल्डर चुनें",
     expandFigures: "चित्र फैलाएँ",
@@ -2321,9 +2432,11 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     reusedExistingEmptyPaperChat: "मौजूदा खाली पेपर चैट फिर उपयोग की गई",
     failedToCreateNewPaperConversation: "नई पेपर बातचीत बनाने में विफल",
     startedNewPaperChat: "नई पेपर चैट शुरू हुई",
-    noActiveLibraryForGlobalConversation: "वैश्विक बातचीत के लिए सक्रिय लाइब्रेरी नहीं",
+    noActiveLibraryForGlobalConversation:
+      "वैश्विक बातचीत के लिए सक्रिय लाइब्रेरी नहीं",
     failedToCreateConversation: "बातचीत बनाने में विफल",
-    waitForResponseBeforeSwitching: "बदलने से पहले उत्तर पूरा होने तक प्रतीक्षा करें",
+    waitForResponseBeforeSwitching:
+      "बदलने से पहले उत्तर पूरा होने तक प्रतीक्षा करें",
     selectRegion: "क्षेत्र चुनें...",
     selectionCancelled: "चयन रद्द हुआ",
     screenshotFailed: "स्क्रीनशॉट विफल",
@@ -2342,7 +2455,8 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `आउटपुट फ़ॉर्मेट: Mono=${mono} | Dual=${dual}`,
     trLogResolvingCredentials: "मॉडल क्रेडेंशियल हल हो रहे हैं...",
     trLogCheckingEnvironment: "अनुवाद वातावरण जाँचा जा रहा है...",
-    trLogEnvironmentNotReady: (status) => `वातावरण तैयार नहीं (स्थिति: ${status})`,
+    trLogEnvironmentNotReady: (status) =>
+      `वातावरण तैयार नहीं (स्थिति: ${status})`,
     trLogInstallEnvironmentInstruction:
       "Python वातावरण सेट करने के लिए 'Install Environment' बटन क्लिक करें",
     trLogBridgeError: (message) => `ब्रिज त्रुटि: ${message}`,
@@ -2374,6 +2488,9 @@ export function getPanelI18n(): PanelI18n {
       copyChatMd: "Copy chat as md",
       saveChatAsNote: "Save chat as note",
       send: "Send",
+      generateImage: "Generate image",
+      generateImageActive: "Image generation mode",
+      imagePromptPlaceholder: "Describe the image to generate...",
       cancel: "Cancel",
       statusNoContext: "No active paper context. Type @ to add papers.",
       statusReady: "Ready",
@@ -2514,7 +2631,9 @@ export function getPanelI18n(): PanelI18n {
       paperBadgeIcon: "REF",
       fileBadgeIcon: "FILE",
       figureCount: (count, max) =>
-        Number.isFinite(max) ? `Figures (${count}/${max})` : `Figures (${count})`,
+        Number.isFinite(max)
+          ? `Figures (${count}/${max})`
+          : `Figures (${count})`,
       fileCount: (count) => `Files (${count})`,
       paperCount: (count, max) =>
         Number.isFinite(max) ? `Papers (${count}/${max})` : `Papers (${count})`,
@@ -2528,6 +2647,7 @@ export function getPanelI18n(): PanelI18n {
       nothingToRetryLatestTurn: "Nothing to retry for latest turn",
       preparingRetry: "Preparing retry...",
       preparingRequest: "Preparing request...",
+      generatingImage: "Generating image...",
       noResponse: "No response.",
       noAssistantTextSelected: "No assistant text selected",
       copiedResponse: "Copied response",
@@ -2605,6 +2725,10 @@ export function getPanelI18n(): PanelI18n {
     copyChatMd: "复制对话 Markdown",
     saveChatAsNote: "将对话保存为笔记",
     send: "发送",
+    generateImage: "\u751f\u6210\u56fe\u7247",
+    generateImageActive: "\u56fe\u7247\u751f\u6210\u6a21\u5f0f",
+    imagePromptPlaceholder:
+      "\u63cf\u8ff0\u4f60\u60f3\u751f\u6210\u7684\u56fe\u7247...",
     cancel: "取消",
     statusNoContext: "当前无论文上下文，输入 @ 可添加论文。",
     statusReady: "就绪",
@@ -2751,6 +2875,7 @@ export function getPanelI18n(): PanelI18n {
     nothingToRetryLatestTurn: "最近一轮没有可重试内容",
     preparingRetry: "正在准备重试...",
     preparingRequest: "正在准备请求...",
+    generatingImage: "\u6b63\u5728\u751f\u6210\u56fe\u7247...",
     noResponse: "没有回复。",
     noAssistantTextSelected: "未选中助手文本",
     copiedResponse: "已复制回复",
@@ -2786,13 +2911,11 @@ export function getPanelI18n(): PanelI18n {
     shortcutPromptEmpty: "快捷指令提示词不能为空",
     dragToReorder: "拖动以排序",
     trLogFullPath: "完整路径",
-    trLogOutputFormat: (mono, dual) =>
-      `输出格式：单语=${mono} | 双语=${dual}`,
+    trLogOutputFormat: (mono, dual) => `输出格式：单语=${mono} | 双语=${dual}`,
     trLogResolvingCredentials: "正在解析模型凭证...",
     trLogCheckingEnvironment: "正在检查翻译环境...",
     trLogEnvironmentNotReady: (status) => `环境未就绪（状态：${status}）`,
-    trLogInstallEnvironmentInstruction:
-      "请点击“安装环境”按钮设置 Python 环境",
+    trLogInstallEnvironmentInstruction: "请点击“安装环境”按钮设置 Python 环境",
     trLogBridgeError: (message) => `桥接错误：${message}`,
     trLogTotalTime: (duration) => `总用时：${duration}`,
     trLogJobFinished: "任务完成",

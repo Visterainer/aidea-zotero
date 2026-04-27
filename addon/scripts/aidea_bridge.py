@@ -1082,23 +1082,80 @@ def _build_codex_input(messages):
 
 
 def _extract_codex_output_text(data):
+    def normalize_image_mime_type(value):
+        raw = str(value or "").strip().lower()
+        if not raw:
+            return "image/png"
+        if raw.startswith("image/"):
+            return raw
+        if raw == "jpg":
+            return "image/jpeg"
+        if raw in ("png", "jpeg", "webp", "gif"):
+            return f"image/{raw}"
+        return "image/png"
+
+    def image_markdown(part, index):
+        if not isinstance(part, dict):
+            return ""
+        part_type = str(part.get("type", ""))
+        if (
+            "image" not in part_type
+            and part_type != "image_generation_call"
+            and "image_url" not in part
+        ):
+            return ""
+        alt = (
+            f"Generated image {index}"
+            if part_type == "image_generation_call"
+            else f"Image {index}"
+        )
+        image_url = part.get("image_url")
+        if isinstance(image_url, dict):
+            image_url = image_url.get("url")
+        if not isinstance(image_url, str):
+            image_url = part.get("url")
+        if isinstance(image_url, str) and image_url.strip():
+            return f"![{alt}]({image_url.strip()})"
+
+        base64_data = part.get("result")
+        if not isinstance(base64_data, str):
+            base64_data = part.get("b64_json")
+        if not isinstance(base64_data, str):
+            base64_data = part.get("data")
+        if not isinstance(base64_data, str) or not base64_data.strip():
+            return ""
+        base64_data = base64_data.strip()
+        if base64_data.startswith("data:image/"):
+            return f"![{alt}]({base64_data})"
+        mime_type = normalize_image_mime_type(
+            part.get("mime_type")
+            or part.get("media_type")
+            or part.get("output_format")
+            or part.get("format")
+        )
+        return f"![{alt}](data:{mime_type};base64,{base64_data})"
+
     if isinstance(data, dict):
         direct = data.get("output_text")
-        if isinstance(direct, str) and direct.strip():
-            return direct
+        chunks = []
+        has_output_content_text = False
+        image_index = 1
 
         response = data.get("response")
         if isinstance(response, dict):
             rt = response.get("output_text")
             if isinstance(rt, str) and rt.strip():
-                return rt
+                direct = rt
 
         output = data.get("output")
         if isinstance(output, list):
-            texts = []
             for item in output:
                 if not isinstance(item, dict):
                     continue
+                image = image_markdown(item, image_index)
+                if image:
+                    chunks.append(image)
+                    image_index += 1
                 content = item.get("content")
                 if not isinstance(content, list):
                     continue
@@ -1108,15 +1165,36 @@ def _extract_codex_output_text(data):
                     part_type = str(part.get("type", ""))
                     text = part.get("text")
                     if part_type in ("output_text", "text") and isinstance(text, str):
-                        texts.append(text)
-            if texts:
-                return "\n".join(texts)
+                        chunks.append(text)
+                        has_output_content_text = True
+                        continue
+                    image = image_markdown(part, image_index)
+                    if image:
+                        chunks.append(image)
+                        image_index += 1
+        if isinstance(direct, str) and direct.strip() and not has_output_content_text:
+            chunks.insert(0, direct)
+        if chunks:
+            return "\n\n".join(chunks)
     return ""
 
 
 def _extract_codex_output_text_from_sse(raw):
     out = []
     completed_text = ""
+    text_delta_seen = False
+    emitted_images = set()
+
+    def emit_image(part):
+        if not isinstance(part, dict):
+            return
+        payload = {"output": [part]}
+        markdown = _extract_codex_output_text(payload).strip()
+        if not markdown or markdown in emitted_images:
+            return
+        emitted_images.add(markdown)
+        out.append(("\n\n" if out else "") + markdown)
+
     for line in raw.splitlines():
         trimmed = line.strip()
         if not trimmed.startswith("data:"):
@@ -1134,6 +1212,7 @@ def _extract_codex_output_text_from_sse(raw):
             and event.get("type") == "response.output_text.delta"
             and isinstance(event.get("delta"), str)
         ):
+            text_delta_seen = True
             out.append(event["delta"])
             continue
 
@@ -1145,7 +1224,30 @@ def _extract_codex_output_text_from_sse(raw):
         ):
             completed_text = event["response"]["output_text"]
 
+        if (
+            isinstance(event, dict)
+            and event.get("type") in ("response.output_item.done", "response.completed")
+        ):
+            item = event.get("item")
+            if isinstance(item, dict):
+                emit_image(item)
+                content = item.get("content")
+                if isinstance(content, list):
+                    for part in content:
+                        emit_image(part)
+            response = event.get("response")
+            outputs = response.get("output") if isinstance(response, dict) else None
+            if isinstance(outputs, list):
+                for output in outputs:
+                    emit_image(output)
+                    content = output.get("content") if isinstance(output, dict) else None
+                    if isinstance(content, list):
+                        for part in content:
+                            emit_image(part)
+
     joined = "".join(out).strip()
+    if joined and completed_text.strip() and not text_delta_seen:
+        return f"{completed_text.strip()}\n\n{joined}"
     if joined:
         return joined
     return completed_text.strip()

@@ -14,7 +14,9 @@ export function normalizePositiveInt(value: unknown): number | null {
   return normalized > 0 ? normalized : null;
 }
 
-export function normalizeSelectedTextSource(value: unknown): SelectedTextSource {
+export function normalizeSelectedTextSource(
+  value: unknown,
+): SelectedTextSource {
   return value === "model" ? "model" : "pdf";
 }
 
@@ -60,7 +62,7 @@ export function normalizePaperContextRefs(
     const citationKey = normalizeText(typed.citationKey, sanitize);
     const firstCreator = normalizeText(typed.firstCreator, sanitize);
     const year = normalizeText(typed.year, sanitize);
-    const dedupeKey = `${itemId}:${contextItemId}`;
+    const dedupeKey = `${contextItemId}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
     out.push({

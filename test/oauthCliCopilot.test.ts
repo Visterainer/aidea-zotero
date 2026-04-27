@@ -18,6 +18,26 @@ function buildCopilotSseResponse(text: string): Response {
   });
 }
 
+function buildCopilotImageSseResponse(): Response {
+  const body =
+    `data: ${JSON.stringify({ type: "response.output_text.delta", delta: "Done" })}\n\n` +
+    `data: ${JSON.stringify({
+      type: "response.output_item.done",
+      item: {
+        type: "image_generation_call",
+        result: "abc123",
+        output_format: "png",
+      },
+    })}\n\n` +
+    "data: [DONE]\n\n";
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+    },
+  });
+}
+
 function buildOpenAICompatSseResponse(text: string): Response {
   const body =
     `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n` +
@@ -223,8 +243,14 @@ describe("oauthCli Copilot temperature handling", function () {
     );
 
     const seenPayloads: Array<Record<string, unknown>> = [];
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const payload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
       seenPayloads.push(payload);
       assert.notProperty(payload, "temperature");
       return buildCopilotSseResponse("Recovered");
@@ -255,8 +281,14 @@ describe("oauthCli Copilot temperature handling", function () {
     );
 
     const seenPayloads: Array<Record<string, unknown>> = [];
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const payload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
       seenPayloads.push(payload);
       assert.notProperty(payload, "temperature");
       return buildCopilotSseResponse(
@@ -361,8 +393,115 @@ describe("oauthCli Copilot temperature handling", function () {
     });
 
     assert.equal(result, "Responses path");
-    assert.deepEqual(seenUrls, [
-      "https://api.responses-route.test/responses",
+    assert.deepEqual(seenUrls, ["https://api.responses-route.test/responses"]);
+  });
+
+  it("converts Copilot Responses image outputs into markdown images", async function () {
+    setOAuthPref("oauthCopilotGithubToken", "github-token");
+    setOAuthPref(
+      "oauthCopilotApiToken",
+      JSON.stringify({
+        token: "copilot-token;proxy-ep=proxy.image-output.test;",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      }),
+    );
+
+    globalThis.fetch = (async () =>
+      buildCopilotImageSseResponse()) as typeof globalThis.fetch;
+
+    const deltas: string[] = [];
+    const result = await chatWithProviderOAuth({
+      provider: "github-copilot",
+      model: "gpt-5.3-codex",
+      prompt: "Generate an image",
+      onDelta: (delta) => deltas.push(delta),
+    });
+
+    assert.equal(
+      result,
+      "Done\n\n![Generated image 1](data:image/png;base64,abc123)",
+    );
+    assert.deepEqual(deltas, [
+      "Done",
+      "\n\n![Generated image 1](data:image/png;base64,abc123)",
     ]);
+  });
+
+  it("adds the Responses image_generation tool for Copilot image requests", async function () {
+    setOAuthPref("oauthCopilotGithubToken", "github-token");
+    setOAuthPref(
+      "oauthCopilotApiToken",
+      JSON.stringify({
+        token: "copilot-token;proxy-ep=proxy.image-tool.test;",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      }),
+    );
+
+    let seenPayload: Record<string, unknown> | null = null;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      seenPayload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+      return buildCopilotImageSseResponse();
+    }) as typeof globalThis.fetch;
+
+    const result = await chatWithProviderOAuth({
+      provider: "github-copilot",
+      model: "gpt-5.3-codex",
+      prompt: "Generate an image",
+      imageGeneration: true,
+    });
+
+    assert.include(result, "![Generated image 1]");
+    assert.deepEqual(seenPayload?.tools, [{ type: "image_generation" }]);
+  });
+
+  it("offers the image_generation tool automatically for OpenAI Codex OAuth chat requests", async function () {
+    (globalThis as any).Cc = {
+      "@mozilla.org/process/environment;1": {
+        getService: () => ({
+          get: (name: string) => (name === "USERPROFILE" ? "C:\\test" : ""),
+        }),
+      },
+    };
+    (globalThis as any).Ci = { nsIEnvironment: {} };
+    (globalThis as any).Zotero.File = {
+      getContentsAsync: async () =>
+        JSON.stringify({
+          tokens: {
+            access_token: "codex-token",
+            account_id: "account-1",
+          },
+        }),
+    };
+
+    let seenPayload: Record<string, unknown> | null = null;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      seenPayload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+      return buildCopilotSseResponse("Normal answer");
+    }) as typeof globalThis.fetch;
+
+    const result = await chatWithProviderOAuth({
+      provider: "openai-codex",
+      model: "gpt-5.3-codex",
+      prompt: "Hello",
+    });
+
+    assert.equal(result, "Normal answer");
+    assert.deepEqual(seenPayload?.tools, [{ type: "image_generation" }]);
+    assert.include(
+      String(seenPayload?.instructions || ""),
+      "Use it only when the user clearly asks",
+    );
   });
 });

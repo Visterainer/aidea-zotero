@@ -74,6 +74,23 @@ describe("markdown renderer", function () {
       assert.include(html, "Example");
     });
 
+    it("should render markdown images", function () {
+      const html = renderMarkdown(
+        "Here is one:\n\n![Preview](data:image/png;base64,abc123)",
+      );
+      assert.include(html, '<img class="llm-markdown-image"');
+      assert.include(html, 'src="data:image/png;base64,abc123"');
+      assert.include(html, 'alt="Preview"');
+    });
+
+    it("should render image titles safely", function () {
+      const html = renderMarkdown(
+        '![A "quote"](https://example.com/a.png "Example title")',
+      );
+      assert.include(html, 'alt="A &quot;quote&quot;"');
+      assert.include(html, 'title="Example title"');
+    });
+
     it("should escape HTML entities in text", function () {
       const html = renderMarkdown("Use <script> for evil & profit");
       assert.include(html, "&lt;script&gt;");
@@ -107,8 +124,7 @@ describe("markdown renderer", function () {
     });
 
     it("should keep | inside inline code as one cell", function () {
-      const md =
-        "| regex | note |\n| --- | --- |\n| `a|b` | alternation |";
+      const md = "| regex | note |\n| --- | --- |\n| `a|b` | alternation |";
       const html = renderMarkdown(md);
       assert.include(html, "<code>a|b</code>");
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
@@ -116,8 +132,7 @@ describe("markdown renderer", function () {
     });
 
     it("should keep | inside inline math as one cell", function () {
-      const md =
-        "| expr | meaning |\n| --- | --- |\n| $x|y$ | divides |";
+      const md = "| expr | meaning |\n| --- | --- |\n| $x|y$ | divides |";
       const html = renderMarkdown(md);
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
       assert.equal((body.match(/<td>/g) || []).length, 2);
@@ -162,8 +177,7 @@ describe("markdown renderer", function () {
     it("should keep trailing | inside an unpaired opener", function () {
       // Stack-based: an opener without a closer keeps the row inside
       // its context, so pipes after it do not split further cells.
-      const md =
-        '| text | note |\n| --- | --- |\n| "open | unclosed |';
+      const md = '| text | note |\n| --- | --- |\n| "open | unclosed |';
       const html = renderMarkdown(md);
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
       assert.equal((body.match(/<td>/g) || []).length, 1);
@@ -179,8 +193,7 @@ describe("markdown renderer", function () {
     });
 
     it("should let outer double quotes protect inner apostrophe and |", function () {
-      const md =
-        `| phrase | note |\n| --- | --- |\n| "it's|fine" | apostrophe in quote |`;
+      const md = `| phrase | note |\n| --- | --- |\n| "it's|fine" | apostrophe in quote |`;
       const html = renderMarkdown(md);
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
       assert.equal((body.match(/<td>/g) || []).length, 2);
@@ -188,8 +201,7 @@ describe("markdown renderer", function () {
     });
 
     it("should let outer single quotes protect inner double-quoted |", function () {
-      const md =
-        `| phrase | note |\n| --- | --- |\n| '"a|b"' | double inside single |`;
+      const md = `| phrase | note |\n| --- | --- |\n| '"a|b"' | double inside single |`;
       const html = renderMarkdown(md);
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
       assert.equal((body.match(/<td>/g) || []).length, 2);
@@ -197,8 +209,7 @@ describe("markdown renderer", function () {
     });
 
     it("should protect math | alongside code | in the same row", function () {
-      const md =
-        "| expr | code |\n| --- | --- |\n| $a|b$ | `c|d` |";
+      const md = "| expr | code |\n| --- | --- |\n| $a|b$ | `c|d` |";
       const html = renderMarkdown(md);
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
       assert.equal((body.match(/<td>/g) || []).length, 2);
@@ -206,8 +217,7 @@ describe("markdown renderer", function () {
     });
 
     it("should combine code and quoted | guards in one cell", function () {
-      const md =
-        '| kind | sample |\n| --- | --- |\n| mix | `a|b` and "c|d" |';
+      const md = '| kind | sample |\n| --- | --- |\n| mix | `a|b` and "c|d" |';
       const html = renderMarkdown(md);
       const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] || "";
       assert.equal((body.match(/<td>/g) || []).length, 2);

@@ -3153,6 +3153,24 @@
   text-decoration: underline;
 }
 
+.llm-bubble.assistant .llm-markdown-image {
+  display: block;
+  max-width: min(100%, 720px);
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  margin: 10px 0;
+  border: 1px solid var(--stroke-secondary);
+  border-radius: 8px;
+  background: var(--material-background);
+  object-fit: contain;
+}
+
+.llm-bubble.assistant p > .llm-markdown-image:only-child {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
 .llm-bubble.assistant hr {
   border: none;
   border-top: 1px solid var(--stroke-secondary);
@@ -3290,6 +3308,7 @@
   border-radius: 16px;
   border: 1px solid var(--stroke-secondary);
   background: var(--material-background);
+  overflow: visible;
 }
 
 .llm-input-section.llm-input-drop-active {
@@ -3383,7 +3402,10 @@
 
 .llm-paper-picker {
   display: none;
-  max-height: min(40vh, 280px);
+  position: absolute;
+  z-index: 45;
+  box-sizing: border-box;
+  max-height: min(72vh, 420px);
   overflow-y: auto;
   border: 1px solid var(--stroke-secondary, rgba(120, 120, 120, 0.35));
   border-radius: 12px;
@@ -3635,6 +3657,8 @@
 }
 
 .llm-input {
+  position: relative;
+  z-index: 1;
   width: 100%;
   flex: 1 1 auto;
   min-height: 60px;

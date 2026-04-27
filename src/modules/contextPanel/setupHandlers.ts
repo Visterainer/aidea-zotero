@@ -147,7 +147,12 @@ import {
   clearOwnerAttachmentRefs,
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
-import type { AdvancedModelParams, ChatAttachment, PaperContextRef, SelectedTextContext } from "./types";
+import type {
+  AdvancedModelParams,
+  ChatAttachment,
+  PaperContextRef,
+  SelectedTextContext,
+} from "./types";
 import {
   searchPaperCandidates,
   type PaperSearchAttachmentCandidate,
@@ -207,10 +212,7 @@ import {
 import { bootstrapSettingTab } from "../preferenceScript";
 import { createHeightSync } from "./heightSync";
 
-export function setupHandlers(
-  body: Element,
-  initialItem?: Zotero.Item | null,
-) {
+export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const i18n = getPanelI18n();
   let item = initialItem || null;
   const tabType = (body as HTMLElement).dataset?.tabType || "";
@@ -341,7 +343,9 @@ export function setupHandlers(
 
   // ── Translate tab controller ──
   try {
-    const { initTranslateTab } = require("../pdfTranslator/translateTabController");
+    const {
+      initTranslateTab,
+    } = require("../pdfTranslator/translateTabController");
     initTranslateTab(body);
   } catch (e) {
     ztoolkit.log("LLM: Failed to init translate tab", e);
@@ -366,7 +370,11 @@ export function setupHandlers(
 
   const initialContentHeight = getPanelContentHeight();
   if (initialContentHeight && contentWrapper) {
-    if (initialContentHeight.includes("px") || initialContentHeight.includes("vh") || initialContentHeight.includes("%")) {
+    if (
+      initialContentHeight.includes("px") ||
+      initialContentHeight.includes("vh") ||
+      initialContentHeight.includes("%")
+    ) {
       contentWrapper.style.height = initialContentHeight;
       contentWrapper.style.flex = "none";
     }
@@ -374,7 +382,11 @@ export function setupHandlers(
 
   const initialBottomHeight = getPanelBottomHeight();
   if (initialBottomHeight && bottomWrapper) {
-    if (initialBottomHeight.includes("px") || initialBottomHeight.includes("vh") || initialBottomHeight.includes("%")) {
+    if (
+      initialBottomHeight.includes("px") ||
+      initialBottomHeight.includes("vh") ||
+      initialBottomHeight.includes("%")
+    ) {
       bottomWrapper.style.height = initialBottomHeight;
       bottomWrapper.style.flex = "none";
     }
@@ -393,10 +405,16 @@ export function setupHandlers(
     const settingTabBtn = panelRoot.querySelector("#llm-tab-btn-setting");
     const discussionTabBtn = panelRoot.querySelector("#llm-tab-btn-discussion");
     const translateTabBtn = panelRoot.querySelector("#llm-tab-btn-translate");
-    settingTabBtn?.addEventListener("click", () => heightSync.switchToSetting());
-    discussionTabBtn?.addEventListener("click", () => heightSync.switchToDiscussion());
+    settingTabBtn?.addEventListener("click", () =>
+      heightSync.switchToSetting(),
+    );
+    discussionTabBtn?.addEventListener("click", () =>
+      heightSync.switchToDiscussion(),
+    );
     // Translate tab uses setting layout (single pane, no bottom wrapper)
-    translateTabBtn?.addEventListener("click", () => heightSync.switchToSetting());
+    translateTabBtn?.addEventListener("click", () =>
+      heightSync.switchToSetting(),
+    );
     (
       panelRoot as typeof panelRoot & {
         __llmHeightSync?: { dispose?: () => void } | null;
@@ -534,7 +552,9 @@ export function setupHandlers(
       if (viewportResized) return;
 
       if (scrollBottomBtn) {
-        const isBottom = chatBox.scrollHeight - chatBox.clientHeight - chatBox.scrollTop <= AUTO_SCROLL_BOTTOM_THRESHOLD;
+        const isBottom =
+          chatBox.scrollHeight - chatBox.clientHeight - chatBox.scrollTop <=
+          AUTO_SCROLL_BOTTOM_THRESHOLD;
         if (isBottom) {
           scrollBottomBtn.classList.remove("visible");
         } else {
@@ -775,7 +795,8 @@ export function setupHandlers(
     }
     if (!selected) {
       hideSelectionPopup();
-      if (status) setStatus(status, getPanelI18n().noAssistantTextSelected, "error");
+      if (status)
+        setStatus(status, getPanelI18n().noAssistantTextSelected, "error");
       return;
     }
     let added = false;
@@ -955,7 +976,8 @@ export function setupHandlers(
           }
         } catch (err) {
           ztoolkit.log("Create note failed:", err);
-          if (status) setStatus(status, getPanelI18n().failedToCreateNote, "error");
+          if (status)
+            setStatus(status, getPanelI18n().failedToCreateNote, "error");
         }
       });
     }
@@ -1036,7 +1058,10 @@ export function setupHandlers(
         const textContextKey = getTextContextConversationKey();
         if (!textContextKey) return;
         if (restoredSelectedEntries.length) {
-          setSelectedTextContextEntries(textContextKey, restoredSelectedEntries);
+          setSelectedTextContextEntries(
+            textContextKey,
+            restoredSelectedEntries,
+          );
         } else {
           clearSelectedTextState(textContextKey);
         }
@@ -1123,7 +1148,8 @@ export function setupHandlers(
           assistantTimestamp: pair.assistantMessage.timestamp,
         };
         inputBox.focus({ preventScroll: true });
-        if (status) setStatus(status, getPanelI18n().editingLatestPrompt, "ready");
+        if (status)
+          setStatus(status, getPanelI18n().editingLatestPrompt, "ready");
       });
     }
   }
@@ -1150,7 +1176,8 @@ export function setupHandlers(
         const history = chatHistory.get(conversationKey) || [];
         const payload = buildChatHistoryNotePayload(history);
         if (!payload.noteText) {
-          if (status) setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
+          if (status)
+            setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
           closeExportMenu();
           return;
         }
@@ -1172,7 +1199,8 @@ export function setupHandlers(
           const history = chatHistory.get(conversationKey) || [];
           const payload = buildChatHistoryNotePayload(history);
           if (!payload.noteText) {
-            if (status) setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
+            if (status)
+              setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
             return;
           }
           if (isGlobalMode()) {
@@ -1184,11 +1212,14 @@ export function setupHandlers(
             await createNoteFromChatHistory(currentItem, history);
           }
           if (status)
-            setStatus(status, getPanelI18n().savedChatHistoryToNewNote, "ready");
+            setStatus(
+              status,
+              getPanelI18n().savedChatHistoryToNewNote,
+              "ready",
+            );
         } catch (err) {
           ztoolkit.log("Save chat history note failed:", err);
-          const errMsg =
-            err instanceof Error ? err.message : String(err);
+          const errMsg = err instanceof Error ? err.message : String(err);
           if (status)
             setStatus(
               status,
@@ -1306,7 +1337,11 @@ export function setupHandlers(
     ownerDoc: Document,
     list: HTMLDivElement,
     paperContext: PaperContextRef,
-    options?: { removable?: boolean; removableIndex?: number; autoLoaded?: boolean },
+    options?: {
+      removable?: boolean;
+      removableIndex?: number;
+      autoLoaded?: boolean;
+    },
   ) => {
     const removable = options?.removable === true;
     const chip = createElement(
@@ -1361,7 +1396,7 @@ export function setupHandlers(
 
   const updatePaperPreview = () => {
     if (!item || !paperPreview || !paperPreviewList) return;
-    const selectedPapers = normalizePaperContextEntries(
+    let selectedPapers = normalizePaperContextEntries(
       selectedPaperContextCache.get(item.id) || [],
     );
     const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
@@ -1370,25 +1405,40 @@ export function setupHandlers(
     const autoLoadedAlreadySelected = autoLoadedPaperContext
       ? selectedPapers.some(
           (entry) =>
-            entry.itemId === autoLoadedPaperContext.itemId &&
             entry.contextItemId === autoLoadedPaperContext.contextItemId,
         )
       : false;
 
     // Also check if the auto-loaded paper is the same as the base PDF in the
     // context pool — if so, skip it to avoid showing a duplicate chip.
-    const poolKeyForDedup = conversationKey ?? (item ? getConversationKey(item) : null);
-    const poolForDedup = poolKeyForDedup !== null ? conversationContextPool.get(poolKeyForDedup) : undefined;
-    const autoLoadedMatchesBasePdf = autoLoadedPaperContext && poolForDedup
-      && poolForDedup.basePdfItemId !== null
-      && !poolForDedup.basePdfRemoved
-      && (autoLoadedPaperContext.itemId === poolForDedup.basePdfItemId
-        || autoLoadedPaperContext.contextItemId === poolForDedup.basePdfItemId);
+    const poolKeyForDedup =
+      conversationKey ?? (item ? getConversationKey(item) : null);
+    const poolForDedup =
+      poolKeyForDedup !== null
+        ? conversationContextPool.get(poolKeyForDedup)
+        : undefined;
+    const autoLoadedMatchesBasePdf =
+      autoLoadedPaperContext &&
+      poolForDedup &&
+      poolForDedup.basePdfItemId !== null &&
+      !poolForDedup.basePdfRemoved &&
+      (autoLoadedPaperContext.itemId === poolForDedup.basePdfItemId ||
+        autoLoadedPaperContext.contextItemId === poolForDedup.basePdfItemId);
 
     // Phase 4: Resolve base PDF from context pool for display.
     const poolKey = conversationKey ?? (item ? getConversationKey(item) : null);
-    const pool = poolKey !== null ? conversationContextPool.get(poolKey) : undefined;
-    const hasBasePdf = pool && pool.basePdfItemId !== null && !pool.basePdfRemoved;
+    const pool =
+      poolKey !== null ? conversationContextPool.get(poolKey) : undefined;
+    const hasBasePdf =
+      pool && pool.basePdfItemId !== null && !pool.basePdfRemoved;
+
+    if (hasBasePdf && pool?.basePdfItemId) {
+      selectedPapers = selectedPapers.filter(
+        (entry) =>
+          entry.contextItemId !== pool.basePdfItemId &&
+          entry.itemId !== pool.basePdfItemId,
+      );
+    }
 
     if (!selectedPapers.length && !autoLoadedPaperContext && !hasBasePdf) {
       paperPreview.style.display = "none";
@@ -1411,8 +1461,12 @@ export function setupHandlers(
     // Phase 4: Show base PDF chip at the top if pool has one.
     if (hasBasePdf && pool) {
       const basePdfTitle = pool.basePdfTitle || "Active Document";
-      const isCompressed = pool.basePdfContext.startsWith("[摘要]") || pool.basePdfContext.startsWith("[Summary]");
-      const labelText = isCompressed ? `📝 ${basePdfTitle} [Summary]` : `📝 ${basePdfTitle}`;
+      const isCompressed =
+        pool.basePdfContext.startsWith("[摘要]") ||
+        pool.basePdfContext.startsWith("[Summary]");
+      const labelText = isCompressed
+        ? `📝 ${basePdfTitle} [Summary]`
+        : `📝 ${basePdfTitle}`;
       const chip = createElement(
         ownerDoc,
         "div",
@@ -1450,7 +1504,9 @@ export function setupHandlers(
         e.stopPropagation();
         if (pool) {
           pool.basePdfRemoved = true;
-          ztoolkit.log(`LLM UI: User unpinned base PDF (itemId=${pool.basePdfItemId})`);
+          ztoolkit.log(
+            `LLM UI: User unpinned base PDF (itemId=${pool.basePdfItemId})`,
+          );
           updatePaperPreview();
         }
       });
@@ -1464,7 +1520,11 @@ export function setupHandlers(
     // NOTE: Do NOT add it to selectedPaperContextCache — the base PDF is
     // handled separately through resolveContextSourceItem → pool.basePdfContext.
     // Adding it here would cause duplicate content injection.
-    if (autoLoadedPaperContext && !autoLoadedAlreadySelected && !autoLoadedMatchesBasePdf) {
+    if (
+      autoLoadedPaperContext &&
+      !autoLoadedAlreadySelected &&
+      !autoLoadedMatchesBasePdf
+    ) {
       // Show auto-loaded chip as display-only (dismissible via dismissedAutoLoadPaperCache)
       appendPaperChip(ownerDoc, paperPreviewList, autoLoadedPaperContext, {
         removable: true,
@@ -1512,8 +1572,10 @@ export function setupHandlers(
     clearInlineFileChips();
 
     const files = selectedFileAttachmentCache.get(item.id) || [];
-    const filePreviewHeader = filePreview.querySelector("#llm-file-context-header") as HTMLElement | null;
-    
+    const filePreviewHeader = filePreview.querySelector(
+      "#llm-file-context-header",
+    ) as HTMLElement | null;
+
     if (!files.length) {
       filePreview.style.display = "none";
       filePreview.classList.remove("expanded", "collapsed");
@@ -1559,21 +1621,14 @@ export function setupHandlers(
         !isManagedBlobPath(removedEntry.storedPath)
       ) {
         void removeAttachmentFile(removedEntry.storedPath).catch((err) => {
-          ztoolkit.log(
-            "LLM: Failed to remove discarded attachment file",
-            err,
-          );
+          ztoolkit.log("LLM: Failed to remove discarded attachment file", err);
         });
       } else if (removedEntry?.storedPath) {
         scheduleAttachmentGc();
       }
       updateFilePreview();
       if (status) {
-        setStatus(
-          status,
-          `Attachment removed (${nextFiles.length})`,
-          "ready",
-        );
+        setStatus(status, `Attachment removed (${nextFiles.length})`, "ready");
       }
     };
 
@@ -1606,7 +1661,10 @@ export function setupHandlers(
           !isManagedBlobPath(entry.storedPath)
         ) {
           void removeAttachmentFile(entry.storedPath).catch((err) => {
-            ztoolkit.log("LLM: Failed to remove discarded attachment file", err);
+            ztoolkit.log(
+              "LLM: Failed to remove discarded attachment file",
+              err,
+            );
           });
         } else if (entry?.storedPath) {
           scheduleAttachmentGc();
@@ -1640,12 +1698,18 @@ export function setupHandlers(
     // Helper: get display label for a category
     const getCategoryLabel = (cat: string): string => {
       switch (cat) {
-        case "pdf": return "PDF";
-        case "markdown": return "Markdown";
-        case "code": return "Code";
-        case "text": return "Text";
-        case "image": return "Image";
-        default: return "Files";
+        case "pdf":
+          return "PDF";
+        case "markdown":
+          return "Markdown";
+        case "code":
+          return "Code";
+        case "text":
+          return "Text";
+        case "image":
+          return "Image";
+        default:
+          return "Files";
       }
     };
 
@@ -1711,11 +1775,14 @@ export function setupHandlers(
       catFiles: { attachment: any; index: number }[],
       isGroupExpanded: boolean,
     ) => {
-      const procCount = catFiles.filter((cf) => cf.attachment.processing).length;
+      const procCount = catFiles.filter(
+        (cf) => cf.attachment.processing,
+      ).length;
       const catLabel = getCategoryLabel(cat);
-      const summaryText = procCount > 0
-        ? `${catLabel} (${catFiles.length - procCount}/${catFiles.length})`
-        : `${catLabel} (${catFiles.length})`;
+      const summaryText =
+        procCount > 0
+          ? `${catLabel} (${catFiles.length - procCount}/${catFiles.length})`
+          : `${catLabel} (${catFiles.length})`;
 
       const chip = createElement(
         ownerDoc,
@@ -1810,7 +1877,11 @@ export function setupHandlers(
       } else {
         // Summary chip for this category
         const isGroupExpanded = expandedSet!.has(cat);
-        const summaryChip = createCategorySummaryChip(cat, catFiles, isGroupExpanded);
+        const summaryChip = createCategorySummaryChip(
+          cat,
+          catFiles,
+          isGroupExpanded,
+        );
         contextPreviews.insertBefore(summaryChip, filePreview);
         inlineFileChips.push(summaryChip);
 
@@ -1838,13 +1909,26 @@ export function setupHandlers(
             if (attachment.processing) {
               row.classList.add("llm-file-processing");
             }
-            const type = createElement(ownerDoc, "span", "llm-file-context-type", {
-              textContent: getAttachmentTypeLabel(attachment),
-              title: attachment.mimeType || attachment.category || "file",
-            });
+            const type = createElement(
+              ownerDoc,
+              "span",
+              "llm-file-context-type",
+              {
+                textContent: getAttachmentTypeLabel(attachment),
+                title: attachment.mimeType || attachment.category || "file",
+              },
+            );
             type.setAttribute("data-category", attachment.category || "file");
-            const info = createElement(ownerDoc, "div", "llm-file-context-text");
-            const name = createElement(ownerDoc, "span", "llm-file-context-name");
+            const info = createElement(
+              ownerDoc,
+              "div",
+              "llm-file-context-text",
+            );
+            const name = createElement(
+              ownerDoc,
+              "span",
+              "llm-file-context-name",
+            );
             if (attachment.processing) {
               name.classList.add("llm-file-name-loading");
             } else {
@@ -2002,11 +2086,7 @@ export function setupHandlers(
           }
           updateImagePreviewPreservingScroll();
           if (status) {
-            setStatus(
-              status,
-              getPanelI18n().figuresCleared,
-              "ready",
-            );
+            setStatus(status, getPanelI18n().figuresCleared, "ready");
           }
         });
         thumbItem.append(thumbBtn, removeOneBtn);
@@ -2111,12 +2191,18 @@ export function setupHandlers(
     historyUndo.style.display = "flex";
   };
 
-  const getPaperHistoryEntries = async (): Promise<ConversationHistoryEntry[]> => {
+  const getPaperHistoryEntries = async (): Promise<
+    ConversationHistoryEntry[]
+  > => {
     if (!basePaperItem) return [];
     const parentItemId = basePaperItem.id;
-    let paperConversations: Awaited<ReturnType<typeof listPaperConversations>> = [];
+    let paperConversations: Awaited<ReturnType<typeof listPaperConversations>> =
+      [];
     try {
-      paperConversations = await listPaperConversations(parentItemId, PAPER_HISTORY_LIMIT);
+      paperConversations = await listPaperConversations(
+        parentItemId,
+        PAPER_HISTORY_LIMIT,
+      );
     } catch (err) {
       ztoolkit.log("LLM: Failed to list paper conversations", err);
     }
@@ -2127,7 +2213,11 @@ export function setupHandlers(
       const history = chatHistory.get(pc.conversationKey) || [];
       let firstUserText = "";
       for (const msg of history) {
-        if (msg.role === "user" && typeof msg.text === "string" && msg.text.trim()) {
+        if (
+          msg.role === "user" &&
+          typeof msg.text === "string" &&
+          msg.text.trim()
+        ) {
           firstUserText = msg.text.trim();
           break;
         }
@@ -2136,10 +2226,11 @@ export function setupHandlers(
       const title = pc.title
         ? normalizeHistoryTitle(pc.title)
         : firstUserText
-          ? (firstUserText.length > MAX_TITLE_LEN
-              ? firstUserText.slice(0, MAX_TITLE_LEN) + "…"
-              : firstUserText)
-          : normalizeHistoryTitle(basePaperItem.getField("title")) || "Paper chat";
+          ? firstUserText.length > MAX_TITLE_LEN
+            ? firstUserText.slice(0, MAX_TITLE_LEN) + "…"
+            : firstUserText
+          : normalizeHistoryTitle(basePaperItem.getField("title")) ||
+            "Paper chat";
       entries.push({
         kind: "paper",
         conversationKey: pc.conversationKey,
@@ -2333,7 +2424,9 @@ export function setupHandlers(
           "llm-history-row-action llm-history-row-pin",
           {
             type: "button",
-            title: entry.isPinned ? i18n.unpinConversation : i18n.pinConversation,
+            title: entry.isPinned
+              ? i18n.unpinConversation
+              : i18n.pinConversation,
           },
         ) as HTMLButtonElement;
         pinBtn.classList.toggle("is-pinned", entry.isPinned);
@@ -2355,7 +2448,9 @@ export function setupHandlers(
               title: "Delete conversation",
             },
           ) as HTMLButtonElement;
-          deleteBtn.appendChild(createTrashIcon(body.ownerDocument as Document));
+          deleteBtn.appendChild(
+            createTrashIcon(body.ownerDocument as Document),
+          );
           deleteBtn.setAttribute("aria-label", `Delete ${entry.title}`);
           deleteBtn.dataset.action = "delete";
           row.appendChild(deleteBtn);
@@ -2390,7 +2485,6 @@ export function setupHandlers(
       historyMenu.append(divider, deleteAllBtn);
     }
   };
-
 
   const refreshGlobalHistoryHeader = async () => {
     if (!historyBar || !titleStatic || !item) {
@@ -2447,7 +2541,9 @@ export function setupHandlers(
         if (seenGlobalKeys.has(normalizedKey)) continue;
         seenGlobalKeys.add(normalizedKey);
         const title = normalizeHistoryTitle(entry.title) || "Untitled chat";
-        const lastActivity = Number(entry.lastActivityAt || entry.createdAt || 0);
+        const lastActivity = Number(
+          entry.lastActivityAt || entry.createdAt || 0,
+        );
         globalEntries.push({
           kind: "global",
           conversationKey: normalizedKey,
@@ -2468,12 +2564,17 @@ export function setupHandlers(
       if (isGlobalMode() && item && Number.isFinite(item.id) && item.id > 0) {
         activeGlobalKey = Math.floor(item.id);
       } else {
-        const remembered = Number(activeGlobalConversationByLibrary.get(libraryID));
+        const remembered = Number(
+          activeGlobalConversationByLibrary.get(libraryID),
+        );
         if (Number.isFinite(remembered) && remembered > 0) {
           activeGlobalKey = Math.floor(remembered);
         }
       }
-      if (activeGlobalKey > 0 && !pendingHistoryDeletionKeys.has(activeGlobalKey)) {
+      if (
+        activeGlobalKey > 0 &&
+        !pendingHistoryDeletionKeys.has(activeGlobalKey)
+      ) {
         const existsInHistorical = globalEntries.some(
           (entry) => entry.conversationKey === activeGlobalKey,
         );
@@ -2517,7 +2618,10 @@ export function setupHandlers(
       ? Math.floor(nextConversationKey)
       : 0;
     if (normalizedConversationKey <= 0) return;
-    const nextItem = createGlobalPortalItem(libraryID, normalizedConversationKey);
+    const nextItem = createGlobalPortalItem(
+      libraryID,
+      normalizedConversationKey,
+    );
     item = nextItem;
     syncConversationIdentity();
     activeEditSession = null;
@@ -2549,8 +2653,9 @@ export function setupHandlers(
     libraryID: number,
     deletedConversationKey: number,
   ): Promise<HistorySwitchTarget> => {
-    let remainingHistorical: Awaited<ReturnType<typeof listGlobalConversations>> =
-      [];
+    let remainingHistorical: Awaited<
+      ReturnType<typeof listGlobalConversations>
+    > = [];
     try {
       remainingHistorical = await listGlobalConversations(
         libraryID,
@@ -2579,7 +2684,8 @@ export function setupHandlers(
     }
 
     const isEmptyDraft = async (conversationKey: number): Promise<boolean> => {
-      if (!Number.isFinite(conversationKey) || conversationKey <= 0) return false;
+      if (!Number.isFinite(conversationKey) || conversationKey <= 0)
+        return false;
       const normalizedKey = Math.floor(conversationKey);
       if (normalizedKey === deletedConversationKey) return false;
       if (pendingHistoryDeletionKeys.has(normalizedKey)) return false;
@@ -2595,7 +2701,9 @@ export function setupHandlers(
       }
     };
 
-    let candidateDraftKey = Number(activeGlobalConversationByLibrary.get(libraryID));
+    let candidateDraftKey = Number(
+      activeGlobalConversationByLibrary.get(libraryID),
+    );
     if (!(await isEmptyDraft(candidateDraftKey))) {
       candidateDraftKey = 0;
       try {
@@ -2675,16 +2783,16 @@ export function setupHandlers(
       await clearOwnerAttachmentRefs("conversation", conversationKey);
     } catch (err) {
       hasError = true;
-      ztoolkit.log(
-        "LLM: Failed to clear deleted history attachment refs",
-        err,
-      );
+      ztoolkit.log("LLM: Failed to clear deleted history attachment refs", err);
     }
     try {
       await removeConversationAttachmentFiles(conversationKey);
     } catch (err) {
       hasError = true;
-      ztoolkit.log("LLM: Failed to remove deleted history attachment files", err);
+      ztoolkit.log(
+        "LLM: Failed to remove deleted history attachment files",
+        err,
+      );
     }
     try {
       if (pending.kind === "paper") {
@@ -2752,7 +2860,8 @@ export function setupHandlers(
       } else {
         await switchGlobalConversation(pending.conversationKey);
       }
-      if (status) setStatus(status, getPanelI18n().conversationRestored, "ready");
+      if (status)
+        setStatus(status, getPanelI18n().conversationRestored, "ready");
       return;
     }
     await refreshGlobalHistoryHeader();
@@ -2766,7 +2875,8 @@ export function setupHandlers(
     return (
       latestConversationHistory.find(
         (entry) =>
-          entry.kind === historyKind && entry.conversationKey === conversationKey,
+          entry.kind === historyKind &&
+          entry.conversationKey === conversationKey,
       ) || null
     );
   };
@@ -2777,7 +2887,8 @@ export function setupHandlers(
     if (entry.kind !== "global" && entry.kind !== "paper") return;
     const libraryID = getCurrentLibraryID();
     if (!libraryID) {
-      if (status) setStatus(status, getPanelI18n().noActiveLibraryForDeletion, "error");
+      if (status)
+        setStatus(status, getPanelI18n().noActiveLibraryForDeletion, "error");
       return;
     }
 
@@ -2800,15 +2911,25 @@ export function setupHandlers(
           newConversationKey = await createGlobalConversation(libraryID);
         }
       } catch (err) {
-        ztoolkit.log("LLM: Failed to create new conversation after deleting active", err);
+        ztoolkit.log(
+          "LLM: Failed to create new conversation after deleting active",
+          err,
+        );
       }
       if (!newConversationKey) {
         if (status) {
-          setStatus(status, getPanelI18n().cannotDeleteActiveConversation, "error");
+          setStatus(
+            status,
+            getPanelI18n().cannotDeleteActiveConversation,
+            "error",
+          );
         }
         return;
       }
-      fallbackTarget = { kind: entry.kind, conversationKey: newConversationKey };
+      fallbackTarget = {
+        kind: entry.kind,
+        conversationKey: newConversationKey,
+      };
       await switchToHistoryTarget(fallbackTarget);
     }
 
@@ -2838,11 +2959,14 @@ export function setupHandlers(
     });
     showHistoryUndoToast(entry.title);
     await refreshGlobalHistoryHeader();
-    if (status) setStatus(status, getPanelI18n().conversationDeletedUndo, "ready");
+    if (status)
+      setStatus(status, getPanelI18n().conversationDeletedUndo, "ready");
   };
 
   /** Core batch-delete logic shared by "delete unpinned" and "delete all" */
-  const executeBatchDelete = async (entriesToDelete: ConversationHistoryEntry[]) => {
+  const executeBatchDelete = async (
+    entriesToDelete: ConversationHistoryEntry[],
+  ) => {
     if (!item) return;
     const libraryID = getCurrentLibraryID();
     if (!libraryID) return;
@@ -2857,27 +2981,76 @@ export function setupHandlers(
     const paperEntries = entriesToDelete.filter((e) => e.kind === "paper");
 
     if (globalEntries.length) {
-      if (globalEntries.length === latestConversationHistory.filter((e) => e.kind === "global" && e.deletable).length) {
+      if (
+        globalEntries.length ===
+        latestConversationHistory.filter(
+          (e) => e.kind === "global" && e.deletable,
+        ).length
+      ) {
         // All globals — use fast batch delete (but we need to exclude pinned ones that are kept)
         // Since we only call this for entries we want to delete, do individual deletes to handle partial
         for (const entry of globalEntries) {
           clearPendingDeletionCaches(entry.conversationKey);
-          try { await clearStoredConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
-          try { await clearOwnerAttachmentRefs("conversation", entry.conversationKey); } catch (_err) { /* best-effort */ }
-          try { await removeConversationAttachmentFiles(entry.conversationKey); } catch (_err) { /* best-effort */ }
-          try { await deleteGlobalConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
-          if (activeGlobalConversationByLibrary.get(libraryID) === entry.conversationKey) {
+          try {
+            await clearStoredConversation(entry.conversationKey);
+          } catch (_err) {
+            /* best-effort */
+          }
+          try {
+            await clearOwnerAttachmentRefs(
+              "conversation",
+              entry.conversationKey,
+            );
+          } catch (_err) {
+            /* best-effort */
+          }
+          try {
+            await removeConversationAttachmentFiles(entry.conversationKey);
+          } catch (_err) {
+            /* best-effort */
+          }
+          try {
+            await deleteGlobalConversation(entry.conversationKey);
+          } catch (_err) {
+            /* best-effort */
+          }
+          if (
+            activeGlobalConversationByLibrary.get(libraryID) ===
+            entry.conversationKey
+          ) {
             activeGlobalConversationByLibrary.delete(libraryID);
           }
         }
       } else {
         for (const entry of globalEntries) {
           clearPendingDeletionCaches(entry.conversationKey);
-          try { await clearStoredConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
-          try { await clearOwnerAttachmentRefs("conversation", entry.conversationKey); } catch (_err) { /* best-effort */ }
-          try { await removeConversationAttachmentFiles(entry.conversationKey); } catch (_err) { /* best-effort */ }
-          try { await deleteGlobalConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
-          if (activeGlobalConversationByLibrary.get(libraryID) === entry.conversationKey) {
+          try {
+            await clearStoredConversation(entry.conversationKey);
+          } catch (_err) {
+            /* best-effort */
+          }
+          try {
+            await clearOwnerAttachmentRefs(
+              "conversation",
+              entry.conversationKey,
+            );
+          } catch (_err) {
+            /* best-effort */
+          }
+          try {
+            await removeConversationAttachmentFiles(entry.conversationKey);
+          } catch (_err) {
+            /* best-effort */
+          }
+          try {
+            await deleteGlobalConversation(entry.conversationKey);
+          } catch (_err) {
+            /* best-effort */
+          }
+          if (
+            activeGlobalConversationByLibrary.get(libraryID) ===
+            entry.conversationKey
+          ) {
             activeGlobalConversationByLibrary.delete(libraryID);
           }
         }
@@ -2886,17 +3059,37 @@ export function setupHandlers(
 
     for (const entry of paperEntries) {
       clearPendingDeletionCaches(entry.conversationKey);
-      try { await clearStoredConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
-      try { await clearOwnerAttachmentRefs("conversation", entry.conversationKey); } catch (_err) { /* best-effort */ }
-      try { await removeConversationAttachmentFiles(entry.conversationKey); } catch (_err) { /* best-effort */ }
-      try { await deletePaperConversation(entry.conversationKey); } catch (_err) { /* best-effort */ }
+      try {
+        await clearStoredConversation(entry.conversationKey);
+      } catch (_err) {
+        /* best-effort */
+      }
+      try {
+        await clearOwnerAttachmentRefs("conversation", entry.conversationKey);
+      } catch (_err) {
+        /* best-effort */
+      }
+      try {
+        await removeConversationAttachmentFiles(entry.conversationKey);
+      } catch (_err) {
+        /* best-effort */
+      }
+      try {
+        await deletePaperConversation(entry.conversationKey);
+      } catch (_err) {
+        /* best-effort */
+      }
     }
     scheduleAttachmentGc();
 
     // Switch to a fresh conversation
     if (tabType === "reader" && item) {
       let newKey = 0;
-      try { newKey = await createPaperConversation(item.id); } catch (_err) { /* */ }
+      try {
+        newKey = await createPaperConversation(item.id);
+      } catch (_err) {
+        /* */
+      }
       if (newKey > 0) {
         await switchPaperConversation(newKey);
       }
@@ -2906,7 +3099,11 @@ export function setupHandlers(
         await switchGlobalConversation(remaining[0].conversationKey);
       } else {
         let newKey = 0;
-        try { newKey = await createGlobalConversation(libraryID); } catch (_err) { /* */ }
+        try {
+          newKey = await createGlobalConversation(libraryID);
+        } catch (_err) {
+          /* */
+        }
         if (newKey > 0) {
           activeGlobalConversationByLibrary.set(libraryID, newKey);
           await switchGlobalConversation(newKey);
@@ -3012,7 +3209,9 @@ export function setupHandlers(
     confirmPanel.appendChild(btnRow);
 
     // Replace delete-all button with the confirm panel
-    const existingDeleteAll = historyMenu.querySelector(".llm-history-delete-all");
+    const existingDeleteAll = historyMenu.querySelector(
+      ".llm-history-delete-all",
+    );
     if (existingDeleteAll) {
       existingDeleteAll.replaceWith(confirmPanel);
     } else {
@@ -3053,11 +3252,17 @@ export function setupHandlers(
     if (rowEl.querySelector(".llm-history-rename-input")) return;
 
     const doc = body.ownerDocument as Document;
-    const rowMain = rowEl.querySelector(".llm-history-menu-row-main") as HTMLButtonElement | null;
+    const rowMain = rowEl.querySelector(
+      ".llm-history-menu-row-main",
+    ) as HTMLButtonElement | null;
     if (!rowMain) return;
 
     // Build inline input overlay
-    const renameWrapper = createElement(doc, "div", "llm-history-rename-wrapper");
+    const renameWrapper = createElement(
+      doc,
+      "div",
+      "llm-history-rename-wrapper",
+    );
     const input = createElement(doc, "input", "llm-history-rename-input", {
       type: "text",
       value: entry.title,
@@ -3124,7 +3329,6 @@ export function setupHandlers(
     }, 30);
   };
 
-
   // ── Paper conversation switching (Reader multi-history) ──
   const switchPaperConversation = async (nextPaperKey: number) => {
     if (!item) return;
@@ -3148,11 +3352,7 @@ export function setupHandlers(
     if (!item) return;
     if (isPanelGenerating(body) || historyNewBtn?.disabled) {
       if (status) {
-        setStatus(
-          status,
-          getPanelI18n().waitForCurrentResponse,
-          "ready"
-        );
+        setStatus(status, getPanelI18n().waitForCurrentResponse, "ready");
       }
       return;
     }
@@ -3164,14 +3364,20 @@ export function setupHandlers(
     const currentPaperKey = activePaperConversationByItem.get(currentItemId);
     if (currentPaperKey && currentPaperKey > 0) {
       try {
-        const turnCount = await getPaperConversationUserTurnCount(currentPaperKey);
+        const turnCount =
+          await getPaperConversationUserTurnCount(currentPaperKey);
         if (turnCount === 0) {
           // Already an empty conversation — just clear compose state and refocus.
           clearTransientComposeStateForItem(currentItemId, currentPaperKey);
           resetComposePreviewUI();
           clearDraftInput();
           clearComposeState();
-          if (status) setStatus(status, getPanelI18n().reusedExistingEmptyPaperChat, "ready");
+          if (status)
+            setStatus(
+              status,
+              getPanelI18n().reusedExistingEmptyPaperChat,
+              "ready",
+            );
           if (inputBox) inputBox.focus({ preventScroll: true });
           return;
         }
@@ -3188,7 +3394,12 @@ export function setupHandlers(
       ztoolkit.log("LLM: Failed to create new paper conversation", err);
     }
     if (!newKey) {
-      if (status) setStatus(status, getPanelI18n().failedToCreateNewPaperConversation, "error");
+      if (status)
+        setStatus(
+          status,
+          getPanelI18n().failedToCreateNewPaperConversation,
+          "error",
+        );
       return;
     }
 
@@ -3215,18 +3426,18 @@ export function setupHandlers(
     if (!item) return;
     if (isPanelGenerating(body) || historyNewBtn?.disabled) {
       if (status) {
-        setStatus(
-          status,
-          getPanelI18n().waitForCurrentResponse,
-          "ready",
-        );
+        setStatus(status, getPanelI18n().waitForCurrentResponse, "ready");
       }
       return;
     }
     const libraryID = getCurrentLibraryID();
     if (!libraryID) {
       if (status) {
-        setStatus(status, getPanelI18n().noActiveLibraryForGlobalConversation, "error");
+        setStatus(
+          status,
+          getPanelI18n().noActiveLibraryForGlobalConversation,
+          "error",
+        );
       }
       return;
     }
@@ -3266,7 +3477,10 @@ export function setupHandlers(
           reuseReason = "latest-draft";
         }
       } catch (err) {
-        ztoolkit.log("LLM: Failed to load latest empty global conversation", err);
+        ztoolkit.log(
+          "LLM: Failed to load latest empty global conversation",
+          err,
+        );
       }
     }
 
@@ -3279,7 +3493,8 @@ export function setupHandlers(
       reuseReason = null;
     }
     if (!targetConversationKey) {
-      if (status) setStatus(status, getPanelI18n().failedToCreateConversation, "error");
+      if (status)
+        setStatus(status, getPanelI18n().failedToCreateConversation, "error");
       return;
     }
 
@@ -3401,9 +3616,9 @@ export function setupHandlers(
           e.stopPropagation();
           return;
         }
-        const row = deleteBtn.closest(".llm-history-menu-row") as
-          | HTMLDivElement
-          | null;
+        const row = deleteBtn.closest(
+          ".llm-history-menu-row",
+        ) as HTMLDivElement | null;
         if (!row) return;
         e.preventDefault();
         e.stopPropagation();
@@ -3417,7 +3632,8 @@ export function setupHandlers(
         ) {
           return;
         }
-        const historyKind = row.dataset.historyKind === "paper" ? "paper" : "global";
+        const historyKind =
+          row.dataset.historyKind === "paper" ? "paper" : "global";
         const entry = findHistoryEntryByKey(historyKind, parsedConversationKey);
         if (!entry || !entry.deletable) return;
         void queueHistoryDeletion(entry);
@@ -3431,9 +3647,14 @@ export function setupHandlers(
       if (pinBtn) {
         e.preventDefault();
         e.stopPropagation();
-        const row = pinBtn.closest(".llm-history-menu-row") as HTMLDivElement | null;
+        const row = pinBtn.closest(
+          ".llm-history-menu-row",
+        ) as HTMLDivElement | null;
         if (!row) return;
-        const parsedKey = Number.parseInt(row.dataset.conversationKey || "", 10);
+        const parsedKey = Number.parseInt(
+          row.dataset.conversationKey || "",
+          10,
+        );
         if (!Number.isFinite(parsedKey) || parsedKey <= 0) return;
         const hKind = row.dataset.historyKind === "paper" ? "paper" : "global";
         void togglePinConversation(hKind, parsedKey);
@@ -3447,9 +3668,14 @@ export function setupHandlers(
       if (renameBtn) {
         e.preventDefault();
         e.stopPropagation();
-        const row = renameBtn.closest(".llm-history-menu-row") as HTMLDivElement | null;
+        const row = renameBtn.closest(
+          ".llm-history-menu-row",
+        ) as HTMLDivElement | null;
         if (!row) return;
-        const parsedKey = Number.parseInt(row.dataset.conversationKey || "", 10);
+        const parsedKey = Number.parseInt(
+          row.dataset.conversationKey || "",
+          10,
+        );
         if (!Number.isFinite(parsedKey) || parsedKey <= 0) return;
         const hKind = row.dataset.historyKind === "paper" ? "paper" : "global";
         startInlineRename(hKind, parsedKey, row);
@@ -3480,11 +3706,17 @@ export function setupHandlers(
         e.stopPropagation();
         closeHistoryMenu();
         if (status) {
-          setStatus(status, getPanelI18n().waitForResponseBeforeSwitching, "ready");
+          setStatus(
+            status,
+            getPanelI18n().waitForResponseBeforeSwitching,
+            "ready",
+          );
         }
         return;
       }
-      const row = rowMain.closest(".llm-history-menu-row") as HTMLDivElement | null;
+      const row = rowMain.closest(
+        ".llm-history-menu-row",
+      ) as HTMLDivElement | null;
       if (!row) return;
       e.preventDefault();
       e.stopPropagation();
@@ -3492,10 +3724,14 @@ export function setupHandlers(
         row.dataset.conversationKey || "",
         10,
       );
-      if (!Number.isFinite(parsedConversationKey) || parsedConversationKey <= 0) {
+      if (
+        !Number.isFinite(parsedConversationKey) ||
+        parsedConversationKey <= 0
+      ) {
         return;
       }
-      const historyKind = row.dataset.historyKind === "paper" ? "paper" : "global";
+      const historyKind =
+        row.dataset.historyKind === "paper" ? "paper" : "global";
       void (async () => {
         if (historyKind === "paper") {
           await switchPaperConversation(parsedConversationKey);
@@ -3507,9 +3743,9 @@ export function setupHandlers(
     });
   }
 
-
   // Model selection is delegated to modelSelectionController.ts
-  const getSelectedModelInfo = () => getSelectedModelInfoFromController(item?.id ?? null);
+  const getSelectedModelInfo = () =>
+    getSelectedModelInfoFromController(item?.id ?? null);
 
   type ActionLabelMode = "icon" | "full";
   type ModelLabelMode = "icon" | "full-single" | "full-wrap2";
@@ -3802,10 +4038,7 @@ export function setupHandlers(
       if (state.selectText === "full") {
         return "full";
       }
-      if (
-        state.screenshot === "full" ||
-        state.model !== "icon"
-      ) {
+      if (state.screenshot === "full" || state.model !== "icon") {
         return "half";
       }
       return "icon";
@@ -3840,7 +4073,6 @@ export function setupHandlers(
       modelBtn.classList.toggle("llm-model-btn-wrap-2line", false);
       modelBtn.textContent = modelLabel;
       modelBtn.title = modelHint;
-
     };
 
     const applyState = (state: ActionRevealState) => {
@@ -4026,8 +4258,10 @@ export function setupHandlers(
 
       // Match selection by model name + provider to handle same-name models across providers
       const isSelected =
-        entry.model.trim().toLowerCase() === currentModel.trim().toLowerCase()
-        && (entry.provider || "").toLowerCase() === (currentProvider || "").toLowerCase();
+        entry.model.trim().toLowerCase() ===
+          currentModel.trim().toLowerCase() &&
+        (entry.provider || "").toLowerCase() ===
+          (currentProvider || "").toLowerCase();
       const optionClasses = isSelected
         ? "llm-response-menu-item llm-model-option llm-model-option-selected"
         : "llm-response-menu-item llm-model-option";
@@ -4037,9 +4271,7 @@ export function setupHandlers(
         optionClasses,
         {
           type: "button",
-          textContent: isSelected
-            ? `✓  ${entry.model}`
-            : `    ${entry.model}`,
+          textContent: isSelected ? `✓  ${entry.model}` : `    ${entry.model}`,
         },
       );
       const applyModelSelection = (e: Event) => {
@@ -4049,7 +4281,8 @@ export function setupHandlers(
         if (!item) return;
         // Store the model name and provider ID for the current item
         selectedModelCache.set(item.id, entry.model);
-        if (entry.providerId) selectedModelProviderCache.set(item.id, entry.providerId);
+        if (entry.providerId)
+          selectedModelProviderCache.set(item.id, entry.providerId);
         // Persist model name and provider ID so new conversations remember it
         persistModelName(entry.model);
         if (entry.providerId) persistModelProvider(entry.providerId);
@@ -4060,7 +4293,9 @@ export function setupHandlers(
             "",
             true,
           );
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
         updateModelButton();
       };
@@ -4092,8 +4327,10 @@ export function setupHandlers(
       }
 
       const isSelected =
-        entry.model.trim().toLowerCase() === currentModel.trim().toLowerCase()
-        && (entry.provider || "").toLowerCase() === (currentProvider || "").toLowerCase();
+        entry.model.trim().toLowerCase() ===
+          currentModel.trim().toLowerCase() &&
+        (entry.provider || "").toLowerCase() ===
+          (currentProvider || "").toLowerCase();
       const optionClasses = isSelected
         ? "llm-response-menu-item llm-model-option llm-model-option-selected"
         : "llm-response-menu-item llm-model-option";
@@ -4103,9 +4340,7 @@ export function setupHandlers(
         optionClasses,
         {
           type: "button",
-          textContent: isSelected
-            ? `✓  ${entry.model}`
-            : `    ${entry.model}`,
+          textContent: isSelected ? `✓  ${entry.model}` : `    ${entry.model}`,
         },
       );
       const runRetry = async (e: Event) => {
@@ -4116,7 +4351,8 @@ export function setupHandlers(
         closeRetryModelMenu();
         // Sync model selection with the bottom model selector
         selectedModelCache.set(item.id, entry.model);
-        if (entry.providerId) selectedModelProviderCache.set(item.id, entry.providerId);
+        if (entry.providerId)
+          selectedModelProviderCache.set(item.id, entry.providerId);
         persistModelName(entry.model);
         if (entry.providerId) persistModelProvider(entry.providerId);
         try {
@@ -4125,7 +4361,9 @@ export function setupHandlers(
             "",
             true,
           );
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         updateModelButton();
         // Get resolved profile for the now-selected model
         const resolvedProfile = getSelectedProfileForItem(item.id);
@@ -4171,16 +4409,23 @@ export function setupHandlers(
     draftInputCache.set(conversationKey, text);
     try {
       Zotero.Prefs.set(`${DRAFT_PREF_PREFIX}${conversationKey}`, text);
-    } catch (_) { /* pref write failure is non-critical */ }
+    } catch (_) {
+      /* pref write failure is non-critical */
+    }
   };
 
   const clearDraftInput = () => {
-    if (draftSaveTimer) { clearTimeout(draftSaveTimer); draftSaveTimer = null; }
+    if (draftSaveTimer) {
+      clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
     if (!conversationKey) return;
     draftInputCache.delete(conversationKey);
     try {
       Zotero.Prefs.clear(`${DRAFT_PREF_PREFIX}${conversationKey}`);
-    } catch (_) { /* pref clear failure is non-critical */ }
+    } catch (_) {
+      /* pref clear failure is non-critical */
+    }
   };
 
   const scheduleDraftSave = () => {
@@ -4193,8 +4438,13 @@ export function setupHandlers(
     let draft = draftInputCache.get(conversationKey) || "";
     if (!draft) {
       try {
-        draft = (Zotero.Prefs.get(`${DRAFT_PREF_PREFIX}${conversationKey}`) as string) || "";
-      } catch (_) { /* ignore */ }
+        draft =
+          (Zotero.Prefs.get(
+            `${DRAFT_PREF_PREFIX}${conversationKey}`,
+          ) as string) || "";
+      } catch (_) {
+        /* ignore */
+      }
     }
     if (draft) {
       inputBox.value = draft;
@@ -4211,15 +4461,17 @@ export function setupHandlers(
   const saveComposeState = () => {
     if (!conversationKey || !item) return;
     try {
-      const files = (selectedFileAttachmentCache.get(item.id) || []).map((f) => ({
-        id: f.id,
-        name: f.name,
-        mimeType: f.mimeType,
-        storedPath: f.storedPath,
-        sizeBytes: f.sizeBytes,
-        category: f.category,
-        contentHash: f.contentHash,
-      }));
+      const files = (selectedFileAttachmentCache.get(item.id) || []).map(
+        (f) => ({
+          id: f.id,
+          name: f.name,
+          mimeType: f.mimeType,
+          storedPath: f.storedPath,
+          sizeBytes: f.sizeBytes,
+          category: f.category,
+          contentHash: f.contentHash,
+        }),
+      );
       const screenshots = selectedImageCache.get(item.id) || [];
       const papers = normalizePaperContextEntries(
         selectedPaperContextCache.get(item.id) || [],
@@ -4228,17 +4480,29 @@ export function setupHandlers(
       const textContexts = textContextKey
         ? getSelectedTextContextEntries(textContextKey)
         : [];
-      const snapshot = JSON.stringify({ files, screenshots, papers, textContexts });
+      const snapshot = JSON.stringify({
+        files,
+        screenshots,
+        papers,
+        textContexts,
+      });
       Zotero.Prefs.set(`${COMPOSE_PREF_PREFIX}${conversationKey}`, snapshot);
-    } catch (_) { /* non-critical */ }
+    } catch (_) {
+      /* non-critical */
+    }
   };
 
   const clearComposeState = () => {
-    if (composeStateSaveTimer) { clearTimeout(composeStateSaveTimer); composeStateSaveTimer = null; }
+    if (composeStateSaveTimer) {
+      clearTimeout(composeStateSaveTimer);
+      composeStateSaveTimer = null;
+    }
     if (!conversationKey) return;
     try {
       Zotero.Prefs.clear(`${COMPOSE_PREF_PREFIX}${conversationKey}`);
-    } catch (_) { /* non-critical */ }
+    } catch (_) {
+      /* non-critical */
+    }
   };
 
   const scheduleComposeStateSave = () => {
@@ -4249,7 +4513,9 @@ export function setupHandlers(
   // Restore compose state from Prefs on init (overrides message-based restore)
   if (conversationKey && item) {
     try {
-      const raw = Zotero.Prefs.get(`${COMPOSE_PREF_PREFIX}${conversationKey}`) as string;
+      const raw = Zotero.Prefs.get(
+        `${COMPOSE_PREF_PREFIX}${conversationKey}`,
+      ) as string;
       if (raw) {
         const snapshot = JSON.parse(raw) as {
           files?: ChatAttachment[];
@@ -4260,7 +4526,10 @@ export function setupHandlers(
         if (Array.isArray(snapshot.files) && snapshot.files.length) {
           selectedFileAttachmentCache.set(item.id, snapshot.files);
         }
-        if (Array.isArray(snapshot.screenshots) && snapshot.screenshots.length) {
+        if (
+          Array.isArray(snapshot.screenshots) &&
+          snapshot.screenshots.length
+        ) {
           selectedImageCache.set(item.id, snapshot.screenshots);
         }
         if (Array.isArray(snapshot.papers) && snapshot.papers.length) {
@@ -4275,7 +4544,9 @@ export function setupHandlers(
           setSelectedTextContextEntries(textContextKey, snapshot.textContexts);
         }
       }
-    } catch (_) { /* ignore parse errors */ }
+    } catch (_) {
+      /* ignore parse errors */
+    }
   }
 
   // Wire compose-state persistence hook now that scheduleComposeStateSave is defined.
@@ -4310,6 +4581,7 @@ export function setupHandlers(
         () => {
           applyResponsiveActionButtonsLayout();
           syncUserContextAlignmentWidths(body);
+          positionPaperPicker();
         },
         "relative",
       );
@@ -4317,6 +4589,8 @@ export function setupHandlers(
     ro.observe(panelRoot);
     if (actionsRow) ro.observe(actionsRow);
     if (actionsLeft) ro.observe(actionsLeft);
+    if (inputSection) ro.observe(inputSection);
+    if (inputBox) ro.observe(inputBox);
     if (chatBox) {
       const chatBoxResizeObserver = new ResizeObserverCtor(() => {
         if (!chatBox) return;
@@ -4438,6 +4712,9 @@ export function setupHandlers(
   let paperPickerActiveRowIndex = 0;
   let paperPickerRequestSeq = 0;
   let paperPickerDebounceTimer: number | null = null;
+  const PAPER_PICKER_GAP_PX = 8;
+  const PAPER_PICKER_MAX_HEIGHT_PX = 420;
+  const PAPER_PICKER_MIN_HEIGHT_PX = 56;
   const getActiveSlashToken = (): ActiveSlashToken | null => {
     const caretEnd =
       typeof inputBox.selectionStart === "number"
@@ -4460,11 +4737,51 @@ export function setupHandlers(
   const closePaperPicker = () => {
     if (!paperPicker || !paperPickerList) return;
     paperPicker.style.display = "none";
+    paperPicker.style.left = "";
+    paperPicker.style.top = "";
+    paperPicker.style.width = "";
+    paperPicker.style.maxHeight = "";
     paperPickerGroups = [];
     paperPickerExpandedGroupKeys = new Set<number>();
     paperPickerRows = [];
     paperPickerActiveRowIndex = 0;
     paperPickerList.innerHTML = "";
+  };
+  const positionPaperPicker = () => {
+    if (!paperPicker || !inputSection || paperPicker.style.display === "none") {
+      return;
+    }
+    const hostRect = (panelRoot || body).getBoundingClientRect();
+    const inputRect = inputBox.getBoundingClientRect();
+    const inputTop = inputRect.top - hostRect.top;
+    const inputLeft = inputRect.left - hostRect.left;
+    const availableAbove = Math.max(
+      PAPER_PICKER_MIN_HEIGHT_PX,
+      inputTop - PAPER_PICKER_GAP_PX,
+    );
+    const maxHeight = Math.max(
+      PAPER_PICKER_MIN_HEIGHT_PX,
+      Math.min(PAPER_PICKER_MAX_HEIGHT_PX, availableAbove),
+    );
+    paperPicker.style.left = `${inputLeft}px`;
+    paperPicker.style.width = `${inputRect.width}px`;
+    paperPicker.style.maxHeight = `${maxHeight}px`;
+
+    const renderedHeight = Math.min(
+      paperPicker.scrollHeight || maxHeight,
+      maxHeight,
+    );
+    const top = inputTop - renderedHeight - PAPER_PICKER_GAP_PX;
+    paperPicker.style.top = `${top}px`;
+  };
+  const showPaperPicker = () => {
+    if (!paperPicker) return;
+    paperPicker.style.display = "block";
+    positionPaperPicker();
+    const win = body.ownerDocument?.defaultView;
+    win?.requestAnimationFrame?.(() => {
+      positionPaperPicker();
+    });
   };
   const buildPaperMetaText = (paper: {
     citationKey?: string;
@@ -4533,7 +4850,9 @@ export function setupHandlers(
     }
     return -1;
   };
-  const findPaperPickerFirstAttachmentRowIndex = (groupIndex: number): number => {
+  const findPaperPickerFirstAttachmentRowIndex = (
+    groupIndex: number,
+  ): number => {
     for (let index = 0; index < paperPickerRows.length; index += 1) {
       const row = paperPickerRows[index];
       if (row.kind === "attachment" && row.groupIndex === groupIndex) {
@@ -4565,10 +4884,19 @@ export function setupHandlers(
     const selectedPapers = normalizePaperContextEntries(
       selectedPaperContextCache.get(item.id) || [],
     );
+    const poolKey = conversationKey ?? getConversationKey(item);
+    const pool = conversationContextPool.get(poolKey);
+    if (
+      pool?.basePdfItemId &&
+      !pool.basePdfRemoved &&
+      (paper.contextItemId === pool.basePdfItemId ||
+        paper.itemId === pool.basePdfItemId)
+    ) {
+      if (status) setStatus(status, i18n.paperAlreadySelected, "warning");
+      return false;
+    }
     const duplicate = selectedPapers.some(
-      (entry) =>
-        entry.itemId === paper.itemId &&
-        entry.contextItemId === paper.contextItemId,
+      (entry) => entry.contextItemId === paper.contextItemId,
     );
     if (duplicate) {
       if (status) setStatus(status, i18n.paperAlreadySelected, "warning");
@@ -4728,7 +5056,7 @@ export function setupHandlers(
         textContent: "No papers matched.",
       });
       paperPickerList.appendChild(empty);
-      paperPicker.style.display = "block";
+      showPaperPicker();
       return;
     }
     rebuildPaperPickerRows();
@@ -4738,7 +5066,7 @@ export function setupHandlers(
         textContent: "No papers matched.",
       });
       paperPickerList.appendChild(empty);
-      paperPicker.style.display = "block";
+      showPaperPicker();
       return;
     }
     paperPickerList.innerHTML = "";
@@ -4777,10 +5105,15 @@ export function setupHandlers(
           "div",
           "llm-paper-picker-group-title-line",
         );
-        const title = createElement(ownerDoc, "span", "llm-paper-picker-title", {
-          textContent: group.title,
-          title: group.title,
-        });
+        const title = createElement(
+          ownerDoc,
+          "span",
+          "llm-paper-picker-title",
+          {
+            textContent: group.title,
+            title: group.title,
+          },
+        );
         titleLine.appendChild(title);
         if (isMultiAttachment) {
           const attachmentCount = createElement(
@@ -4827,10 +5160,15 @@ export function setupHandlers(
           "div",
           "llm-paper-picker-attachment-main",
         );
-        const title = createElement(ownerDoc, "span", "llm-paper-picker-title", {
-          textContent: attachmentTitle,
-          title: attachmentTitle,
-        });
+        const title = createElement(
+          ownerDoc,
+          "span",
+          "llm-paper-picker-title",
+          {
+            textContent: attachmentTitle,
+            title: attachmentTitle,
+          },
+        );
         const meta = createElement(ownerDoc, "span", "llm-paper-picker-meta", {
           textContent: "PDF attachment",
         });
@@ -4873,7 +5211,7 @@ export function setupHandlers(
       });
       paperPickerList.appendChild(option);
     });
-    paperPicker.style.display = "block";
+    showPaperPicker();
   };
   const schedulePaperPickerSearch = () => {
     if (!item || !paperPicker || !paperPickerList) {
@@ -4908,12 +5246,10 @@ export function setupHandlers(
         closePaperPicker();
         return;
       }
-      const contextSource = resolveContextSourceItem(item);
-      const excludeContextItemId = contextSource.contextItem?.id ?? null;
       const results = await searchPaperCandidates(
         libraryID,
         activeSlashToken.query,
-        excludeContextItemId,
+        null,
         20,
       );
       if (requestId !== paperPickerRequestSeq) return;
@@ -4960,6 +5296,10 @@ export function setupHandlers(
 
   if (inputSection && inputBox) {
     let fileDragDepth = 0;
+
+    inputBox.addEventListener("scroll", positionPaperPicker, {
+      passive: true,
+    });
 
     inputSection.addEventListener("dragenter", (e: Event) => {
       const dragEvent = e as DragEvent;
@@ -5310,8 +5650,9 @@ export function setupHandlers(
         item.attachmentContentType === "application/pdf"
           ? item
           : getActiveContextAttachmentFromTabs();
-      const resolvedPaperContext =
-        resolvePaperContextRefFromAttachment(activeReaderAttachment);
+      const resolvedPaperContext = resolvePaperContextRefFromAttachment(
+        activeReaderAttachment,
+      );
       const textContextKey = getTextContextConversationKey();
       if (!textContextKey) return;
       if (!isGlobalMode()) {
@@ -5430,14 +5771,11 @@ export function setupHandlers(
           );
           updateImagePreviewPreservingScroll();
           if (status) {
-            setStatus(
-              status,
-              getPanelI18n().screenshots,
-              "ready",
-            );
+            setStatus(status, getPanelI18n().screenshots, "ready");
           }
         } else {
-          if (status) setStatus(status, getPanelI18n().selectionCancelled, "ready");
+          if (status)
+            setStatus(status, getPanelI18n().selectionCancelled, "ready");
         }
       } catch (err) {
         ztoolkit.log("Screenshot selection error:", err);
@@ -5726,7 +6064,8 @@ export function setupHandlers(
         const history = chatHistory.get(key) || [];
         const msg = history[msgIndex];
         if (!msg?.text?.trim()) return;
-        const modelName = msg.modelName?.trim() || (msg.role === "user" ? "user" : "model");
+        const modelName =
+          msg.modelName?.trim() || (msg.role === "user" ? "user" : "model");
         void (async () => {
           try {
             if (isGlobalPortalItem(item)) {
@@ -6045,7 +6384,8 @@ export function setupHandlers(
           dismissedAutoLoadPaperCache.set(item.id, dismissKey);
         }
         updatePaperPreview();
-        if (status) setStatus(status, getPanelI18n().paperContextDismissed, "ready");
+        if (status)
+          setStatus(status, getPanelI18n().paperContextDismissed, "ready");
         return;
       }
 
@@ -6073,11 +6413,7 @@ export function setupHandlers(
       }
       updatePaperPreview();
       if (status) {
-        setStatus(
-          status,
-          getPanelI18n().paperContextDismissed,
-          "ready",
-        );
+        setStatus(status, getPanelI18n().paperContextDismissed, "ready");
       }
     });
   }
@@ -6109,7 +6445,8 @@ export function setupHandlers(
         setSelectedTextContextEntries(textContextKey, nextContexts);
         setSelectedTextExpandedIndex(textContextKey, null);
         updateSelectedTextPreviewPreservingScroll();
-        if (status) setStatus(status, getPanelI18n().selectedTextRemoved, "ready");
+        if (status)
+          setStatus(status, getPanelI18n().selectedTextRemoved, "ready");
         return;
       }
 
@@ -6291,7 +6628,9 @@ export function setupHandlers(
           }
           if (!nextConversationKey) {
             if (basePaperItem) {
-              const paperKey = activePaperConversationByItem.get(basePaperItem.id);
+              const paperKey = activePaperConversationByItem.get(
+                basePaperItem.id,
+              );
               if (paperKey && paperKey > 0) {
                 await switchPaperConversation(paperKey);
               }
