@@ -20,6 +20,7 @@ import {
 } from "./utils/attachmentRefStore";
 import { createZToolkit } from "./utils/ztoolkit";
 import { ensureZoteroProxyFromSystem } from "./utils/oauthCli";
+import { maybeShowOpenAIUpdateNotice } from "./modules/updateNotice";
 
 async function onStartup() {
   await Promise.all([
@@ -85,6 +86,14 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   registerReaderContextPanel();
   registerReaderSelectionTracking();
   await injectLibraryPanel(win);
+
+  win.setTimeout(() => {
+    try {
+      maybeShowOpenAIUpdateNotice(win);
+    } catch (err) {
+      ztoolkit.log("AIdea: failed to show update notice", err);
+    }
+  }, 600);
 }
 
 function registerPrefsPane() {

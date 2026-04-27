@@ -137,10 +137,7 @@ export function isPanelGenerating(panel: Element): boolean {
   return ensurePanelRequestState(panel).activeRequestId > 0;
 }
 
-export function finishPanelRequest(
-  panel: Element,
-  requestId: number,
-): boolean {
+export function finishPanelRequest(panel: Element, requestId: number): boolean {
   const state = ensurePanelRequestState(panel);
   if (state.activeRequestId !== requestId) {
     return false;
@@ -180,7 +177,10 @@ export const selectedFilePreviewExpandedCache = new Map<number, boolean>();
 export const selectedPaperContextCache = new Map<number, PaperContextRef[]>();
 export const selectedPaperPreviewExpandedCache = new Map<number, boolean>();
 export const activeGlobalConversationByLibrary = new Map<number, number>();
-export const activeConversationModeByLibrary = new Map<number, "paper" | "global">();
+export const activeConversationModeByLibrary = new Map<
+  number,
+  "paper" | "global"
+>();
 export const selectedTextCache = new Map<number, SelectedTextContext[]>();
 export const selectedTextPreviewExpandedCache = new Map<number, number>();
 export const selectedImagePreviewExpandedCache = new Map<number, boolean>();

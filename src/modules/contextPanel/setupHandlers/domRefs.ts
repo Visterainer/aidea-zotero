@@ -43,6 +43,8 @@ export type PanelDomRefs = {
   filePreviewClear: HTMLButtonElement | null;
   paperPreview: HTMLDivElement | null;
   paperPreviewList: HTMLDivElement | null;
+  paperPreviewExpanded: HTMLDivElement | null;
+  paperPreviewExpandedList: HTMLDivElement | null;
   paperPicker: HTMLDivElement | null;
   paperPickerList: HTMLDivElement | null;
   responseMenu: HTMLDivElement | null;
@@ -177,6 +179,12 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     ) as HTMLDivElement | null,
     paperPreviewList: body.querySelector(
       "#llm-paper-context-list",
+    ) as HTMLDivElement | null,
+    paperPreviewExpanded: body.querySelector(
+      "#llm-paper-context-expanded",
+    ) as HTMLDivElement | null,
+    paperPreviewExpandedList: body.querySelector(
+      "#llm-paper-context-expanded-list",
     ) as HTMLDivElement | null,
     paperPicker: body.querySelector(
       "#llm-paper-picker",

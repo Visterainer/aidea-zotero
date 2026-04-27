@@ -35,6 +35,51 @@ type FileIntakeControllerDeps = {
 const createAttachmentId = () =>
   `att-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+const CLIPBOARD_DATA_IMAGE_RE =
+  /data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)/gi;
+
+function dataUrlToFile(dataUrl: string, index: number): File | null {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i.exec(
+    dataUrl.trim(),
+  );
+  if (!match) return null;
+  const mimeType = match[1] || "image/png";
+  const extension = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "png";
+  try {
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File(
+      [bytes],
+      `pasted-image-${Date.now()}-${index}.${extension}`,
+      {
+        type: mimeType,
+        lastModified: Date.now(),
+      },
+    );
+  } catch (err) {
+    ztoolkit.log("LLM: Failed to decode pasted data URL image", err);
+    return null;
+  }
+}
+
+function extractDataUrlImageFiles(text: string, startIndex: number): File[] {
+  const files: File[] = [];
+  const seen = new Set<string>();
+  CLIPBOARD_DATA_IMAGE_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CLIPBOARD_DATA_IMAGE_RE.exec(text))) {
+    const dataUrl = match[0];
+    if (seen.has(dataUrl)) continue;
+    seen.add(dataUrl);
+    const file = dataUrlToFile(dataUrl, startIndex + files.length + 1);
+    if (file) files.push(file);
+  }
+  return files;
+}
+
 const isTextLikeFile = (file: File): boolean => {
   const lowerName = (file.name || "").toLowerCase();
   const mime = (file.type || "").toLowerCase();
@@ -52,9 +97,7 @@ const isTextLikeFile = (file: File): boolean => {
   );
 };
 
-const resolveAttachmentCategory = (
-  file: File,
-): ChatAttachment["category"] => {
+const resolveAttachmentCategory = (file: File): ChatAttachment["category"] => {
   const lowerName = (file.name || "").toLowerCase();
   const mime = (file.type || "").toLowerCase();
   if (mime.startsWith("image/")) return "image";
@@ -126,9 +169,7 @@ export async function resolveZoteroItemFiles(
       const fileName =
         (attachment as unknown as { attachmentFilename?: string })
           .attachmentFilename || "document.pdf";
-      files.push(
-        new File([bytes], fileName, { type: "application/pdf" }),
-      );
+      files.push(new File([bytes], fileName, { type: "application/pdf" }));
     } catch (err) {
       ztoolkit.log("LLM: Failed to resolve Zotero item drag", id, err);
     }
@@ -156,6 +197,17 @@ export function extractFilesFromClipboard(event: ClipboardEvent): File[] {
     );
     if (!duplicated) files.push(file);
   }
+  for (const type of ["text/html", "text/plain", "text/uri-list"]) {
+    const text = clipboardData.getData(type);
+    if (!text) continue;
+    for (const file of extractDataUrlImageFiles(text, files.length)) {
+      const duplicated = files.some(
+        (existing) =>
+          existing.size === file.size && existing.type === file.type,
+      );
+      if (!duplicated) files.push(file);
+    }
+  }
   return files;
 }
 
@@ -169,7 +221,9 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
       deps.getCurrentModel(),
     );
     const nextImages = [...(deps.selectedImageCache.get(item.id) || [])];
-    const nextFiles = [...(deps.selectedFileAttachmentCache.get(item.id) || [])];
+    const nextFiles = [
+      ...(deps.selectedFileAttachmentCache.get(item.id) || []),
+    ];
     let addedCount = 0;
     let replacedCount = 0;
     let rejectedPdfCount = 0;
@@ -253,7 +307,13 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         failedPersistCount += 1;
         ztoolkit.log("LLM: Failed to persist uploaded attachment", err);
         // Remove the placeholder on failure
-        const failIndex = nextFiles.findIndex((e) => e.id === (existingPlaceholderIndex >= 0 ? nextFiles[existingPlaceholderIndex]?.id : placeholderId));
+        const failIndex = nextFiles.findIndex(
+          (e) =>
+            e.id ===
+            (existingPlaceholderIndex >= 0
+              ? nextFiles[existingPlaceholderIndex]?.id
+              : placeholderId),
+        );
         if (failIndex >= 0) nextFiles.splice(failIndex, 1);
         deps.selectedFileAttachmentCache.set(item.id, [...nextFiles]);
         deps.updateFilePreview();
@@ -274,7 +334,10 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         }
         // If in-memory read failed, try from stored path
         if (!textContent && storedPath) {
-          textContent = await extractTextFromStoredFile(storedPath, normalizedFile.type || "");
+          textContent = await extractTextFromStoredFile(
+            storedPath,
+            normalizedFile.type || "",
+          );
         }
       } else if (category === "pdf") {
         // Use Zotero's PDFWorker — same engine as Zotero's built-in PDF indexing
@@ -282,20 +345,27 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
           try {
             textContent = await extractTextFromPdfPath(storedPath);
           } catch (err) {
-            ztoolkit.log("LLM: Failed to extract text from uploaded PDF via Zotero", err);
+            ztoolkit.log(
+              "LLM: Failed to extract text from uploaded PDF via Zotero",
+              err,
+            );
           }
         }
       } else if (category === "file" && storedPath) {
         // Try Zotero-based extraction for other file types (EPUB, HTML, etc.)
-        textContent = await extractTextFromStoredFile(storedPath, normalizedFile.type || "");
+        textContent = await extractTextFromStoredFile(
+          storedPath,
+          normalizedFile.type || "",
+        );
       }
 
       // storedPath and contentHash are already set above
 
       // --- Replace the placeholder with the final entry ---
-      const finalEntryId = existingPlaceholderIndex >= 0
-        ? nextFiles[existingPlaceholderIndex]?.id || placeholderId
-        : placeholderId;
+      const finalEntryId =
+        existingPlaceholderIndex >= 0
+          ? nextFiles[existingPlaceholderIndex]?.id || placeholderId
+          : placeholderId;
       const finalIndex = nextFiles.findIndex((e) => e.id === finalEntryId);
       const nextEntry: ChatAttachment = {
         id: finalEntryId,
@@ -335,7 +405,10 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
 
     // Notify caller about file state change for persistence.
     if (deps.onFileStateChanged && (addedCount > 0 || replacedCount > 0)) {
-      deps.onFileStateChanged(item.id, nextFiles.map((f) => f.id));
+      deps.onFileStateChanged(
+        item.id,
+        nextFiles.map((f) => f.id),
+      );
     }
 
     if (!deps.setStatusMessage) return;
@@ -343,7 +416,8 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
       (addedCount > 0 || replacedCount > 0) &&
       (rejectedPdfCount > 0 || skippedImageCount > 0 || failedPersistCount > 0)
     ) {
-      const replaceText = replacedCount > 0 ? `, replaced ${replacedCount}` : "";
+      const replaceText =
+        replacedCount > 0 ? `, replaced ${replacedCount}` : "";
       deps.setStatusMessage(
         `Uploaded ${addedCount} attachment(s)${replaceText}, skipped ${rejectedPdfCount} PDF(s) > 50MB, ${skippedImageCount} image(s), ${failedPersistCount} file(s) not persisted`,
         "warning",
@@ -351,7 +425,8 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
       return;
     }
     if (addedCount > 0 || replacedCount > 0) {
-      const replaceText = replacedCount > 0 ? `, replaced ${replacedCount}` : "";
+      const replaceText =
+        replacedCount > 0 ? `, replaced ${replacedCount}` : "";
       deps.setStatusMessage(
         `Uploaded ${addedCount} attachment(s)${replaceText}`,
         "ready",
