@@ -10,6 +10,7 @@ export const API_ENDPOINT = "/v1/chat/completions";
 export const RESPONSES_ENDPOINT = "/v1/responses";
 export const EMBEDDINGS_ENDPOINT = "/v1/embeddings";
 export const FILES_ENDPOINT = "/v1/files";
+export const IMAGE_GENERATIONS_ENDPOINT = "/v1/images/generations";
 
 // =============================================================================
 // Functions
@@ -26,10 +27,12 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
   const responsesSuffix = "/responses";
   const embeddingSuffix = "/embeddings";
   const filesSuffix = "/files";
+  const imageGenerationsSuffix = "/images/generations";
   const hasChat = cleaned.endsWith(chatSuffix);
   const hasResponses = cleaned.endsWith(responsesSuffix);
   const hasEmbeddings = cleaned.endsWith(embeddingSuffix);
   const hasFiles = cleaned.endsWith(filesSuffix);
+  const hasImageGenerations = cleaned.endsWith(imageGenerationsSuffix);
 
   if (hasChat) {
     if (path === EMBEDDINGS_ENDPOINT) {
@@ -40,6 +43,9 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
     }
     if (path === FILES_ENDPOINT) {
       return cleaned.replace(/\/chat\/completions$/, filesSuffix);
+    }
+    if (path === IMAGE_GENERATIONS_ENDPOINT) {
+      return cleaned.replace(/\/chat\/completions$/, imageGenerationsSuffix);
     }
     return cleaned;
   }
@@ -54,6 +60,9 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
     if (path === FILES_ENDPOINT) {
       return cleaned.replace(/\/responses$/, filesSuffix);
     }
+    if (path === IMAGE_GENERATIONS_ENDPOINT) {
+      return cleaned.replace(/\/responses$/, imageGenerationsSuffix);
+    }
     return cleaned;
   }
 
@@ -63,6 +72,9 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
     }
     if (path === FILES_ENDPOINT) {
       return cleaned.replace(/\/embeddings$/, filesSuffix);
+    }
+    if (path === IMAGE_GENERATIONS_ENDPOINT) {
+      return cleaned.replace(/\/embeddings$/, imageGenerationsSuffix);
     }
     return cleaned;
   }
@@ -76,6 +88,25 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
     }
     if (path === EMBEDDINGS_ENDPOINT) {
       return cleaned.replace(/\/files$/, embeddingSuffix);
+    }
+    if (path === IMAGE_GENERATIONS_ENDPOINT) {
+      return cleaned.replace(/\/files$/, imageGenerationsSuffix);
+    }
+    return cleaned;
+  }
+
+  if (hasImageGenerations) {
+    if (path === API_ENDPOINT) {
+      return cleaned.replace(/\/images\/generations$/, chatSuffix);
+    }
+    if (path === RESPONSES_ENDPOINT) {
+      return cleaned.replace(/\/images\/generations$/, responsesSuffix);
+    }
+    if (path === EMBEDDINGS_ENDPOINT) {
+      return cleaned.replace(/\/images\/generations$/, embeddingSuffix);
+    }
+    if (path === FILES_ENDPOINT) {
+      return cleaned.replace(/\/images\/generations$/, filesSuffix);
     }
     return cleaned;
   }

@@ -822,10 +822,7 @@ async function buildCombinedContextForRequest(params: {
   } else if (pool.basePdfItemId !== null) {
     // Pool was restored from DB with a known item ID but empty text.
     // Rebuild from the stored ID instead of re-resolving from the current tab.
-    params.setStatusSafely(
-      getPanelI18n().rebuildingDocumentContext,
-      "sending",
-    );
+    params.setStatusSafely(getPanelI18n().rebuildingDocumentContext, "sending");
     try {
       const ctxItem = Zotero.Items.get(pool.basePdfItemId);
       if (ctxItem) {
@@ -2643,7 +2640,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             paperContext.firstCreator || "",
             paperContext.year || "",
           ].filter(Boolean);
-          paperMeta.textContent = metaParts.join(" | ") || i18n.supplementalPaper;
+          paperMeta.textContent =
+            metaParts.join(" | ") || i18n.supplementalPaper;
           paperMeta.title = paperMeta.textContent;
           paperItem.append(paperTitle, paperMeta);
           papersList.appendChild(paperItem);

@@ -1329,7 +1329,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   });
   paperPickerList.setAttribute("role", "listbox");
   paperPicker.appendChild(paperPickerList);
-  inputSection.appendChild(paperPicker);
 
   const inputBox = createElement(doc, "textarea", "llm-input", {
     id: "llm-input",
@@ -1495,6 +1494,9 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   bottomWrapper.appendChild(translateBottom);
 
   container.appendChild(bottomWrapper);
+  // Keep the @ paper picker outside the bottom wrapper so upward expansion is
+  // not clipped by the wrapper's resize/overflow boundary.
+  container.appendChild(paperPicker);
 
   // ═══════════════════════════════════════════════════════════
   // Status line + final assembly

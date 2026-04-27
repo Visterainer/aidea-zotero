@@ -4,6 +4,7 @@ import {
   RESPONSES_ENDPOINT,
   EMBEDDINGS_ENDPOINT,
   FILES_ENDPOINT,
+  IMAGE_GENERATIONS_ENDPOINT,
   resolveEndpoint,
   buildHeaders,
   usesMaxCompletionTokens,
@@ -13,11 +14,14 @@ import {
 describe("apiHelpers", function () {
   describe("resolveEndpoint", function () {
     it("should keep a chat completions URL when requesting chat endpoint", function () {
-      const url = resolveEndpoint("https://api.openai.com/v1/chat/completions", API_ENDPOINT);
+      const url = resolveEndpoint(
+        "https://api.openai.com/v1/chat/completions",
+        API_ENDPOINT,
+      );
       assert.equal(url, "https://api.openai.com/v1/chat/completions");
     });
 
-    it("should switch between chat, responses, embeddings, and files suffixes", function () {
+    it("should switch between chat, responses, embeddings, files, and images suffixes", function () {
       const base = "https://api.openai.com/v1/chat/completions";
       assert.equal(
         resolveEndpoint(base, RESPONSES_ENDPOINT),
@@ -31,6 +35,18 @@ describe("apiHelpers", function () {
         resolveEndpoint(base, FILES_ENDPOINT),
         "https://api.openai.com/v1/files",
       );
+      assert.equal(
+        resolveEndpoint(base, IMAGE_GENERATIONS_ENDPOINT),
+        "https://api.openai.com/v1/images/generations",
+      );
+    });
+
+    it("should switch from image generations to chat endpoint", function () {
+      const url = resolveEndpoint(
+        "https://api.openai.com/v1/images/generations",
+        API_ENDPOINT,
+      );
+      assert.equal(url, "https://api.openai.com/v1/chat/completions");
     });
 
     it("should avoid duplicating /v1 when base already has a version segment", function () {

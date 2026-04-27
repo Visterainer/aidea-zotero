@@ -26,10 +26,11 @@ describe("contextPanel normalizers", function () {
     assert.equal(normalizeSelectedTextSource("pdf"), "pdf");
     assert.equal(normalizeSelectedTextSource("other"), "pdf");
 
-    assert.deepEqual(
-      normalizeSelectedTextSources(["model", "x", "pdf"], 3),
-      ["model", "pdf", "pdf"],
-    );
+    assert.deepEqual(normalizeSelectedTextSources(["model", "x", "pdf"], 3), [
+      "model",
+      "pdf",
+      "pdf",
+    ]);
     assert.deepEqual(normalizeSelectedTextSources(undefined, 2), [
       "pdf",
       "pdf",
@@ -55,6 +56,11 @@ describe("contextPanel normalizers", function () {
         itemId: 1,
         contextItemId: 2,
         title: "Paper A duplicate",
+      },
+      {
+        itemId: 99,
+        contextItemId: 2,
+        title: "Same PDF through another parent",
       },
       {
         itemId: -1,

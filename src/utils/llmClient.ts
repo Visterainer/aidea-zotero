@@ -39,6 +39,7 @@ import {
   RESPONSES_ENDPOINT,
   EMBEDDINGS_ENDPOINT,
   FILES_ENDPOINT,
+  IMAGE_GENERATIONS_ENDPOINT,
   resolveEndpoint,
   buildHeaders,
   usesMaxCompletionTokens,
@@ -121,6 +122,35 @@ export type ChatParams = {
   attachments?: ChatFileAttachment[];
 };
 
+export type ImageGenerationParams = {
+  prompt: string;
+  context?: string;
+  history?: ChatMessage[];
+  signal?: AbortSignal;
+  /** Base64 data URLs to include with the prompt when the provider supports multimodal image generation. */
+  images?: string[];
+  /** Local files to attach when the provider supports request attachments. */
+  attachments?: ChatFileAttachment[];
+  /** Override image generation model. Defaults to the imageGenerationModel pref or gpt-image-2. */
+  model?: string;
+  /** Override API base for this request. */
+  apiBase?: string;
+  /** Override API key for this request. */
+  apiKey?: string;
+  size?: string;
+  quality?: string;
+  background?: string;
+  outputFormat?: string;
+};
+
+export type GeneratedImage = {
+  mimeType: string;
+  base64?: string;
+  dataUrl?: string;
+  url?: string;
+  revisedPrompt?: string;
+};
+
 export type ReasoningEvent = {
   summary?: string;
   details?: string;
@@ -154,6 +184,16 @@ interface EmbeddingResponse {
   data?: Array<{ embedding?: number[] }>;
 }
 
+interface ImageGenerationResponse {
+  data?: Array<{
+    b64_json?: string;
+    url?: string;
+    revised_prompt?: string;
+    mime_type?: string;
+    output_format?: string;
+  }>;
+}
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -174,6 +214,7 @@ When answering questions:
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+const DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2";
 
 // =============================================================================
 // Utilities
@@ -211,6 +252,146 @@ export function getApiConfig(overrides?: {
     embeddingModel,
     systemPrompt: customSystemPrompt || DEFAULT_SYSTEM_PROMPT,
   };
+}
+
+function getImageApiConfig(overrides?: {
+  apiBase?: string;
+  apiKey?: string;
+  model?: string;
+}) {
+  const primaryProfile = getApiProfiles().primary;
+  const apiBase = (overrides?.apiBase || primaryProfile.apiBase)
+    .trim()
+    .replace(/\/+$/, "");
+  const apiKey = (overrides?.apiKey || primaryProfile.apiKey || "").trim();
+  const model = (
+    overrides?.model ||
+    getPref("imageGenerationModel") ||
+    DEFAULT_IMAGE_GENERATION_MODEL
+  ).trim();
+
+  if (!apiBase) {
+    throw new Error("API URL is missing in preferences");
+  }
+  if (!model) {
+    throw new Error("Image generation model is missing");
+  }
+
+  return { apiBase, apiKey, model };
+}
+
+function isImageGenerationEndpointModel(model: string | undefined): boolean {
+  const normalized = (model || "").trim().toLowerCase();
+  return (
+    normalized.startsWith("gpt-image") ||
+    normalized.startsWith("dall-e") ||
+    normalized.includes("image") ||
+    normalized.includes("imagen")
+  );
+}
+
+function parseImageMarkdownResults(text: string): GeneratedImage[] {
+  const images: GeneratedImage[] = [];
+  const pattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const src = match[1]?.trim() || "";
+    if (!src) continue;
+    if (src.startsWith("data:image/")) {
+      const dataMatch = src.match(/^data:([^;,]+);base64,(.+)$/);
+      if (dataMatch) {
+        images.push({
+          mimeType: normalizeImageMimeType(dataMatch[1]),
+          base64: dataMatch[2],
+          dataUrl: src,
+        });
+      }
+      continue;
+    }
+    images.push({
+      mimeType: "image/png",
+      url: src,
+    });
+  }
+  return images;
+}
+
+function chatMessageContentToPlainText(content: MessageContent): string {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const part of content) {
+    if (part.type === "text") {
+      const text = part.text.trim();
+      if (text) parts.push(text);
+      continue;
+    }
+    if (part.type === "image_url") {
+      const url = part.image_url?.url?.trim();
+      parts.push(url ? `[Image input: ${url}]` : "[Image input]");
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+function formatHistoryForImagePrompt(
+  history: ChatMessage[] | undefined,
+): string {
+  if (!Array.isArray(history) || !history.length) return "";
+  return history
+    .map((message) => {
+      const content = chatMessageContentToPlainText(message.content);
+      if (!content) return "";
+      const role =
+        message.role === "assistant"
+          ? "Assistant"
+          : message.role === "system"
+            ? "System"
+            : "User";
+      return `${role}:\n${content}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildImagePromptWithChatInputs(
+  params: ImageGenerationParams,
+  prompt: string,
+): string {
+  const blocks: string[] = [];
+  if (params.context?.trim()) {
+    blocks.push(`Document Context:\n${params.context.trim()}`);
+  }
+  const historyText = formatHistoryForImagePrompt(params.history);
+  if (historyText) {
+    blocks.push(`Previous conversation:\n${historyText}`);
+  }
+  const attachmentLines = Array.isArray(params.attachments)
+    ? params.attachments
+        .map((attachment) => {
+          const name = attachment?.name?.trim();
+          if (!name) return "";
+          return `- ${name} (${attachment.mimeType || "application/octet-stream"})`;
+        })
+        .filter(Boolean)
+    : [];
+  if (attachmentLines.length) {
+    blocks.push(`Attached files:\n${attachmentLines.join("\n")}`);
+  }
+  const imageLines = Array.isArray(params.images)
+    ? params.images
+        .map((image, index) =>
+          typeof image === "string" && image.trim()
+            ? `- Image ${index + 1}: ${image.trim()}`
+            : "",
+        )
+        .filter(Boolean)
+    : [];
+  if (imageLines.length) {
+    blocks.push(`Current image inputs:\n${imageLines.join("\n")}`);
+  }
+  blocks.push(`Image generation request:\n${prompt}`);
+  return blocks.join("\n\n====================\n\n");
 }
 
 type IOUtilsLike = {
@@ -1511,24 +1692,251 @@ async function postWithReasoningFallback(params: {
   throw (lastError as Error) || new Error("Request failed after retries");
 }
 
+function normalizeImageMimeType(value: unknown): string {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!raw) return "image/png";
+  if (raw.startsWith("image/")) return raw;
+  if (raw === "jpg") return "image/jpeg";
+  if (["png", "jpeg", "webp", "gif"].includes(raw)) return `image/${raw}`;
+  return "image/png";
+}
+
+function toImageMarkdown(src: string, alt: string): string {
+  const safeSrc = src.trim();
+  if (!safeSrc) return "";
+  return `![${alt}](${safeSrc})`;
+}
+
+function extractOutputImageMarkdown(value: unknown, index: number): string {
+  if (!value || typeof value !== "object") return "";
+  const part = value as {
+    type?: unknown;
+    result?: unknown;
+    b64_json?: unknown;
+    data?: unknown;
+    image_url?: unknown;
+    url?: unknown;
+    mime_type?: unknown;
+    media_type?: unknown;
+    output_format?: unknown;
+    format?: unknown;
+  };
+  const type = typeof part.type === "string" ? part.type : "";
+  const looksImageLike =
+    type.includes("image") ||
+    type === "image_generation_call" ||
+    typeof part.image_url !== "undefined";
+  if (!looksImageLike) return "";
+
+  const alt =
+    type === "image_generation_call"
+      ? `Generated image ${index}`
+      : `Image ${index}`;
+  const imageUrl =
+    typeof part.image_url === "string"
+      ? part.image_url
+      : part.image_url &&
+          typeof part.image_url === "object" &&
+          typeof (part.image_url as { url?: unknown }).url === "string"
+        ? (part.image_url as { url: string }).url
+        : typeof part.url === "string"
+          ? part.url
+          : "";
+  if (imageUrl) return toImageMarkdown(imageUrl, alt);
+
+  const base64 =
+    typeof part.result === "string"
+      ? part.result
+      : typeof part.b64_json === "string"
+        ? part.b64_json
+        : typeof part.data === "string"
+          ? part.data
+          : "";
+  if (!base64) return "";
+  if (base64.trim().startsWith("data:image/")) {
+    return toImageMarkdown(base64, alt);
+  }
+  const mimeType = normalizeImageMimeType(
+    part.mime_type || part.media_type || part.output_format || part.format,
+  );
+  return toImageMarkdown(`data:${mimeType};base64,${base64.trim()}`, alt);
+}
+
 function extractResponsesOutputText(data: {
   output_text?: string;
   output?: Array<{
-    content?: Array<{ type?: string; text?: string }>;
+    type?: string;
+    result?: string;
+    b64_json?: string;
+    data?: string;
+    image_url?: string | { url?: string };
+    url?: string;
+    mime_type?: string;
+    media_type?: string;
+    output_format?: string;
+    format?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+      result?: string;
+      b64_json?: string;
+      data?: string;
+      image_url?: string | { url?: string };
+      url?: string;
+      mime_type?: string;
+      media_type?: string;
+      output_format?: string;
+      format?: string;
+    }>;
   }>;
 }): string {
-  if (data?.output_text) return data.output_text;
-  const firstText =
-    data?.output
-      ?.flatMap((item) => item.content || [])
-      .find((content) => content.type === "output_text" && content.text)
-      ?.text || "";
-  return firstText || JSON.stringify(data);
+  const chunks: string[] = [];
+  let hasOutputContentText = false;
+  let imageIndex = 1;
+
+  for (const item of data?.output || []) {
+    const itemImage = extractOutputImageMarkdown(item, imageIndex);
+    if (itemImage) {
+      chunks.push(itemImage);
+      imageIndex += 1;
+    }
+    for (const content of item.content || []) {
+      if (
+        (content.type === "output_text" || content.type === "text") &&
+        content.text
+      ) {
+        chunks.push(content.text);
+        hasOutputContentText = true;
+        continue;
+      }
+      const contentImage = extractOutputImageMarkdown(content, imageIndex);
+      if (contentImage) {
+        chunks.push(contentImage);
+        imageIndex += 1;
+      }
+    }
+  }
+
+  if (data?.output_text && !hasOutputContentText) {
+    chunks.unshift(data.output_text);
+  }
+  return chunks.filter(Boolean).join("\n\n") || JSON.stringify(data);
 }
 
 // =============================================================================
 // API Functions
 // =============================================================================
+
+/**
+ * Call an OpenAI-compatible image generation endpoint.
+ *
+ * This intentionally stays separate from chat completions: text models can
+ * produce image references in normal replies, while this is an explicit
+ * generation action suitable for a UI button or future command surface.
+ */
+export async function callImageGeneration(
+  params: ImageGenerationParams,
+): Promise<GeneratedImage[]> {
+  const prompt = params.prompt.trim();
+  if (!prompt) {
+    throw new Error("Image prompt is empty");
+  }
+
+  const {
+    apiBase,
+    apiKey,
+    model: configuredModel,
+  } = getImageApiConfig({
+    apiBase: params.apiBase,
+    apiKey: params.apiKey,
+    model: params.model,
+  });
+  const oauthProvider = markerToProvider(apiBase);
+  if (oauthProvider) {
+    const text = await chatWithProviderOAuth({
+      provider: oauthProvider,
+      model: params.model || configuredModel || DEFAULT_MODEL,
+      prompt,
+      context: params.context,
+      history: params.history,
+      systemPrompt:
+        "Generate an image for the user's prompt. Use the image_generation tool and return the generated image.",
+      signal: params.signal,
+      images: params.images,
+      imageGeneration: true,
+    });
+    const images = parseImageMarkdownResults(text);
+    if (!images.length) {
+      throw new Error(
+        "The current OAuth provider did not return an image. It may not support image_generation for this model.",
+      );
+    }
+    return images;
+  }
+  if (!apiKey) {
+    throw new Error("Image generation requires an API key");
+  }
+  const model = isImageGenerationEndpointModel(params.model)
+    ? params.model!.trim()
+    : (
+        getPref("imageGenerationModel") || DEFAULT_IMAGE_GENERATION_MODEL
+      ).trim();
+
+  const payload: Record<string, unknown> = {
+    model,
+    prompt: buildImagePromptWithChatInputs(params, prompt),
+  };
+  if (params.size) payload.size = params.size;
+  if (params.quality) payload.quality = params.quality;
+  if (params.background) payload.background = params.background;
+  if (params.outputFormat) payload.output_format = params.outputFormat;
+
+  const url = resolveEndpoint(apiBase, IMAGE_GENERATIONS_ENDPOINT);
+  const res = await fetchWithTransientRetry(getFetch(), url, {
+    method: "POST",
+    headers: buildHeaders(apiKey),
+    body: JSON.stringify(payload),
+    signal: params.signal,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status} ${res.statusText} - ${err}`);
+  }
+
+  const data = (await res.json()) as ImageGenerationResponse;
+  const images = (data.data || [])
+    .map((entry): GeneratedImage | null => {
+      const mimeType = normalizeImageMimeType(
+        entry.mime_type || entry.output_format || params.outputFormat,
+      );
+      const base64 = (entry.b64_json || "").trim();
+      const urlValue = (entry.url || "").trim();
+      if (base64) {
+        return {
+          mimeType,
+          base64,
+          dataUrl: `data:${mimeType};base64,${base64}`,
+          revisedPrompt: entry.revised_prompt,
+        };
+      }
+      if (urlValue) {
+        return {
+          mimeType,
+          url: urlValue,
+          revisedPrompt: entry.revised_prompt,
+        };
+      }
+      return null;
+    })
+    .filter((entry): entry is GeneratedImage => Boolean(entry));
+
+  if (!images.length) {
+    throw new Error("Image generation returned no images");
+  }
+
+  return images;
+}
 
 /**
  * Call LLM API (non-streaming)
@@ -2063,6 +2471,7 @@ async function parseResponsesStream(
   let sawDetailsDelta = false;
   let sawSummaryFinal = false;
   let sawDetailsFinal = false;
+  const emittedImageMarkdown = new Set<string>();
 
   try {
     while (true) {
@@ -2092,12 +2501,55 @@ async function parseResponsesStream(
               output_text?: string;
               output?: Array<{
                 type?: string;
+                result?: string;
+                b64_json?: string;
+                data?: string;
+                image_url?: string | { url?: string };
+                url?: string;
+                mime_type?: string;
+                media_type?: string;
+                output_format?: string;
+                format?: string;
                 content?: Array<{
                   type?: string;
                   text?: string;
                   summary?: string;
+                  result?: string;
+                  b64_json?: string;
+                  data?: string;
+                  image_url?: string | { url?: string };
+                  url?: string;
+                  mime_type?: string;
+                  media_type?: string;
+                  output_format?: string;
+                  format?: string;
                 }>;
                 summary?: Array<{ type?: string; text?: string }> | string;
+              }>;
+            };
+            item?: {
+              type?: string;
+              result?: string;
+              b64_json?: string;
+              data?: string;
+              image_url?: string | { url?: string };
+              url?: string;
+              mime_type?: string;
+              media_type?: string;
+              output_format?: string;
+              format?: string;
+              content?: Array<{
+                type?: string;
+                text?: string;
+                result?: string;
+                b64_json?: string;
+                data?: string;
+                image_url?: string | { url?: string };
+                url?: string;
+                mime_type?: string;
+                media_type?: string;
+                output_format?: string;
+                format?: string;
               }>;
             };
           };
@@ -2147,6 +2599,18 @@ async function parseResponsesStream(
                 : undefined;
             if (!summary && !details) return;
             onReasoning({ summary, details });
+          };
+
+          const emitImageMarkdown = (value: unknown) => {
+            const markdown = extractOutputImageMarkdown(
+              value,
+              emittedImageMarkdown.size + 1,
+            );
+            if (!markdown || emittedImageMarkdown.has(markdown)) return;
+            emittedImageMarkdown.add(markdown);
+            const delta = fullText ? `\n\n${markdown}` : markdown;
+            fullText += delta;
+            onDelta(delta);
           };
 
           if (parsed.type === "response.output_text.delta" && parsed.delta) {
@@ -2263,8 +2727,18 @@ async function parseResponsesStream(
             parsed.type === "response.output_item.done" ||
             parsed.type === "response.completed"
           ) {
+            if (parsed.item) {
+              emitImageMarkdown(parsed.item);
+              for (const content of parsed.item.content || []) {
+                emitImageMarkdown(content);
+              }
+            }
             const outputs = parsed.response?.output || [];
             for (const out of outputs) {
+              emitImageMarkdown(out);
+              for (const content of out.content || []) {
+                emitImageMarkdown(content);
+              }
               if (out.type !== "reasoning") continue;
               if (!sawSummaryDelta && !sawSummaryFinal) {
                 emitReasoning({

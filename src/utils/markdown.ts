@@ -11,6 +11,7 @@
  * - Bold, italic, bold+italic
  * - Code blocks and inline code
  * - Links
+ * - Images
  * - Ordered and unordered lists
  * - Tables
  * - Blockquotes
@@ -91,6 +92,16 @@ function escapeAttr(text: string): string {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function renderImage(src: string, alt: string, title?: string): string {
+  const safeSrc = src.trim();
+  if (!safeSrc) return escapeHtml(`![${alt}](${src})`);
+  const titleAttr =
+    typeof title === "string" && title.trim()
+      ? ` title="${escapeAttr(title.trim())}"`
+      : "";
+  return `<img class="llm-markdown-image" src="${escapeAttr(safeSrc)}" alt="${escapeAttr(alt)}"${titleAttr} loading="lazy"/>`;
 }
 
 /** Generate the copy button HTML for code/math blocks */
@@ -242,10 +253,7 @@ function buildWrappedDisplayMath(math: string): string | null {
 
   const terms = splitTopLevelAdditiveTerms(math);
   if (terms.length < 3) return null;
-  const lines = [
-    `& ${terms[0]}`,
-    ...terms.slice(1).map((term) => `& ${term}`),
-  ];
+  const lines = [`& ${terms[0]}`, ...terms.slice(1).map((term) => `& ${term}`)];
   return `\\begin{aligned}${lines.join(" \\\\ ")}\\end{aligned}`;
 }
 
@@ -770,31 +778,37 @@ function renderInline(text: string): string {
     });
   }
 
-  // 4. HTML escape (after protecting code and math)
+  // 4. Images ![alt](url) and ![alt](url "title")
+  result = result.replace(
+    /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']+)["'])?\)/g,
+    (_m, alt, src, title) => protect(renderImage(src, alt, title)),
+  );
+
+  // 5. HTML escape (after protecting code, math, and images)
   result = escapeHtml(result);
 
-  // 5. Bold+Italic (***...***)  - only if balanced
+  // 6. Bold+Italic (***...***)  - only if balanced
   if (hasBalancedInlineDelimiter(result, "***")) {
     result = result.replace(/\*\*\*(.+?)\*\*\*/g, (_m, inner) => {
       return protect(`<strong><em>${inner}</em></strong>`);
     });
   }
 
-  // 6. Bold (**...**) - only if balanced
+  // 7. Bold (**...**) - only if balanced
   if (hasBalancedInlineDelimiter(result, "**")) {
     result = result.replace(/\*\*(.+?)\*\*/g, (_m, inner) => {
       return protect(`<strong>${inner}</strong>`);
     });
   }
 
-  // 7. Bold (__...__) - only if balanced
+  // 8. Bold (__...__) - only if balanced
   if (hasBalancedInlineDelimiter(result, "__")) {
     result = result.replace(/__(.+?)__/g, (_m, inner) => {
       return protect(`<strong>${inner}</strong>`);
     });
   }
 
-  // 8. Italic (*...* but not inside words)
+  // 9. Italic (*...* but not inside words)
   // Only apply if there are potential matches (avoid false positives)
   result = result.replace(
     /(^|[\s(])\*([^\s*][^*]*?[^\s*])\*(?=[\s).,!?:;]|$)/g,
@@ -805,7 +819,7 @@ function renderInline(text: string): string {
     "$1<em>$2</em>",
   );
 
-  // 9. Italic (_..._ but not inside words)
+  // 10. Italic (_..._ but not inside words)
   result = result.replace(
     /(^|[\s(])_([^\s_][^_]*?[^\s_])_(?=[\s).,!?:;]|$)/g,
     "$1<em>$2</em>",
@@ -815,13 +829,13 @@ function renderInline(text: string): string {
     "$1<em>$2</em>",
   );
 
-  // 10. Links [text](url)
+  // 11. Links [text](url)
   result = result.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener">$1</a>',
   );
 
-  // 11. Restore protected blocks.
+  // 12. Restore protected blocks.
   // Reverse order is important for nested placeholders such as **$x$**:
   // bold wrapping can protect a token that itself points to rendered math.
   for (let i = protectedBlocks.length - 1; i >= 0; i--) {
