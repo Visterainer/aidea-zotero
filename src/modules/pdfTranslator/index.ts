@@ -4,11 +4,7 @@
  * Coordinates:  envManager → configWriter → processRunner → progressPoller
  * -------------------------------------------------------------------------*/
 
-import type {
-  TranslateParams,
-  TranslateState,
-  ProgressData,
-} from "./types";
+import type { TranslateParams, TranslateState, ProgressData } from "./types";
 import type { TranslateCredentials } from "./modelResolver";
 import { checkEnvironment, installEnvironment } from "./envManager";
 import { generateConfigToml, generateTaskJson } from "./configWriter";
@@ -34,6 +30,7 @@ export type TranslateEvent =
  *   const ctrl = new TranslateController(uiCallback);
  *   await ctrl.start(params);   // kicks off translation
  *   ctrl.pause();               // kills subprocess
+ *   ctrl.abort();               // stops subprocess and returns to idle
  *   await ctrl.start(params);   // resumes (pdf2zh_next cached pages)
  *   ctrl.clearCache(dir);
  */
@@ -41,6 +38,7 @@ export class TranslateController {
   private state: TranslateState = "idle";
   private process: RunningProcess | null = null;
   private poller: ProgressPoller | null = null;
+  private activeLockPath = "";
 
   constructor(private callback: TranslateUICallback) {}
 
@@ -78,21 +76,33 @@ export class TranslateController {
       const diag = env.diagnostics?.length
         ? `\n${env.diagnostics.join("\n")}`
         : "";
-      this.callback({ type: "error", message: `Environment not ready: ${env.status}${diag}` });
+      this.callback({
+        type: "error",
+        message: `Environment not ready: ${env.status}${diag}`,
+      });
       return;
     }
 
     /* 2. Temp file paths */
     const tempDir = String(PathUtils.tempDir || "").trim();
     if (!tempDir) {
-      throw new Error("Cannot resolve temporary directory (PathUtils.tempDir is empty)");
+      throw new Error(
+        "Cannot resolve temporary directory (PathUtils.tempDir is empty)",
+      );
     }
-    const tmpDir = PathUtils.join(tempDir, "aidea-translate");
+    const jobId = this.createJobId();
+    const rootTmpDir = PathUtils.join(tempDir, "aidea-translate");
+    const jobsTmpDir = PathUtils.join(rootTmpDir, "jobs");
+    const tmpDir = PathUtils.join(jobsTmpDir, jobId);
+    await IOUtils.makeDirectory(rootTmpDir, { ignoreExisting: true });
+    await IOUtils.makeDirectory(jobsTmpDir, { ignoreExisting: true });
     await IOUtils.makeDirectory(tmpDir, { ignoreExisting: true });
 
     const configPath = PathUtils.join(tmpDir, "config.toml");
-    const taskPath   = PathUtils.join(tmpDir, "task.json");
+    const taskPath = PathUtils.join(tmpDir, "task.json");
     const progressPath = PathUtils.join(tmpDir, "progress.json");
+    const logPath = PathUtils.join(tmpDir, "bridge.log");
+    const lockPath = PathUtils.join(tmpDir, "running.lock");
 
     /* 3. Write config.toml with OAuth token */
     const toml = generateConfigToml({
@@ -116,6 +126,9 @@ export class TranslateController {
       transFirst: params.transFirst,
       skipClean: params.skipClean,
       noWatermark: params.noWatermark,
+      enableJsonModeIfRequested:
+        credentials.oauthProxy?.provider === "openai-codex",
+      ignoreCache: credentials.oauthProxy?.provider === "openai-codex",
     });
     await IOUtils.writeUTF8(configPath, toml);
 
@@ -126,6 +139,7 @@ export class TranslateController {
       outputDir: params.outputDir,
       configFile: configPath,
       progressFile: progressPath,
+      logFile: logPath,
       modelId: params.modelId,
       sourceLang: params.sourceLang,
       targetLang: params.targetLang,
@@ -153,7 +167,25 @@ export class TranslateController {
     await IOUtils.writeUTF8(taskPath, taskJson);
 
     /* 5. Clean stale progress file */
-    try { await IOUtils.remove(progressPath); } catch { /* ok */ }
+    try {
+      await IOUtils.remove(progressPath);
+    } catch {
+      /* ok */
+    }
+    await IOUtils.writeUTF8(
+      lockPath,
+      JSON.stringify(
+        {
+          jobId,
+          pdfPath: params.pdfPath,
+          outputDir: params.outputDir,
+          startedAt: Date.now(),
+        },
+        null,
+        2,
+      ),
+    );
+    this.activeLockPath = lockPath;
 
     /* 6. Find bridge script */
     const bridgePath = this.getBridgeScriptPath(tmpDir);
@@ -162,10 +194,20 @@ export class TranslateController {
       step: "bridge",
       detail: `Bridge script: ${bridgePath}`,
     });
+    this.callback({
+      type: "env_progress",
+      step: "workspace",
+      detail: `Task workspace: ${tmpDir}`,
+    });
 
     /* 7. Launch bridge subprocess */
     this.setState("running");
-    this.process = launchProcess(env.pythonBin, [bridgePath, taskPath]);
+    try {
+      this.process = launchProcess(env.pythonBin, [bridgePath, taskPath]);
+    } catch (err) {
+      this.clearActiveLock();
+      throw err;
+    }
 
     /* 8. Start progress poller */
     this.poller = new ProgressPoller(progressPath, (data) => {
@@ -188,7 +230,11 @@ export class TranslateController {
       const exitCode = await this.process.done;
       // Give poller one final tick to read the "done" status from progress.json
       if (this.poller) {
-        try { await this.poller.tick(); } catch { /* ok */ }
+        try {
+          await this.poller.tick();
+        } catch {
+          /* ok */
+        }
       }
       if (exitCode === 0 && this.state === "running") {
         // Poller didn't catch it — force done
@@ -211,6 +257,7 @@ export class TranslateController {
     } finally {
       this.poller?.stop();
       this.process = null;
+      this.clearActiveLock();
     }
   }
 
@@ -221,7 +268,16 @@ export class TranslateController {
     this.process?.kill();
     this.poller?.stop();
     this.process = null;
+    this.clearActiveLock();
     this.setState("paused");
+  }
+
+  abort(): void {
+    this.process?.kill();
+    this.poller?.stop();
+    this.process = null;
+    this.clearActiveLock();
+    this.setState("idle");
   }
 
   /* ── Clear output cache ── */
@@ -229,7 +285,9 @@ export class TranslateController {
   async clearCache(outputDir: string): Promise<void> {
     try {
       await IOUtils.remove(outputDir, { recursive: true });
-    } catch { /* directory may not exist */ }
+    } catch {
+      /* directory may not exist */
+    }
     this.setState("idle");
   }
 
@@ -238,6 +296,32 @@ export class TranslateController {
   private setState(s: TranslateState): void {
     this.state = s;
     this.callback({ type: "state", state: s });
+  }
+
+  private clearActiveLock(): void {
+    const lockPath = this.activeLockPath;
+    this.activeLockPath = "";
+    if (!lockPath) return;
+    try {
+      void IOUtils.remove(lockPath).catch(() => undefined);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private createJobId(): string {
+    const now = new Date();
+    const stamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+      String(now.getHours()).padStart(2, "0"),
+      String(now.getMinutes()).padStart(2, "0"),
+      String(now.getSeconds()).padStart(2, "0"),
+      String(now.getMilliseconds()).padStart(3, "0"),
+    ].join("");
+    const suffix = Math.random().toString(36).slice(2, 8);
+    return `${stamp}-${suffix}`;
   }
 
   /** Resolve path to addon/scripts/aidea_bridge.py */
@@ -257,7 +341,7 @@ export class TranslateController {
 
     throw new Error(
       "Cannot resolve bridge script path (aidea_bridge.py). " +
-      "Addon root URI/path is unavailable in current runtime context.",
+        "Addon root URI/path is unavailable in current runtime context.",
     );
   }
 
@@ -300,13 +384,16 @@ export class TranslateController {
     }
   }
 
-  private extractBridgeFromJarRootUri(rootUri: string, stageDir: string): string {
+  private extractBridgeFromJarRootUri(
+    rootUri: string,
+    stageDir: string,
+  ): string {
     const raw = this.asNonEmptyString(rootUri);
     if (!raw || !raw.startsWith("jar:")) return "";
 
     try {
-      const Ci = (Components.interfaces as any);
-      const Cc = (Components.classes as any);
+      const Ci = Components.interfaces as any;
+      const Cc = Components.classes as any;
       const uri = Services.io.newURI(raw);
       const jarUri = uri.QueryInterface(Ci.nsIJARURI);
       const jarFileUri = jarUri.JARFile.QueryInterface(Ci.nsIFileURL);
@@ -320,24 +407,34 @@ export class TranslateController {
         .filter(Boolean)
         .join("/");
 
-      const zipReader = Cc["@mozilla.org/libjar/zip-reader;1"]
-        .createInstance(Ci.nsIZipReader);
+      const zipReader = Cc["@mozilla.org/libjar/zip-reader;1"].createInstance(
+        Ci.nsIZipReader,
+      );
       zipReader.open(jarFile);
       try {
         if (!zipReader.hasEntry(bridgeEntry)) return "";
 
         const outPath = this.tryJoin(stageDir, "aidea_bridge.py");
         if (!outPath) return "";
-        const outFile = Cc["@mozilla.org/file/local;1"]
-          .createInstance(Ci.nsIFile);
+        const outFile = Cc["@mozilla.org/file/local;1"].createInstance(
+          Ci.nsIFile,
+        );
         outFile.initWithPath(outPath);
         if (outFile.exists()) {
-          try { outFile.remove(false); } catch { /* ignore */ }
+          try {
+            outFile.remove(false);
+          } catch {
+            /* ignore */
+          }
         }
         zipReader.extract(bridgeEntry, outFile);
         return outPath;
       } finally {
-        try { zipReader.close(); } catch { /* ignore */ }
+        try {
+          zipReader.close();
+        } catch {
+          /* ignore */
+        }
       }
     } catch {
       return "";
@@ -399,8 +496,9 @@ export class TranslateController {
 
   private fileExists(path: string): boolean {
     try {
-      const file = (Components.classes as any)["@mozilla.org/file/local;1"]
-        .createInstance((Components.interfaces as any).nsIFile);
+      const file = (Components.classes as any)[
+        "@mozilla.org/file/local;1"
+      ].createInstance((Components.interfaces as any).nsIFile);
       file.initWithPath(path);
       return Boolean(file.exists());
     } catch {

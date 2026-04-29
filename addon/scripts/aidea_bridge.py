@@ -39,6 +39,7 @@ def _prepare_pdf2zh_runtime_env():
     patch_dir = tempfile.mkdtemp(prefix="aidea-pdf2zh-patch-")
     sitecustomize_path = os.path.join(patch_dir, "sitecustomize.py")
     patch_code = (
+        "import sys\n"
         "try:\n"
         "    from babeldoc.assets import embedding_assets_metadata as _m\n"
         "    _hf_rapid = _m.TABLE_DETECTION_RAPIDOCR_MODEL_URL.get('huggingface')\n"
@@ -49,6 +50,33 @@ def _prepare_pdf2zh_runtime_env():
         "        _m.DOC_LAYOUT_ONNX_MODEL_URL['modelscope'] = _hf_doc\n"
         "except Exception:\n"
         "    pass\n"
+        "\n"
+        "try:\n"
+        "    import importlib.util\n"
+        "    from pathlib import Path\n"
+        "    _spec = importlib.util.find_spec('babeldoc.format.pdf.document_il.midend.il_translator_llm_only')\n"
+        "    if _spec and _spec.origin:\n"
+        "        _path = Path(_spec.origin)\n"
+        "        _text = _path.read_text(encoding='utf-8')\n"
+        "        _bad = \"            for input_ in inputs:\\n                input_[2].unicode = input_[5]\\n\"\n"
+        "        _good = (\n"
+        "            \"            for input_index, input_ in enumerate(inputs):\\n\"\n"
+        "            \"                original_unicodes = input_[5]\\n\"\n"
+        "            \"                if isinstance(original_unicodes, list) and input_index < len(original_unicodes):\\n\"\n"
+        "            \"                    input_[2].unicode = original_unicodes[input_index]\\n\"\n"
+        "        )\n"
+        "        if _bad in _text:\n"
+        "            _path.write_text(_text.replace(_bad, _good, 1), encoding='utf-8')\n"
+        "            print('[aidea_bridge] Applied BabelDOC fallback restore compatibility patch', file=sys.stderr, flush=True)\n"
+        "        _cache_dir = _path.parent / '__pycache__'\n"
+        "        if _cache_dir.exists():\n"
+        "            for _pyc in _cache_dir.glob('il_translator_llm_only*.pyc'):\n"
+        "                try:\n"
+        "                    _pyc.unlink()\n"
+        "                except Exception:\n"
+        "                    pass\n"
+        "except Exception as _err:\n"
+        "    print(f'[aidea_bridge] BabelDOC fallback compatibility patch skipped: {_err}', file=sys.stderr, flush=True)\n"
     )
     with open(sitecustomize_path, "w", encoding="utf-8") as f:
         f.write(patch_code)
@@ -59,6 +87,22 @@ def _prepare_pdf2zh_runtime_env():
         patch_dir if not existing else f"{patch_dir}{os.pathsep}{existing}"
     )
     return env, patch_dir
+
+
+def _log_runtime_package_versions(log_line):
+    try:
+        import importlib.metadata as metadata
+    except Exception:
+        metadata = None
+    if metadata is None:
+        return
+    parts = []
+    for pkg in ("pdf2zh-next", "babeldoc", "PyMuPDF"):
+        try:
+            parts.append(f"{pkg}={metadata.version(pkg)}")
+        except Exception:
+            parts.append(f"{pkg}=unknown")
+    log_line("Runtime packages: " + ", ".join(parts))
 
 
 def write_progress(path, data):
@@ -187,6 +231,106 @@ def _sanitize_log_line(value, max_len=4000):
     if len(text) > max_len:
         text = text[-max_len:]
     return text
+
+
+def _compact_debug_text(value, max_len=600):
+    text = _sanitize_log_line(value, max_len=max_len)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > max_len:
+        text = text[:max_len].rstrip() + "..."
+    return text
+
+
+def _json_debug_status(text):
+    raw = str(text or "").strip()
+    if not raw:
+        return "empty"
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return f"json_ok:list:{len(parsed)}"
+        if isinstance(parsed, dict):
+            return f"json_ok:dict:{','.join(list(parsed.keys())[:5])}"
+        return f"json_ok:{type(parsed).__name__}"
+    except Exception as err:
+        return f"json_error:{type(err).__name__}:{err}"
+
+
+def _dedupe_repeated_json_text(text):
+    raw = str(text or "").strip()
+    if not raw:
+        return raw
+
+    decoder = json.JSONDecoder()
+    values = []
+    index = 0
+    length = len(raw)
+    while index < length:
+        while index < length and raw[index].isspace():
+            index += 1
+        if index >= length:
+            break
+        try:
+            value, end = decoder.raw_decode(raw, index)
+        except Exception:
+            return raw
+        values.append(value)
+        index = end
+
+    if len(values) <= 1:
+        return raw
+    first = values[0]
+    if all(value == first for value in values[1:]):
+        return json.dumps(first, ensure_ascii=False, separators=(",", ":"))
+    return json.dumps(values[-1], ensure_ascii=False, separators=(",", ":"))
+
+
+def _dedupe_repeated_plain_text(text):
+    raw = str(text or "").strip()
+    if len(raw) < 4:
+        return raw
+
+    mid = len(raw) // 2
+    start = max(1, mid - 12)
+    end = min(len(raw) - 1, mid + 12)
+    for split in range(start, end + 1):
+        left = raw[:split].rstrip()
+        right = raw[split:].lstrip()
+        has_boundary_space = (
+            (split > 0 and raw[split - 1].isspace())
+            or (split < len(raw) and raw[split].isspace())
+        )
+        if left and left == right and has_boundary_space:
+            return left
+    return raw
+
+
+def _dedupe_repeated_response_text(text):
+    normalized = _dedupe_repeated_json_text(text)
+    if normalized != str(text or "").strip():
+        return normalized
+    return _dedupe_repeated_plain_text(text)
+
+
+def _messages_text_for_prompt_detection(messages):
+    parts = []
+    if isinstance(messages, list):
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            text = _extract_text_from_openai_content(msg.get("content")).strip()
+            if text:
+                parts.append(text)
+    return "\n\n".join(parts)
+
+
+def _prompt_requests_json_array(messages):
+    prompt = _messages_text_for_prompt_detection(messages).lower()
+    return (
+        "return a json array" in prompt
+        or "json array of the same length" in prompt
+        or '"layout_label"' in prompt
+    )
 
 
 def _unique_keep_order(items):
@@ -1246,11 +1390,24 @@ def _extract_codex_output_text_from_sse(raw):
                             emit_image(part)
 
     joined = "".join(out).strip()
-    if joined and completed_text.strip() and not text_delta_seen:
-        return f"{completed_text.strip()}\n\n{joined}"
+    completed = completed_text.strip()
+    if joined and completed and not text_delta_seen:
+        # Responses SSE can expose the same text twice: once on the completed
+        # response object and once on the completed output item. Returning both
+        # produces two JSON documents concatenated together, which BabelDOC
+        # rejects as "Extra data" and then falls back to lower quality paths.
+        normalized_joined = _dedupe_repeated_response_text(joined)
+        normalized_completed = _dedupe_repeated_response_text(completed)
+        if normalized_joined == normalized_completed:
+            return normalized_completed
+        if normalized_joined in normalized_completed:
+            return normalized_completed
+        if normalized_completed in normalized_joined:
+            return normalized_joined
+        return normalized_joined
     if joined:
-        return joined
-    return completed_text.strip()
+        return _dedupe_repeated_response_text(joined)
+    return _dedupe_repeated_response_text(completed)
 
 
 def _generate_prompt_id():
@@ -1551,11 +1708,107 @@ class OAuthCompatProxyServer:
     GEMINI_STREAM_URL = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
     CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
 
-    def __init__(self, proxy_cfg):
+    def __init__(self, proxy_cfg, debug_log=None, debug_enabled=False):
         self.proxy_cfg = proxy_cfg or {}
         self.httpd = None
         self.thread = None
         self.port = None
+        self.debug_log = debug_log
+        self.debug_enabled = bool(debug_enabled)
+        self._debug_lock = threading.Lock()
+        self._debug_call_count = 0
+        self._debug_json_error_count = 0
+        self._debug_json_dedupe_count = 0
+        self._debug_plain_dedupe_count = 0
+
+    def _debug(self, message):
+        if not self.debug_enabled:
+            return
+        line = f"[OAuth proxy] {message}"
+        try:
+            if self.debug_log:
+                self.debug_log(line)
+        except Exception:
+            pass
+        try:
+            print(f"[aidea_bridge] {line}", flush=True)
+        except Exception:
+            pass
+
+    def _debug_response(self, provider, model, request_json_mode, transport, raw, text):
+        if not self.debug_enabled:
+            return
+        with self._debug_lock:
+            self._debug_call_count += 1
+            call_no = self._debug_call_count
+        json_status = _json_debug_status(text) if request_json_mode else "not_requested"
+        is_json_error = json_status.startswith("json_error")
+        json_error_no = 0
+        if is_json_error:
+            with self._debug_lock:
+                self._debug_json_error_count += 1
+                json_error_no = self._debug_json_error_count
+
+        should_log = call_no <= 8 or (is_json_error and json_error_no <= 12)
+        if not should_log:
+            return
+
+        self._debug(
+            "call={call} provider={provider} model={model} transport={transport} "
+            "json_mode={json_mode} raw_len={raw_len} text_len={text_len} "
+            "text_json={text_json} text_head={head}".format(
+                call=call_no,
+                provider=provider,
+                model=model,
+                transport=transport,
+                json_mode=bool(request_json_mode),
+                raw_len=len(str(raw or "")),
+                text_len=len(str(text or "")),
+                text_json=json_status,
+                head=_compact_debug_text(text, max_len=320),
+            )
+        )
+
+    def _normalize_json_response_text(self, text):
+        normalized = _dedupe_repeated_json_text(text)
+        if normalized == str(text or "").strip():
+            return text
+
+        with self._debug_lock:
+            self._debug_json_dedupe_count += 1
+            dedupe_no = self._debug_json_dedupe_count
+        if dedupe_no <= 20:
+            self._debug(
+                "normalized multi-value JSON response #{no} text_len={old_len} "
+                "normalized_len={new_len} normalized_json={status} normalized_head={head}".format(
+                    no=dedupe_no,
+                    old_len=len(str(text or "")),
+                    new_len=len(normalized),
+                    status=_json_debug_status(normalized),
+                    head=_compact_debug_text(normalized, max_len=240),
+                )
+            )
+        return normalized
+
+    def _normalize_plain_response_text(self, text):
+        normalized = _dedupe_repeated_plain_text(text)
+        if normalized == str(text or "").strip():
+            return text
+
+        with self._debug_lock:
+            self._debug_plain_dedupe_count += 1
+            dedupe_no = self._debug_plain_dedupe_count
+        if dedupe_no <= 20:
+            self._debug(
+                "deduped repeated plain response #{no} text_len={old_len} "
+                "normalized_len={new_len} normalized_head={head}".format(
+                    no=dedupe_no,
+                    old_len=len(str(text or "")),
+                    new_len=len(normalized),
+                    head=_compact_debug_text(normalized, max_len=240),
+                )
+            )
+        return normalized
 
     @property
     def base_url(self):
@@ -1634,6 +1887,11 @@ class OAuthCompatProxyServer:
         base_url = str(self.proxy_cfg.get("apiBase", "")).strip().rstrip("/")
         if not base_url:
             raise RuntimeError("Missing API base URL for openai-compatible proxy")
+        response_format = payload.get("response_format")
+        request_json_mode = (
+            isinstance(response_format, dict)
+            and str(response_format.get("type", "")).strip().lower() == "json_object"
+        )
 
         api_key = str(self.proxy_cfg.get("apiKey", "")).strip()
         headers = {
@@ -1656,6 +1914,16 @@ class OAuthCompatProxyServer:
         text = _extract_openai_chat_text(data).strip()
         if not text:
             raise RuntimeError("OpenAI-compatible response did not contain output text")
+        if request_json_mode:
+            text = self._normalize_json_response_text(text)
+        self._debug_response(
+            "openai-compatible",
+            str(payload.get("model", "")).strip(),
+            request_json_mode,
+            "chat-completions",
+            raw,
+            text,
+        )
         return text
 
     def _forward_codex(self, payload):
@@ -1666,6 +1934,12 @@ class OAuthCompatProxyServer:
         messages = payload.get("messages")
         if not isinstance(messages, list):
             messages = []
+        response_format = payload.get("response_format")
+        request_json_mode = (
+            isinstance(response_format, dict)
+            and str(response_format.get("type", "")).strip().lower() == "json_object"
+        )
+        prompt_requests_json_array = _prompt_requests_json_array(messages)
 
         req_body = {
             "model": model,
@@ -1674,6 +1948,12 @@ class OAuthCompatProxyServer:
             "store": False,
             "stream": True,
         }
+        if request_json_mode and not prompt_requests_json_array:
+            req_body["text"] = {"format": {"type": "json_object"}}
+        elif request_json_mode and prompt_requests_json_array:
+            self._debug(
+                "skipped Codex json_object response format for JSON-array batch request"
+            )
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
@@ -1693,6 +1973,18 @@ class OAuthCompatProxyServer:
             text = _extract_codex_output_text(data).strip()
         if not text:
             raise RuntimeError("Codex OAuth response did not contain output text")
+        if request_json_mode:
+            text = self._normalize_json_response_text(text)
+        else:
+            text = self._normalize_plain_response_text(text)
+        self._debug_response(
+            "openai-codex",
+            model,
+            request_json_mode,
+            "codex-responses-sse",
+            raw,
+            text,
+        )
         return text
 
     def _forward_gemini(self, payload):
@@ -1911,6 +2203,9 @@ def main():
     keep_appendix_translated = _as_bool(task.get("keepAppendixTranslated", True), True)
     protect_author_block = _as_bool(task.get("protectAuthorBlock", False))
     reference_policy_debug = _as_bool(task.get("referencePolicyDebug", False))
+    oauth_proxy_debug = _as_bool(task.get("oauthProxyDebug", False)) or str(
+        os.environ.get("AIDEA_OAUTH_PROXY_DEBUG", "")
+    ).strip() in ("1", "true", "TRUE", "yes", "YES")
     oauth_proxy_cfg = task.get("oauthProxy")
 
     os.makedirs(output_dir, exist_ok=True)
@@ -1936,7 +2231,11 @@ def main():
         log_line(f"Model config: {config_file}")
 
         if isinstance(oauth_proxy_cfg, dict):
-            proxy = OAuthCompatProxyServer(oauth_proxy_cfg)
+            proxy = OAuthCompatProxyServer(
+                oauth_proxy_cfg,
+                debug_log=log_line,
+                debug_enabled=oauth_proxy_debug,
+            )
             proxy.start()
             _rewrite_openai_base_url(config_file, proxy.base_url)
             log_line(f"OAuth proxy started: {oauth_proxy_cfg.get('provider')} @ {proxy.base_url}")
@@ -2003,6 +2302,7 @@ def main():
                 )
 
         runtime_env, patch_dir = _prepare_pdf2zh_runtime_env()
+        _log_runtime_package_versions(log_line)
 
         cmd = [
             pdf2zh_bin,
