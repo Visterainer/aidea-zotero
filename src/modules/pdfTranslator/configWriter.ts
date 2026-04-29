@@ -36,25 +36,30 @@ export function generateConfigToml(params: {
   skipClean?: boolean;
   noWatermark?: boolean;
   customSystemPrompt?: string;
+  enableJsonModeIfRequested?: boolean;
+  ignoreCache?: boolean;
 }): string {
   // TOML doesn't have a standard JS library in Zotero/Gecko,
   // so we build the string manually. This is safe because all
   // values are numbers, booleans, or controlled strings.
-  const esc = (s: string) => s
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\u0008/g, "\\b")
-    .replace(/\t/g, "\\t")
-    .replace(/\n/g, "\\n")
-    .replace(/\f/g, "\\f")
-    .replace(/\r/g, "\\r")
-    .replace(/[\u0000-\u0007\u000B\u000E-\u001F\u007F]/g, (ch) =>
-      `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  const esc = (s: string) =>
+    s
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\u0008/g, "\\b")
+      .replace(/\t/g, "\\t")
+      .replace(/\n/g, "\\n")
+      .replace(/\f/g, "\\f")
+      .replace(/\r/g, "\\r")
+      .replace(
+        /[\u0000-\u0007\u000B\u000E-\u001F\u007F]/g,
+        (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`,
+      );
 
   const fontFamily =
     params.fontFamily && params.fontFamily !== "auto"
       ? `"${esc(params.fontFamily)}"`
-      : `"null"`;  // pdf2zh_next interprets "null" as auto-detect
+      : `"null"`; // pdf2zh_next interprets "null" as auto-detect
   const customPrompt =
     params.customSystemPrompt && params.customSystemPrompt.trim()
       ? `"${esc(params.customSystemPrompt)}"`
@@ -68,7 +73,7 @@ openaicompatible = true
 lang_in = "${esc(params.sourceLang)}"
 lang_out = "${esc(params.targetLang)}"
 qps = ${params.qps}
-ignore_cache = false
+ignore_cache = ${params.ignoreCache === true}
 custom_system_prompt = ${customPrompt}
 save_auto_extracted_glossary = ${params.saveGlossary === true}
 no_auto_extract_glossary = ${params.disableGlossary === true}
@@ -95,6 +100,7 @@ openai_compatible_model = "${esc(params.model)}"
 openai_compatible_base_url = "${esc(params.apiUrl)}"
 openai_compatible_api_key = "${esc(params.apiKey)}"
 openai_compatible_timeout = "300"
+openai_compatible_enable_json_mode = ${params.enableJsonModeIfRequested === true}
 `;
 }
 

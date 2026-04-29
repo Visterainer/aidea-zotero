@@ -26,18 +26,18 @@ export interface TranslationStats {
 
 export interface ProgressData {
   status: "init" | "running" | "done" | "error" | "cancelled";
-  progress: number;          // 0–100
-  current?: number;          // current page
-  total?: number;            // total pages
+  progress: number; // 0–100
+  current?: number; // current page
+  total?: number; // total pages
   message: string;
-  stage?: string;            // coarse-grained task phase for UI summaries
-  detail?: string;           // latest engine output line (raw)
-  outputFiles?: string[];    // populated when status === "done"
-  startTime?: number;        // unix timestamp
-  error?: string;            // populated when status === "error"
-  errorDetail?: string;      // tail logs when bridge/process fails
-  logFile?: string;          // bridge log path for diagnosis
-  warningCount?: number;     // total warning/fallback-related events
+  stage?: string; // coarse-grained task phase for UI summaries
+  detail?: string; // latest engine output line (raw)
+  outputFiles?: string[]; // populated when status === "done"
+  startTime?: number; // unix timestamp
+  error?: string; // populated when status === "error"
+  errorDetail?: string; // tail logs when bridge/process fails
+  logFile?: string; // bridge log path for diagnosis
+  warningCount?: number; // total warning/fallback-related events
   warningStats?: WarningStats;
   translationStats?: TranslationStats;
   errorCount?: number;
@@ -47,15 +47,15 @@ export interface ProgressData {
 
 /** Parameters to start a translation */
 export interface TranslateParams {
-  pdfPath: string;           // absolute path to the source PDF
-  outputDir: string;         // directory to write translated PDFs
-  targetLang: string;        // e.g. "zh-CN"
-  sourceLang: string;        // e.g. "en"
-  modelId: string;           // LLM model identifier
-  generateMono: boolean;     // produce single-language PDF
-  generateDual: boolean;     // produce bilingual PDF
-  qps?: number;              // queries per second (default 10)
-  poolMaxWorker?: number;    // parallel translation workers (default 1)
+  pdfPath: string; // absolute path to the source PDF
+  outputDir: string; // directory to write translated PDFs
+  targetLang: string; // e.g. "zh-CN"
+  sourceLang: string; // e.g. "en"
+  modelId: string; // LLM model identifier
+  generateMono: boolean; // produce single-language PDF
+  generateDual: boolean; // produce bilingual PDF
+  qps?: number; // queries per second (default 10)
+  poolMaxWorker?: number; // parallel translation workers (default 1)
   // Layout / compatibility
   disableRichTextTranslate?: boolean;
   enhanceCompatibility?: boolean;
@@ -84,6 +84,7 @@ export interface BridgeTask {
   outputDir: string;
   configFile: string;
   progressFile: string;
+  logFile?: string;
   modelId: string;
   sourceLang: string;
   targetLang: string;
@@ -127,23 +128,18 @@ export interface BridgeTask {
 }
 
 /** Translation controller state machine */
-export type TranslateState =
-  | "idle"
-  | "running"
-  | "paused"
-  | "done"
-  | "error";
+export type TranslateState = "idle" | "running" | "paused" | "done" | "error";
 
 /** Supported target languages */
 export const TARGET_LANGUAGES = [
   { code: "zh-CN", label: "简体中文" },
   { code: "zh-TW", label: "繁體中文" },
-  { code: "en",    label: "English" },
-  { code: "ja",    label: "日本語" },
-  { code: "ko",    label: "한국어" },
-  { code: "fr",    label: "Français" },
-  { code: "de",    label: "Deutsch" },
-  { code: "es",    label: "Español" },
-  { code: "ru",    label: "Русский" },
-  { code: "pt",    label: "Português" },
+  { code: "en", label: "English" },
+  { code: "ja", label: "日本語" },
+  { code: "ko", label: "한국어" },
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+  { code: "es", label: "Español" },
+  { code: "ru", label: "Русский" },
+  { code: "pt", label: "Português" },
 ] as const;
