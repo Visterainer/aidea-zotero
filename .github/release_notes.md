@@ -1,15 +1,19 @@
 ## What's Changed
 
-- 🌍 **12-language UI localization**: expanded the plugin interface from English/Simplified Chinese to 12 UI languages: English, 简体中文, 繁體中文, 日本語, 한국어, Français, Deutsch, Español, Русский, Português, العربية, and हिन्दी.
-- 🎛️ **Settings language dropdown**: replaced the Settings `Language` control with a gray-theme custom dropdown matching the full-document translation language selector style.
-- 💬 **Sidebar and bubble localization**: localized the main panel, quick actions, chat bubbles, status text, and translation tab controls across the new UI language set.
-- 🔁 **Immediate language switching**: fixed Settings text that previously stayed in English until Zotero restarted, including advanced labels, hints, placeholders, and OAuth account status summaries.
-- 🧭 **Separate translation target languages**: kept the full-document translation target-language list independent and broader while restricting the UI language picker to the 12 supported interface languages.
+- **Selection translation in the PDF reader**: translate highlighted text directly from Zotero's reader selection popup, with a dedicated enable switch, model picker, source language, and target language.
+- **Paper cold-start cache**: the first selection translation for a paper builds a local compact overview and terminology cache, then reuses it as context for later selections.
+- **Better selection popup layout**: the translation result panel now dynamically sizes and repositions itself around the selected text to reduce covering the original passage.
+- **Save translations to Zotero notes**: translated selections can be added back to the current item's AIdea selection translation note.
+- **Settings and persistence updates**: selection translation settings are grouped separately, include cache cleanup, and preserve panel section state across Zotero restarts.
+- **Original-quality generated image export**: generated images in chat can be exported through a filesystem picker without re-encoding.
+- **Documentation and website refresh**: README files, multilingual docs, third-party notices, screenshots, and the project website now describe the selection translation workflow.
 
 ## 更新内容
 
-- 🌍 **12 种界面语言本地化**：插件界面从原来的英文/简体中文扩展为 12 种界面语言：English、简体中文、繁體中文、日本語、한국어、Français、Deutsch、Español、Русский、Português、العربية、हिन्दी。
-- 🎛️ **设置页语言下拉菜单**：将 Settings 中的 `Language` 控件改为灰色主题自定义下拉菜单，风格与全文翻译的语言选择器保持一致。
-- 💬 **侧边栏与气泡本地化**：补齐主面板、快捷操作、聊天气泡、状态文本和翻译页控件在新增界面语言下的显示。
-- 🔁 **语言切换即时生效**：修复设置页部分英文必须重启 Zotero 才会切换的问题，包括高级设置标签、提示、占位文本和 OAuth 账号状态摘要。
-- 🧭 **翻译目标语言独立保留**：界面语言选择器严格限制为 12 种，同时全文翻译继续保留更丰富的目标语言列表。
+- **PDF 阅读器划词翻译**：在 Zotero 阅读器划词弹窗中直接翻译选中文本，并支持独立开关、独立模型选择、源语言和目标语言设置。
+- **论文冷启动缓存**：某篇文献首次使用划词翻译时，会在本地生成文章精简概述和专业术语缓存，后续划词翻译复用这份上下文。
+- **更好的划词弹窗布局**：译文窗口会根据选中文本和阅读器视口动态调整大小与位置，尽量减少遮挡原文。
+- **译文加入 Zotero 笔记**：划词翻译结果可以直接写回当前文献的 AIdea 划词翻译笔记。
+- **设置与状态持久化**：划词翻译拥有单独设置分组，支持清理冷启动缓存，并保留设置面板折叠状态。
+- **原画质生成图片导出**：对话中生成的图片可以通过文件系统选择器导出原始图片字节，不重新编码。
+- **文档与网站更新**：README、多语言文档、第三方声明、截图和项目网站均已补充划词翻译说明。

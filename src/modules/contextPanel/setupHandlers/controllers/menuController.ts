@@ -31,14 +31,33 @@ export function positionFloatingMenu(
 
   const viewportMargin = 8;
   const gap = 6;
+  const minUsableHeight = 96;
 
   menu.style.position = "fixed";
   menu.style.display = "grid";
   menu.style.visibility = "hidden";
-  menu.style.maxHeight = `${Math.max(120, win.innerHeight - viewportMargin * 2)}px`;
+  menu.style.zIndex = "180";
+  menu.style.maxHeight = `${Math.max(
+    minUsableHeight,
+    win.innerHeight - viewportMargin * 2,
+  )}px`;
   menu.style.overflowY = "auto";
 
   const anchorRect = anchor.getBoundingClientRect();
+  const initialMenuRect = menu.getBoundingClientRect();
+  const availableBelow = Math.max(
+    0,
+    win.innerHeight - viewportMargin - (anchorRect.bottom + gap),
+  );
+  const availableAbove = Math.max(0, anchorRect.top - gap - viewportMargin);
+  const opensBelow =
+    initialMenuRect.height <= availableBelow ||
+    availableBelow >= availableAbove;
+  const availableHeight = opensBelow ? availableBelow : availableAbove;
+  menu.style.maxHeight = `${Math.max(
+    minUsableHeight,
+    Math.min(win.innerHeight - viewportMargin * 2, availableHeight),
+  )}px`;
   const menuRect = menu.getBoundingClientRect();
 
   let left = anchorRect.left;
@@ -48,20 +67,14 @@ export function positionFloatingMenu(
   );
   left = Math.min(Math.max(viewportMargin, left), maxLeft);
 
-  const belowTop = anchorRect.bottom + gap;
-  const aboveTop = anchorRect.top - gap - menuRect.height;
-  let top = belowTop;
-
-  if (belowTop + menuRect.height > win.innerHeight - viewportMargin) {
-    if (aboveTop >= viewportMargin) {
-      top = aboveTop;
-    } else {
-      top = Math.max(
-        viewportMargin,
-        win.innerHeight - menuRect.height - viewportMargin,
-      );
-    }
-  }
+  const unclampedTop = opensBelow
+    ? anchorRect.bottom + gap
+    : anchorRect.top - gap - menuRect.height;
+  const maxTop = Math.max(
+    viewportMargin,
+    win.innerHeight - menuRect.height - viewportMargin,
+  );
+  const top = Math.min(Math.max(viewportMargin, unclampedTop), maxTop);
 
   menu.style.left = `${Math.round(left)}px`;
   menu.style.top = `${Math.round(top)}px`;

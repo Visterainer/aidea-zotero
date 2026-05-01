@@ -17,6 +17,7 @@ import {
   type ProviderModelOption,
 } from "../utils/oauthCli";
 import { clearAllChatHistory } from "../utils/chatStore";
+import { clearSelectionTranslateColdStartCache } from "../utils/selectionTranslateCacheStore";
 import {
   canonicalizeSelectedModelIds,
   getDefaultSelectedModelIds,
@@ -35,10 +36,15 @@ import {
   detectPanelLangFromLocale,
   getUiLanguageOption,
   normalizeUiLanguageCode,
+  TRANSLATION_LANGUAGE_OPTIONS,
   UI_LANGUAGE_OPTIONS,
   type PanelLang,
 } from "./contextPanel/languages";
 import { getPrimaryConnectionMode } from "./contextPanel/prefHelpers";
+import {
+  getModelChoices,
+  pickBestDefaultModel,
+} from "./contextPanel/setupHandlers/controllers/modelSelectionController";
 
 type PrefKey =
   | "apiBase"
@@ -62,6 +68,12 @@ type PrefKey =
   | "oauthSetupLog"
   | "oauthRiskAccepted"
   | "primaryConnectionMode"
+  | "settingsSectionState"
+  | "settingsScrollTop"
+  | "selectionTranslate.model"
+  | "selectionTranslate.provider"
+  | "selectionTranslate.sourceLang"
+  | "selectionTranslate.targetLang"
   | "uiLanguage";
 
 type Lang = PanelLang;
@@ -84,6 +96,19 @@ const getPref = (key: PrefKey): string => {
 };
 const setPref = (key: PrefKey, value: string) =>
   Zotero.Prefs.set(pref(key), value, true);
+const getBoolPref = (key: string, fallback: boolean): boolean => {
+  const value = Zotero.Prefs.get(`${config.prefsPrefix}.${key}`, true);
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return fallback;
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  return fallback;
+};
+const setBoolPref = (key: string, value: boolean) =>
+  Zotero.Prefs.set(`${config.prefsPrefix}.${key}`, value, true);
 
 function getLang(): Lang {
   const saved = (getPref("uiLanguage") || "").trim();
@@ -269,6 +294,25 @@ const I18N = {
     showAddText: 'Show "Add Text" in reader selection popup',
     showAddTextHint:
       "Disable this if you prefer not to show the Add Text option in Zotero's text selection popup menu.",
+    selectionTranslateTitle: "Selection Translation",
+    selectionTranslateEnable: "Enable selection translation",
+    selectionTranslateEnableHint:
+      "When enabled, Zotero reader text selections can be translated in the selection popup.",
+    selectionTranslateAuto: "Translate automatically after selection",
+    selectionTranslateAutoHint:
+      "When disabled, the popup shows a translate button instead of starting immediately.",
+    selectionTranslateModel: "Selection translation model",
+    selectionTranslateModelHint:
+      "Uses the same OAuth/API model list as the discussion panel.",
+    selectionTranslateSourceLang: "Source language",
+    selectionTranslateTargetLang: "Target language",
+    selectionTranslateAutoDetect: "Auto detect",
+    selectionTranslateNoModels: "No available model",
+    selectionTranslateColdStartHint:
+      "Cold start runs once per paper when selection translation is enabled: AIdea reads the paper text, creates a compact overview and terminology summary, and stores it locally. Later selections reuse that local cache as context; clear the cold-start cache to regenerate it.",
+    selectionTranslateClearCache: "Clear cold-start cache",
+    selectionTranslateClearCacheRunning: "Clearing...",
+    selectionTranslateClearCacheDone: "Cold-start cache cleared ({n})",
     showAllModels: "Show all models in dropdown",
     showAllModelsHint:
       "When enabled, shows all available models. When disabled, only the best models per provider are shown.",
@@ -310,7 +354,7 @@ const I18N = {
     oauthDeviceNotice:
       "⚠️ OAuth Authorization Notice\n\nThis will start the Device Code OAuth flow:\n1. A verification URL and code will be displayed\n2. Open your browser to authorize the application\n\nPlease note:\n• OAuth tokens are stored locally on your device only\n• This plugin uses OAuth tokens which is not officially endorsed — theoretical risk of account restrictions\n• Using AI services may incur charges\n• This plugin is free, open-source, and collects no user data\n\nDo you wish to continue?",
     oauthInstallNotice:
-      "⚠️ OAuth Authorization Notice\n\n\"Install Environment\" will perform the following:\n1. Install Node.js runtime (if not already installed)\n2. Install the CLI tool for this provider\n3. Open your browser via OAuth to sign in\n\nPlease note:\n• OAuth tokens are stored locally on your device only and are never sent to any third-party server\n• The plugin communicates directly with the AI provider's official API\n• This plugin uses OAuth tokens which is not an officially endorsed usage — there is a theoretical risk of account restrictions\n• Using AI services may incur charges depending on your account billing plan\n• This plugin is completely free, open-source, and does not collect any user data\n\nDo you wish to continue?",
+      '⚠️ OAuth Authorization Notice\n\n"Install Environment" will perform the following:\n1. Install Node.js runtime (if not already installed)\n2. Install the CLI tool for this provider\n3. Open your browser via OAuth to sign in\n\nPlease note:\n• OAuth tokens are stored locally on your device only and are never sent to any third-party server\n• The plugin communicates directly with the AI provider\'s official API\n• This plugin uses OAuth tokens which is not an officially endorsed usage — there is a theoretical risk of account restrictions\n• Using AI services may incur charges depending on your account billing plan\n• This plugin is completely free, open-source, and does not collect any user data\n\nDo you wish to continue?',
     authLoggedIn: "Logged in",
     authNotLoggedIn: "Not logged in",
     authTokenMayBeExpired: "token may be expired",
@@ -323,6 +367,27 @@ const I18N = {
 
 type Dict = Record<string, string>;
 const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "zh-CN": {
+    selectionTranslateTitle: "划词翻译",
+    selectionTranslateEnable: "启用划词翻译",
+    selectionTranslateEnableHint:
+      "开启后，Zotero 阅读器划词弹窗会显示划词翻译结果。",
+    selectionTranslateAuto: "划词后自动翻译",
+    selectionTranslateAutoHint:
+      "关闭后，弹窗中显示翻译按钮，需要手动点击后再翻译。",
+    selectionTranslateModel: "划词翻译模型",
+    selectionTranslateModelHint:
+      "复用对话框中的 OAuth/API 模型列表和调用方式。",
+    selectionTranslateSourceLang: "源语言",
+    selectionTranslateTargetLang: "目标语言",
+    selectionTranslateAutoDetect: "自动识别",
+    selectionTranslateNoModels: "暂无可用模型",
+    selectionTranslateColdStartHint:
+      "冷启动会在某篇文献首次启用划词翻译时执行一次：AIdea 读取全文，生成精简概述和专业术语摘要并保存在本地。之后划词翻译会复用这份本地缓存作为上下文；需要重建时可清理冷启动缓存。",
+    selectionTranslateClearCache: "清理冷启动缓存",
+    selectionTranslateClearCacheRunning: "正在清理...",
+    selectionTranslateClearCacheDone: "已清理冷启动缓存（{n}）",
+  },
   "zh-TW": {
     primaryConnectionMode: "主要連線模式",
     oauthProvidersMode: "OAuth 提供商",
@@ -372,9 +437,11 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     systemPrompt: "自訂系統提示詞（可選）",
     systemPromptHint: "覆寫預設系統提示詞（留空則使用預設）",
     showAddText: "在閱讀器選取文字彈窗中顯示「Add Text」",
-    showAddTextHint: "若不想在 Zotero 文字選取彈窗中顯示 Add Text 選項，可關閉此項。",
+    showAddTextHint:
+      "若不想在 Zotero 文字選取彈窗中顯示 Add Text 選項，可關閉此項。",
     showAllModels: "在下拉選單中顯示所有模型",
-    showAllModelsHint: "啟用後顯示所有可用模型；停用後只顯示每個提供商的最佳模型。",
+    showAllModelsHint:
+      "啟用後顯示所有可用模型；停用後只顯示每個提供商的最佳模型。",
     hideTabNav: "分頁列：",
     hideTabNavOn: "隱藏",
     hideTabNavOff: "顯示",
@@ -409,19 +476,22 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "OAuth プロバイダーカードは常に表示されます。カスタムモードでは API Base URL と Model を入力してください。API Key は任意です。",
     customApiBase: "API Base URL *",
     customApiBasePlaceholder: "例：http://127.0.0.1:11434/v1/",
-    customApiBaseHint: "OpenAI 互換エンドポイントです。末尾は /v1/ にしてください。",
+    customApiBaseHint:
+      "OpenAI 互換エンドポイントです。末尾は /v1/ にしてください。",
     customApiKey: "API Key",
     customApiKeyPlaceholder: "任意。空欄の場合 Authorization は送信されません",
     customApiKeyHint: "ローカルの Zotero 設定に保存されます。",
     customModel: "モデル *",
     customModelPlaceholder: "例：llama3.1、deepseek-chat",
-    customModelHint: "サイドバーではカスタムモデルが OAuth モデルの後に表示されます。",
+    customModelHint:
+      "サイドバーではカスタムモデルが OAuth モデルの後に表示されます。",
     fetchModels: "モデルを取得",
     fetchModelsRunning: "モデルを取得中...",
     fetchModelsDone: "{n} 個のモデルを取得しました",
     fetchModelsFailed: "モデル取得に失敗しました：{msg}",
     fetchModelsEmpty: "エンドポイントからモデルが返されませんでした",
-    customModeDisabled: "カスタム API モードを有効にするには API Base URL と Model を入力してください。",
+    customModeDisabled:
+      "カスタム API モードを有効にするには API Base URL と Model を入力してください。",
     customModeMissing: "不足項目：{fields}",
     customModeReady: "カスタム API モードは使用可能です。",
     installEnv: "環境をインストール/更新",
@@ -439,19 +509,24 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "モデルを更新",
     loggingIn: "OAuth ログインを開始中...",
     refreshingModels: "モデル一覧を更新中...",
-    noModels: "モデルはまだありません（先に OAuth ログインとモデル更新を完了してください）",
+    noModels:
+      "モデルはまだありません（先に OAuth ログインとモデル更新を完了してください）",
     provider: "プロバイダー",
     account: "アカウント",
     status: "状態",
     modelId: "モデル ID",
     source: "ソース",
-    internalNote: "チェックしたモデルだけがサイドバーのドロップダウンに表示されます。",
+    internalNote:
+      "チェックしたモデルだけがサイドバーのドロップダウンに表示されます。",
     systemPrompt: "カスタムシステムプロンプト（任意）",
-    systemPromptHint: "既定のシステムプロンプトを上書きします（空欄なら既定を使用）",
+    systemPromptHint:
+      "既定のシステムプロンプトを上書きします（空欄なら既定を使用）",
     showAddText: "リーダーの選択ポップアップに「Add Text」を表示",
-    showAddTextHint: "Zotero の文字選択ポップアップに Add Text オプションを表示したくない場合は無効にしてください。",
+    showAddTextHint:
+      "Zotero の文字選択ポップアップに Add Text オプションを表示したくない場合は無効にしてください。",
     showAllModels: "ドロップダウンにすべてのモデルを表示",
-    showAllModelsHint: "有効にすると利用可能な全モデルを表示します。無効にすると各プロバイダーの推奨モデルのみ表示します。",
+    showAllModelsHint:
+      "有効にすると利用可能な全モデルを表示します。無効にすると各プロバイダーの推奨モデルのみ表示します。",
     hideTabNav: "タブバー：",
     hideTabNavOn: "非表示",
     hideTabNavOff: "表示",
@@ -488,17 +563,20 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiBasePlaceholder: "예: http://127.0.0.1:11434/v1/",
     customApiBaseHint: "OpenAI 호환 엔드포인트이며 /v1/로 끝나야 합니다.",
     customApiKey: "API Key",
-    customApiKeyPlaceholder: "선택 사항입니다. 비워 두면 Authorization을 보내지 않습니다",
+    customApiKeyPlaceholder:
+      "선택 사항입니다. 비워 두면 Authorization을 보내지 않습니다",
     customApiKeyHint: "로컬 Zotero 설정에 저장됩니다.",
     customModel: "모델 *",
     customModelPlaceholder: "예: llama3.1, deepseek-chat",
-    customModelHint: "사이드바에서 사용자 지정 모델은 OAuth 모델 뒤에 표시됩니다.",
+    customModelHint:
+      "사이드바에서 사용자 지정 모델은 OAuth 모델 뒤에 표시됩니다.",
     fetchModels: "모델 가져오기",
     fetchModelsRunning: "모델을 가져오는 중...",
     fetchModelsDone: "모델 {n}개를 가져왔습니다",
     fetchModelsFailed: "모델 가져오기 실패: {msg}",
     fetchModelsEmpty: "엔드포인트가 모델을 반환하지 않았습니다",
-    customModeDisabled: "사용자 지정 API 모드를 사용하려면 API Base URL과 Model을 입력하세요.",
+    customModeDisabled:
+      "사용자 지정 API 모드를 사용하려면 API Base URL과 Model을 입력하세요.",
     customModeMissing: "아직 부족한 항목: {fields}",
     customModeReady: "사용자 지정 API 모드가 준비되었습니다.",
     installEnv: "환경 설치/업데이트",
@@ -516,7 +594,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "모델 새로고침",
     loggingIn: "OAuth 로그인을 시작하는 중...",
     refreshingModels: "모델 목록을 새로고침하는 중...",
-    noModels: "아직 모델이 없습니다(OAuth 로그인 후 모델 목록을 새로고침하세요)",
+    noModels:
+      "아직 모델이 없습니다(OAuth 로그인 후 모델 목록을 새로고침하세요)",
     provider: "제공자",
     account: "계정",
     status: "상태",
@@ -524,11 +603,14 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     source: "출처",
     internalNote: "선택한 모델만 사이드바 드롭다운에 표시됩니다.",
     systemPrompt: "사용자 지정 시스템 프롬프트(선택 사항)",
-    systemPromptHint: "기본 시스템 프롬프트를 덮어씁니다(비워 두면 기본값 사용)",
-    showAddText: "리더 선택 팝업에 \"Add Text\" 표시",
-    showAddTextHint: "Zotero 텍스트 선택 팝업에서 Add Text 옵션을 보이지 않게 하려면 비활성화하세요.",
+    systemPromptHint:
+      "기본 시스템 프롬프트를 덮어씁니다(비워 두면 기본값 사용)",
+    showAddText: '리더 선택 팝업에 "Add Text" 표시',
+    showAddTextHint:
+      "Zotero 텍스트 선택 팝업에서 Add Text 옵션을 보이지 않게 하려면 비활성화하세요.",
     showAllModels: "드롭다운에 모든 모델 표시",
-    showAllModelsHint: "활성화하면 사용 가능한 모든 모델을 표시합니다. 비활성화하면 제공자별 추천 모델만 표시합니다.",
+    showAllModelsHint:
+      "활성화하면 사용 가능한 모든 모델을 표시합니다. 비활성화하면 제공자별 추천 모델만 표시합니다.",
     hideTabNav: "탭 바:",
     hideTabNavOn: "숨기기",
     hideTabNavOff: "표시",
@@ -565,17 +647,20 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiBasePlaceholder: "Exemple : http://127.0.0.1:11434/v1/",
     customApiBaseHint: "Point d'accès compatible OpenAI, avec /v1/ à la fin.",
     customApiKey: "API Key",
-    customApiKeyPlaceholder: "Facultatif ; vide, aucun Authorization n'est envoyé",
+    customApiKeyPlaceholder:
+      "Facultatif ; vide, aucun Authorization n'est envoyé",
     customApiKeyHint: "Enregistré dans les préférences locales de Zotero.",
     customModel: "Modèle *",
     customModelPlaceholder: "Exemple : llama3.1, deepseek-chat",
-    customModelHint: "Les modèles personnalisés apparaissent après les modèles OAuth dans la barre latérale.",
+    customModelHint:
+      "Les modèles personnalisés apparaissent après les modèles OAuth dans la barre latérale.",
     fetchModels: "Récupérer les modèles",
     fetchModelsRunning: "Récupération des modèles...",
     fetchModelsDone: "{n} modèles récupérés",
     fetchModelsFailed: "Échec de la récupération : {msg}",
     fetchModelsEmpty: "Le point d'accès n'a renvoyé aucun modèle",
-    customModeDisabled: "Pour activer le mode API personnalisé, renseignez API Base URL et Model.",
+    customModeDisabled:
+      "Pour activer le mode API personnalisé, renseignez API Base URL et Model.",
     customModeMissing: "Champs manquants : {fields}",
     customModeReady: "Le mode API personnalisé est prêt.",
     installEnv: "Installer/mettre à jour l'environnement",
@@ -593,19 +678,25 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "Actualiser les modèles",
     loggingIn: "Démarrage de la connexion OAuth...",
     refreshingModels: "Actualisation de la liste des modèles...",
-    noModels: "Aucun modèle pour l'instant (connectez-vous via OAuth puis actualisez la liste)",
+    noModels:
+      "Aucun modèle pour l'instant (connectez-vous via OAuth puis actualisez la liste)",
     provider: "Fournisseur",
     account: "Compte",
     status: "Statut",
     modelId: "ID du modèle",
     source: "Source",
-    internalNote: "Seuls les modèles cochés apparaissent dans la liste déroulante de la barre latérale.",
+    internalNote:
+      "Seuls les modèles cochés apparaissent dans la liste déroulante de la barre latérale.",
     systemPrompt: "Invite système personnalisée (facultatif)",
-    systemPromptHint: "Remplace l'invite système par défaut (laisser vide pour utiliser la valeur par défaut)",
-    showAddText: "Afficher « Add Text » dans la fenêtre de sélection du lecteur",
-    showAddTextHint: "Désactivez cette option si vous ne voulez pas afficher Add Text dans le menu de sélection de texte de Zotero.",
+    systemPromptHint:
+      "Remplace l'invite système par défaut (laisser vide pour utiliser la valeur par défaut)",
+    showAddText:
+      "Afficher « Add Text » dans la fenêtre de sélection du lecteur",
+    showAddTextHint:
+      "Désactivez cette option si vous ne voulez pas afficher Add Text dans le menu de sélection de texte de Zotero.",
     showAllModels: "Afficher tous les modèles dans la liste",
-    showAllModelsHint: "Activé : affiche tous les modèles disponibles. Désactivé : affiche seulement les meilleurs modèles par fournisseur.",
+    showAllModelsHint:
+      "Activé : affiche tous les modèles disponibles. Désactivé : affiche seulement les meilleurs modèles par fournisseur.",
     hideTabNav: "Barre d'onglets :",
     hideTabNavOn: "Masquer",
     hideTabNavOff: "Afficher",
@@ -646,13 +737,15 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiKeyHint: "Wird in den lokalen Zotero-Einstellungen gespeichert.",
     customModel: "Modell *",
     customModelPlaceholder: "Beispiel: llama3.1, deepseek-chat",
-    customModelHint: "Benutzerdefinierte Modelle erscheinen in der Seitenleiste nach den OAuth-Modellen.",
+    customModelHint:
+      "Benutzerdefinierte Modelle erscheinen in der Seitenleiste nach den OAuth-Modellen.",
     fetchModels: "Modelle abrufen",
     fetchModelsRunning: "Modelle werden abgerufen...",
     fetchModelsDone: "{n} Modelle abgerufen",
     fetchModelsFailed: "Modelle konnten nicht abgerufen werden: {msg}",
     fetchModelsEmpty: "Der Endpunkt hat keine Modelle zurückgegeben",
-    customModeDisabled: "Zum Aktivieren des benutzerdefinierten API-Modus API Base URL und Model ausfüllen.",
+    customModeDisabled:
+      "Zum Aktivieren des benutzerdefinierten API-Modus API Base URL und Model ausfüllen.",
     customModeMissing: "Noch fehlend: {fields}",
     customModeReady: "Benutzerdefinierter API-Modus ist bereit.",
     installEnv: "Umgebung installieren/aktualisieren",
@@ -670,7 +763,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "Modelle aktualisieren",
     loggingIn: "OAuth-Anmeldung wird gestartet...",
     refreshingModels: "Modellliste wird aktualisiert...",
-    noModels: "Noch keine Modelle (zuerst OAuth-Anmeldung abschließen und Modellliste aktualisieren)",
+    noModels:
+      "Noch keine Modelle (zuerst OAuth-Anmeldung abschließen und Modellliste aktualisieren)",
     provider: "Anbieter",
     account: "Konto",
     status: "Status",
@@ -678,11 +772,14 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     source: "Quelle",
     internalNote: "Nur markierte Modelle erscheinen im Seitenleisten-Dropdown.",
     systemPrompt: "Benutzerdefinierter System-Prompt (optional)",
-    systemPromptHint: "Überschreibt den Standard-System-Prompt (leer lassen, um den Standard zu verwenden)",
-    showAddText: "\"Add Text\" im Auswahl-Popup des Readers anzeigen",
-    showAddTextHint: "Deaktivieren, wenn die Option Add Text im Zotero-Textauswahlmenü nicht angezeigt werden soll.",
+    systemPromptHint:
+      "Überschreibt den Standard-System-Prompt (leer lassen, um den Standard zu verwenden)",
+    showAddText: '"Add Text" im Auswahl-Popup des Readers anzeigen',
+    showAddTextHint:
+      "Deaktivieren, wenn die Option Add Text im Zotero-Textauswahlmenü nicht angezeigt werden soll.",
     showAllModels: "Alle Modelle im Dropdown anzeigen",
-    showAllModelsHint: "Aktiviert: alle verfügbaren Modelle. Deaktiviert: nur die besten Modelle je Anbieter.",
+    showAllModelsHint:
+      "Aktiviert: alle verfügbaren Modelle. Deaktiviert: nur die besten Modelle je Anbieter.",
     hideTabNav: "Tableiste:",
     hideTabNavOn: "Ausblenden",
     hideTabNavOff: "Anzeigen",
@@ -699,7 +796,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     oauthDeviceNotice:
       "OAuth-Autorisierungshinweis\n\nDer Device-Code-OAuth-Ablauf wird gestartet und die Autorisierung im Browser abgeschlossen.\n\nOAuth-Tokens werden nur lokal gespeichert. Die Nutzung von KI-Diensten kann Kosten verursachen. Fortfahren?",
     oauthInstallNotice:
-      "OAuth-Autorisierungshinweis\n\n\"Umgebung installieren/aktualisieren\" installiert benötigte Laufzeitumgebungen und CLI-Tools und öffnet die Anmeldung im Browser.\n\nOAuth-Tokens werden nur lokal gespeichert. Die Nutzung von KI-Diensten kann Kosten verursachen. Fortfahren?",
+      'OAuth-Autorisierungshinweis\n\n"Umgebung installieren/aktualisieren" installiert benötigte Laufzeitumgebungen und CLI-Tools und öffnet die Anmeldung im Browser.\n\nOAuth-Tokens werden nur lokal gespeichert. Die Nutzung von KI-Diensten kann Kosten verursachen. Fortfahren?',
     authLoggedIn: "Angemeldet",
     authNotLoggedIn: "Nicht angemeldet",
     authTokenMayBeExpired: "Token ist möglicherweise abgelaufen",
@@ -719,17 +816,20 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiBasePlaceholder: "Ejemplo: http://127.0.0.1:11434/v1/",
     customApiBaseHint: "Endpoint compatible con OpenAI; debe terminar en /v1/.",
     customApiKey: "API Key",
-    customApiKeyPlaceholder: "Opcional; si está vacío no se envía Authorization",
+    customApiKeyPlaceholder:
+      "Opcional; si está vacío no se envía Authorization",
     customApiKeyHint: "Se guarda en las preferencias locales de Zotero.",
     customModel: "Modelo *",
     customModelPlaceholder: "Ejemplo: llama3.1, deepseek-chat",
-    customModelHint: "Los modelos personalizados aparecen después de los modelos OAuth en la barra lateral.",
+    customModelHint:
+      "Los modelos personalizados aparecen después de los modelos OAuth en la barra lateral.",
     fetchModels: "Obtener modelos",
     fetchModelsRunning: "Obteniendo modelos...",
     fetchModelsDone: "{n} modelos obtenidos",
     fetchModelsFailed: "Error al obtener modelos: {msg}",
     fetchModelsEmpty: "El endpoint no devolvió modelos",
-    customModeDisabled: "Para activar el modo API personalizado, rellena API Base URL y Model.",
+    customModeDisabled:
+      "Para activar el modo API personalizado, rellena API Base URL y Model.",
     customModeMissing: "Falta: {fields}",
     customModeReady: "El modo API personalizado está listo.",
     installEnv: "Instalar/actualizar entorno",
@@ -747,19 +847,24 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "Actualizar modelos",
     loggingIn: "Iniciando sesión OAuth...",
     refreshingModels: "Actualizando lista de modelos...",
-    noModels: "Aún no hay modelos (completa el inicio OAuth y actualiza la lista)",
+    noModels:
+      "Aún no hay modelos (completa el inicio OAuth y actualiza la lista)",
     provider: "Proveedor",
     account: "Cuenta",
     status: "Estado",
     modelId: "ID del modelo",
     source: "Origen",
-    internalNote: "Solo los modelos marcados aparecen en el desplegable de la barra lateral.",
+    internalNote:
+      "Solo los modelos marcados aparecen en el desplegable de la barra lateral.",
     systemPrompt: "Prompt de sistema personalizado (opcional)",
-    systemPromptHint: "Anula el prompt de sistema predeterminado (dejar vacío para usar el predeterminado)",
-    showAddText: "Mostrar \"Add Text\" en el popup de selección del lector",
-    showAddTextHint: "Desactívalo si no quieres mostrar Add Text en el menú de selección de texto de Zotero.",
+    systemPromptHint:
+      "Anula el prompt de sistema predeterminado (dejar vacío para usar el predeterminado)",
+    showAddText: 'Mostrar "Add Text" en el popup de selección del lector',
+    showAddTextHint:
+      "Desactívalo si no quieres mostrar Add Text en el menú de selección de texto de Zotero.",
     showAllModels: "Mostrar todos los modelos en el desplegable",
-    showAllModelsHint: "Activado: muestra todos los modelos disponibles. Desactivado: solo los mejores modelos por proveedor.",
+    showAllModelsHint:
+      "Activado: muestra todos los modelos disponibles. Desactivado: solo los mejores modelos por proveedor.",
     hideTabNav: "Barra de pestañas:",
     hideTabNavOn: "Ocultar",
     hideTabNavOff: "Mostrar",
@@ -776,7 +881,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     oauthDeviceNotice:
       "Aviso de autorización OAuth\n\nSe iniciará el flujo OAuth con código de dispositivo y deberás autorizar la aplicación en el navegador.\n\nLos tokens OAuth se guardan solo localmente. El uso de servicios de IA puede generar cargos. ¿Continuar?",
     oauthInstallNotice:
-      "Aviso de autorización OAuth\n\n\"Instalar/actualizar entorno\" instala el runtime y las herramientas CLI necesarias, y abre el inicio de sesión en el navegador.\n\nLos tokens OAuth se guardan solo localmente. El uso de servicios de IA puede generar cargos. ¿Continuar?",
+      'Aviso de autorización OAuth\n\n"Instalar/actualizar entorno" instala el runtime y las herramientas CLI necesarias, y abre el inicio de sesión en el navegador.\n\nLos tokens OAuth se guardan solo localmente. El uso de servicios de IA puede generar cargos. ¿Continuar?',
     authLoggedIn: "Sesión iniciada",
     authNotLoggedIn: "Sin sesión",
     authTokenMayBeExpired: "el token puede haber expirado",
@@ -794,19 +899,23 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "Карточки поставщиков OAuth остаются видимыми. В пользовательском режиме заполните API Base URL и Model; API Key необязателен.",
     customApiBase: "API Base URL *",
     customApiBasePlaceholder: "Например: http://127.0.0.1:11434/v1/",
-    customApiBaseHint: "OpenAI-совместимый эндпоинт, должен заканчиваться на /v1/.",
+    customApiBaseHint:
+      "OpenAI-совместимый эндпоинт, должен заканчиваться на /v1/.",
     customApiKey: "API Key",
-    customApiKeyPlaceholder: "Необязательно; если пусто, Authorization не отправляется",
+    customApiKeyPlaceholder:
+      "Необязательно; если пусто, Authorization не отправляется",
     customApiKeyHint: "Сохраняется в локальных настройках Zotero.",
     customModel: "Модель *",
     customModelPlaceholder: "Например: llama3.1, deepseek-chat",
-    customModelHint: "Пользовательские модели отображаются в боковой панели после моделей OAuth.",
+    customModelHint:
+      "Пользовательские модели отображаются в боковой панели после моделей OAuth.",
     fetchModels: "Получить модели",
     fetchModelsRunning: "Получение моделей...",
     fetchModelsDone: "Получено моделей: {n}",
     fetchModelsFailed: "Не удалось получить модели: {msg}",
     fetchModelsEmpty: "Эндпоинт не вернул моделей",
-    customModeDisabled: "Чтобы включить пользовательский режим API, заполните API Base URL и Model.",
+    customModeDisabled:
+      "Чтобы включить пользовательский режим API, заполните API Base URL и Model.",
     customModeMissing: "Не заполнено: {fields}",
     customModeReady: "Пользовательский режим API готов.",
     installEnv: "Установить/обновить среду",
@@ -824,19 +933,24 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "Обновить модели",
     loggingIn: "Запуск входа OAuth...",
     refreshingModels: "Обновление списка моделей...",
-    noModels: "Моделей пока нет (сначала выполните вход OAuth и обновите список)",
+    noModels:
+      "Моделей пока нет (сначала выполните вход OAuth и обновите список)",
     provider: "Поставщик",
     account: "Аккаунт",
     status: "Статус",
     modelId: "ID модели",
     source: "Источник",
-    internalNote: "В выпадающем списке боковой панели отображаются только отмеченные модели.",
+    internalNote:
+      "В выпадающем списке боковой панели отображаются только отмеченные модели.",
     systemPrompt: "Пользовательский системный промпт (необязательно)",
-    systemPromptHint: "Переопределяет системный промпт по умолчанию (оставьте пустым для значения по умолчанию)",
-    showAddText: "Показывать \"Add Text\" во всплывающем меню выделения в ридере",
-    showAddTextHint: "Отключите, если не хотите показывать Add Text в меню выделения текста Zotero.",
+    systemPromptHint:
+      "Переопределяет системный промпт по умолчанию (оставьте пустым для значения по умолчанию)",
+    showAddText: 'Показывать "Add Text" во всплывающем меню выделения в ридере',
+    showAddTextHint:
+      "Отключите, если не хотите показывать Add Text в меню выделения текста Zotero.",
     showAllModels: "Показывать все модели в выпадающем списке",
-    showAllModelsHint: "Включено: все доступные модели. Выключено: только лучшие модели каждого поставщика.",
+    showAllModelsHint:
+      "Включено: все доступные модели. Выключено: только лучшие модели каждого поставщика.",
     hideTabNav: "Панель вкладок:",
     hideTabNavOn: "Скрыть",
     hideTabNavOff: "Показать",
@@ -871,19 +985,22 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "Os cartões de provedores OAuth permanecem visíveis. No modo personalizado, preencha API Base URL e Model; API Key é opcional.",
     customApiBase: "API Base URL *",
     customApiBasePlaceholder: "Exemplo: http://127.0.0.1:11434/v1/",
-    customApiBaseHint: "Endpoint compatível com OpenAI; deve terminar com /v1/.",
+    customApiBaseHint:
+      "Endpoint compatível com OpenAI; deve terminar com /v1/.",
     customApiKey: "API Key",
     customApiKeyPlaceholder: "Opcional; vazio não envia Authorization",
     customApiKeyHint: "Salvo nas preferências locais do Zotero.",
     customModel: "Modelo *",
     customModelPlaceholder: "Exemplo: llama3.1, deepseek-chat",
-    customModelHint: "Modelos personalizados aparecem depois dos modelos OAuth na barra lateral.",
+    customModelHint:
+      "Modelos personalizados aparecem depois dos modelos OAuth na barra lateral.",
     fetchModels: "Buscar modelos",
     fetchModelsRunning: "Buscando modelos...",
     fetchModelsDone: "{n} modelos encontrados",
     fetchModelsFailed: "Falha ao buscar modelos: {msg}",
     fetchModelsEmpty: "O endpoint não retornou modelos",
-    customModeDisabled: "Para ativar o modo API personalizado, preencha API Base URL e Model.",
+    customModeDisabled:
+      "Para ativar o modo API personalizado, preencha API Base URL e Model.",
     customModeMissing: "Ainda falta: {fields}",
     customModeReady: "O modo API personalizado está pronto.",
     installEnv: "Instalar/atualizar ambiente",
@@ -909,11 +1026,14 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     source: "Origem",
     internalNote: "Somente modelos marcados aparecem no menu da barra lateral.",
     systemPrompt: "Prompt de sistema personalizado (opcional)",
-    systemPromptHint: "Substitui o prompt de sistema padrão (deixe vazio para usar o padrão)",
-    showAddText: "Mostrar \"Add Text\" no popup de seleção do leitor",
-    showAddTextHint: "Desative se não quiser mostrar Add Text no menu de seleção de texto do Zotero.",
+    systemPromptHint:
+      "Substitui o prompt de sistema padrão (deixe vazio para usar o padrão)",
+    showAddText: 'Mostrar "Add Text" no popup de seleção do leitor',
+    showAddTextHint:
+      "Desative se não quiser mostrar Add Text no menu de seleção de texto do Zotero.",
     showAllModels: "Mostrar todos os modelos no menu",
-    showAllModelsHint: "Ativado: mostra todos os modelos disponíveis. Desativado: mostra só os melhores modelos por provedor.",
+    showAllModelsHint:
+      "Ativado: mostra todos os modelos disponíveis. Desativado: mostra só os melhores modelos por provedor.",
     hideTabNav: "Barra de abas:",
     hideTabNavOn: "Ocultar",
     hideTabNavOff: "Mostrar",
@@ -930,7 +1050,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     oauthDeviceNotice:
       "Aviso de autorização OAuth\n\nO fluxo OAuth por código de dispositivo será iniciado e a autorização será concluída no navegador.\n\nTokens OAuth ficam salvos apenas localmente. O uso de serviços de IA pode gerar cobranças. Continuar?",
     oauthInstallNotice:
-      "Aviso de autorização OAuth\n\n\"Instalar/atualizar ambiente\" instala o runtime e as ferramentas CLI necessárias, depois abre o login no navegador.\n\nTokens OAuth ficam salvos apenas localmente. O uso de serviços de IA pode gerar cobranças. Continuar?",
+      'Aviso de autorização OAuth\n\n"Instalar/atualizar ambiente" instala o runtime e as ferramentas CLI necessárias, depois abre o login no navegador.\n\nTokens OAuth ficam salvos apenas localmente. O uso de serviços de IA pode gerar cobranças. Continuar?',
     authLoggedIn: "Logado",
     authNotLoggedIn: "Não logado",
     authTokenMayBeExpired: "o token pode ter expirado",
@@ -950,7 +1070,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiBasePlaceholder: "مثال: http://127.0.0.1:11434/v1/",
     customApiBaseHint: "نقطة نهاية متوافقة مع OpenAI ويجب أن تنتهي بـ /v1/.",
     customApiKey: "API Key",
-    customApiKeyPlaceholder: "اختياري؛ إذا تُرك فارغًا فلن يتم إرسال Authorization",
+    customApiKeyPlaceholder:
+      "اختياري؛ إذا تُرك فارغًا فلن يتم إرسال Authorization",
     customApiKeyHint: "يُحفظ في إعدادات Zotero المحلية.",
     customModel: "النموذج *",
     customModelPlaceholder: "مثال: llama3.1 أو deepseek-chat",
@@ -986,11 +1107,14 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     source: "المصدر",
     internalNote: "تظهر النماذج المحددة فقط في قائمة الشريط الجانبي.",
     systemPrompt: "موجه النظام المخصص (اختياري)",
-    systemPromptHint: "يتجاوز موجه النظام الافتراضي (اتركه فارغًا لاستخدام الافتراضي)",
-    showAddText: "إظهار \"Add Text\" في نافذة تحديد النص بالقارئ",
-    showAddTextHint: "عطّل هذا الخيار إذا كنت لا تريد إظهار Add Text في قائمة تحديد النص في Zotero.",
+    systemPromptHint:
+      "يتجاوز موجه النظام الافتراضي (اتركه فارغًا لاستخدام الافتراضي)",
+    showAddText: 'إظهار "Add Text" في نافذة تحديد النص بالقارئ',
+    showAddTextHint:
+      "عطّل هذا الخيار إذا كنت لا تريد إظهار Add Text في قائمة تحديد النص في Zotero.",
     showAllModels: "إظهار كل النماذج في القائمة",
-    showAllModelsHint: "عند التفعيل تُعرض كل النماذج المتاحة؛ وعند التعطيل تُعرض أفضل النماذج لكل موفر فقط.",
+    showAllModelsHint:
+      "عند التفعيل تُعرض كل النماذج المتاحة؛ وعند التعطيل تُعرض أفضل النماذج لكل موفر فقط.",
     hideTabNav: "شريط التبويبات:",
     hideTabNavOn: "إخفاء",
     hideTabNavOff: "إظهار",
@@ -1027,7 +1151,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiBasePlaceholder: "उदाहरण: http://127.0.0.1:11434/v1/",
     customApiBaseHint: "OpenAI-संगत endpoint, जो /v1/ पर समाप्त होना चाहिए।",
     customApiKey: "API Key",
-    customApiKeyPlaceholder: "वैकल्पिक; खाली होने पर Authorization नहीं भेजा जाएगा",
+    customApiKeyPlaceholder:
+      "वैकल्पिक; खाली होने पर Authorization नहीं भेजा जाएगा",
     customApiKeyHint: "स्थानीय Zotero सेटिंग्स में सहेजा जाएगा।",
     customModel: "मॉडल *",
     customModelPlaceholder: "उदाहरण: llama3.1, deepseek-chat",
@@ -1037,7 +1162,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fetchModelsDone: "{n} मॉडल मिले",
     fetchModelsFailed: "मॉडल लाने में विफल: {msg}",
     fetchModelsEmpty: "Endpoint ने कोई मॉडल वापस नहीं किया",
-    customModeDisabled: "कस्टम API मोड सक्षम करने के लिए API Base URL और Model भरें।",
+    customModeDisabled:
+      "कस्टम API मोड सक्षम करने के लिए API Base URL और Model भरें।",
     customModeMissing: "अभी बाकी है: {fields}",
     customModeReady: "कस्टम API मोड तैयार है।",
     installEnv: "Environment इंस्टॉल/अपडेट करें",
@@ -1055,7 +1181,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     refreshModels: "मॉडल रीफ़्रेश करें",
     loggingIn: "OAuth लॉगिन शुरू हो रहा है...",
     refreshingModels: "मॉडल सूची रीफ़्रेश हो रही है...",
-    noModels: "अभी कोई मॉडल नहीं है (पहले OAuth लॉगिन पूरा करें और मॉडल सूची रीफ़्रेश करें)",
+    noModels:
+      "अभी कोई मॉडल नहीं है (पहले OAuth लॉगिन पूरा करें और मॉडल सूची रीफ़्रेश करें)",
     provider: "प्रदाता",
     account: "खाता",
     status: "स्थिति",
@@ -1063,11 +1190,14 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     source: "स्रोत",
     internalNote: "केवल चुने गए मॉडल साइडबार dropdown में दिखाई देंगे।",
     systemPrompt: "कस्टम सिस्टम प्रॉम्प्ट (वैकल्पिक)",
-    systemPromptHint: "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट को बदलता है (डिफ़ॉल्ट के लिए खाली छोड़ें)",
-    showAddText: "Reader selection popup में \"Add Text\" दिखाएँ",
-    showAddTextHint: "यदि Zotero के text selection menu में Add Text विकल्प नहीं दिखाना चाहते, तो इसे बंद करें।",
+    systemPromptHint:
+      "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट को बदलता है (डिफ़ॉल्ट के लिए खाली छोड़ें)",
+    showAddText: 'Reader selection popup में "Add Text" दिखाएँ',
+    showAddTextHint:
+      "यदि Zotero के text selection menu में Add Text विकल्प नहीं दिखाना चाहते, तो इसे बंद करें।",
     showAllModels: "Dropdown में सभी मॉडल दिखाएँ",
-    showAllModelsHint: "चालू होने पर सभी उपलब्ध मॉडल दिखेंगे। बंद होने पर हर प्रदाता के केवल श्रेष्ठ मॉडल दिखेंगे।",
+    showAllModelsHint:
+      "चालू होने पर सभी उपलब्ध मॉडल दिखेंगे। बंद होने पर हर प्रदाता के केवल श्रेष्ठ मॉडल दिखेंगे।",
     hideTabNav: "Tab Bar:",
     hideTabNavOn: "छिपाएँ",
     hideTabNavOff: "दिखाएँ",
@@ -1084,7 +1214,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     oauthDeviceNotice:
       "OAuth authorization सूचना\n\nDevice Code OAuth flow शुरू होगा और आपको browser में authorization पूरा करना होगा।\n\nOAuth tokens केवल local रूप से सहेजे जाते हैं। AI सेवाओं के उपयोग से शुल्क लग सकता है। जारी रखें?",
     oauthInstallNotice:
-      "OAuth authorization सूचना\n\n\"Environment इंस्टॉल/अपडेट करें\" आवश्यक runtime और CLI tools इंस्टॉल करेगा, फिर browser में login खोलेगा।\n\nOAuth tokens केवल local रूप से सहेजे जाते हैं। AI सेवाओं के उपयोग से शुल्क लग सकता है। जारी रखें?",
+      'OAuth authorization सूचना\n\n"Environment इंस्टॉल/अपडेट करें" आवश्यक runtime और CLI tools इंस्टॉल करेगा, फिर browser में login खोलेगा।\n\nOAuth tokens केवल local रूप से सहेजे जाते हैं। AI सेवाओं के उपयोग से शुल्क लग सकता है। जारी रखें?',
     authLoggedIn: "लॉगिन है",
     authNotLoggedIn: "लॉगिन नहीं है",
     authTokenMayBeExpired: "token समाप्त हो सकता है",
@@ -1135,7 +1265,8 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "既定",
     selectAll: "すべて選択",
     removeProvider: "プロバイダーを削除",
-    removeProviderConfirm: "プロバイダー「{provider}」とすべてのモデルを削除しますか？",
+    removeProviderConfirm:
+      "プロバイダー「{provider}」とすべてのモデルを削除しますか？",
     removeModel: "モデルを削除",
     testingModels: "✔ {n} 個のモデル、利用可能性をテスト中...",
     pingSummary: "✔ {ok} 使用可, {fail} 失敗",
@@ -1159,7 +1290,7 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "기본값",
     selectAll: "전체 선택",
     removeProvider: "제공자 제거",
-    removeProviderConfirm: "제공자 \"{provider}\" 및 모든 모델을 제거할까요?",
+    removeProviderConfirm: '제공자 "{provider}" 및 모든 모델을 제거할까요?',
     removeModel: "모델 제거",
     testingModels: "✔ 모델 {n}개, 사용 가능 여부 테스트 중...",
     pingSummary: "✔ {ok}개 사용 가능, {fail}개 실패",
@@ -1183,13 +1314,15 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "Défauts",
     selectAll: "Tout sélectionner",
     removeProvider: "Supprimer le fournisseur",
-    removeProviderConfirm: "Supprimer le fournisseur « {provider} » et tous ses modèles ?",
+    removeProviderConfirm:
+      "Supprimer le fournisseur « {provider} » et tous ses modèles ?",
     removeModel: "Supprimer le modèle",
     testingModels: "✔ {n} modèles, test de disponibilité...",
     pingSummary: "✔ {ok} OK, {fail} échecs",
     selectedSummary: "{selected}/{total} sélectionnés",
     refreshFailed: "✖ Échec de l'actualisation : {msg}",
-    systemPromptPlaceholder: "Instructions personnalisées pour l'assistant IA...",
+    systemPromptPlaceholder:
+      "Instructions personnalisées pour l'assistant IA...",
   },
   "de-DE": {
     console: "Konsole",
@@ -1213,7 +1346,8 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     pingSummary: "✔ {ok} OK, {fail} fehlgeschlagen",
     selectedSummary: "{selected}/{total} ausgewählt",
     refreshFailed: "✖ Aktualisierung fehlgeschlagen: {msg}",
-    systemPromptPlaceholder: "Benutzerdefinierte Anweisungen für den KI-Assistenten...",
+    systemPromptPlaceholder:
+      "Benutzerdefinierte Anweisungen für den KI-Assistenten...",
   },
   "es-ES": {
     console: "Consola",
@@ -1231,13 +1365,15 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "Predeterminados",
     selectAll: "Seleccionar todo",
     removeProvider: "Eliminar proveedor",
-    removeProviderConfirm: "¿Eliminar el proveedor «{provider}» y todos sus modelos?",
+    removeProviderConfirm:
+      "¿Eliminar el proveedor «{provider}» y todos sus modelos?",
     removeModel: "Eliminar modelo",
     testingModels: "✔ {n} modelos, probando disponibilidad...",
     pingSummary: "✔ {ok} OK, {fail} fallidos",
     selectedSummary: "{selected}/{total} seleccionados",
     refreshFailed: "✖ Error al actualizar: {msg}",
-    systemPromptPlaceholder: "Instrucciones personalizadas para el asistente de IA...",
+    systemPromptPlaceholder:
+      "Instrucciones personalizadas para el asistente de IA...",
   },
   "ru-RU": {
     console: "Консоль",
@@ -1279,13 +1415,15 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "Padrões",
     selectAll: "Selecionar tudo",
     removeProvider: "Remover provedor",
-    removeProviderConfirm: "Remover o provedor \"{provider}\" e todos os seus modelos?",
+    removeProviderConfirm:
+      'Remover o provedor "{provider}" e todos os seus modelos?',
     removeModel: "Remover modelo",
     testingModels: "✔ {n} modelos, testando disponibilidade...",
     pingSummary: "✔ {ok} OK, {fail} falharam",
     selectedSummary: "{selected}/{total} selecionados",
     refreshFailed: "✖ Falha ao atualizar: {msg}",
-    systemPromptPlaceholder: "Instruções personalizadas para o assistente de IA...",
+    systemPromptPlaceholder:
+      "Instruções personalizadas para o assistente de IA...",
   },
   "ar-SA": {
     console: "وحدة التحكم",
@@ -1303,7 +1441,7 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "الافتراضي",
     selectAll: "تحديد الكل",
     removeProvider: "إزالة المزود",
-    removeProviderConfirm: "إزالة المزود \"{provider}\" وكل نماذجه؟",
+    removeProviderConfirm: 'إزالة المزود "{provider}" وكل نماذجه؟',
     removeModel: "إزالة النموذج",
     testingModels: "✔ {n} نموذج، جارٍ اختبار التوفر...",
     pingSummary: "✔ {ok} متاح، {fail} فشل",
@@ -1327,7 +1465,7 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     defaults: "डिफ़ॉल्ट",
     selectAll: "सभी चुनें",
     removeProvider: "प्रदाता हटाएँ",
-    removeProviderConfirm: "प्रदाता \"{provider}\" और उसके सभी मॉडल हटाएँ?",
+    removeProviderConfirm: 'प्रदाता "{provider}" और उसके सभी मॉडल हटाएँ?',
     removeModel: "मॉडल हटाएँ",
     testingModels: "✔ {n} मॉडल, उपलब्धता जाँची जा रही है...",
     pingSummary: "✔ {ok} उपलब्ध, {fail} विफल",
@@ -1336,12 +1474,56 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     systemPromptPlaceholder: "AI assistant के लिए कस्टम निर्देश...",
   },
 };
+const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
+  {
+    "zh-TW": {
+      selectionTranslateColdStartHint:
+        "冷啟動會在某篇文獻首次啟用劃詞翻譯時執行一次：AIdea 讀取全文，產生精簡概述與專業術語摘要，並儲存在本機。之後劃詞翻譯會重用這份本機快取作為上下文；需要重建時可清理冷啟動快取。",
+    },
+    "ja-JP": {
+      selectionTranslateColdStartHint:
+        "コールドスタートは、文献で初めて選択範囲翻訳を有効にしたときに一度だけ実行されます。AIdea が全文を読み、要約と専門用語の短いまとめを作成してローカルに保存します。以後の翻訳ではこのローカルキャッシュを文脈として再利用します。作り直す場合はコールドスタートキャッシュをクリアしてください。",
+    },
+    "ko-KR": {
+      selectionTranslateColdStartHint:
+        "콜드 스타트는 문헌에서 선택 번역을 처음 사용할 때 한 번 실행됩니다. AIdea가 전체 텍스트를 읽고 간단한 개요와 전문 용어 요약을 만든 뒤 로컬에 저장합니다. 이후 선택 번역은 이 로컬 캐시를 문맥으로 재사용합니다. 다시 만들려면 콜드 스타트 캐시를 지우세요.",
+    },
+    "fr-FR": {
+      selectionTranslateColdStartHint:
+        "Le démarrage à froid s'exécute une fois par article lorsque la traduction de sélection est activée : AIdea lit le texte complet, crée un aperçu compact et un résumé terminologique, puis les stocke localement. Les traductions suivantes réutilisent ce cache local comme contexte ; effacez le cache pour le régénérer.",
+    },
+    "de-DE": {
+      selectionTranslateColdStartHint:
+        "Der Kaltstart wird pro Dokument einmal ausgeführt, wenn die Markierungsübersetzung aktiviert ist: AIdea liest den Volltext, erstellt eine kurze Übersicht und eine Fachbegriff-Zusammenfassung und speichert sie lokal. Spätere Übersetzungen verwenden diesen lokalen Cache als Kontext; zum Neuerstellen den Kaltstart-Cache leeren.",
+    },
+    "es-ES": {
+      selectionTranslateColdStartHint:
+        "El arranque en frío se ejecuta una vez por documento cuando se activa la traducción de selección: AIdea lee el texto completo, crea una descripción breve y un resumen de términos técnicos, y lo guarda localmente. Las traducciones posteriores reutilizan esa caché local como contexto; borra la caché para regenerarla.",
+    },
+    "ru-RU": {
+      selectionTranslateColdStartHint:
+        "Холодный запуск выполняется один раз для статьи при включении перевода выделенного текста: AIdea читает полный текст, создает краткий обзор и сводку терминов, затем сохраняет их локально. Последующие переводы используют этот локальный кэш как контекст; очистите кэш, чтобы создать его заново.",
+    },
+    "pt-BR": {
+      selectionTranslateColdStartHint:
+        "A inicialização a frio é executada uma vez por artigo quando a tradução por seleção é ativada: o AIdea lê o texto completo, cria um resumo compacto e uma síntese de termos técnicos, e salva tudo localmente. As próximas traduções reutilizam esse cache local como contexto; limpe o cache para recriá-lo.",
+    },
+    "ar-SA": {
+      selectionTranslateColdStartHint:
+        "يعمل البدء البارد مرة واحدة لكل مقالة عند تفعيل ترجمة التحديد: يقرأ AIdea النص الكامل، وينشئ ملخصا موجزا وملخصا للمصطلحات المتخصصة، ثم يحفظهما محليا. تستخدم الترجمات اللاحقة هذا التخزين المحلي كسياق؛ امسح ذاكرة البدء البارد لإعادة إنشائها.",
+    },
+    "hi-IN": {
+      selectionTranslateColdStartHint:
+        "कोल्ड स्टार्ट हर लेख के लिए चयन अनुवाद पहली बार सक्षम होने पर एक बार चलता है: AIdea पूरा पाठ पढ़ता है, संक्षिप्त सार और तकनीकी शब्दों का सारांश बनाता है, और उसे स्थानीय रूप से सहेजता है। बाद के चयन अनुवाद इसी स्थानीय कैश को संदर्भ के रूप में उपयोग करते हैं; इसे फिर से बनाने के लिए कोल्ड-स्टार्ट कैश साफ करें।",
+    },
+  };
 const tt = (l: Lang): Dict =>
   ({
     ...(I18N["en-US"] as unknown as Dict),
     ...((I18N as unknown as Partial<Record<Lang, Dict>>)[l] || {}),
     ...(SETTINGS_I18N_BASE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES[l] || {}),
   }) as Dict;
 
 function localizeAuthStatus(raw: string, L: Dict): string {
@@ -1688,6 +1870,91 @@ export async function bootstrapSettingTab(
   const root = createEl(doc, "div", "llm-settings-root");
   scrollContainer.appendChild(root);
 
+  type SettingsSectionId =
+    | "connectionMode"
+    | "models"
+    | "selectionTranslate"
+    | "advanced"
+    | "console"
+    | "accounts";
+  const settingsSectionIds: SettingsSectionId[] = [
+    "connectionMode",
+    "models",
+    "selectionTranslate",
+    "advanced",
+    "console",
+    "accounts",
+  ];
+  const defaultSectionState = settingsSectionIds.reduce(
+    (acc, id) => {
+      acc[id] = true;
+      return acc;
+    },
+    {} as Record<SettingsSectionId, boolean>,
+  );
+  const readSectionState = (): Record<SettingsSectionId, boolean> => {
+    const state = { ...defaultSectionState };
+    const raw = getPref("settingsSectionState").trim();
+    if (!raw) return state;
+    try {
+      const parsed = JSON.parse(raw) as Partial<
+        Record<SettingsSectionId, unknown>
+      >;
+      for (const id of settingsSectionIds) {
+        if (typeof parsed?.[id] === "boolean") {
+          state[id] = parsed[id] as boolean;
+        }
+      }
+    } catch {
+      /* keep defaults */
+    }
+    return state;
+  };
+  const sectionState = readSectionState();
+  const saveSectionState = () => {
+    setPref("settingsSectionState", JSON.stringify(sectionState));
+  };
+  const setCollapsibleState = (
+    title: HTMLElement,
+    body: HTMLElement,
+    id: SettingsSectionId,
+    collapsed: boolean,
+    openDisplay = "",
+  ) => {
+    sectionState[id] = collapsed;
+    title.dataset.collapsed = collapsed ? "true" : "false";
+    body.style.display = collapsed ? "none" : openDisplay;
+  };
+  const applyCollapsibleState = (
+    title: HTMLElement,
+    body: HTMLElement,
+    id: SettingsSectionId,
+    openDisplay = "",
+  ) => {
+    setCollapsibleState(title, body, id, sectionState[id] ?? true, openDisplay);
+  };
+  const toggleCollapsibleState = (
+    title: HTMLElement,
+    body: HTMLElement,
+    id: SettingsSectionId,
+    openDisplay = "",
+  ) => {
+    const collapsed = title.dataset.collapsed !== "true";
+    setCollapsibleState(title, body, id, collapsed, openDisplay);
+    saveSectionState();
+  };
+  let scrollSaveTimer = 0;
+  scrollContainer.addEventListener("scroll", () => {
+    if (scrollSaveTimer) win.clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = win.setTimeout(() => {
+      setPref(
+        "settingsScrollTop",
+        String(Math.max(0, Math.floor(scrollContainer.scrollTop || 0))),
+      );
+      scrollSaveTimer = 0;
+    }, 150);
+  });
+
   // ── ① Language dropdown + danger buttons toolbar ──
   const langBox = createEl(doc, "div", "llm-set-card llm-set-toolbar");
   const langLeft = createEl(doc, "div", "llm-set-toolbar-left");
@@ -1919,12 +2186,9 @@ export async function bootstrapSettingTab(
     "div",
     "llm-set-title llm-set-collapsible-toggle",
   );
-  consoleTitle.dataset.collapsed = "true";
-  consoleCard.style.display = "none";
+  applyCollapsibleState(consoleTitle, consoleCard, "console", "flex");
   consoleTitle.addEventListener("click", () => {
-    const isCollapsed = consoleTitle.dataset.collapsed === "true";
-    consoleTitle.dataset.collapsed = isCollapsed ? "false" : "true";
-    consoleCard.style.display = isCollapsed ? "flex" : "none";
+    toggleCollapsibleState(consoleTitle, consoleCard, "console", "flex");
   });
 
   // ── ② Model Config — tab-bar style OAuth / Custom switcher ──
@@ -1935,11 +2199,17 @@ export async function bootstrapSettingTab(
     "llm-set-title llm-set-collapsible-toggle",
   );
   const connectionModeBody = createEl(doc, "div", "llm-set-collapsible-body");
-  connectionModeTitle.dataset.collapsed = "false";
+  applyCollapsibleState(
+    connectionModeTitle,
+    connectionModeBody,
+    "connectionMode",
+  );
   connectionModeTitle.addEventListener("click", () => {
-    const c = connectionModeTitle.dataset.collapsed === "true";
-    connectionModeTitle.dataset.collapsed = c ? "false" : "true";
-    connectionModeBody.style.display = c ? "" : "none";
+    toggleCollapsibleState(
+      connectionModeTitle,
+      connectionModeBody,
+      "connectionMode",
+    );
   });
 
   // Hidden radios keep pref synced; visibility is driven by tab buttons
@@ -2312,17 +2582,14 @@ export async function bootstrapSettingTab(
     "div",
     "llm-set-title llm-set-title--sub llm-set-collapsible-toggle",
   );
-  accountsTitle.dataset.collapsed = "true";
   const accountsTable = createEl(
     doc,
     "div",
     "llm-set-table llm-set-collapsible-body",
   );
-  accountsTable.style.display = "none";
+  applyCollapsibleState(accountsTitle, accountsTable, "accounts", "block");
   accountsTitle.addEventListener("click", () => {
-    const isCollapsed = accountsTitle.dataset.collapsed === "true";
-    accountsTitle.dataset.collapsed = isCollapsed ? "false" : "true";
-    accountsTable.style.display = isCollapsed ? "block" : "none";
+    toggleCollapsibleState(accountsTitle, accountsTable, "accounts", "block");
   });
   accountsBox.append(accountsTitle, accountsTable);
 
@@ -2333,11 +2600,9 @@ export async function bootstrapSettingTab(
     "llm-set-title llm-set-collapsible-toggle",
   );
   const modelsBody = createEl(doc, "div", "llm-set-collapsible-body");
-  modelsTitle.dataset.collapsed = "false";
+  applyCollapsibleState(modelsTitle, modelsBody, "models");
   modelsTitle.addEventListener("click", () => {
-    const c = modelsTitle.dataset.collapsed === "true";
-    modelsTitle.dataset.collapsed = c ? "false" : "true";
-    modelsBody.style.display = c ? "" : "none";
+    toggleCollapsibleState(modelsTitle, modelsBody, "models");
   });
   const modelsActionRow = createEl(
     doc,
@@ -2417,6 +2682,54 @@ export async function bootstrapSettingTab(
     if (atl) atl.textContent = L.showAddText;
     const ath = doc.querySelector(`#${config.addonRef}-popup-add-text-hint`);
     if (ath) ath.textContent = L.showAddTextHint;
+    const stTitle = doc.querySelector(
+      `#${config.addonRef}-selection-translate-title`,
+    );
+    if (stTitle) stTitle.textContent = L.selectionTranslateTitle;
+    const stEnable = doc.querySelector(
+      `#${config.addonRef}-selection-translate-enable-label`,
+    );
+    if (stEnable) stEnable.textContent = L.selectionTranslateEnable;
+    const stEnableHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-enable-hint`,
+    );
+    if (stEnableHint) stEnableHint.textContent = L.selectionTranslateEnableHint;
+    const stAuto = doc.querySelector(
+      `#${config.addonRef}-selection-translate-auto-label`,
+    );
+    if (stAuto) stAuto.textContent = L.selectionTranslateAuto;
+    const stAutoHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-auto-hint`,
+    );
+    if (stAutoHint) stAutoHint.textContent = L.selectionTranslateAutoHint;
+    const stModel = doc.querySelector(
+      `#${config.addonRef}-selection-translate-model-label`,
+    );
+    if (stModel) stModel.textContent = L.selectionTranslateModel;
+    const stModelHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-model-hint`,
+    );
+    if (stModelHint) stModelHint.textContent = L.selectionTranslateModelHint;
+    const stSource = doc.querySelector(
+      `#${config.addonRef}-selection-translate-source-label`,
+    );
+    if (stSource) stSource.textContent = L.selectionTranslateSourceLang;
+    const stTarget = doc.querySelector(
+      `#${config.addonRef}-selection-translate-target-label`,
+    );
+    if (stTarget) stTarget.textContent = L.selectionTranslateTargetLang;
+    const stColdStartHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-cold-start-hint`,
+    );
+    if (stColdStartHint) {
+      stColdStartHint.textContent = L.selectionTranslateColdStartHint;
+    }
+    const stClear = doc.querySelector(
+      `#${config.addonRef}-selection-translate-clear-cache`,
+    );
+    if (stClear) stClear.textContent = L.selectionTranslateClearCache;
+    renderSelectionTranslateLanguageOptions();
+    renderSelectionTranslateModelOptions();
     const saml = doc.querySelector(`#${config.addonRef}-show-all-models-label`);
     if (saml) saml.textContent = L.showAllModels;
     const samh = doc.querySelector(`#${config.addonRef}-show-all-models-hint`);
@@ -2427,8 +2740,8 @@ export async function bootstrapSettingTab(
   const appendProgress = (line: string, color = "#374151") => {
     // Auto-expand console section when progress is appended
     if (consoleTitle.dataset.collapsed === "true") {
-      consoleTitle.dataset.collapsed = "false";
-      consoleCard.style.display = "flex";
+      setCollapsibleState(consoleTitle, consoleCard, "console", false, "flex");
+      saveSectionState();
     }
     const row = createNode(doc, "div", `color:${color};`);
     row.textContent = line;
@@ -2498,6 +2811,283 @@ export async function bootstrapSettingTab(
 
   // Map to hold per-provider status elements across renderModels() rebuilds
   const providerStatusRefs = new Map<string, HTMLSpanElement>();
+  let selectionTranslateModelDropdown: HTMLDivElement | null = null;
+  let selectionTranslateSourceDropdown: HTMLDivElement | null = null;
+  let selectionTranslateTargetDropdown: HTMLDivElement | null = null;
+
+  const createTranslateStyleDropdown = (id: string): HTMLDivElement => {
+    const dropdown = createEl(doc, "div", "llm-tr-dropdown") as HTMLDivElement;
+    dropdown.id = id;
+    const trigger = createEl(
+      doc,
+      "div",
+      "llm-tr-dropdown-trigger",
+    ) as HTMLDivElement;
+    const arrow = createEl(
+      doc,
+      "span",
+      "llm-tr-dropdown-arrow",
+    ) as HTMLSpanElement;
+    arrow.textContent = "\u25be";
+    trigger.appendChild(arrow);
+    const menu = createEl(doc, "div", "llm-tr-dropdown-menu") as HTMLDivElement;
+    menu.style.display = "none";
+    dropdown.append(trigger, menu);
+
+    const positionMenu = () => {
+      const view = doc.defaultView;
+      const triggerRect = trigger.getBoundingClientRect();
+      const scrollParent = dropdown.closest(
+        ".llm-setting-scroll, .llm-translate-scroll",
+      ) as HTMLElement | null;
+      const scrollRect = scrollParent?.getBoundingClientRect();
+      const viewportTop = 0;
+      const viewportBottom =
+        view?.innerHeight || doc.documentElement?.clientHeight || 600;
+      const boundaryTop = Math.max(scrollRect?.top ?? viewportTop, viewportTop);
+      const boundaryBottom = Math.min(
+        scrollRect?.bottom ?? viewportBottom,
+        viewportBottom,
+      );
+      const gap = 2;
+      const preferredHeight = Math.min(menu.scrollHeight || 280, 280);
+      const spaceBelow = boundaryBottom - triggerRect.bottom - gap;
+      const spaceAbove = triggerRect.top - boundaryTop - gap;
+      const openUp = spaceBelow < preferredHeight && spaceAbove > spaceBelow;
+      const available = openUp ? spaceAbove : spaceBelow;
+      const maxHeight = Math.max(80, Math.min(280, Math.floor(available)));
+
+      menu.style.maxHeight = `${maxHeight}px`;
+      menu.style.top = openUp ? "auto" : "calc(100% + 2px)";
+      menu.style.bottom = openUp ? "calc(100% + 2px)" : "auto";
+    };
+
+    trigger.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const open = menu.style.display !== "none";
+      if (open) {
+        menu.style.display = "none";
+        dropdown.classList.remove("open");
+        return;
+      }
+      menu.style.display = "block";
+      dropdown.classList.add("open");
+      positionMenu();
+    });
+    doc.addEventListener("click", (event: Event) => {
+      if (!dropdown.contains(event.target as Node)) {
+        menu.style.display = "none";
+        dropdown.classList.remove("open");
+      }
+    });
+    return dropdown;
+  };
+
+  const setDropdownTriggerText = (dropdown: HTMLDivElement, label: string) => {
+    const trigger = dropdown.querySelector(
+      ".llm-tr-dropdown-trigger",
+    ) as HTMLDivElement | null;
+    if (!trigger) return;
+    const arrow = trigger.querySelector(".llm-tr-dropdown-arrow");
+    trigger.textContent = label;
+    if (arrow) trigger.appendChild(arrow);
+  };
+
+  const closeTranslateStyleDropdown = (dropdown: HTMLDivElement) => {
+    const menu = dropdown.querySelector(
+      ".llm-tr-dropdown-menu",
+    ) as HTMLDivElement | null;
+    if (menu) menu.style.display = "none";
+    dropdown.classList.remove("open");
+  };
+
+  const renderSelectionTranslateModelOptions = () => {
+    if (!selectionTranslateModelDropdown) return;
+    const dropdown = selectionTranslateModelDropdown;
+    const menu = dropdown.querySelector(
+      ".llm-tr-dropdown-menu",
+    ) as HTMLDivElement | null;
+    if (!menu) return;
+    const { choices } = getModelChoices();
+    menu.innerHTML = "";
+    if (!choices.length) {
+      dropdown.dataset.value = "";
+      dropdown.dataset.providerId = "";
+      setDropdownTriggerText(dropdown, L.selectionTranslateNoModels);
+      return;
+    }
+
+    const savedModel = getPref("selectionTranslate.model");
+    const savedProvider = getPref("selectionTranslate.provider");
+    const previousModel = dropdown.dataset.value || savedModel;
+    const previousProvider = dropdown.dataset.providerId || savedProvider;
+    let selectedChoice =
+      (previousModel
+        ? choices.find(
+            (choice) =>
+              choice.model === previousModel &&
+              (choice.providerId || "") === previousProvider,
+          ) || choices.find((choice) => choice.model === previousModel)
+        : undefined) ||
+      (savedModel
+        ? choices.find(
+            (choice) =>
+              choice.model === savedModel &&
+              (choice.providerId || "") === savedProvider,
+          ) || choices.find((choice) => choice.model === savedModel)
+        : undefined) ||
+      undefined;
+    if (!selectedChoice) {
+      const bestModel = pickBestDefaultModel(choices);
+      selectedChoice =
+        choices.find((choice) => choice.model === bestModel) || choices[0];
+    }
+
+    const selectChoice = (
+      model: string,
+      providerId: string,
+      persist: boolean,
+    ) => {
+      dropdown.dataset.value = model;
+      dropdown.dataset.providerId = providerId;
+      setDropdownTriggerText(dropdown, model);
+      menu.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
+        const item = el as HTMLElement;
+        item.classList.toggle(
+          "selected",
+          item.dataset.value === model &&
+            (item.dataset.providerId || "") === providerId,
+        );
+      });
+      closeTranslateStyleDropdown(dropdown);
+      if (persist) {
+        setPref("selectionTranslate.model", model);
+        setPref("selectionTranslate.provider", providerId);
+      }
+    };
+
+    let lastProvider = "";
+    for (const choice of choices) {
+      const provider = choice.provider || "";
+      if (provider && provider !== lastProvider) {
+        lastProvider = provider;
+        const groupLabel = createEl(
+          doc,
+          "div",
+          "llm-tr-dropdown-group",
+          provider,
+        );
+        menu.appendChild(groupLabel);
+      }
+
+      const item = createEl(
+        doc,
+        "div",
+        "llm-tr-dropdown-item",
+        choice.model,
+      ) as HTMLDivElement;
+      item.dataset.value = choice.model;
+      item.dataset.providerId = choice.providerId || "";
+      item.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectChoice(choice.model, choice.providerId || "", true);
+      });
+      menu.appendChild(item);
+    }
+    if (selectedChoice) {
+      selectChoice(
+        selectedChoice.model,
+        selectedChoice.providerId || "",
+        false,
+      );
+    }
+  };
+
+  const buildSelectionLanguageOptions = (includeAuto: boolean) => {
+    const options: { value: string; label: string }[] = [];
+    const seen = new Set<string>();
+    if (includeAuto) {
+      options.push({
+        value: "auto",
+        label: L.selectionTranslateAutoDetect,
+      });
+      seen.add("auto");
+    }
+    for (const language of TRANSLATION_LANGUAGE_OPTIONS) {
+      const code = String(language.code || "").trim();
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      options.push({
+        value: code,
+        label: language.label || code,
+      });
+    }
+    return options;
+  };
+
+  const renderSelectionLanguageDropdown = (
+    dropdown: HTMLDivElement | null,
+    includeAuto: boolean,
+    prefKey: PrefKey,
+    fallback: string,
+  ) => {
+    if (!dropdown) return;
+    const menu = dropdown.querySelector(
+      ".llm-tr-dropdown-menu",
+    ) as HTMLDivElement | null;
+    if (!menu) return;
+    const saved = dropdown.dataset.value || getPref(prefKey) || fallback;
+    const options = buildSelectionLanguageOptions(includeAuto);
+    const selected =
+      options.find((option) => option.value === saved) ||
+      options.find((option) => option.value === fallback) ||
+      options[0];
+    menu.innerHTML = "";
+
+    const selectOption = (value: string, label: string, persist: boolean) => {
+      dropdown.dataset.value = value;
+      setDropdownTriggerText(dropdown, label);
+      menu.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
+        const item = el as HTMLElement;
+        item.classList.toggle("selected", item.dataset.value === value);
+      });
+      closeTranslateStyleDropdown(dropdown);
+      if (persist) setPref(prefKey, value);
+    };
+
+    for (const option of options) {
+      const item = createEl(
+        doc,
+        "div",
+        "llm-tr-dropdown-item",
+        option.label,
+      ) as HTMLDivElement;
+      item.dataset.value = option.value;
+      item.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectOption(option.value, option.label, true);
+      });
+      menu.appendChild(item);
+    }
+    if (selected) {
+      selectOption(selected.value, selected.label, false);
+    }
+  };
+
+  const renderSelectionTranslateLanguageOptions = () => {
+    renderSelectionLanguageDropdown(
+      selectionTranslateSourceDropdown,
+      true,
+      "selectionTranslate.sourceLang",
+      "auto",
+    );
+    renderSelectionLanguageDropdown(
+      selectionTranslateTargetDropdown,
+      false,
+      "selectionTranslate.targetLang",
+      "zh-CN",
+    );
+  };
 
   const renderModels = () => {
     modelsTable.innerHTML = "";
@@ -2744,6 +3334,7 @@ export async function bootstrapSettingTab(
     if (!count) {
       modelsTable.appendChild(createEl(doc, "div", "llm-set-hint", L.noModels));
     }
+    renderSelectionTranslateModelOptions();
   };
 
   const refreshOneProvider = async (provider: OAuthProviderId) => {
@@ -3108,6 +3699,12 @@ export async function bootstrapSettingTab(
       oauthModelSelectionCache: "",
       oauthSetupLog: "",
       oauthRiskAccepted: "",
+      settingsSectionState: JSON.stringify(defaultSectionState),
+      settingsScrollTop: "0",
+      "selectionTranslate.model": "",
+      "selectionTranslate.provider": "",
+      "selectionTranslate.sourceLang": "auto",
+      "selectionTranslate.targetLang": "zh-CN",
     };
     for (const [key, value] of Object.entries(defaults)) {
       setPref(key as PrefKey, value);
@@ -3127,6 +3724,8 @@ export async function bootstrapSettingTab(
     }
     Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, true, true);
     Zotero.Prefs.set(`${config.prefsPrefix}.showAllModels`, false, true);
+    setBoolPref("selectionTranslate.enabled", true);
+    setBoolPref("selectionTranslate.auto", true);
     // Clear all shortcut customizations (custom bubbles, overrides, labels, order, deleted IDs)
     const shortcutPrefsToClear = [
       "shortcuts",
@@ -3159,6 +3758,46 @@ export async function bootstrapSettingTab(
     void renderAccounts();
     if (systemPromptInput) systemPromptInput.value = "";
     if (popupInput) popupInput.checked = true;
+    if (selectionTranslateEnableInput) {
+      selectionTranslateEnableInput.checked = true;
+    }
+    if (selectionTranslateAutoInput) {
+      selectionTranslateAutoInput.checked = true;
+    }
+    if (selectionTranslateSourceInput) {
+      selectionTranslateSourceInput.dataset.value = "auto";
+    }
+    if (selectionTranslateTargetInput) {
+      selectionTranslateTargetInput.dataset.value = "zh-CN";
+    }
+    for (const id of settingsSectionIds) sectionState[id] = true;
+    setCollapsibleState(
+      connectionModeTitle,
+      connectionModeBody,
+      "connectionMode",
+      true,
+    );
+    setCollapsibleState(modelsTitle, modelsBody, "models", true);
+    setCollapsibleState(
+      selectionTranslateTitle,
+      selectionTranslateBody,
+      "selectionTranslate",
+      true,
+    );
+    setCollapsibleState(advancedTitle, advancedBody, "advanced", true);
+    setCollapsibleState(consoleTitle, consoleCard, "console", true, "flex");
+    setCollapsibleState(
+      accountsTitle,
+      accountsTable,
+      "accounts",
+      true,
+      "block",
+    );
+    saveSectionState();
+    scrollContainer.scrollTop = 0;
+    setPref("settingsScrollTop", "0");
+    renderSelectionTranslateLanguageOptions();
+    renderSelectionTranslateModelOptions();
     oauthModeRadio.checked = true;
     customModeRadio.checked = false;
     // Clear custom endpoint UI fields — don't show OAuth markers in these inputs
@@ -3403,12 +4042,9 @@ export async function bootstrapSettingTab(
     "llm-set-title llm-set-collapsible-toggle",
   );
   const advancedBody = createEl(doc, "div", "llm-set-collapsible-body");
-  advancedTitle.dataset.collapsed = "true";
-  advancedBody.style.display = "none";
+  applyCollapsibleState(advancedTitle, advancedBody, "advanced");
   advancedTitle.addEventListener("click", () => {
-    const c = advancedTitle.dataset.collapsed === "true";
-    advancedTitle.dataset.collapsed = c ? "false" : "true";
-    advancedBody.style.display = c ? "" : "none";
+    toggleCollapsibleState(advancedTitle, advancedBody, "advanced");
   });
 
   renderStaticText();
@@ -3481,6 +4117,252 @@ export async function bootstrapSettingTab(
       true,
     );
   });
+
+  const selectionTranslateGroup = createEl(doc, "div", "llm-set-card");
+  const selectionTranslateTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-collapsible-toggle",
+    L.selectionTranslateTitle,
+  );
+  selectionTranslateTitle.id = `${config.addonRef}-selection-translate-title`;
+  const selectionTranslateBody = createEl(
+    doc,
+    "div",
+    "llm-set-collapsible-body",
+  );
+  applyCollapsibleState(
+    selectionTranslateTitle,
+    selectionTranslateBody,
+    "selectionTranslate",
+  );
+  selectionTranslateTitle.addEventListener("click", () => {
+    toggleCollapsibleState(
+      selectionTranslateTitle,
+      selectionTranslateBody,
+      "selectionTranslate",
+    );
+  });
+  const selectionTranslateWrap = createEl(doc, "div", "llm-tr-section-body");
+
+  const selectionTranslateEnableLabel = createEl(
+    doc,
+    "label",
+    "llm-tr-checkbox-label",
+  );
+  const selectionTranslateEnableInput = createEl(
+    doc,
+    "input",
+    "llm-set-checkbox",
+  ) as HTMLInputElement;
+  selectionTranslateEnableInput.type = "checkbox";
+  selectionTranslateEnableInput.checked = getBoolPref(
+    "selectionTranslate.enabled",
+    true,
+  );
+  const selectionTranslateEnableText = createEl(
+    doc,
+    "span",
+    "",
+    L.selectionTranslateEnable,
+  );
+  selectionTranslateEnableText.id = `${config.addonRef}-selection-translate-enable-label`;
+  selectionTranslateEnableLabel.append(
+    selectionTranslateEnableInput,
+    selectionTranslateEnableText,
+  );
+  const selectionTranslateEnableHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.selectionTranslateEnableHint,
+  );
+  selectionTranslateEnableHint.id = `${config.addonRef}-selection-translate-enable-hint`;
+
+  const selectionTranslateAutoLabel = createEl(
+    doc,
+    "label",
+    "llm-tr-checkbox-label",
+  );
+  const selectionTranslateAutoInput = createEl(
+    doc,
+    "input",
+    "llm-set-checkbox",
+  ) as HTMLInputElement;
+  selectionTranslateAutoInput.type = "checkbox";
+  selectionTranslateAutoInput.checked = getBoolPref(
+    "selectionTranslate.auto",
+    true,
+  );
+  const selectionTranslateAutoText = createEl(
+    doc,
+    "span",
+    "",
+    L.selectionTranslateAuto,
+  );
+  selectionTranslateAutoText.id = `${config.addonRef}-selection-translate-auto-label`;
+  selectionTranslateAutoLabel.append(
+    selectionTranslateAutoInput,
+    selectionTranslateAutoText,
+  );
+  const selectionTranslateAutoHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.selectionTranslateAutoHint,
+  );
+  selectionTranslateAutoHint.id = `${config.addonRef}-selection-translate-auto-hint`;
+
+  const selectionTranslateModelField = createEl(
+    doc,
+    "div",
+    "llm-tr-path-block",
+  );
+  const selectionTranslateModelLabel = createEl(
+    doc,
+    "div",
+    "llm-tr-field-label",
+    L.selectionTranslateModel,
+  );
+  selectionTranslateModelLabel.id = `${config.addonRef}-selection-translate-model-label`;
+  const selectionTranslateModelInput = createTranslateStyleDropdown(
+    `${config.addonRef}-selection-translate-model`,
+  );
+  selectionTranslateModelDropdown = selectionTranslateModelInput;
+  const selectionTranslateModelHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.selectionTranslateModelHint,
+  );
+  selectionTranslateModelHint.id = `${config.addonRef}-selection-translate-model-hint`;
+  selectionTranslateModelField.append(
+    selectionTranslateModelLabel,
+    selectionTranslateModelInput,
+    selectionTranslateModelHint,
+  );
+
+  const languageRow = createEl(doc, "div", "llm-tr-lang-row");
+  const selectionTranslateSourceField = createEl(
+    doc,
+    "div",
+    "llm-tr-lang-half",
+  );
+  const selectionTranslateSourceLabel = createEl(
+    doc,
+    "div",
+    "llm-tr-field-label",
+    L.selectionTranslateSourceLang,
+  );
+  selectionTranslateSourceLabel.id = `${config.addonRef}-selection-translate-source-label`;
+  const selectionTranslateSourceInput = createTranslateStyleDropdown(
+    `${config.addonRef}-selection-translate-source`,
+  );
+  selectionTranslateSourceDropdown = selectionTranslateSourceInput;
+  const selectionTranslateTargetField = createEl(
+    doc,
+    "div",
+    "llm-tr-lang-half",
+  );
+  const selectionTranslateTargetLabel = createEl(
+    doc,
+    "div",
+    "llm-tr-field-label",
+    L.selectionTranslateTargetLang,
+  );
+  selectionTranslateTargetLabel.id = `${config.addonRef}-selection-translate-target-label`;
+  const selectionTranslateTargetInput = createTranslateStyleDropdown(
+    `${config.addonRef}-selection-translate-target`,
+  );
+  selectionTranslateTargetDropdown = selectionTranslateTargetInput;
+  selectionTranslateSourceField.append(
+    selectionTranslateSourceLabel,
+    selectionTranslateSourceInput,
+  );
+  selectionTranslateTargetField.append(
+    selectionTranslateTargetLabel,
+    selectionTranslateTargetInput,
+  );
+  languageRow.append(
+    selectionTranslateSourceField,
+    selectionTranslateTargetField,
+  );
+
+  const selectionTranslateColdStartHint = createEl(
+    doc,
+    "div",
+    "llm-set-hint",
+    L.selectionTranslateColdStartHint,
+  );
+  selectionTranslateColdStartHint.id = `${config.addonRef}-selection-translate-cold-start-hint`;
+
+  const selectionTranslateClearRow = createEl(
+    doc,
+    "div",
+    "llm-tr-row llm-tr-format-row",
+  );
+  const selectionTranslateClearBtn = createEl(
+    doc,
+    "button",
+    "llm-tr-btn llm-tr-btn-warning llm-tr-btn-small",
+    L.selectionTranslateClearCache,
+  ) as HTMLButtonElement;
+  selectionTranslateClearBtn.type = "button";
+  selectionTranslateClearBtn.id = `${config.addonRef}-selection-translate-clear-cache`;
+  const selectionTranslateClearStatus = createEl(
+    doc,
+    "span",
+    "llm-set-status",
+  ) as HTMLSpanElement;
+  selectionTranslateClearRow.append(
+    selectionTranslateClearBtn,
+    selectionTranslateClearStatus,
+  );
+
+  selectionTranslateWrap.append(
+    selectionTranslateEnableLabel,
+    selectionTranslateEnableHint,
+    selectionTranslateModelField,
+    languageRow,
+    selectionTranslateColdStartHint,
+    selectionTranslateClearRow,
+  );
+  selectionTranslateBody.appendChild(selectionTranslateWrap);
+  selectionTranslateGroup.append(
+    selectionTranslateTitle,
+    selectionTranslateBody,
+  );
+
+  selectionTranslateEnableInput.addEventListener("change", () => {
+    setBoolPref(
+      "selectionTranslate.enabled",
+      selectionTranslateEnableInput.checked,
+    );
+  });
+  selectionTranslateAutoInput.addEventListener("change", () => {
+    setBoolPref("selectionTranslate.auto", selectionTranslateAutoInput.checked);
+  });
+  selectionTranslateClearBtn.addEventListener("click", async () => {
+    selectionTranslateClearBtn.disabled = true;
+    selectionTranslateClearStatus.textContent =
+      L.selectionTranslateClearCacheRunning;
+    selectionTranslateClearStatus.style.color = "#374151";
+    try {
+      const count = await clearSelectionTranslateColdStartCache();
+      selectionTranslateClearStatus.textContent =
+        L.selectionTranslateClearCacheDone.replace("{n}", String(count));
+      selectionTranslateClearStatus.style.color = "#065f46";
+    } catch (err) {
+      selectionTranslateClearStatus.textContent =
+        err instanceof Error ? err.message : String(err);
+      selectionTranslateClearStatus.style.color = "#dc2626";
+    } finally {
+      selectionTranslateClearBtn.disabled = false;
+    }
+  });
+  renderSelectionTranslateLanguageOptions();
+  renderSelectionTranslateModelOptions();
+
   // showAllModels feature is hidden from the UI but we must NOT force-write
   // the pref on every render — that would silently override any user/external value.
   const showAllModelsWrap = createEl(doc, "div");
@@ -3502,6 +4384,14 @@ export async function bootstrapSettingTab(
   root.appendChild(langBox);
   root.appendChild(connectionModeBox);
   root.appendChild(modelsBox);
+  root.appendChild(selectionTranslateGroup);
   root.appendChild(advancedGroup);
   root.appendChild(consoleSection);
+
+  const savedScrollTop = Number(getPref("settingsScrollTop") || "0");
+  if (Number.isFinite(savedScrollTop) && savedScrollTop > 0) {
+    win.setTimeout(() => {
+      scrollContainer.scrollTop = Math.max(0, Math.floor(savedScrollTop));
+    }, 0);
+  }
 }

@@ -71,6 +71,7 @@ body[data-dir="rtl"] .section-copy,
 body[data-dir="rtl"] .translation-copy,
 body[data-dir="rtl"] .trust-card,
 body[data-dir="rtl"] .feature-card,
+body[data-dir="rtl"] .selection-shot,
 body[data-dir="rtl"] .panel-meta,
 body[data-dir="rtl"] .install-steps,
 body[data-dir="rtl"] .footer-copy,
@@ -983,6 +984,38 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
   color: var(--accent);
 }
 
+.selection-translation-section {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.selection-point-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 0.9rem;
+}
+
+.selection-showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.selection-shot {
+  margin: 0;
+  padding: 1rem;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.selection-shot figcaption {
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .translation-section {
   display: grid;
   gap: 1.1rem;
@@ -1125,6 +1158,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
   .hero,
   .model-access-section,
   .story-section,
+  .selection-showcase,
   .install-section,
   .site-footer {
     grid-template-columns: 1fr;
@@ -1132,6 +1166,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 
   .trust-grid,
   .feature-grid,
+  .selection-point-grid,
   .gallery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1173,6 +1208,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
   .model-access-grid,
   .trust-grid,
   .feature-grid,
+  .selection-point-grid,
   .gallery-grid,
   .footer-panels,
   .showcase-panel.small {

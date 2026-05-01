@@ -34,6 +34,8 @@ const settingsImage = locale.usesChineseMedia
 const translationImage = locale.usesChineseMedia
   ? withBase("/media/translate-panel-cn.png")
   : withBase("/media/translate-panel-en.png");
+const selectionTranslationPopupImage = withBase("/media/selection-translation-popup.png");
+const selectionTranslationSettingsImage = withBase("/media/selection-translation-settings.png");
 const releaseHref = "https://github.com/Visterainer/aidea-zotero/releases";
 const githubHref = "https://github.com/Visterainer/aidea-zotero";
 const issuesHref = "https://github.com/Visterainer/aidea-zotero/issues";
@@ -115,6 +117,289 @@ const modelAccessContent = {
 };
 const modelAccess =
   modelAccessContent[page.locale as keyof typeof modelAccessContent] ?? modelAccessContent.en;
+
+const selectionTranslationContent = {
+  "zh-CN": {
+    kicker: "划词翻译",
+    heading: "选中一段文字，就能在阅读器内直接翻译。",
+    body: "启用后，在 Zotero PDF 阅读器里划选文本会自动调用你指定的模型翻译。首次进入某篇文献时，AIdea 会先生成本地冷启动缓存，把文章概述和专业术语摘要作为后续划词翻译的上下文。",
+    points: [
+      {
+        title: "独立开关与模型",
+        body: "在设置中单独启用划词翻译，并从现有 OAuth/API 模型列表中选择专用模型。",
+      },
+      {
+        title: "论文级上下文",
+        body: "冷启动缓存保存在本地，后续翻译会复用这份精简上下文，减少每次划词都重新理解全文的成本。",
+      },
+      {
+        title: "回写 Zotero 笔记",
+        body: "弹窗里的译文可以直接添加到当前文献的 AIdea 划词翻译笔记中。",
+      },
+    ],
+    screenshots: {
+      popup: "阅读器划词翻译弹窗",
+      settings: "划词翻译设置",
+    },
+  },
+  "zh-TW": {
+    kicker: "劃詞翻譯",
+    heading: "選取一段文字，就能在閱讀器內直接翻譯。",
+    body: "啟用後，在 Zotero PDF 閱讀器中選取文字會自動呼叫指定模型翻譯。第一次進入某篇文獻時，AIdea 會先產生本機冷啟動快取，把文章概述和專業術語摘要作為後續劃詞翻譯的上下文。",
+    points: [
+      {
+        title: "獨立開關與模型",
+        body: "在設定中單獨啟用劃詞翻譯，並從既有 OAuth/API 模型列表選擇專用模型。",
+      },
+      {
+        title: "論文級上下文",
+        body: "冷啟動快取保存在本機，後續翻譯會重複使用這份精簡上下文，降低每次選取都重新理解全文的成本。",
+      },
+      {
+        title: "回寫 Zotero 筆記",
+        body: "彈窗中的譯文可以直接加入目前文獻的 AIdea 劃詞翻譯筆記。",
+      },
+    ],
+    screenshots: {
+      popup: "閱讀器劃詞翻譯彈窗",
+      settings: "劃詞翻譯設定",
+    },
+  },
+  en: {
+    kicker: "Selection Translation",
+    heading: "Select a passage and translate it directly in the reader.",
+    body: "When enabled, selected text in Zotero's PDF reader is translated automatically with the model you choose. The first time a paper uses this feature, AIdea builds a local cold-start cache with a compact paper summary and terminology notes, then reuses that context for later selections.",
+    points: [
+      {
+        title: "Dedicated switch and model",
+        body: "Turn selection translation on separately and choose its model from the same OAuth/API model list used by chat.",
+      },
+      {
+        title: "Paper-level context",
+        body: "The cold-start cache stays local and gives later selection translations a compact view of the paper instead of starting from scratch every time.",
+      },
+      {
+        title: "Save back to Zotero notes",
+        body: "Translated passages can be added directly to the current item's AIdea selection translation note.",
+      },
+    ],
+    screenshots: {
+      popup: "Reader selection translation popup",
+      settings: "Selection translation settings",
+    },
+  },
+  ja: {
+    kicker: "選択範囲の翻訳",
+    heading: "本文を選択するだけで、リーダー内で直接翻訳できます。",
+    body: "有効にすると、Zotero の PDF リーダーで選択したテキストを指定モデルで自動翻訳します。論文ごとに初回だけローカルのコールドスタートキャッシュを作成し、要約と専門用語メモを後続の翻訳コンテキストとして再利用します。",
+    points: [
+      {
+        title: "専用スイッチとモデル",
+        body: "設定から選択範囲の翻訳を個別に有効化し、既存の OAuth/API モデル一覧から専用モデルを選べます。",
+      },
+      {
+        title: "論文単位の文脈",
+        body: "コールドスタートキャッシュはローカルに保存され、毎回全文を読み直さずに精簡された文脈を使えます。",
+      },
+      {
+        title: "Zotero ノートへ保存",
+        body: "ポップアップ内の翻訳結果を、現在の文献の AIdea 選択翻訳ノートへ直接追加できます。",
+      },
+    ],
+    screenshots: {
+      popup: "リーダーの選択翻訳ポップアップ",
+      settings: "選択翻訳の設定",
+    },
+  },
+  ko: {
+    kicker: "선택 번역",
+    heading: "문장을 선택하면 리더 안에서 바로 번역할 수 있습니다.",
+    body: "사용하면 Zotero PDF 리더에서 선택한 텍스트가 지정한 모델로 자동 번역됩니다. 논문별 첫 사용 시 AIdea가 로컬 콜드 스타트 캐시를 만들고, 논문 요약과 전문 용어 메모를 이후 선택 번역의 문맥으로 재사용합니다.",
+    points: [
+      {
+        title: "전용 스위치와 모델",
+        body: "설정에서 선택 번역을 따로 켜고 기존 OAuth/API 모델 목록에서 전용 모델을 고를 수 있습니다.",
+      },
+      {
+        title: "논문 단위 문맥",
+        body: "콜드 스타트 캐시는 로컬에 저장되며, 이후 번역은 매번 처음부터 논문을 다시 이해하지 않아도 됩니다.",
+      },
+      {
+        title: "Zotero 노트로 저장",
+        body: "팝업의 번역 결과를 현재 항목의 AIdea 선택 번역 노트에 바로 추가할 수 있습니다.",
+      },
+    ],
+    screenshots: {
+      popup: "리더 선택 번역 팝업",
+      settings: "선택 번역 설정",
+    },
+  },
+  fr: {
+    kicker: "Traduction de sélection",
+    heading: "Sélectionnez un passage et traduisez-le directement dans le lecteur.",
+    body: "Une fois activée, la sélection de texte dans le lecteur PDF de Zotero déclenche automatiquement le modèle choisi. Lors de la première utilisation sur un article, AIdea crée un cache local avec un résumé compact et des notes de terminologie, puis le réutilise comme contexte.",
+    points: [
+      {
+        title: "Interrupteur et modèle dédiés",
+        body: "Activez la traduction de sélection séparément et choisissez son modèle dans la même liste OAuth/API que le chat.",
+      },
+      {
+        title: "Contexte au niveau de l'article",
+        body: "Le cache de démarrage reste local et donne aux traductions suivantes un contexte condensé de l'article.",
+      },
+      {
+        title: "Ajout aux notes Zotero",
+        body: "Les passages traduits peuvent être ajoutés directement à la note AIdea de l'élément courant.",
+      },
+    ],
+    screenshots: {
+      popup: "Fenêtre de traduction dans le lecteur",
+      settings: "Réglages de traduction de sélection",
+    },
+  },
+  de: {
+    kicker: "Auswahlübersetzung",
+    heading: "Markieren Sie eine Passage und übersetzen Sie sie direkt im Reader.",
+    body: "Nach dem Aktivieren übersetzt Zotero ausgewählten PDF-Text automatisch mit dem gewählten Modell. Bei der ersten Nutzung für ein Paper erstellt AIdea lokal einen Cold-Start-Cache mit Kurzüberblick und Fachbegriffen und verwendet ihn später als Kontext.",
+    points: [
+      {
+        title: "Eigener Schalter und eigenes Modell",
+        body: "Aktivieren Sie die Auswahlübersetzung separat und wählen Sie ihr Modell aus derselben OAuth/API-Liste wie im Chat.",
+      },
+      {
+        title: "Kontext pro Paper",
+        body: "Der Cold-Start-Cache bleibt lokal und liefert späteren Übersetzungen einen kompakten Paper-Kontext.",
+      },
+      {
+        title: "In Zotero-Notizen speichern",
+        body: "Übersetzte Passagen können direkt zur AIdea-Notiz des aktuellen Eintrags hinzugefügt werden.",
+      },
+    ],
+    screenshots: {
+      popup: "Auswahlübersetzung im Reader",
+      settings: "Einstellungen für Auswahlübersetzung",
+    },
+  },
+  es: {
+    kicker: "Traducción de selección",
+    heading: "Selecciona un pasaje y tradúcelo directamente en el lector.",
+    body: "Al activarla, el texto seleccionado en el lector PDF de Zotero se traduce automáticamente con el modelo elegido. La primera vez que se usa en un artículo, AIdea crea una caché local con un resumen compacto y notas de terminología para reutilizarlas como contexto.",
+    points: [
+      {
+        title: "Interruptor y modelo propios",
+        body: "Activa la traducción de selección por separado y elige su modelo desde la misma lista OAuth/API del chat.",
+      },
+      {
+        title: "Contexto por artículo",
+        body: "La caché de arranque permanece local y ofrece a las siguientes traducciones un contexto compacto del artículo.",
+      },
+      {
+        title: "Guardar en notas de Zotero",
+        body: "Los pasajes traducidos pueden añadirse directamente a la nota AIdea del elemento actual.",
+      },
+    ],
+    screenshots: {
+      popup: "Ventana de traducción en el lector",
+      settings: "Ajustes de traducción de selección",
+    },
+  },
+  ru: {
+    kicker: "Перевод выделения",
+    heading: "Выделите фрагмент и переведите его прямо в ридере.",
+    body: "После включения выделенный текст в PDF-ридере Zotero автоматически переводится выбранной моделью. При первом использовании для статьи AIdea создает локальный cold-start cache с кратким обзором и терминами, а затем использует его как контекст.",
+    points: [
+      {
+        title: "Отдельный переключатель и модель",
+        body: "Включайте перевод выделения отдельно и выбирайте модель из того же списка OAuth/API, что и для чата.",
+      },
+      {
+        title: "Контекст на уровне статьи",
+        body: "Кэш остается локальным и дает последующим переводам сжатое понимание статьи.",
+      },
+      {
+        title: "Сохранение в заметки Zotero",
+        body: "Переведенные фрагменты можно сразу добавить в заметку AIdea текущего элемента.",
+      },
+    ],
+    screenshots: {
+      popup: "Окно перевода выделения в ридере",
+      settings: "Настройки перевода выделения",
+    },
+  },
+  pt: {
+    kicker: "Tradução de seleção",
+    heading: "Selecione um trecho e traduza-o diretamente no leitor.",
+    body: "Quando ativado, o texto selecionado no leitor PDF do Zotero é traduzido automaticamente pelo modelo escolhido. Na primeira utilização em um artigo, o AIdea cria um cache local com resumo compacto e notas de terminologia para reutilizar como contexto.",
+    points: [
+      {
+        title: "Alternador e modelo dedicados",
+        body: "Ative a tradução de seleção separadamente e escolha seu modelo na mesma lista OAuth/API usada pelo chat.",
+      },
+      {
+        title: "Contexto por artigo",
+        body: "O cache de arranque permanece local e oferece às traduções seguintes uma visão compacta do artigo.",
+      },
+      {
+        title: "Salvar em notas do Zotero",
+        body: "Os trechos traduzidos podem ser adicionados diretamente à nota AIdea do item atual.",
+      },
+    ],
+    screenshots: {
+      popup: "Popup de tradução no leitor",
+      settings: "Configurações da tradução de seleção",
+    },
+  },
+  ar: {
+    kicker: "ترجمة التحديد",
+    heading: "حدد مقطعاً وترجمه مباشرة داخل القارئ.",
+    body: "عند التفعيل، يترجم AIdea النص المحدد في قارئ PDF داخل Zotero تلقائياً بالنموذج الذي تختاره. عند الاستخدام الأول مع ورقة ما، ينشئ ذاكرة محلية مختصرة تضم ملخصاً ومصطلحات تخصصية، ثم يعيد استخدامها كسياق للترجمات اللاحقة.",
+    points: [
+      {
+        title: "مفتاح ونموذج مخصصان",
+        body: "فعّل ترجمة التحديد بشكل مستقل واختر نموذجها من قائمة نماذج OAuth/API نفسها المستخدمة في الدردشة.",
+      },
+      {
+        title: "سياق على مستوى الورقة",
+        body: "تبقى الذاكرة المحلية على جهازك وتمنح الترجمات التالية فهماً مختصراً للورقة.",
+      },
+      {
+        title: "الحفظ في ملاحظات Zotero",
+        body: "يمكن إضافة المقاطع المترجمة مباشرة إلى ملاحظة AIdea الخاصة بالعنصر الحالي.",
+      },
+    ],
+    screenshots: {
+      popup: "نافذة ترجمة التحديد في القارئ",
+      settings: "إعدادات ترجمة التحديد",
+    },
+  },
+  hi: {
+    kicker: "चयन अनुवाद",
+    heading: "किसी अंश को चुनें और उसे रीडर में ही अनुवाद करें।",
+    body: "सक्रिय होने पर Zotero PDF रीडर में चुना गया पाठ आपके चुने हुए मॉडल से अपने आप अनुवादित होता है। किसी पेपर पर पहली बार उपयोग करते समय AIdea स्थानीय कोल्ड-स्टार्ट कैश बनाता है, जिसमें संक्षिप्त सार और शब्दावली नोट होते हैं, फिर बाद के चयन अनुवादों में उसी संदर्भ का उपयोग करता है।",
+    points: [
+      {
+        title: "अलग स्विच और मॉडल",
+        body: "चयन अनुवाद को अलग से चालू करें और चैट वाली OAuth/API मॉडल सूची से उसका मॉडल चुनें।",
+      },
+      {
+        title: "पेपर-स्तर संदर्भ",
+        body: "कोल्ड-स्टार्ट कैश स्थानीय रहता है और बाद के अनुवादों को पेपर का संक्षिप्त संदर्भ देता है।",
+      },
+      {
+        title: "Zotero नोट में जोड़ें",
+        body: "अनुवादित अंशों को मौजूदा आइटम के AIdea चयन अनुवाद नोट में सीधे जोड़ा जा सकता है।",
+      },
+    ],
+    screenshots: {
+      popup: "रीडर चयन अनुवाद पॉपअप",
+      settings: "चयन अनुवाद सेटिंग्स",
+    },
+  },
+} as const;
+
+const selectionTranslation =
+  selectionTranslationContent[page.locale as keyof typeof selectionTranslationContent] ??
+  selectionTranslationContent.en;
 
 const escapeHtml = (value: string) =>
   value
@@ -327,6 +612,43 @@ const renderHeading = (key: HeadingKey, fallback: string) => {
             <p>{card.body}</p>
           </article>
         ))}
+      </div>
+    </section>
+
+    <section class="section selection-translation-section" aria-labelledby="selection-translation-title">
+      <div class="section-intro">
+        <p class="section-kicker">{selectionTranslation.kicker}</p>
+        <h2 id="selection-translation-title">{selectionTranslation.heading}</h2>
+        <p>{selectionTranslation.body}</p>
+      </div>
+
+      <div class="selection-point-grid">
+        {selectionTranslation.points.map((point) => (
+          <article class="feature-card">
+            <span class="feature-meta">{selectionTranslation.kicker}</span>
+            <h3>{point.title}</h3>
+            <p>{point.body}</p>
+          </article>
+        ))}
+      </div>
+
+      <div class="selection-showcase">
+        <figure class="showcase-panel selection-shot">
+          <img
+            src={selectionTranslationPopupImage}
+            alt={selectionTranslation.screenshots.popup}
+            loading="lazy"
+          />
+          <figcaption>{selectionTranslation.screenshots.popup}</figcaption>
+        </figure>
+        <figure class="showcase-panel selection-shot">
+          <img
+            src={selectionTranslationSettingsImage}
+            alt={selectionTranslation.screenshots.settings}
+            loading="lazy"
+          />
+          <figcaption>{selectionTranslation.screenshots.settings}</figcaption>
+        </figure>
       </div>
     </section>
 

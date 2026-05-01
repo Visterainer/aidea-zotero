@@ -13,6 +13,11 @@ import { ensureConversationLoaded, refreshChat } from "./chat";
 import { renderShortcuts } from "./shortcuts";
 import { ensurePDFTextCached } from "./pdfContext";
 import {
+  isSelectionTranslateEnabled,
+  warmSelectionTranslateColdStartForReader,
+} from "./selectionTranslate";
+import { setStatus } from "./textUtils";
+import {
   selectedFileAttachmentCache,
   selectedFilePreviewExpandedCache,
   activePaperConversationByItem,
@@ -112,6 +117,45 @@ export async function bootstrapSharedReaderPanel(
       item.attachmentContentType === "application/pdf"
     ) {
       void ensurePDFTextCached(item);
+      if (isSelectionTranslateEnabled()) {
+        const status = host.querySelector("#llm-status") as HTMLElement | null;
+        const isZh = String((Zotero as any)?.locale || "")
+          .toLowerCase()
+          .startsWith("zh");
+        void warmSelectionTranslateColdStartForReader({
+          item,
+          callbacks: {
+            onStage(stage) {
+              if (stage === "cold-start") {
+                if (status) {
+                  setStatus(
+                    status,
+                    isZh
+                      ? "划词翻译冷启动中..."
+                      : "Selection translation cold starting...",
+                    "ready",
+                  );
+                }
+              }
+            },
+          },
+        })
+          .then((ready) => {
+            if (!ready) return;
+            if (status) {
+              setStatus(
+                status,
+                isZh
+                  ? "划词翻译冷启动缓存已就绪"
+                  : "Selection translation cache ready",
+                "ready",
+              );
+            }
+          })
+          .catch((err) => {
+            ztoolkit.log("LLM: selection translation cold start failed", err);
+          });
+      }
     }
   } catch (err) {
     ztoolkit.log(`LLM: bootstrapSharedReaderPanel failed: ${err}`);

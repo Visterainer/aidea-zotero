@@ -50,6 +50,7 @@ export type PanelDomRefs = {
   responseMenu: HTMLDivElement | null;
   responseMenuCopyBtn: HTMLButtonElement | null;
   responseMenuNoteBtn: HTMLButtonElement | null;
+  responseMenuExportImageBtn: HTMLButtonElement | null;
   promptMenu: HTMLDivElement | null;
   promptMenuEditBtn: HTMLButtonElement | null;
   exportMenu: HTMLDivElement | null;
@@ -200,6 +201,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     ) as HTMLButtonElement | null,
     responseMenuNoteBtn: body.querySelector(
       "#llm-response-menu-note",
+    ) as HTMLButtonElement | null,
+    responseMenuExportImageBtn: body.querySelector(
+      "#llm-response-menu-export-image",
     ) as HTMLButtonElement | null,
     promptMenu: body.querySelector("#llm-prompt-menu") as HTMLDivElement | null,
     promptMenuEditBtn: body.querySelector(

@@ -133,6 +133,173 @@ function appendAssistantAnswerToNoteHtml(
   return `${base}<hr/>${addition}`;
 }
 
+const SELECTION_TRANSLATION_NOTE_TITLE = "AIdea \u5212\u8bcd\u7ffb\u8bd1";
+
+type SelectionTranslationNoteParams = {
+  selectedText: string;
+  translation: string;
+  model: string;
+  provider?: string;
+  pageLabel?: string;
+};
+
+function getSelectionTranslationNoteCopy() {
+  const isZh = String((Zotero as any)?.locale || "")
+    .toLowerCase()
+    .startsWith("zh");
+  return isZh
+    ? {
+        original: "\u539f\u6587",
+        translation: "\u8bd1\u6587",
+        source: "\u6765\u6e90",
+        model: "\u6a21\u578b",
+        provider: "\u63d0\u4f9b\u5546",
+        time: "\u65f6\u95f4",
+        currentPdf: "\u5f53\u524d PDF",
+      }
+    : {
+        original: "Original",
+        translation: "Translation",
+        source: "Source",
+        model: "Model",
+        provider: "Provider",
+        time: "Time",
+        currentPdf: "Current PDF",
+      };
+}
+
+function renderPlainTextForNote(text: string): string {
+  const normalized = sanitizeText(text || "").trim();
+  if (!normalized) return "";
+  return normalized
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const body = escapeNoteHtml(paragraph.trim()).replace(/\n/g, "<br/>");
+      return body ? `<p>${body}</p>` : "";
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function renderTranslationTextForNote(text: string): string {
+  const normalized = sanitizeText(text || "").trim();
+  if (!normalized) return "";
+  try {
+    return renderMarkdownForNote(normalized);
+  } catch (err) {
+    ztoolkit.log("Selection translation note markdown render error:", err);
+    return renderPlainTextForNote(normalized);
+  }
+}
+
+function buildSelectionTranslationNoteEntryHtml(
+  params: SelectionTranslationNoteParams,
+): string {
+  const copy = getSelectionTranslationNoteCopy();
+  const timestamp = getCurrentLocalTimestamp();
+  const originalHtml = renderPlainTextForNote(params.selectedText);
+  const translationHtml = renderTranslationTextForNote(params.translation);
+  const metaParts = [
+    `${copy.source}: ${params.pageLabel || copy.currentPdf}`,
+    `${copy.model}: ${params.model || "unknown"}`,
+    params.provider ? `${copy.provider}: ${params.provider}` : "",
+    `${copy.time}: ${timestamp}`,
+  ]
+    .filter(Boolean)
+    .map((part) => escapeNoteHtml(part));
+
+  return [
+    `<p><strong>${escapeNoteHtml(copy.original)}</strong></p>`,
+    `<blockquote>${originalHtml}</blockquote>`,
+    `<p><strong>${escapeNoteHtml(copy.translation)}</strong></p>`,
+    `<div>${translationHtml}</div>`,
+    `<p><small>${metaParts.join(" · ")}</small></p>`,
+  ].join("");
+}
+
+function isSelectionTranslationNote(note: Zotero.Item | null): boolean {
+  if (!note || !note.isNote?.()) return false;
+  try {
+    return (note.getNote?.() || "").includes(SELECTION_TRANSLATION_NOTE_TITLE);
+  } catch {
+    return false;
+  }
+}
+
+async function findSelectionTranslationNote(
+  parentItem: Zotero.Item,
+): Promise<Zotero.Item | null> {
+  const noteIds = new Set<number>();
+  try {
+    const rawIds = await (parentItem as any).getNotes?.();
+    if (Array.isArray(rawIds)) {
+      for (const rawId of rawIds) {
+        const id = Number(rawId);
+        if (Number.isFinite(id) && id > 0) noteIds.add(Math.floor(id));
+      }
+    }
+  } catch {
+    /* fall back to library scan */
+  }
+
+  for (const noteId of noteIds) {
+    const note = Zotero.Items.get(noteId) || null;
+    if (isSelectionTranslationNote(note)) return note;
+  }
+
+  try {
+    const items = await Zotero.Items.getAll(
+      parentItem.libraryID,
+      true,
+      false,
+      false,
+    );
+    for (const item of items) {
+      if (item.parentID !== parentItem.id) continue;
+      if (isSelectionTranslationNote(item)) return item;
+    }
+  } catch (err) {
+    ztoolkit.log("LLM: Failed to scan notes for selection translation", err);
+  }
+  return null;
+}
+
+export async function appendSelectionTranslationToNote(
+  item: Zotero.Item,
+  params: SelectionTranslationNoteParams,
+): Promise<"created" | "appended"> {
+  const parentItem = resolveParentItemForNote(item);
+  if (!parentItem) {
+    throw new Error("No parent item for selection translation note");
+  }
+  const entryHtml = buildSelectionTranslationNoteEntryHtml(params);
+  const existingNote = await findSelectionTranslationNote(parentItem);
+  if (existingNote) {
+    const appendedHtml = appendAssistantAnswerToNoteHtml(
+      existingNote.getNote?.() || "",
+      entryHtml,
+    );
+    existingNote.setNote(appendedHtml);
+    await existingNote.saveTx();
+    ztoolkit.log(
+      `LLM: Appended selection translation to note ${existingNote.id} for parent ${parentItem.id}`,
+    );
+    return "appended";
+  }
+
+  const note = new Zotero.Item("note");
+  note.libraryID = parentItem.libraryID;
+  note.parentID = parentItem.id;
+  note.setNote(
+    `<p><strong>${escapeNoteHtml(SELECTION_TRANSLATION_NOTE_TITLE)}</strong></p><hr/>${entryHtml}`,
+  );
+  await note.saveTx();
+  ztoolkit.log(
+    `LLM: Created selection translation note ${note.id} for parent ${parentItem.id}`,
+  );
+  return "created";
+}
+
 export async function createNoteFromAssistantText(
   item: Zotero.Item,
   contentText: string,
@@ -193,7 +360,9 @@ export async function createNoteFromAssistantText(
     if (parentId) {
       rememberAssistantNoteForParent(parentId, newNoteId);
     }
-    ztoolkit.log(`LLM: Created new note ${newNoteId} for parent ${parentId ?? "standalone"}`);
+    ztoolkit.log(
+      `LLM: Created new note ${newNoteId} for parent ${parentId ?? "standalone"}`,
+    );
   } else {
     ztoolkit.log(
       "LLM: Warning – note was saved but could not determine note ID",

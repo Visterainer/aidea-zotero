@@ -39,7 +39,7 @@ AIdea 是一款面向 Zotero 的免費開源 AI 研究助手外掛。🔐 支援
 
 ## 專案概覽
 
-AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整理與全文翻譯的研究型工作流程。它為 Zotero 的資料庫檢視與 PDF 閱讀器提供一致且可持續的 AI 工作區，減少在多個外部工具之間切換的成本。
+AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整理、劃詞翻譯與全文翻譯的研究型工作流程。它為 Zotero 的資料庫檢視與 PDF 閱讀器提供一致且可持續的 AI 工作區，減少在多個外部工具之間切換的成本。
 
 ## 核心能力
 
@@ -48,6 +48,7 @@ AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整
 - **快捷操作按鈕**，可用於總結、解釋、翻譯等常見任務
 - **多種連線方式**，支援 OAuth 登入與 OpenAI 相容 API 模式
 - **全文翻譯**，可在側邊欄內執行並匯出 PDF
+- **劃詞翻譯**，可在 PDF 閱讀器選取文字後直接翻譯，並復用本地冷啟動快取、加入 Zotero 筆記
 - **本地歷史與記憶**，支援按文庫隔離、筆記回寫與持續對話
 - **豐富渲染能力**，支援 Markdown、程式碼區塊、表格、LaTeX 與串流輸出
 
@@ -63,6 +64,16 @@ AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整
 
 <p align="center">
   <img src="../../doc/screenshots/translate_panel_cn.png" alt="AIdea 全文翻譯面板" width="900" />
+</p>
+
+### 劃詞翻譯
+
+<p align="center">
+  <img src="../../doc/screenshots/selection_translation_popup.png" alt="PDF 閱讀器劃詞翻譯彈窗" width="900" />
+</p>
+
+<p align="center">
+  <img src="../../doc/screenshots/selection_translation_settings.png" alt="AIdea 劃詞翻譯設定" width="900" />
 </p>
 
 ### 提供商與模型設定
@@ -107,6 +118,8 @@ AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整
 4. 開啟 Zotero 條目或 PDF，從 AIdea 側邊欄開始使用。
 
 如需執行全文翻譯，可切換到翻譯分頁，設定模型與輸出路徑後直接在 Zotero 內執行任務。
+
+如需使用劃詞翻譯，可在設定中啟用此功能並選擇模型，之後在 PDF 閱讀器選取文字即可。某篇文獻首次使用時，AIdea 會在本地建立包含精簡概述與專業詞摘要的冷啟動快取，後續翻譯會復用這份上下文。
 
 ## 語言支援
 

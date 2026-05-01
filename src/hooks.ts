@@ -18,6 +18,7 @@ import {
   collectAndDeleteUnreferencedBlobs,
   ATTACHMENT_GC_MIN_AGE_MS,
 } from "./utils/attachmentRefStore";
+import { initSelectionTranslateCacheStore } from "./utils/selectionTranslateCacheStore";
 import { createZToolkit } from "./utils/ztoolkit";
 import { ensureZoteroProxyFromSystem } from "./utils/oauthCli";
 import { maybeShowOpenAIUpdateNotice } from "./modules/updateNotice";
@@ -52,6 +53,14 @@ async function onStartup() {
     await initAttachmentRefStore();
   } catch (err) {
     ztoolkit.log("LLM: Failed to initialize attachment reference store", err);
+  }
+  try {
+    await initSelectionTranslateCacheStore();
+  } catch (err) {
+    ztoolkit.log(
+      "LLM: Failed to initialize selection translate cache store",
+      err,
+    );
   }
 
   void (async () => {

@@ -30,7 +30,15 @@ declare namespace _ZoteroTypes {
       "oauthModelSelectionCache": string;
       "oauthSetupLog": string;
       "updateNoticeSeen": string;
+      "settingsSectionState": string;
+      "settingsScrollTop": string;
       "showPopupAddText": boolean;
+      "selectionTranslate.enabled": boolean;
+      "selectionTranslate.auto": boolean;
+      "selectionTranslate.model": string;
+      "selectionTranslate.provider": string;
+      "selectionTranslate.sourceLang": string;
+      "selectionTranslate.targetLang": string;
       "temperaturePrimary": string;
       "maxTokensPrimary": string;
       "temperatureSecondary": string;

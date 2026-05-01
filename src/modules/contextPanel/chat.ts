@@ -113,7 +113,10 @@ import {
 import { formatPaperCitationLabel } from "./paperAttribution";
 import { resolveContextSourceItem } from "./contextResolution";
 import { buildChatHistoryNotePayload } from "./notes";
-import { extractManagedBlobHash } from "./attachmentStorage";
+import {
+  extractManagedBlobHash,
+  writeGeneratedImageFileToDirectory,
+} from "./attachmentStorage";
 import { toFileUrl } from "../../utils/pathFileUrl";
 import { replaceOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
 import { getPanelI18n, getPanelLang } from "./i18n";
@@ -554,6 +557,82 @@ export async function copyRenderedMarkdownToClipboard(
 
   // Fallback: copy raw markdown as plain text.
   await copyTextToClipboard(body, safeText);
+}
+
+function getImageExtensionFromMime(mime: string): string {
+  const normalized = mime.toLowerCase();
+  if (normalized === "image/jpeg" || normalized === "image/jpg") return "jpg";
+  if (normalized === "image/png") return "png";
+  if (normalized === "image/webp") return "webp";
+  if (normalized === "image/gif") return "gif";
+  if (normalized === "image/bmp") return "bmp";
+  if (normalized === "image/svg+xml") return "svg";
+  const suffix = normalized
+    .replace(/^image\//, "")
+    .replace(/\+xml$/, "")
+    .replace(/[^a-z0-9]/g, "");
+  return suffix || "png";
+}
+
+function decodeBase64ImageBytes(body: Element, base64: string): Uint8Array {
+  const win = body.ownerDocument?.defaultView as
+    | (Window & { atob?: (data: string) => string })
+    | undefined;
+  const globalAtob = (globalThis as { atob?: (data: string) => string }).atob;
+  const atobFn = win?.atob?.bind(win) || globalAtob?.bind(globalThis);
+  if (!atobFn) {
+    throw new Error("No base64 decoder available");
+  }
+  const binary = atobFn(base64.replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function parseGeneratedImageDataUrl(
+  body: Element,
+  dataUrl: string,
+): { bytes: Uint8Array; extension: string } | null {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i.exec(
+    dataUrl.trim(),
+  );
+  if (!match) return null;
+  const mime = (match[1] || "image/png").toLowerCase();
+  const bytes = decodeBase64ImageBytes(body, match[2] || "");
+  if (!bytes.length) return null;
+  return {
+    bytes,
+    extension: getImageExtensionFromMime(mime),
+  };
+}
+
+export function getGeneratedImageDataUrlFromElement(
+  target: Element | null,
+): string {
+  const image = target?.closest?.(
+    "img.llm-markdown-image",
+  ) as HTMLImageElement | null;
+  const src = image?.src?.trim() || "";
+  return /^data:image\/[a-z0-9.+-]+;base64,/i.test(src) ? src : "";
+}
+
+export async function exportGeneratedImageDataUrl(
+  body: Element,
+  dataUrl: string,
+): Promise<string | null> {
+  const parsed = parseGeneratedImageDataUrl(body, dataUrl);
+  if (!parsed) throw new Error("Invalid generated image data");
+  const { pickDirectory } = await import("../pdfTranslator/nativePicker");
+  const win = body.ownerDocument?.defaultView || undefined;
+  const dirPath = await pickDirectory(win);
+  if (!dirPath) return null;
+  return writeGeneratedImageFileToDirectory(
+    dirPath,
+    parsed.bytes,
+    parsed.extension,
+  );
 }
 
 type PanelRequestUI = {
@@ -2969,6 +3048,15 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             retryModelMenu.style.display = "none";
           }
           setPromptMenuTarget(null);
+          const imageDataUrl = getGeneratedImageDataUrlFromElement(
+            me.target as Element | null,
+          );
+          const exportImageBtn = responseMenu.querySelector(
+            "#llm-response-menu-export-image",
+          ) as HTMLButtonElement | null;
+          if (exportImageBtn) {
+            exportImageBtn.style.display = imageDataUrl ? "" : "none";
+          }
           // If the user has text selected within this bubble, extract
           // just that portion (with KaTeX math properly handled).
           // Otherwise fall back to the full raw markdown source.
@@ -2980,6 +3068,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             item,
             contentText,
             modelName: msg.modelName?.trim() || "unknown",
+            imageDataUrl: imageDataUrl || undefined,
           });
           positionMenuAtPointer(body, responseMenu, me.clientX, me.clientY);
         });

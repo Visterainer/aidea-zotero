@@ -155,6 +155,7 @@ export let responseMenuTarget: {
   item: Zotero.Item;
   contentText: string;
   modelName: string;
+  imageDataUrl?: string;
 } | null = null;
 export function setResponseMenuTarget(value: typeof responseMenuTarget) {
   responseMenuTarget = value;

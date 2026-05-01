@@ -90,6 +90,7 @@ import {
   withScrollGuard,
   copyTextToClipboard,
   copyRenderedMarkdownToClipboard,
+  exportGeneratedImageDataUrl,
   retryLatestAssistantResponse,
   editLatestUserMessageAndRetry,
   findLatestRetryPair,
@@ -297,6 +298,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     responseMenu,
     responseMenuCopyBtn,
     responseMenuNoteBtn,
+    responseMenuExportImageBtn,
     promptMenu,
     promptMenuEditBtn,
     exportMenu,
@@ -983,6 +985,31 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
             setStatus(status, getPanelI18n().failedToCreateNote, "error");
         }
       });
+      responseMenuExportImageBtn?.addEventListener(
+        "click",
+        async (e: Event) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const target = responseMenuTarget;
+          closeResponseMenu();
+          if (!target?.imageDataUrl) return;
+          try {
+            const exportedPath = await exportGeneratedImageDataUrl(
+              body,
+              target.imageDataUrl,
+            );
+            if (exportedPath && status) {
+              setStatus(
+                status,
+                `${getPanelI18n().export}: ${exportedPath}`,
+                "ready",
+              );
+            }
+          } catch (err) {
+            ztoolkit.log("LLM: Generated image export failed:", err);
+          }
+        },
+      );
     }
   }
 

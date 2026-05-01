@@ -4239,7 +4239,7 @@
 .llm-model-menu,
 .llm-reasoning-menu {
   position: absolute;
-  z-index: 12;
+  z-index: 180;
   display: none;
   gap: 2px;
   min-width: calc(140px * var(--llm-font-scale, 1));

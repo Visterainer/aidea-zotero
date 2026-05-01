@@ -329,6 +329,26 @@ function getBlobPath(contentHash: string, fileName: string): string {
   return joinPath(dirPath, sanitizeFileName(fileName));
 }
 
+export async function writeGeneratedImageFileToDirectory(
+  dirPath: string,
+  bytes: Uint8Array,
+  extension: string,
+): Promise<string> {
+  const safeExt = (extension || "png").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const imageExt = safeExt || "png";
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[^0-9]/g, "")
+    .slice(0, 14);
+  await ensureDir(dirPath);
+  const filePath = await reserveUniquePath(
+    dirPath,
+    `aidea-generated-image-${timestamp}.${imageExt}`,
+  );
+  await writeBytes(filePath, bytes);
+  return filePath;
+}
+
 export function extractManagedBlobHash(storedPath: string | undefined): string {
   const raw = (storedPath || "").trim();
   if (!raw) return "";

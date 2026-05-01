@@ -1072,7 +1072,22 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       textContent: i18n.saveAsNote,
     },
   );
-  responseMenu.append(responseMenuCopyBtn, responseMenuNoteBtn);
+  const responseMenuExportImageBtn = createElement(
+    doc,
+    "button",
+    "llm-response-menu-item",
+    {
+      id: "llm-response-menu-export-image",
+      type: "button",
+      textContent: i18n.export,
+    },
+  );
+  responseMenuExportImageBtn.style.display = "none";
+  responseMenu.append(
+    responseMenuCopyBtn,
+    responseMenuNoteBtn,
+    responseMenuExportImageBtn,
+  );
   container.appendChild(responseMenu);
 
   // Prompt context menu

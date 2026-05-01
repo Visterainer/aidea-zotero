@@ -22,6 +22,7 @@
  */
 
 import { getLocaleID } from "../../utils/locale";
+import { renderMarkdown } from "../../utils/markdown";
 import { config, GLOBAL_CONVERSATION_KEY_BASE, PANE_ID } from "./constants";
 import type { Message } from "./types";
 import {
@@ -56,6 +57,11 @@ import { resolvePaperContextRefFromAttachment } from "./paperAttribution";
 import { getSharedLibraryPanelHost } from "./libraryPanel";
 import { getSharedReaderPanelHostForItem } from "./readerPanel";
 import { getPanelI18n } from "./i18n";
+import {
+  isSelectionTranslateEnabled,
+  translateSelectedTextForReader,
+} from "./selectionTranslate";
+import { appendSelectionTranslationToNote } from "./notes";
 
 // =============================================================================
 // Public API
@@ -64,7 +70,6 @@ import { getPanelI18n } from "./i18n";
 // =============================================================================
 // Section Visibility
 // =============================================================================
-
 
 export function registerLLMStyles(win: _ZoteroTypes.MainWindow) {
   const doc = win.document;
@@ -228,8 +233,7 @@ export function registerReaderContextPanel() {
         host.style.display = "flex";
         // Removed: scrollSectionIntoView(body) — was hijacking sidebar scroll
 
-        const { bootstrapSharedLibraryPanel } =
-          await import("./libraryPanel");
+        const { bootstrapSharedLibraryPanel } = await import("./libraryPanel");
         await bootstrapSharedLibraryPanel(win, host);
         return;
       }
@@ -268,11 +272,236 @@ export function registerReaderContextPanel() {
         host.style.display = "flex";
       }
 
-      const { bootstrapSharedReaderPanel } =
-        await import("./readerPanel");
+      const { bootstrapSharedReaderPanel } = await import("./readerPanel");
       await bootstrapSharedReaderPanel(win, host, readerItem);
     },
   });
+}
+
+type SelectionPopupRect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+};
+
+function makeSelectionPopupRect(
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+): SelectionPopupRect {
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function getViewportRect(doc: Document): SelectionPopupRect {
+  const win = doc.defaultView;
+  const width =
+    doc.documentElement?.clientWidth ||
+    doc.body?.clientWidth ||
+    win?.innerWidth ||
+    800;
+  const height =
+    doc.documentElement?.clientHeight ||
+    doc.body?.clientHeight ||
+    win?.innerHeight ||
+    600;
+  return makeSelectionPopupRect(0, 0, width, height);
+}
+
+function getReaderSelectionClientRect(
+  doc: Document,
+): SelectionPopupRect | null {
+  const selection = doc.defaultView?.getSelection?.();
+  if (!selection?.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  const rects = Array.from(range.getClientRects?.() || []).filter(
+    (rect) => rect.width > 0 && rect.height > 0,
+  );
+  if (!rects.length) {
+    const rect = range.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0
+      ? makeSelectionPopupRect(rect.left, rect.top, rect.right, rect.bottom)
+      : null;
+  }
+  return makeSelectionPopupRect(
+    Math.min(...rects.map((rect) => rect.left)),
+    Math.min(...rects.map((rect) => rect.top)),
+    Math.max(...rects.map((rect) => rect.right)),
+    Math.max(...rects.map((rect) => rect.bottom)),
+  );
+}
+
+function getRectOverlapArea(
+  a: SelectionPopupRect,
+  b: SelectionPopupRect,
+): number {
+  const left = Math.max(a.left, b.left);
+  const right = Math.min(a.right, b.right);
+  const top = Math.max(a.top, b.top);
+  const bottom = Math.min(a.bottom, b.bottom);
+  return Math.max(0, right - left) * Math.max(0, bottom - top);
+}
+
+function movePopupToViewportPoint(
+  popup: HTMLElement,
+  left: number,
+  top: number,
+): void {
+  const rect = popup.getBoundingClientRect();
+  const currentLeft = Number.parseFloat(popup.style.left || "");
+  const currentTop = Number.parseFloat(popup.style.top || "");
+  const baseLeft = Number.isFinite(currentLeft)
+    ? currentLeft
+    : popup.offsetLeft;
+  const baseTop = Number.isFinite(currentTop) ? currentTop : popup.offsetTop;
+  popup.style.left = `${baseLeft + (left - rect.left)}px`;
+  popup.style.top = `${baseTop + (top - rect.top)}px`;
+}
+
+function layoutSelectionTranslatePopup(params: {
+  doc: Document;
+  popup: HTMLElement | null;
+  wrap: HTMLElement;
+  resultBox: HTMLElement;
+  selectionRect: SelectionPopupRect | null;
+}): void {
+  const { doc, popup, wrap, resultBox, selectionRect } = params;
+  if (!popup?.isConnected || !wrap.isConnected) return;
+
+  const viewport = getViewportRect(doc);
+  const margin = 10;
+  const gap = 8;
+  const textLength = (resultBox.textContent || "").length;
+  const availableWidth = Math.max(180, viewport.width - margin * 2);
+  const maxWidth = Math.min(680, availableWidth);
+  const preferredWidth = textLength < 80 ? 320 : textLength < 220 ? 440 : 560;
+  const width = clamp(preferredWidth, Math.min(260, maxWidth), maxWidth);
+
+  wrap.style.width = `${width}px`;
+  wrap.style.maxWidth = `${maxWidth}px`;
+  resultBox.style.width = "100%";
+  resultBox.style.maxHeight = `${Math.max(
+    120,
+    Math.min(320, Math.round(viewport.height * 0.42)),
+  )}px`;
+
+  const popupRect = popup.getBoundingClientRect();
+  const popupWidth = Math.min(
+    popupRect.width || width,
+    viewport.width - 2 * margin,
+  );
+  const popupHeight = Math.min(
+    popupRect.height || resultBox.scrollHeight || 120,
+    viewport.height - 2 * margin,
+  );
+
+  if (!selectionRect) {
+    movePopupToViewportPoint(
+      popup,
+      clamp(popupRect.left, margin, viewport.width - popupWidth - margin),
+      clamp(popupRect.top, margin, viewport.height - popupHeight - margin),
+    );
+    return;
+  }
+
+  const centeredLeft =
+    selectionRect.left + selectionRect.width / 2 - popupWidth / 2;
+  const candidates = [
+    {
+      left: centeredLeft,
+      top: selectionRect.bottom + gap,
+      priority: 4,
+    },
+    {
+      left: centeredLeft,
+      top: selectionRect.top - popupHeight - gap,
+      priority: 3.8,
+    },
+    {
+      left: selectionRect.right + gap,
+      top: selectionRect.top,
+      priority: 3.2,
+    },
+    {
+      left: selectionRect.left - popupWidth - gap,
+      top: selectionRect.top,
+      priority: 3,
+    },
+  ].map((candidate) => {
+    const unclamped = makeSelectionPopupRect(
+      candidate.left,
+      candidate.top,
+      candidate.left + popupWidth,
+      candidate.top + popupHeight,
+    );
+    const left = clamp(
+      candidate.left,
+      margin,
+      viewport.width - popupWidth - margin,
+    );
+    const top = clamp(
+      candidate.top,
+      margin,
+      viewport.height - popupHeight - margin,
+    );
+    const rect = makeSelectionPopupRect(
+      left,
+      top,
+      left + popupWidth,
+      top + popupHeight,
+    );
+    const fits =
+      unclamped.left >= margin &&
+      unclamped.top >= margin &&
+      unclamped.right <= viewport.width - margin &&
+      unclamped.bottom <= viewport.height - margin;
+    const overlap = getRectOverlapArea(rect, selectionRect);
+    const visible = getRectOverlapArea(rect, viewport);
+    return {
+      left,
+      top,
+      score:
+        (fits ? 1_000_000 : 0) +
+        visible -
+        overlap * 20 +
+        candidate.priority * 10_000,
+    };
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  if (best) movePopupToViewportPoint(popup, best.left, best.top);
+}
+
+function scheduleSelectionTranslatePopupLayout(params: {
+  doc: Document;
+  popup: HTMLElement | null;
+  wrap: HTMLElement;
+  resultBox: HTMLElement;
+  selectionRect: SelectionPopupRect | null;
+}): void {
+  const run = () => layoutSelectionTranslatePopup(params);
+  const win = params.doc.defaultView;
+  if (win?.requestAnimationFrame) {
+    win.requestAnimationFrame(() => run());
+  } else {
+    setTimeout(run, 0);
+  }
 }
 
 export function registerReaderSelectionTracking() {
@@ -312,6 +541,7 @@ export function registerReaderSelectionTracking() {
     const showAddTextInPopup =
       popupPrefValue !== false &&
       `${popupPrefValue || ""}`.toLowerCase() !== "false";
+    let selectionTranslateRelayout: (() => void) | null = null;
 
     const resolveSelectedTextForPopupAction = (): string => {
       const fromPopupDoc = getSelectionFromDocument(
@@ -343,6 +573,44 @@ export function registerReaderSelectionTracking() {
         if (cached) return cached;
       }
       return "";
+    };
+    const resolveSelectionPageLabel = (): string => {
+      const isZh = String((Zotero as any)?.locale || "")
+        .toLowerCase()
+        .startsWith("zh");
+      const params = event.params as unknown as {
+        pageIndex?: unknown;
+        page?: unknown;
+        annotation?: {
+          pageIndex?: unknown;
+          page?: unknown;
+          position?: { pageIndex?: unknown; page?: unknown };
+        };
+      };
+      const rawPageIndex =
+        params?.annotation?.position?.pageIndex ??
+        params?.annotation?.pageIndex ??
+        params?.pageIndex;
+      const rawPage =
+        params?.annotation?.position?.page ??
+        params?.annotation?.page ??
+        params?.page;
+      const pageNumber =
+        typeof rawPageIndex === "number"
+          ? rawPageIndex + 1
+          : Number.isFinite(Number(rawPageIndex))
+            ? Number(rawPageIndex) + 1
+            : typeof rawPage === "number"
+              ? rawPage
+              : Number.isFinite(Number(rawPage))
+                ? Number(rawPage)
+                : 0;
+      if (!pageNumber || pageNumber < 1) {
+        return isZh ? "\u5f53\u524d PDF" : "Current PDF";
+      }
+      return isZh
+        ? `\u5f53\u524d PDF\uff0c\u7b2c ${Math.floor(pageNumber)} \u9875`
+        : `Current PDF, page ${Math.floor(pageNumber)}`;
     };
 
     if (selectedText || showAddTextInPopup) {
@@ -629,6 +897,207 @@ export function registerReaderSelectionTracking() {
         if (isSeparator(prev)) prev.style.display = "none";
         if (isSeparator(next)) next.style.display = "none";
       };
+
+      if (selectedText && isSelectionTranslateEnabled()) {
+        try {
+          const isZh = String((Zotero as any)?.locale || "")
+            .toLowerCase()
+            .startsWith("zh");
+          const text = isZh
+            ? {
+                coldStart: "冷启动中...",
+                translating: "翻译中...",
+                failed: "翻译失败",
+              }
+            : {
+                coldStart: "Cold starting...",
+                translating: "Translating...",
+                failed: "Translation failed",
+              };
+          const noteText = isZh
+            ? {
+                addToNote: "\u6dfb\u52a0\u5230\u7b14\u8bb0",
+                addingToNote: "\u6b63\u5728\u6dfb\u52a0...",
+                addedToNote: "\u5df2\u6dfb\u52a0",
+                addToNoteFailed: "\u6dfb\u52a0\u5931\u8d25",
+              }
+            : {
+                addToNote: "Add to note",
+                addingToNote: "Adding...",
+                addedToNote: "Added",
+                addToNoteFailed: "Add failed",
+              };
+          const selectionPopup = event.doc.querySelector(
+            ".selection-popup",
+          ) as HTMLElement | null;
+          if (selectionPopup) {
+            selectionPopup.style.maxWidth = "none";
+            selectionPopup.style.width = "auto";
+            selectionPopup.style.boxSizing = "border-box";
+          }
+          const selectionRect = getReaderSelectionClientRect(event.doc);
+          const wrap = event.doc.createElementNS(
+            "http://www.w3.org/1999/xhtml",
+            "div",
+          ) as HTMLDivElement;
+          wrap.style.cssText = [
+            "display:flex",
+            "flex-direction:column",
+            "gap:6px",
+            "width:min(420px, calc(100vw - 20px))",
+            "max-width:calc(100vw - 20px)",
+            "margin:0",
+            "box-sizing:border-box",
+            "color:inherit",
+          ].join(";");
+
+          const resultBox = event.doc.createElementNS(
+            "http://www.w3.org/1999/xhtml",
+            "div",
+          ) as HTMLDivElement;
+          resultBox.textContent = text.translating;
+          resultBox.style.cssText = [
+            "display:block",
+            "width:100%",
+            "max-width:100%",
+            "max-height:min(320px, 42vh)",
+            "overflow:auto",
+            "box-sizing:border-box",
+            "padding:7px 8px",
+            "border:1px solid rgba(130,130,130,0.32)",
+            "border-radius:6px",
+            "background:rgba(127,127,127,0.08)",
+            "color:inherit",
+            "font-size:12px",
+            "line-height:1.45",
+            "white-space:pre-wrap",
+          ].join(";");
+          const setResultText = (value: string) => {
+            try {
+              resultBox.innerHTML = renderMarkdown(value);
+            } catch {
+              resultBox.textContent = value;
+            }
+            selectionTranslateRelayout?.();
+          };
+          const addToNoteBtn = event.doc.createElementNS(
+            "http://www.w3.org/1999/xhtml",
+            "button",
+          ) as HTMLButtonElement;
+          addToNoteBtn.type = "button";
+          addToNoteBtn.textContent = noteText.addToNote;
+          addToNoteBtn.style.cssText = [
+            "display:none",
+            "width:fit-content",
+            "align-self:flex-end",
+            "margin:0",
+            "padding:4px 9px",
+            "box-sizing:border-box",
+            "border:1px solid rgba(130,130,130,0.38)",
+            "border-radius:5px",
+            "background:rgba(255,255,255,0.04)",
+            "color:inherit",
+            "font-size:12px",
+            "line-height:1.25",
+            "text-align:center",
+            "cursor:pointer",
+          ].join(";");
+          wrap.append(resultBox, addToNoteBtn);
+          event.append(wrap);
+          if (!popupSentinelEl) popupSentinelEl = wrap;
+          stripPopupRowChrome(wrap.parentElement as HTMLElement | null);
+          selectionTranslateRelayout = () =>
+            scheduleSelectionTranslatePopupLayout({
+              doc: event.doc,
+              popup: selectionPopup,
+              wrap,
+              resultBox,
+              selectionRect,
+            });
+          selectionTranslateRelayout();
+
+          let latestSelectionTranslation: {
+            selectedText: string;
+            translation: string;
+            model: string;
+            provider?: string;
+          } | null = null;
+          let translateRunning = false;
+          addToNoteBtn.addEventListener("click", async () => {
+            if (!item || !latestSelectionTranslation) return;
+            addToNoteBtn.disabled = true;
+            addToNoteBtn.textContent = noteText.addingToNote;
+            try {
+              await appendSelectionTranslationToNote(item, {
+                ...latestSelectionTranslation,
+                pageLabel: resolveSelectionPageLabel(),
+              });
+              addToNoteBtn.textContent = noteText.addedToNote;
+            } catch (err) {
+              ztoolkit.log(
+                "LLM: add selection translation to note failed",
+                err,
+              );
+              addToNoteBtn.disabled = false;
+              addToNoteBtn.textContent = noteText.addToNoteFailed;
+            }
+          });
+          const runSelectionTranslate = async () => {
+            if (translateRunning) return;
+            translateRunning = true;
+            latestSelectionTranslation = null;
+            addToNoteBtn.style.display = "none";
+            addToNoteBtn.disabled = true;
+            addToNoteBtn.textContent = noteText.addToNote;
+            try {
+              const effectiveSelectedText =
+                normalizeSelectedText(selectedText) ||
+                resolveSelectedTextForPopupAction();
+              if (!item || !effectiveSelectedText) {
+                resultBox.textContent = text.failed;
+                selectionTranslateRelayout?.();
+                return;
+              }
+              const result = await translateSelectedTextForReader({
+                item,
+                selectedText: effectiveSelectedText,
+                callbacks: {
+                  onStage(stage) {
+                    resultBox.textContent =
+                      stage === "cold-start"
+                        ? text.coldStart
+                        : text.translating;
+                    selectionTranslateRelayout?.();
+                  },
+                },
+              });
+              setResultText(result.translation);
+              latestSelectionTranslation = {
+                selectedText: effectiveSelectedText,
+                translation: result.translation,
+                model: result.model,
+                provider: result.provider,
+              };
+              addToNoteBtn.disabled = false;
+              addToNoteBtn.textContent = noteText.addToNote;
+              addToNoteBtn.style.display = "block";
+              selectionTranslateRelayout?.();
+            } catch (err) {
+              ztoolkit.log("LLM: selection translation failed", err);
+              resultBox.textContent = `${text.failed}: ${
+                err instanceof Error ? err.message : String(err)
+              }`;
+              selectionTranslateRelayout?.();
+            } finally {
+              translateRunning = false;
+            }
+          };
+          setTimeout(() => void runSelectionTranslate(), 0);
+        } catch (err) {
+          ztoolkit.log("LLM: failed to append selection translate popup", err);
+        }
+      }
+
       if (showAddTextInPopup) {
         try {
           const addTextBtn = event.doc.createElementNS(
@@ -683,6 +1152,7 @@ export function registerReaderSelectionTracking() {
           event.append(addTextBtn);
           popupSentinelEl = addTextBtn;
           stripPopupRowChrome(addTextBtn.parentElement as HTMLElement | null);
+          selectionTranslateRelayout?.();
         } catch (err) {
           ztoolkit.log("LLM: failed to append Add Text popup button", err);
         }

@@ -65,6 +65,20 @@ Chat with AI directly in Zotero's side panel, available in both the **Library** 
 
 Select text in the PDF reader and click **Add Text** to attach the selected passage to the context area. AIdea can then answer against the selected passage instead of relying on a generic summary.
 
+### 📝 Selection Translation
+
+Translate selected text directly in Zotero's PDF reader popup. Selection translation uses the same OAuth/API model list as the chat panel, but can be configured with its own enable switch, model, source language, and target language.
+
+The first time this feature is used for a paper, AIdea creates a local cold-start cache with a compact paper overview and terminology summary. Later selection translations reuse that local cache as context, and translated passages can be added back to Zotero notes.
+
+<p align="center">
+  <img src="doc/screenshots/selection_translation_popup.png" alt="Selection translation popup in the PDF reader" width="800" />
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/selection_translation_settings.png" alt="Selection translation settings" width="800" />
+</p>
+
 ### ⚡ Quick Action Shortcuts
 
 Use one-click shortcuts for common tasks such as **Summarize**, **Explain**, and **Translate**. Shortcuts can be added, edited, reordered, or removed to match your workflow.
@@ -226,6 +240,8 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 | **UI Language**     | Plugin interface language                              | Auto-detected, fallback EN   |
 | **System Prompt**   | Custom instructions for the model                      | Empty                        |
 | **Show "Add Text"** | Show the Add Text option in the reader selection popup | On                           |
+| **Selection Translation** | Translate selected reader text in the popup and reuse local cold-start context | On |
+| **Selection Translation Model** | Dedicated model for reader selection translation | First available model unless changed |
 | **Show All Models** | Show all available models instead of a curated subset  | Off                          |
 | **Tab Bar**         | Show or hide the tab navigation bar                    | Hidden                       |
 
@@ -245,7 +261,6 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 
 Planned directions for future releases include:
 
-- **Highlight translation**, for translating selected passages directly inside the PDF reader
 - **One-click architecture diagrams**, for generating structural visualizations from paper content
 
 > 💡 Feature requests are welcome through [Issues](https://github.com/Visterainer/aidea-zotero/issues).
