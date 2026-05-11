@@ -1,13 +1,9 @@
 ## What's Changed
 
-- **Windows npm warning handling**: hidden PowerShell commands now return the real native process exit code, so `npm warn using --force` from `npm install -g --force @openai/codex@latest` is no longer treated as a failed install when npm succeeds.
-- **Live Settings console sync**: OAuth environment updates started from the popup now stream progress into the Settings console and keep `oauthSetupLog` updated while the task is running.
-- **Cleaner update prompt controls**: the OAuth update prompt now has a top-right minimize control, and after completion the action area is replaced with a single OK button that closes the prompt.
-- **Clearer failure feedback**: if an OAuth environment update really fails, the prompt now shows the last failed step instead of only a generic message.
+- **macOS Apple Silicon Node/npm detection**: OAuth CLI environment checks now respect the user's login shell PATH before falling back to built-in paths, and macOS fallback lookup now prefers `/opt/homebrew/bin` before legacy `/usr/local/bin`, preventing stale x64 Node installs from being selected on Apple Silicon Macs. Fixes #26, thanks @werifu for identifying the root cause.
+- **Environment diagnostics**: OAuth environment logs now include `nodeArch`, making it easier to confirm whether the selected Node runtime is `arm64` or `x64`.
 
 ## 更新内容
 
-- **Windows npm warning 处理**：隐藏 PowerShell 命令现在会返回真实的原生命令退出码，因此 `npm install -g --force @openai/codex@latest` 成功时产生的 `npm warn using --force` 不会再被误判为安装失败。
-- **Settings 控制台实时同步**：从弹窗启动的 OAuth 环境更新现在会把进度实时写入 Settings 控制台，并在任务执行过程中持续更新 `oauthSetupLog`。
-- **更清晰的更新弹窗控制**：OAuth 更新弹窗新增右上角最小化按钮；更新完成后，操作区会替换为单个“确定”按钮，点击后关闭弹窗。
-- **更明确的失败反馈**：如果 OAuth 环境更新确实失败，弹窗会显示最后一个失败步骤，而不再只显示通用失败提示。
+- **macOS Apple Silicon Node/npm 检测**：OAuth CLI 环境检查现在会先尊重用户登录 shell 的 PATH，再使用内置路径兜底；macOS 兜底查找也会优先使用 `/opt/homebrew/bin`，再使用旧的 `/usr/local/bin`，避免 Apple Silicon Mac 误选残留的 x64 Node。修复 #26，感谢 @werifu 定位根因。
+- **环境诊断信息**：OAuth 环境日志现在会记录 `nodeArch`，便于确认当前选中的 Node 运行时是 `arm64` 还是 `x64`。
