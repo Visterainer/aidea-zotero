@@ -142,6 +142,7 @@ type NpmEnvironmentState = {
   nodePath: string | null;
   npmPath: string | null;
   nodeVersion: string;
+  nodeArch: string;
   npmReportedVersion: string;
   npmPackageVersion: string;
   latestNpmVersion: string;
@@ -751,11 +752,25 @@ function getCommonExecutableDirs(platform: SupportedPlatform): string[] {
     ).filter(isDirectoryPath);
   }
 
+  if (platform === "macos") {
+    return dedupePathEntries(
+      [
+        // Apple Silicon Homebrew defaults to /opt/homebrew. Keep it ahead of
+        // legacy Intel /usr/local so a stale x64 node cannot win fallback lookup.
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        home ? joinPath(home, ".local", "bin") : "",
+        home ? joinPath(home, ".npm-global", "bin") : "",
+      ],
+      platform,
+    ).filter(isDirectoryPath);
+  }
+
   return dedupePathEntries(
     [
       "/usr/local/bin",
       "/usr/bin",
-      "/opt/homebrew/bin",
       home ? joinPath(home, ".local", "bin") : "",
       home ? joinPath(home, ".npm-global", "bin") : "",
     ],
@@ -823,15 +838,9 @@ async function locateExecutableViaShell(
   const platform = currentPlatform();
   const trimmed = String(baseName || "").trim();
   if (!trimmed) return null;
-  const command =
-    platform === "windows"
-      ? `where.exe ${trimmed}`
-      : `command -v ${escapeShellArg(trimmed)} 2>/dev/null || which ${escapeShellArg(trimmed)} 2>/dev/null`;
-  try {
-    const result = await runShellCommand(command, { hidden: true });
-    if (result.code !== 0) return null;
 
-    const candidates = String([result.stdout, result.stderr].join("\n"))
+  const chooseCandidate = (rawOutput: string): string | null => {
+    const candidates = rawOutput
       .split(/\r?\n/g)
       .map((line) => line.trim())
       .filter((line) => Boolean(line) && pathExists(line));
@@ -854,10 +863,41 @@ async function locateExecutableViaShell(
       }
     }
 
+    return chosen || null;
+  };
+
+  const runLocator = async (command: string): Promise<string | null> => {
+    const result = await runShellCommand(command, { hidden: true });
+    if (result.code !== 0) return null;
+
+    const chosen = chooseCandidate(
+      String([result.stdout, result.stderr].join("\n")),
+    );
     if (!chosen) return null;
     const dir = initLocalFile(chosen)?.parent?.path || "";
     if (dir) prependProcessPathEntries([dir]);
     return chosen;
+  };
+
+  try {
+    if (platform === "windows") {
+      return await runLocator(`where.exe ${trimmed}`);
+    }
+
+    const unixLocator = `command -v ${escapeShellArg(trimmed)} 2>/dev/null || which ${escapeShellArg(trimmed)} 2>/dev/null`;
+    const shellCandidates = dedupePathEntries(
+      [getEnv("SHELL"), platform === "macos" ? "/bin/zsh" : "", "/bin/bash"],
+      platform,
+    ).filter((shellPath) => Boolean(shellPath) && pathExists(shellPath));
+
+    for (const shellPath of shellCandidates) {
+      const found = await runLocator(
+        `${escapeShellArg(shellPath)} -lc ${escapeShellArg(unixLocator)}`,
+      );
+      if (found) return found;
+    }
+
+    return await runLocator(unixLocator);
   } catch {
     return null;
   }
@@ -1016,17 +1056,25 @@ async function inspectNpmEnvironment(
     prependProcessPathEntries([preferredBin]);
   }
 
-  prependProcessPathEntries(getCommonExecutableDirs(platform));
-
   const nodePath =
     (await locateExecutableViaShell("node")) || resolveExecutablePath("node");
   const npmPath =
     (await locateExecutableViaShell("npm")) || resolveExecutablePath("npm");
 
   let nodeVersion = "";
+  let nodeArch = "";
   if (nodePath) {
     const nodeResult = await runExecutableCommand(nodePath, ["--version"]);
     nodeVersion = normalizeVersionText(nodeResult.output);
+    const archResult = await runExecutableCommand(nodePath, [
+      "-p",
+      "process.arch",
+    ]);
+    nodeArch =
+      String(archResult.output || "")
+        .split(/\r?\n/g)
+        .map((line) => line.trim())
+        .find(Boolean) || "";
   }
 
   let npmReportedVersion = "";
@@ -1084,6 +1132,7 @@ async function inspectNpmEnvironment(
     nodePath,
     npmPath,
     nodeVersion,
+    nodeArch,
     npmReportedVersion,
     npmPackageVersion,
     latestNpmVersion,
@@ -2537,8 +2586,8 @@ async function getNpmGlobalRootCandidates(): Promise<string[]> {
     const appData = getEnv("APPDATA") || joinPath(home, "AppData", "Roaming");
     roots.add(joinPath(appData, "npm", "node_modules"));
   } else {
-    roots.add("/usr/local/lib/node_modules");
     roots.add("/opt/homebrew/lib/node_modules");
+    roots.add("/usr/local/lib/node_modules");
     if (home) {
       roots.add(joinPath(home, ".npm-global", "lib", "node_modules"));
     }
@@ -3389,6 +3438,7 @@ export async function autoConfigureEnvironment(params?: {
       `platform: ${state.platform}`,
       `nodePath: ${state.nodePath || "-"}`,
       `nodeVersion: ${state.nodeVersion || "-"}`,
+      `nodeArch: ${state.nodeArch || "-"}`,
       `npmPath: ${state.npmPath || "-"}`,
       `npmReportedVersion: ${state.npmReportedVersion || "-"}`,
       `npmPackageVersion: ${state.npmPackageVersion || "-"}`,
