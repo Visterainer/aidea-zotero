@@ -20,6 +20,7 @@ const STARTUP_DELAY_MS = 90 * 1000;
 const ACTIVE_THRESHOLD_MS = 5 * 60 * 1000;
 const COUNTDOWN_SECONDS = 60;
 const TOAST_ID = `${config.addonRef}-oauth-env-update-toast`;
+const LOG_EVENT = `${config.addonRef}-oauth-env-update-log`;
 
 type SchedulerWindowState = {
   cleanup: () => void;
@@ -31,11 +32,14 @@ type PromptState = {
   title: HTMLElement;
   body: HTMLElement;
   status: HTMLElement;
+  actions: HTMLElement;
   nowButton: HTMLButtonElement;
   laterButton: HTMLButtonElement;
+  minimizeButton: HTMLButtonElement;
   countdownTimer: ReturnType<typeof setInterval> | null;
   countdownRemaining: number;
   mode: "active" | "idle" | "updating";
+  minimized: boolean;
 };
 
 type OAuthEnvUpdateCopy = {
@@ -51,6 +55,8 @@ type OAuthEnvUpdateCopy = {
   countdown: string;
   snoozed: string;
   ok: string;
+  minimize?: string;
+  restore?: string;
 };
 
 const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
@@ -69,6 +75,8 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
     countdown: "Auto update in {n}s",
     snoozed: "Snoozed",
     ok: "OK",
+    minimize: "Minimize",
+    restore: "Restore",
   },
   "zh-CN": {
     title: "OAuth 环境需要更新",
@@ -264,6 +272,38 @@ function setStringPref(key: string, value: string): void {
   }
 }
 
+function dispatchLogUpdate(detail: {
+  logs?: string;
+  progress?: string;
+  color?: string;
+  reset?: boolean;
+}): void {
+  const wins = new Set<Window>();
+  const main = Zotero.getMainWindow?.() as Window | null;
+  if (main && !main.closed) wins.add(main);
+  for (const win of windowStates.keys()) {
+    if (!win.closed) wins.add(win);
+  }
+  for (const win of wins) {
+    try {
+      const CustomEventCtor = (win as any).CustomEvent || CustomEvent;
+      win.dispatchEvent(new CustomEventCtor(LOG_EVENT, { detail }));
+    } catch (err) {
+      ztoolkit?.log?.("AIdea: failed to dispatch OAuth env log update", err);
+    }
+  }
+}
+
+function publishSetupLog(
+  logs: string,
+  progress?: string,
+  color?: string,
+  reset?: boolean,
+): void {
+  setStringPref("oauthSetupLog", logs);
+  dispatchLogUpdate({ logs, progress, color, reset });
+}
+
 function getHostWindow(): Window | null {
   const main = Zotero.getMainWindow?.() as Window | null;
   if (main && !main.closed) return main;
@@ -358,6 +398,25 @@ function styleButton(button: HTMLButtonElement, primary = false): void {
   });
 }
 
+function styleMinimizeButton(button: HTMLButtonElement): void {
+  Object.assign(button.style, {
+    position: "absolute",
+    top: "8px",
+    right: "9px",
+    width: "24px",
+    height: "24px",
+    padding: "0",
+    border: "1px solid transparent",
+    borderRadius: "6px",
+    background: "transparent",
+    color: "#6b7280",
+    fontSize: "18px",
+    lineHeight: "20px",
+    fontWeight: "700",
+    cursor: "pointer",
+  });
+}
+
 function setButtonDisabled(button: HTMLButtonElement, disabled: boolean): void {
   button.disabled = disabled;
   Object.assign(button.style, {
@@ -365,6 +424,27 @@ function setButtonDisabled(button: HTMLButtonElement, disabled: boolean): void {
     opacity: disabled ? "0.55" : "1",
     pointerEvents: disabled ? "none" : "auto",
   });
+}
+
+function getMinimizeText(prompt: PromptState): string {
+  const copy = getCopy();
+  return prompt.minimized
+    ? copy.restore || OAUTH_ENV_UPDATE_COPIES["en-US"].restore || "Restore"
+    : copy.minimize || OAUTH_ENV_UPDATE_COPIES["en-US"].minimize || "Minimize";
+}
+
+function setPromptMinimized(prompt: PromptState, minimized: boolean): void {
+  prompt.minimized = minimized;
+  prompt.body.style.display = minimized ? "none" : "";
+  prompt.status.style.display = minimized ? "none" : "";
+  prompt.actions.style.display = minimized ? "none" : "flex";
+  prompt.root.style.width = minimized ? "280px" : "360px";
+  prompt.root.style.padding = minimized
+    ? "10px 42px 10px 12px"
+    : "14px 14px 12px";
+  prompt.title.style.marginBottom = minimized ? "0" : "7px";
+  prompt.minimizeButton.textContent = minimized ? "+" : "-";
+  prompt.minimizeButton.title = getMinimizeText(prompt);
 }
 
 function closePrompt(): void {
@@ -435,9 +515,16 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
   root.setAttribute("dir", getLanguageDirection());
   applyToastStyles(root);
 
+  const minimizeButton = makeEl(doc, "button", "", "-");
+  minimizeButton.type = "button";
+  styleMinimizeButton(minimizeButton);
+  minimizeButton.title =
+    copy.minimize || OAUTH_ENV_UPDATE_COPIES["en-US"].minimize || "Minimize";
+
   const title = makeEl(doc, "div", "", copy.title);
   Object.assign(title.style, {
     marginBottom: "7px",
+    paddingRight: "28px",
     fontWeight: "750",
     fontSize: "14px",
     color: "#111827",
@@ -472,7 +559,7 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
   setButtonDisabled(laterButton, false);
   setButtonDisabled(nowButton, false);
   actions.append(laterButton, nowButton);
-  root.append(title, body, status, actions);
+  root.append(minimizeButton, title, body, status, actions);
   doc.documentElement.appendChild(root);
 
   promptState = {
@@ -481,12 +568,20 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
     title,
     body,
     status,
+    actions,
     nowButton,
     laterButton,
+    minimizeButton,
     countdownTimer: null,
     countdownRemaining: COUNTDOWN_SECONDS,
     mode: "active",
+    minimized: false,
   };
+
+  minimizeButton.addEventListener("click", () => {
+    if (!promptState) return;
+    setPromptMinimized(promptState, !promptState.minimized);
+  });
 
   let updateStarted = false;
   nowButton.addEventListener("click", () => {
@@ -523,6 +618,18 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
   switchPromptMode("updating");
 
   const logs: string[] = [];
+  const liveLogs: string[] = [];
+  const failedSteps: string[] = [];
+  const publishProgress = (line: string, color = "#374151", reset = false) => {
+    if (reset) liveLogs.length = 0;
+    liveLogs.push(line);
+    publishSetupLog(liveLogs.join("\n"), line, color, reset);
+  };
+  publishProgress(
+    `[${providerText(providers)}] ${getCopy().updating}`,
+    "#374151",
+    true,
+  );
   let allOk = true;
   for (const provider of providers) {
     const label = getProviderLabel(provider);
@@ -531,24 +638,52 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
     const result = await autoConfigureEnvironment({
       provider,
       onProgress: (event) => {
-        if (!promptState) return;
         const prefix = `${label}: ${event.step}`;
-        promptState.status.textContent = event.output
-          ? `${prefix} - ${String(event.output).split(/\r?\n/g)[0].slice(0, 120)}`
-          : prefix;
+        if (promptState) {
+          promptState.status.textContent = event.output
+            ? `${prefix} - ${String(event.output).split(/\r?\n/g)[0].slice(0, 120)}`
+            : prefix;
+        }
+        const marker =
+          event.phase === "start"
+            ? "START"
+            : event.phase === "done"
+              ? event.ok
+                ? "OK"
+                : "FAIL"
+              : "INFO";
+        const eventLine = event.output
+          ? `[${label}] ${marker} ${event.step}\n${String(event.output).trim()}`
+          : `[${label}] ${marker} ${event.step}`;
+        publishProgress(
+          eventLine,
+          event.phase === "done"
+            ? event.ok
+              ? "#065f46"
+              : "#991b1b"
+            : "#374151",
+        );
+        if (event.phase === "done" && event.ok === false) {
+          const firstLine = event.output
+            ? String(event.output).split(/\r?\n/g)[0].slice(0, 160)
+            : "";
+          failedSteps.push(firstLine ? `${prefix} - ${firstLine}` : prefix);
+        }
       },
     });
     logs.push(`## ${label}\n${result.logs}`);
     if (!result.ok) allOk = false;
   }
 
-  setStringPref("oauthSetupLog", logs.join("\n\n"));
+  const finalLogs = logs.join("\n\n");
+  publishSetupLog(finalLogs);
   const copy = getCopy();
   if (promptState) {
     promptState.body.textContent = allOk ? copy.done : copy.failed;
-    promptState.status.textContent = `${copy.providers}: ${providerText(
-      providers,
-    )}`;
+    promptState.status.textContent = allOk
+      ? `${copy.providers}: ${providerText(providers)}`
+      : failedSteps[failedSteps.length - 1] ||
+        `${copy.providers}: ${providerText(providers)}`;
     setButtonDisabled(promptState.nowButton, true);
     const okButton = promptState.laterButton.cloneNode(
       true,
@@ -557,7 +692,7 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
     styleButton(okButton, false);
     setButtonDisabled(okButton, false);
     okButton.addEventListener("click", closePrompt);
-    promptState.laterButton.replaceWith(okButton);
+    promptState.actions.replaceChildren(okButton);
     promptState.laterButton = okButton;
   }
 

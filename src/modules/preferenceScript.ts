@@ -77,6 +77,7 @@ type PrefKey =
   | "uiLanguage";
 
 type Lang = PanelLang;
+const OAUTH_ENV_UPDATE_LOG_EVENT = `${config.addonRef}-oauth-env-update-log`;
 const PROVIDERS: OAuthProviderId[] = [
   "openai-codex",
   "google-gemini-cli",
@@ -2748,6 +2749,39 @@ export async function bootstrapSettingTab(
     progressList.appendChild(row);
     progressList.scrollTop = progressList.scrollHeight;
   };
+
+  const oauthEnvLogHandler = (event: Event) => {
+    const detail = ((event as CustomEvent).detail || {}) as {
+      logs?: unknown;
+      progress?: unknown;
+      color?: unknown;
+      reset?: unknown;
+    };
+    if (detail.reset) {
+      progressList.innerHTML = "";
+    }
+    if (typeof detail.logs === "string") {
+      logsBox.value = detail.logs;
+      logsBox.scrollTop = logsBox.scrollHeight;
+    }
+    if (typeof detail.progress === "string" && detail.progress.trim()) {
+      appendProgress(
+        detail.progress,
+        typeof detail.color === "string" ? detail.color : "#374151",
+      );
+    }
+  };
+  const previousOauthEnvLogHandler = (win as any).__aideaOauthEnvLogHandler as
+    | EventListener
+    | undefined;
+  if (previousOauthEnvLogHandler) {
+    win.removeEventListener(
+      OAUTH_ENV_UPDATE_LOG_EVENT,
+      previousOauthEnvLogHandler,
+    );
+  }
+  (win as any).__aideaOauthEnvLogHandler = oauthEnvLogHandler;
+  win.addEventListener(OAUTH_ENV_UPDATE_LOG_EVENT, oauthEnvLogHandler);
 
   const flushUi = () =>
     new Promise<void>((resolve) => win.setTimeout(resolve, 0));

@@ -4,7 +4,9 @@ export type ExecResult = {
   stderr: string;
 };
 
-type ZoteroExecResult = string | { stdout?: string; stderr?: string; code?: number; exitCode?: number };
+type ZoteroExecResult =
+  | string
+  | { stdout?: string; stderr?: string; code?: number; exitCode?: number };
 
 declare const Zotero: any;
 
@@ -27,12 +29,17 @@ function normalizeExecResult(result: ZoteroExecResult): ExecResult {
         : 0;
   return {
     code: Number.isFinite(code) ? code : 0,
-    stdout: typeof (result as any)?.stdout === "string" ? (result as any).stdout : "",
-    stderr: typeof (result as any)?.stderr === "string" ? (result as any).stderr : "",
+    stdout:
+      typeof (result as any)?.stdout === "string" ? (result as any).stdout : "",
+    stderr:
+      typeof (result as any)?.stderr === "string" ? (result as any).stderr : "",
   };
 }
 
-async function tryZoteroExec(command: string, args: string[]): Promise<ExecResult | null> {
+async function tryZoteroExec(
+  command: string,
+  args: string[],
+): Promise<ExecResult | null> {
   const execFn = Zotero?.Utilities?.Internal?.exec;
   if (typeof execFn !== "function") return null;
   try {
@@ -79,10 +86,17 @@ function getPlatform(): "windows" | "macos" | "linux" {
   return "linux";
 }
 
-function shellWrap(command: string, stdoutPath: string, stderrPath: string): { exe: string; args: string[] } {
+function shellWrap(
+  command: string,
+  stdoutPath: string,
+  stderrPath: string,
+): { exe: string; args: string[] } {
   const platform = getPlatform();
   if (platform === "windows") {
-    const script = `${command} 1> \"${stdoutPath}\" 2> \"${stderrPath}\"`;
+    const script =
+      `& { ${command} } 1> \"${stdoutPath}\" 2> \"${stderrPath}\"; ` +
+      "$exitCode = if ($null -ne $global:LASTEXITCODE) { $global:LASTEXITCODE } elseif ($?) { 0 } else { 1 }; " +
+      "exit $exitCode";
     return {
       exe: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
       args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
@@ -95,12 +109,18 @@ function shellWrap(command: string, stdoutPath: string, stderrPath: string): { e
   };
 }
 
-function runProcessAsync(exe: string, args: string[], hidden = false): Promise<number> {
+function runProcessAsync(
+  exe: string,
+  args: string[],
+  hidden = false,
+): Promise<number> {
   return new Promise((resolve, reject) => {
     try {
       const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
       file.initWithPath(exe);
-      const proc = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
+      const proc = Cc["@mozilla.org/process/util;1"].createInstance(
+        Ci.nsIProcess,
+      );
       proc.init(file);
       if (hidden) {
         try {
@@ -112,8 +132,10 @@ function runProcessAsync(exe: string, args: string[], hidden = false): Promise<n
       }
       const observer = {
         observe(_subject: unknown, topic: string) {
-          if (topic !== "process-finished" && topic !== "process-failed") return;
-          const exitValue = typeof proc.exitValue === "number" ? proc.exitValue : 1;
+          if (topic !== "process-finished" && topic !== "process-failed")
+            return;
+          const exitValue =
+            typeof proc.exitValue === "number" ? proc.exitValue : 1;
           resolve(exitValue);
         },
       };
@@ -124,16 +146,22 @@ function runProcessAsync(exe: string, args: string[], hidden = false): Promise<n
   });
 }
 
-export async function runShellCommand(command: string, options?: { hidden?: boolean }): Promise<ExecResult> {
+export async function runShellCommand(
+  command: string,
+  options?: { hidden?: boolean },
+): Promise<ExecResult> {
   const platform = getPlatform();
   const hidden = options?.hidden ?? false;
 
   // When running hidden we skip the direct Zotero.Utilities.Internal.exec
   // path because it may still pop up a console window on Windows.
   if (!hidden) {
-    const direct = await tryZoteroExec(platform === "windows" ? "powershell" : "/bin/bash", platform === "windows"
-      ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command]
-      : ["-lc", command]);
+    const direct = await tryZoteroExec(
+      platform === "windows" ? "powershell" : "/bin/bash",
+      platform === "windows"
+        ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command]
+        : ["-lc", command],
+    );
     if (direct) return direct;
   }
 
@@ -177,8 +205,7 @@ export async function runShellCommandWithUrlCapture(
     let args: string[];
     if (platform === "windows") {
       // PowerShell: pipe through ForEach-Object + Out-File -Append for immediate flush
-      const script =
-        `& { ${command} } 2>&1 | ForEach-Object { $_ | Out-File -FilePath '${outPath.replace(/'/g, "''")}' -Append -Encoding utf8 }`;
+      const script = `& { ${command} } 2>&1 | ForEach-Object { $_ | Out-File -FilePath '${outPath.replace(/'/g, "''")}' -Append -Encoding utf8 }`;
       exe = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
       args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script];
     } else {
@@ -201,7 +228,11 @@ export async function runShellCommandWithUrlCapture(
         const match = content.match(urlPattern);
         if (match) {
           urlFound = true;
-          try { onUrlFound(match[0]); } catch { /* ignore */ }
+          try {
+            onUrlFound(match[0]);
+          } catch {
+            /* ignore */
+          }
         }
       }
     };
