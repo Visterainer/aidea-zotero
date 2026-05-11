@@ -20,6 +20,7 @@ pref("systemPrompt", "");
 pref("oauthModelListCache", "");
 pref("oauthModelSelectionCache", "");
 pref("oauthSetupLog", "");
+pref("oauthEnvUpdateState", "");
 pref("updateNoticeSeen", "");
 pref("settingsSectionState", "");
 pref("settingsScrollTop", "0");

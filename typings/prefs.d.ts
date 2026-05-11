@@ -29,6 +29,7 @@ declare namespace _ZoteroTypes {
       "oauthModelListCache": string;
       "oauthModelSelectionCache": string;
       "oauthSetupLog": string;
+      "oauthEnvUpdateState": string;
       "updateNoticeSeen": string;
       "settingsSectionState": string;
       "settingsScrollTop": string;

@@ -22,6 +22,11 @@ import { initSelectionTranslateCacheStore } from "./utils/selectionTranslateCach
 import { createZToolkit } from "./utils/ztoolkit";
 import { ensureZoteroProxyFromSystem } from "./utils/oauthCli";
 import { maybeShowOpenAIUpdateNotice } from "./modules/updateNotice";
+import {
+  registerOAuthEnvUpdateSchedulerWindow,
+  shutdownOAuthEnvUpdateScheduler,
+  unregisterOAuthEnvUpdateSchedulerWindow,
+} from "./modules/oauthEnvUpdateScheduler";
 
 async function onStartup() {
   await Promise.all([
@@ -103,6 +108,8 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
       ztoolkit.log("AIdea: failed to show update notice", err);
     }
   }, 600);
+
+  registerOAuthEnvUpdateSchedulerWindow(win);
 }
 
 function registerPrefsPane() {
@@ -115,6 +122,7 @@ function registerPrefsPane() {
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {
+  unregisterOAuthEnvUpdateSchedulerWindow(win);
   removeLibraryPanel(win);
   removeReaderPanels(win);
   ztoolkit.unregisterAll();
@@ -122,6 +130,7 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  shutdownOAuthEnvUpdateScheduler();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
   // Remove addon object

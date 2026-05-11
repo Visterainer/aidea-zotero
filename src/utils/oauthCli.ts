@@ -4,6 +4,7 @@ import {
   escapeShellArg,
 } from "./processRunner";
 import { fetchWithTransientRetry } from "./transientRetry";
+import { recordOAuthEnvUpdateSuccess } from "./oauthEnvUpdateState";
 
 declare const Zotero: any;
 declare const ztoolkit: any;
@@ -120,6 +121,14 @@ export type ProviderAccountSummary = {
   status: string;
 };
 
+export type OAuthCliEnvironmentUpdateCheck = {
+  provider: OAuthProviderId;
+  needsUpdate: boolean;
+  reason: string;
+  installedVersion?: string;
+  latestVersion?: string;
+};
+
 type SupportedPlatform = "windows" | "macos" | "linux";
 
 type ProviderCliSpec = {
@@ -159,6 +168,62 @@ export function normalizeVersionText(raw: string | null | undefined): string {
   if (!text) return "";
   const match = text.match(/\d+(?:\.\d+){0,3}(?:[-+][A-Za-z0-9._-]+)?/);
   return match ? match[0] : "";
+}
+
+function parseVersionParts(
+  raw: string | null | undefined,
+): [number, number, number] | null {
+  const normalized = normalizeVersionText(raw);
+  if (!normalized) return null;
+  const parts = normalized
+    .split(/[+-]/, 1)[0]
+    .split(".")
+    .map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(parts[0])) return null;
+  return [
+    Number.isFinite(parts[0]) ? parts[0] : 0,
+    Number.isFinite(parts[1]) ? parts[1] : 0,
+    Number.isFinite(parts[2]) ? parts[2] : 0,
+  ];
+}
+
+function isVersionAtLeast(
+  raw: string | null | undefined,
+  major: number,
+  minor = 0,
+  patch = 0,
+): boolean {
+  const parts = parseVersionParts(raw);
+  if (!parts) return false;
+  const target = [major, minor, patch];
+  for (let i = 0; i < target.length; i += 1) {
+    if (parts[i] > target[i]) return true;
+    if (parts[i] < target[i]) return false;
+  }
+  return true;
+}
+
+function isNodeVersionSupportedByCodex(
+  nodeVersion: string | null | undefined,
+): boolean {
+  return isVersionAtLeast(nodeVersion, 16, 0, 0);
+}
+
+function isNodeVersionSupportedByLatestNpm(
+  nodeVersion: string | null | undefined,
+): boolean {
+  const parts = parseVersionParts(nodeVersion);
+  if (!parts) return false;
+  const [major] = parts;
+  if (major === 20) return isVersionAtLeast(nodeVersion, 20, 17, 0);
+  if (major === 22) return isVersionAtLeast(nodeVersion, 22, 9, 0);
+  return major > 22;
+}
+
+function looksLikeMissingOptionalDependency(output: string): boolean {
+  return /Missing optional dependency\s+@openai\/codex-/i.test(
+    String(output || ""),
+  );
 }
 
 export function derivePreferredUserNpmPrefix(
@@ -212,6 +277,10 @@ export function getProviderCliSpec(
   provider: OAuthProviderId,
 ): ProviderCliSpec | null {
   return PROVIDER_CLI_SPECS[provider] || null;
+}
+
+export function getOAuthCliProviders(): OAuthProviderId[] {
+  return Object.keys(PROVIDER_CLI_SPECS) as OAuthProviderId[];
 }
 
 const PROVIDER_MARKER_PREFIX = "oauth://";
@@ -1255,6 +1324,32 @@ export async function readCodexOAuthCredential(): Promise<OAuthCredential | null
   return cred;
 }
 
+async function refreshCodexOAuthCredentialViaCli(): Promise<OAuthCredential | null> {
+  const spec = getProviderCliSpec("openai-codex");
+  if (!spec) return null;
+  const cliPath =
+    (await locateExecutableViaShell(spec.executableName)) ||
+    resolveExecutablePath(spec.executableName);
+  if (!cliPath) return null;
+  try {
+    const result = await runShellCommand(
+      buildExecutableCommand(cliPath, ["login", "status"]),
+      { hidden: true },
+    );
+    if (result.code !== 0) {
+      ztoolkit?.log?.(
+        "AIdea: Codex login status failed while refreshing OAuth credential",
+        [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
+      );
+      return null;
+    }
+    return readCodexOAuthCredential();
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: Codex credential refresh via CLI failed", err);
+    return null;
+  }
+}
+
 /**
  * Refresh the Gemini OAuth access token using the stored refresh token.
  * Returns a fresh credential or null if refresh is impossible.
@@ -1853,6 +1948,111 @@ export async function readProviderOAuthCredential(
   return null;
 }
 
+export async function getAuthorizedOAuthCliProviders(): Promise<
+  OAuthProviderId[]
+> {
+  const out: OAuthProviderId[] = [];
+  for (const provider of getOAuthCliProviders()) {
+    const cred = await readProviderOAuthCredential(provider);
+    if (cred?.accessToken) out.push(provider);
+  }
+  return out;
+}
+
+export async function checkOAuthCliEnvironmentUpdates(
+  providers: OAuthProviderId[],
+): Promise<OAuthCliEnvironmentUpdateCheck[]> {
+  const results: OAuthCliEnvironmentUpdateCheck[] = [];
+  const targetProviders = providers.filter((provider) =>
+    Boolean(getProviderCliSpec(provider)),
+  );
+  if (!targetProviders.length) return results;
+
+  const npmState = await inspectNpmEnvironment(true);
+  for (const provider of targetProviders) {
+    const spec = getProviderCliSpec(provider);
+    if (!spec) continue;
+
+    const baseResult: OAuthCliEnvironmentUpdateCheck = {
+      provider,
+      needsUpdate: false,
+      reason: "current",
+    };
+
+    if (!npmState.nodePath || !npmState.npmPath) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: "node/npm not installed",
+      });
+      continue;
+    }
+
+    if (
+      provider === "openai-codex" &&
+      !isNodeVersionSupportedByCodex(npmState.nodeVersion)
+    ) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: `Node.js ${npmState.nodeVersion || "unknown"} is not supported`,
+      });
+      continue;
+    }
+
+    const installedVersion = npmState.globalRoot
+      ? await readGlobalPackageVersion(npmState.globalRoot, spec.packageName)
+      : "";
+    const latestVersion = await queryRegistryPackageVersion(
+      npmState.npmPath,
+      spec.packageName,
+    );
+    baseResult.installedVersion = installedVersion || undefined;
+    baseResult.latestVersion = latestVersion || undefined;
+
+    if (!installedVersion) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: `${spec.packageName} is not installed`,
+      });
+      continue;
+    }
+
+    if (
+      latestVersion &&
+      shouldInstallLatestPackageVersion(installedVersion, latestVersion)
+    ) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: `${spec.packageName} ${latestVersion} is available`,
+      });
+      continue;
+    }
+
+    const verification = await verifyExecutable(
+      spec.executableName,
+      spec.versionArg,
+      [npmState.globalBinDir, ...getCommonExecutableDirs(npmState.platform)],
+    );
+    if (!verification.ok) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: looksLikeMissingOptionalDependency(verification.output)
+          ? "platform package is missing"
+          : `${spec.executableName} verification failed`,
+      });
+      continue;
+    }
+
+    results.push(baseResult);
+  }
+
+  return results;
+}
+
 function ensureProviderAuthHeaderInit(
   cred: OAuthCredential,
 ): Record<string, string> {
@@ -1916,16 +2116,25 @@ export async function fetchAvailableModels(
   }
   try {
     if (provider === "openai-codex") {
-      // Try dynamic discovery from chatgpt.com/backend-api/codex/models first.
-      // Falls back to the static CODEX_KNOWN_MODELS list on failure.
-      const headers: Record<string, string> = {
-        ...ensureProviderAuthHeaderInit(cred),
-        Accept: "application/json",
+      let activeCred = cred;
+      let triedCliRefresh = false;
+
+      const buildHeaders = (
+        credential: OAuthCredential,
+      ): Record<string, string> => {
+        const headers: Record<string, string> = {
+          ...ensureProviderAuthHeaderInit(credential),
+          Accept: "application/json",
+        };
+        if (credential.accountId) {
+          headers["ChatGPT-Account-Id"] = credential.accountId;
+        }
+        return headers;
       };
-      if (cred.accountId) {
-        headers["ChatGPT-Account-Id"] = cred.accountId;
-      }
-      try {
+
+      const fetchDynamicModels = async (
+        headers: Record<string, string>,
+      ): Promise<ProviderModelOption[]> => {
         const res = await getFetch()(
           "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0",
           {
@@ -1952,18 +2161,16 @@ export async function fetchAvailableModels(
               ztoolkit?.log?.(
                 `AIdea: Codex dynamic models: ${rows.map((r) => r.id).join(", ")}`,
               );
-              return dedupeModels(rows);
+              return rows;
             }
           }
         }
-      } catch (err) {
-        ztoolkit?.log?.(
-          "AIdea: Codex dynamic model fetch failed, using static list",
-          err,
-        );
-      }
-      // Fallback: validate token via usage endpoint, then return static list
-      try {
+        return [];
+      };
+
+      const validateToken = async (
+        headers: Record<string, string>,
+      ): Promise<boolean> => {
         const usageRes = await getFetch()(
           "https://chatgpt.com/backend-api/wham/usage",
           {
@@ -1971,17 +2178,43 @@ export async function fetchAvailableModels(
             headers,
           },
         );
-        if (!usageRes.ok) {
-          ztoolkit?.log?.(
-            "AIdea: Codex token validation failed, HTTP",
-            usageRes.status,
-          );
-          return [];
+        return usageRes.status !== 401 && usageRes.status !== 403;
+      };
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const headers = buildHeaders(activeCred);
+        try {
+          const rows = await fetchDynamicModels(headers);
+          if (rows.length > 0) {
+            return dedupeModels(rows);
+          }
+        } catch (err) {
+          ztoolkit?.log?.("AIdea: Codex dynamic model fetch failed", err);
         }
-      } catch {
-        // If even usage fails, still return static list (token might simply be valid)
+
+        try {
+          if (await validateToken(headers)) {
+            return [...CODEX_KNOWN_MODELS];
+          }
+        } catch (err) {
+          ztoolkit?.log?.("AIdea: Codex token validation failed", err);
+        }
+
+        if (!triedCliRefresh) {
+          triedCliRefresh = true;
+          const refreshed = await refreshCodexOAuthCredentialViaCli();
+          if (refreshed?.accessToken) {
+            activeCred = refreshed;
+            continue;
+          }
+        }
+
+        ztoolkit?.log?.(
+          "AIdea: Codex OAuth credential could not be validated; model list unavailable",
+        );
+        return [];
       }
-      return [...CODEX_KNOWN_MODELS];
+      return [];
     }
 
     if (provider === "github-copilot") {
@@ -2993,6 +3226,10 @@ export async function autoConfigureEnvironment(params?: {
   const platform = currentPlatform();
   const home = homeDir();
   const preferredUserPrefix = derivePreferredUserNpmPrefix(platform, home);
+  const targetProviders = params?.provider
+    ? [params.provider]
+    : (Object.keys(PROVIDER_CLI_SPECS) as OAuthProviderId[]);
+  const needsCodexCli = targetProviders.includes("openai-codex");
   report?.({
     phase: "info",
     step: "Detected platform",
@@ -3126,6 +3363,39 @@ export async function autoConfigureEnvironment(params?: {
     }
   }
 
+  if (
+    needsCodexCli &&
+    npmState.nodePath &&
+    !isNodeVersionSupportedByCodex(npmState.nodeVersion)
+  ) {
+    const message = `@openai/codex requires Node.js >= 16. Current Node.js is ${npmState.nodeVersion || "unknown"}.`;
+    append("Node.js version check", message);
+    report?.({
+      phase: "info",
+      step: "Node.js version check",
+      output: `${message} Trying to install/update Node.js.`,
+    });
+    await tryInstallNodeRuntime(report, append);
+    npmState = await inspectNpmEnvironment(false);
+    append(
+      "npm environment after Node.js update attempt",
+      formatNpmState(npmState),
+    );
+    if (!isNodeVersionSupportedByCodex(npmState.nodeVersion)) {
+      const output = `${message} Update Node.js manually, then run Install/Update Env again.`;
+      report?.({
+        phase: "done",
+        step: "Node.js version check",
+        ok: false,
+        output,
+      });
+      return {
+        ok: false,
+        logs: logs.join("\n\n") + `\n\n${output}`,
+      };
+    }
+  }
+
   if (!npmState.prefix && preferredUserPrefix && npmState.npmPath) {
     npmState = await switchNpmPrefixToPreferred(
       npmState,
@@ -3153,13 +3423,16 @@ export async function autoConfigureEnvironment(params?: {
     Boolean(npmState.npmReportedVersion) &&
     Boolean(npmState.npmPackageVersion) &&
     npmState.npmReportedVersion !== npmState.npmPackageVersion;
-  const shouldUpdateNpm =
+  const wantsNpmUpdate =
     shouldInstallLatestPackageVersion(
       npmState.npmPackageVersion || npmState.npmReportedVersion,
       npmState.latestNpmVersion,
     ) || npmVersionMismatch;
+  const canUpdateToLatestNpm = isNodeVersionSupportedByLatestNpm(
+    npmState.nodeVersion,
+  );
 
-  if (shouldUpdateNpm && npmState.npmPath) {
+  if (wantsNpmUpdate && npmState.npmPath && canUpdateToLatestNpm) {
     const targetVersion = normalizeVersionText(npmState.latestNpmVersion);
     const installTarget = targetVersion ? `npm@${targetVersion}` : "npm@latest";
     report?.({ phase: "start", step: `Update npm (${installTarget})` });
@@ -3192,6 +3465,16 @@ export async function autoConfigureEnvironment(params?: {
       ok: updateResult.code === 0,
       output: updateResult.output,
     });
+  } else if (wantsNpmUpdate && npmState.npmPath && !canUpdateToLatestNpm) {
+    const output =
+      `Skipping npm update because the latest npm requires Node.js ^20.17.0 or >=22.9.0. ` +
+      `Current Node.js is ${npmState.nodeVersion || "unknown"}; the existing npm will be used for CLI installs.`;
+    append("npm version check", output);
+    report?.({
+      phase: "info",
+      step: "npm version check",
+      output,
+    });
   } else {
     report?.({
       phase: "info",
@@ -3212,14 +3495,12 @@ export async function autoConfigureEnvironment(params?: {
     };
   }
 
-  const targetProviders = params?.provider
-    ? [params.provider]
-    : (Object.keys(PROVIDER_CLI_SPECS) as OAuthProviderId[]);
   let allOk = true;
 
   for (const provider of targetProviders) {
     const spec = getProviderCliSpec(provider);
     if (!spec) continue;
+    let providerOk = true;
     const npmExecutablePath = npmState.npmPath;
     if (!npmExecutablePath) {
       allOk = false;
@@ -3237,23 +3518,29 @@ export async function autoConfigureEnvironment(params?: {
       npmExecutablePath,
       spec.packageName,
     );
+    const forceCodexLatestInstall = provider === "openai-codex";
     const needsInstall =
+      forceCodexLatestInstall ||
       !installedVersion ||
       shouldInstallLatestPackageVersion(installedVersion, latestVersion);
 
     if (needsInstall) {
-      const targetPackage = latestVersion
-        ? `${spec.packageName}@${latestVersion}`
-        : spec.packageName;
+      const targetPackage = forceCodexLatestInstall
+        ? `${spec.packageName}@latest`
+        : latestVersion
+          ? `${spec.packageName}@${latestVersion}`
+          : spec.packageName;
+      const installArgs = forceCodexLatestInstall
+        ? ["install", "-g", "--force", targetPackage]
+        : ["install", "-g", targetPackage];
       report?.({
         phase: "start",
         step: `Install ${spec.packageName}`,
       });
-      let installResult = await runExecutableCommand(npmExecutablePath, [
-        "install",
-        "-g",
-        targetPackage,
-      ]);
+      let installResult = await runExecutableCommand(
+        npmExecutablePath,
+        installArgs,
+      );
       append(`Install ${spec.packageName}`, installResult.output);
       if (
         installResult.code !== 0 &&
@@ -3264,11 +3551,10 @@ export async function autoConfigureEnvironment(params?: {
           `${spec.packageName} install failed with a permissions error`,
         );
         if (npmState.npmPath) {
-          installResult = await runExecutableCommand(npmState.npmPath, [
-            "install",
-            "-g",
-            targetPackage,
-          ]);
+          installResult = await runExecutableCommand(
+            npmState.npmPath,
+            installArgs,
+          );
           append(`Retry install ${spec.packageName}`, installResult.output);
         }
       }
@@ -3280,6 +3566,7 @@ export async function autoConfigureEnvironment(params?: {
       });
       if (installResult.code !== 0) {
         allOk = false;
+        providerOk = false;
       }
     } else {
       report?.({
@@ -3300,7 +3587,7 @@ export async function autoConfigureEnvironment(params?: {
       phase: "start",
       step: `Verify ${spec.executableName}`,
     });
-    const verification = await verifyExecutable(
+    let verification = await verifyExecutable(
       spec.executableName,
       spec.versionArg,
       [npmState.globalBinDir, ...getCommonExecutableDirs(npmState.platform)],
@@ -3315,8 +3602,62 @@ export async function autoConfigureEnvironment(params?: {
       ok: verification.ok,
       output: verification.output,
     });
+
+    if (
+      !verification.ok &&
+      provider === "openai-codex" &&
+      looksLikeMissingOptionalDependency(verification.output)
+    ) {
+      const repairPackage = `${spec.packageName}@latest`;
+      report?.({
+        phase: "start",
+        step: `Repair ${spec.packageName}`,
+      });
+      const repairResult = await runExecutableCommand(
+        npmState.npmPath || npmExecutablePath,
+        ["install", "-g", "--force", repairPackage],
+      );
+      append(`Repair ${spec.packageName}`, repairResult.output);
+      report?.({
+        phase: "done",
+        step: `Repair ${spec.packageName}`,
+        ok: repairResult.code === 0,
+        output: repairResult.output,
+      });
+      if (repairResult.code === 0) {
+        npmState = await inspectNpmEnvironment(false);
+        await ensureNpmDirectories(npmState);
+        report?.({
+          phase: "start",
+          step: `Verify ${spec.executableName}`,
+        });
+        verification = await verifyExecutable(
+          spec.executableName,
+          spec.versionArg,
+          [
+            npmState.globalBinDir,
+            ...getCommonExecutableDirs(npmState.platform),
+          ],
+        );
+        append(
+          `Verify ${spec.executableName} after repair`,
+          [`path: ${verification.path || "-"}`, verification.output].join("\n"),
+        );
+        report?.({
+          phase: "done",
+          step: `Verify ${spec.executableName}`,
+          ok: verification.ok,
+          output: verification.output,
+        });
+      }
+    }
+
     if (!verification.ok) {
       allOk = false;
+      providerOk = false;
+    }
+    if (providerOk && verification.ok) {
+      recordOAuthEnvUpdateSuccess(provider);
     }
   }
 
@@ -4772,18 +5113,37 @@ export async function pingModel(
 export async function pingCodexModel(
   headers: Record<string, string>,
 ): Promise<"ok" | "fail"> {
-  try {
+  const runPing = async (requestHeaders: Record<string, string>) => {
     const fetchPromise = getFetch()(
       "https://chatgpt.com/backend-api/wham/usage",
       {
         method: "GET",
-        headers,
+        headers: requestHeaders,
       },
     );
     const timeoutPromise = new Promise<Response>((_resolve, reject) =>
       setTimeout(() => reject(new Error("ping timeout")), 15_000),
     );
-    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    return Promise.race([fetchPromise, timeoutPromise]);
+  };
+
+  try {
+    let res = await runPing(headers);
+    if (res.status === 401 || res.status === 403) {
+      const refreshed = await refreshCodexOAuthCredentialViaCli();
+      if (refreshed?.accessToken) {
+        const retryHeaders: Record<string, string> = {
+          ...headers,
+          ...ensureProviderAuthHeaderInit(refreshed),
+        };
+        if (refreshed.accountId) {
+          retryHeaders["ChatGPT-Account-Id"] = refreshed.accountId;
+        } else {
+          delete retryHeaders["ChatGPT-Account-Id"];
+        }
+        res = await runPing(retryHeaders);
+      }
+    }
     // Any non-network response means token is at least partially valid
     return res.status !== 401 && res.status !== 403 ? "ok" : "fail";
   } catch {
