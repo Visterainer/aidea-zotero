@@ -39,7 +39,7 @@ async function onStartup() {
 
   // Auto-detect system proxy and apply to Gecko so fetch() works with chatgpt.com etc.
   try {
-    ensureZoteroProxyFromSystem();
+    await ensureZoteroProxyFromSystem();
   } catch (err) {
     ztoolkit.log("LLM: Failed to apply system proxy", err);
   }

@@ -326,16 +326,247 @@ function getEnv(name: string): string {
   }
 }
 
+function setProxyEnv(proxyUrl: string): void {
+  for (const key of [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+  ]) {
+    setProcessEnv(key, proxyUrl);
+  }
+}
+
+export type SystemProxyConfig = {
+  httpHost?: string;
+  httpPort?: number;
+  httpsHost?: string;
+  httpsPort?: number;
+  socksHost?: string;
+  socksPort?: number;
+  socksVersion?: 4 | 5;
+  noProxy?: string;
+  envUrl?: string;
+};
+
+function hasUsableSystemProxy(proxy: SystemProxyConfig): boolean {
+  return Boolean(
+    (proxy.httpHost && proxy.httpPort) ||
+    (proxy.httpsHost && proxy.httpsPort) ||
+    (proxy.socksHost && proxy.socksPort),
+  );
+}
+
+function parseHostPort(value: string): { host: string; port: number } | null {
+  const [host, portText] = String(value || "")
+    .trim()
+    .split(":");
+  const port = Number(portText);
+  if (!host || !Number.isInteger(port) || port <= 0) return null;
+  return { host: host.trim(), port };
+}
+
+function applySystemProxyToZotero(proxy: SystemProxyConfig): boolean {
+  if (!hasUsableSystemProxy(proxy)) return false;
+  try {
+    const prefSvc = Cc["@mozilla.org/preferences-service;1"]?.getService(
+      Ci.nsIPrefBranch,
+    );
+    if (!prefSvc) return false;
+
+    prefSvc.setIntPref("network.proxy.type", 1);
+    prefSvc.setCharPref(
+      "network.proxy.no_proxies_on",
+      proxy.noProxy || "localhost, 127.0.0.1, ::1",
+    );
+
+    const httpHost = proxy.httpHost || proxy.httpsHost || "";
+    const httpPort = proxy.httpPort || proxy.httpsPort || 0;
+    const httpsHost = proxy.httpsHost || proxy.httpHost || "";
+    const httpsPort = proxy.httpsPort || proxy.httpPort || 0;
+    prefSvc.setCharPref("network.proxy.http", httpHost);
+    prefSvc.setIntPref("network.proxy.http_port", httpPort);
+    prefSvc.setCharPref("network.proxy.ssl", httpsHost);
+    prefSvc.setIntPref("network.proxy.ssl_port", httpsPort);
+
+    if (proxy.socksHost && proxy.socksPort) {
+      prefSvc.setCharPref("network.proxy.socks", proxy.socksHost);
+      prefSvc.setIntPref("network.proxy.socks_port", proxy.socksPort);
+      prefSvc.setIntPref(
+        "network.proxy.socks_version",
+        proxy.socksVersion || 5,
+      );
+      prefSvc.setBoolPref("network.proxy.socks_remote_dns", true);
+    } else {
+      prefSvc.setCharPref("network.proxy.socks", "");
+      prefSvc.setIntPref("network.proxy.socks_port", 0);
+    }
+
+    if (proxy.envUrl) {
+      setProxyEnv(proxy.envUrl);
+    } else if (httpsHost && httpsPort) {
+      setProxyEnv(`http://${httpsHost}:${httpsPort}`);
+    } else if (httpHost && httpPort) {
+      setProxyEnv(`http://${httpHost}:${httpPort}`);
+    } else if (proxy.socksHost && proxy.socksPort) {
+      setProxyEnv(
+        `socks${proxy.socksVersion || 5}://${proxy.socksHost}:${proxy.socksPort}`,
+      );
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function parseMacSystemProxy(raw: string): SystemProxyConfig | null {
+  const getValue = (key: string): string => {
+    const match = String(raw || "").match(
+      new RegExp(`^\\s*${key}\\s*:\\s*(.+?)\\s*$`, "m"),
+    );
+    return match ? match[1].trim() : "";
+  };
+  const isEnabled = (key: string) => getValue(key) === "1";
+  const getPort = (key: string): number | undefined => {
+    const value = Number(getValue(key));
+    return Number.isInteger(value) && value > 0 ? value : undefined;
+  };
+
+  const cfg: SystemProxyConfig = {};
+  if (isEnabled("HTTPEnable")) {
+    cfg.httpHost = getValue("HTTPProxy") || undefined;
+    cfg.httpPort = getPort("HTTPPort");
+  }
+  if (isEnabled("HTTPSEnable")) {
+    cfg.httpsHost = getValue("HTTPSProxy") || undefined;
+    cfg.httpsPort = getPort("HTTPSPort");
+  }
+  if (isEnabled("SOCKSEnable")) {
+    cfg.socksHost = getValue("SOCKSProxy") || undefined;
+    cfg.socksPort = getPort("SOCKSPort");
+    cfg.socksVersion = 5;
+  }
+  const exceptionsMatch = String(raw || "").match(
+    /^\s*ExceptionsList\s*:\s*<array>\s*{([\s\S]*?)^\s*}/m,
+  );
+  if (exceptionsMatch) {
+    const exceptions = exceptionsMatch[1]
+      .split(/\r?\n/g)
+      .map((line) => line.match(/^\s*\d+\s*:\s*(.+?)\s*$/)?.[1]?.trim() || "")
+      .filter(Boolean);
+    if (exceptions.length) {
+      cfg.noProxy = exceptions.join(", ");
+    }
+  }
+
+  return hasUsableSystemProxy(cfg) ? cfg : null;
+}
+
+async function readMacSystemProxyConfig(): Promise<SystemProxyConfig | null> {
+  try {
+    const result = await runShellCommand("scutil --proxy", { hidden: true });
+    if (result.code !== 0) return null;
+    return parseMacSystemProxy([result.stdout, result.stderr].join("\n"));
+  } catch {
+    return null;
+  }
+}
+
+function readWindowsSystemProxyConfig(): SystemProxyConfig | null {
+  const regKey = Cc["@mozilla.org/windows-registry-key;1"]?.createInstance(
+    Ci.nsIWindowsRegKey,
+  );
+  if (!regKey) return null;
+
+  try {
+    regKey.open(
+      regKey.ROOT_KEY_CURRENT_USER,
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+      regKey.ACCESS_READ,
+    );
+    let proxyServer = "";
+    let bypass = "";
+    try {
+      const enabled = regKey.readIntValue("ProxyEnable");
+      if (!enabled) return null;
+      proxyServer = regKey.readStringValue("ProxyServer").trim();
+      try {
+        bypass = regKey.readStringValue("ProxyOverride").trim();
+      } catch {
+        bypass = "";
+      }
+    } finally {
+      regKey.close();
+    }
+
+    if (!proxyServer) return null;
+
+    const cfg: SystemProxyConfig = {};
+    if (proxyServer.includes("=")) {
+      for (const part of proxyServer.split(";")) {
+        const [proto, hostPort] = part.split("=");
+        const parsed = parseHostPort(hostPort || "");
+        if (!proto || !parsed) continue;
+        const normalized = proto.trim().toLowerCase();
+        if (normalized === "http") {
+          cfg.httpHost = parsed.host;
+          cfg.httpPort = parsed.port;
+        } else if (normalized === "https") {
+          cfg.httpsHost = parsed.host;
+          cfg.httpsPort = parsed.port;
+        } else if (normalized === "socks") {
+          cfg.socksHost = parsed.host;
+          cfg.socksPort = parsed.port;
+          cfg.socksVersion = 5;
+        }
+      }
+    } else {
+      const parsed = parseHostPort(proxyServer);
+      if (!parsed) return null;
+      cfg.httpHost = parsed.host;
+      cfg.httpPort = parsed.port;
+      cfg.httpsHost = parsed.host;
+      cfg.httpsPort = parsed.port;
+    }
+
+    if (bypass) {
+      cfg.noProxy = bypass
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .join(", ");
+    }
+
+    return hasUsableSystemProxy(cfg) ? cfg : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readLinuxSystemProxyConfig(): Promise<SystemProxyConfig | null> {
+  // Reserved for desktop settings discovery (GNOME/KDE/gsettings) later.
+  return null;
+}
+
+async function readSystemProxyConfig(): Promise<SystemProxyConfig | null> {
+  const platform = currentPlatform();
+  if (platform === "macos") return readMacSystemProxyConfig();
+  if (platform === "windows") return readWindowsSystemProxyConfig();
+  if (platform === "linux") return readLinuxSystemProxyConfig();
+  return null;
+}
+
 /**
- * Detect the Windows system proxy (from Internet Settings registry) and ensure
- * Zotero's Gecko engine uses the same proxy.  On non-Windows platforms or if
- * no system proxy is configured, this is a no-op.
+ * Detect the OS system proxy and ensure Zotero's Gecko engine uses it.
+ * On Windows this reads Internet Settings from the registry; on macOS this
+ * reads `scutil --proxy`. Linux and missing proxy settings are no-ops.
  *
  * Call this during plugin initialization or before any fetch() to chatgpt.com.
  */
-export function ensureZoteroProxyFromSystem(): void {
+export async function ensureZoteroProxyFromSystem(): Promise<void> {
   try {
-    if (currentPlatform() !== "windows") return;
     const prefSvc = Cc["@mozilla.org/preferences-service;1"]?.getService(
       Ci.nsIPrefBranch,
     );
@@ -345,95 +576,11 @@ export function ensureZoteroProxyFromSystem(): void {
     const currentType = prefSvc.getIntPref("network.proxy.type", 0);
     if (currentType === 1) return; // already manual
 
-    // Read system proxy from registry via nsIWindowsRegKey
-    const regKey = Cc["@mozilla.org/windows-registry-key;1"]?.createInstance(
-      Ci.nsIWindowsRegKey,
-    );
-    if (!regKey) return;
-
-    try {
-      regKey.open(
-        regKey.ROOT_KEY_CURRENT_USER,
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
-        regKey.ACCESS_READ,
-      );
-      let proxyServer = "";
-      try {
-        const enabled = regKey.readIntValue("ProxyEnable");
-        if (!enabled) return;
-        proxyServer = regKey.readStringValue("ProxyServer").trim();
-      } finally {
-        regKey.close();
-      }
-
-      if (!proxyServer) return;
-
-      // Parse proxy string �?can be "host:port" or "http=host:port;https=host:port"
-      let httpHost = "";
-      let httpPort = 0;
-
-      if (proxyServer.includes("=")) {
-        // Protocol-specific format: "http=host:port;https=host:port"
-        for (const part of proxyServer.split(";")) {
-          const [proto, hostPort] = part.split("=");
-          if (!proto || !hostPort) continue;
-          if (
-            proto.trim().toLowerCase() === "http" ||
-            proto.trim().toLowerCase() === "https"
-          ) {
-            const [h, p] = hostPort.trim().split(":");
-            if (h && p) {
-              httpHost = h.trim();
-              httpPort = parseInt(p.trim(), 10);
-              break;
-            }
-          }
-        }
-      } else {
-        // Simple format: "host:port"
-        const [h, p] = proxyServer.split(":");
-        if (h && p) {
-          httpHost = h.trim();
-          httpPort = parseInt(p.trim(), 10);
-        }
-      }
-
-      if (!httpHost || !httpPort || !Number.isFinite(httpPort)) return;
-
-      // Apply to Gecko network.proxy.*
-      prefSvc.setIntPref("network.proxy.type", 1); // manual
-      prefSvc.setCharPref("network.proxy.http", httpHost);
-      prefSvc.setIntPref("network.proxy.http_port", httpPort);
-      prefSvc.setCharPref("network.proxy.ssl", httpHost);
-      prefSvc.setIntPref("network.proxy.ssl_port", httpPort);
-
-      // Read bypass list
-      try {
-        regKey.open(
-          regKey.ROOT_KEY_CURRENT_USER,
-          "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
-          regKey.ACCESS_READ,
-        );
-        const bypass = regKey.readStringValue("ProxyOverride").trim();
-        regKey.close();
-        if (bypass) {
-          // Convert IE bypass list ("localhost;127.*;10.*") to Gecko format
-          const noProxy = bypass
-            .split(";")
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-            .join(", ");
-          prefSvc.setCharPref("network.proxy.no_proxies_on", noProxy);
-        }
-      } catch {
-        // bypass list not found, ignore
-      }
-
+    const proxy = await readSystemProxyConfig();
+    if (proxy && applySystemProxyToZotero(proxy)) {
       ztoolkit?.log?.(
-        `AIdea: Applied system proxy ${httpHost}:${httpPort} to Zotero`,
+        `AIdea: Applied ${currentPlatform()} system proxy to Zotero`,
       );
-    } catch {
-      // registry read failed, ignore
     }
   } catch {
     // silently ignore any errors
