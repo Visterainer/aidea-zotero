@@ -5,6 +5,7 @@ import {
   derivePreferredUserNpmPrefix,
   getProviderCliSpec,
   normalizeVersionText,
+  parseMacSystemProxy,
   shouldInstallLatestPackageVersion,
 } from "../src/utils/oauthCli";
 
@@ -79,5 +80,41 @@ describe("oauthCli environment helpers", function () {
     });
     assert.isNull(getProviderCliSpec("qwen"));
     assert.isNull(getProviderCliSpec("github-copilot"));
+  });
+
+  it("should parse macOS system proxy settings from scutil output", function () {
+    const proxy = parseMacSystemProxy(`
+<dictionary> {
+  ExceptionsList : <array> {
+    0 : 127.0.0.1
+    1 : 192.168.0.0/16
+    2 : localhost
+    3 : *.local
+  }
+  HTTPEnable : 1
+  HTTPPort : 7897
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 1
+  HTTPSPort : 7897
+  HTTPSProxy : 127.0.0.1
+  SOCKSEnable : 1
+  SOCKSPort : 7897
+  SOCKSProxy : 127.0.0.1
+}
+`);
+    assert.deepEqual(proxy, {
+      httpHost: "127.0.0.1",
+      httpPort: 7897,
+      httpsHost: "127.0.0.1",
+      httpsPort: 7897,
+      socksHost: "127.0.0.1",
+      socksPort: 7897,
+      socksVersion: 5,
+      noProxy: "127.0.0.1, 192.168.0.0/16, localhost, *.local",
+    });
+  });
+
+  it("should ignore macOS scutil output without enabled proxies", function () {
+    assert.isNull(parseMacSystemProxy("<dictionary> {\n}\n"));
   });
 });
