@@ -43,3 +43,7 @@ llm-action-limitations = 局限性
 llm-action-future = 未来工作
 llm-action-clear = 清空对话
 llm-action-copy = 复制到剪贴板
+
+# Author Profiles
+aidea-author-profiles-info-row-label = 通讯作者
+aidea-author-profiles-menu-generate = 生成通讯作者介绍

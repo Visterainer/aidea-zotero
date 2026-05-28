@@ -79,6 +79,10 @@ The first time this feature is used for a paper, AIdea creates a local cold-star
   <img src="doc/screenshots/selection_translation_settings.png" alt="Selection translation settings" width="800" />
 </p>
 
+### 👤 Corresponding Author Profiles
+
+AIdea can generate a compact corresponding-author profile directly in Zotero's item info pane. It combines Zotero metadata, OpenAlex, Semantic Scholar, optional local scholarly-helper data, and the selected AIdea model, then stores the result as a child note cache so it can be reused without regenerating.
+
 ### ⚡ Quick Action Shortcuts
 
 Use one-click shortcuts for common tasks such as **Summarize**, **Explain**, and **Translate**. Shortcuts can be added, edited, reordered, or removed to match your workflow.

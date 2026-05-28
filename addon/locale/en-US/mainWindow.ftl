@@ -43,3 +43,7 @@ llm-action-limitations = Limitations
 llm-action-future = Future Work
 llm-action-clear = Clear Chat
 llm-action-copy = Copy to clipboard
+
+# Author Profiles
+aidea-author-profiles-info-row-label = Corresponding Author
+aidea-author-profiles-menu-generate = Generate Corresponding Author Profile
