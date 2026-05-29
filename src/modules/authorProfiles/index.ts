@@ -600,6 +600,7 @@ async function fetchOpenAlexWork(params: {
       ztoolkit.log("AuthorProfiles: OpenAlex DOI lookup failed", err);
     }
   }
+  if (!params.title) throw new Error(t("noWork"));
   const searchURL = `https://api.openalex.org/works?search=${encodeURIComponent(params.title)}&per-page=1`;
   const result = await fetchJSON(searchURL);
   if (result?.results?.[0]) return result.results[0];
@@ -1296,15 +1297,24 @@ async function findCacheNote(
   return (
     notes.find((note) => {
       if (!note?.isNote?.()) return false;
-      const noteHTML = note.getNote?.() || "";
-      if (noteHTML.includes(CACHE_MARKER)) return true;
-      if (!options.anyVersion) return false;
-      return (
-        note.hasTag?.(CACHE_TAG) ||
-        noteHTML.includes("zotero-author-profile-cache-")
-      );
+      return isCacheNoteHTML(note.getNote?.() || "", options);
     }) || null
   );
+}
+
+function isCacheNoteHTML(
+  noteHTML: string,
+  options: { anyVersion?: boolean } = {},
+): boolean {
+  if (noteHTML.includes(CACHE_MARKER)) return true;
+  if (
+    noteHTML.includes('data-zotero-author-profile-metadata="true"') ||
+    noteHTML.includes('data-zotero-author-profile-markdown="true"')
+  ) {
+    return true;
+  }
+  if (!options.anyVersion) return false;
+  return noteHTML.includes("zotero-author-profile-cache-");
 }
 
 function parseCacheNote(noteHTML: string): ProfileCache {
