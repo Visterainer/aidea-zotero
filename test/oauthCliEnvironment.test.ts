@@ -1,11 +1,15 @@
 import { assert } from "chai";
 import {
+  buildWindowsUserPathPersistenceScript,
   deriveNpmGlobalBinDirFromPrefix,
   deriveNpmGlobalRootFromPrefix,
   derivePreferredUserNpmPrefix,
+  decideSystemProxySync,
   getProviderCliSpec,
+  getSystemProxySignature,
   normalizeVersionText,
   parseMacSystemProxy,
+  parseProxyUrl,
   shouldInstallLatestPackageVersion,
 } from "../src/utils/oauthCli";
 
@@ -58,6 +62,17 @@ describe("oauthCli environment helpers", function () {
       derivePreferredUserNpmPrefix("linux", "/home/alice"),
       "/home/alice/.npm-global",
     );
+  });
+
+  it("should build Windows PATH persistence PowerShell without breaking else", function () {
+    const script = buildWindowsUserPathPersistenceScript(
+      "C:\\Users\\alice\\AppData\\Roaming\\npm",
+    );
+
+    assert.notMatch(script, /\}\s*;\s*else\b/i);
+    assert.include(script, "} else {");
+    assert.include(script, "User PATH already contains npm bin dir");
+    assert.include(script, "Added npm bin dir to user PATH");
   });
 
   it("should only request package updates when installed is missing or outdated", function () {
@@ -116,5 +131,79 @@ describe("oauthCli environment helpers", function () {
 
   it("should ignore macOS scutil output without enabled proxies", function () {
     assert.isNull(parseMacSystemProxy("<dictionary> {\n}\n"));
+  });
+
+  it("should parse Linux-style proxy environment URLs", function () {
+    assert.deepEqual(parseProxyUrl("http://127.0.0.1:7897"), {
+      httpHost: "127.0.0.1",
+      httpPort: 7897,
+      httpsHost: "127.0.0.1",
+      httpsPort: 7897,
+      envUrl: "http://127.0.0.1:7897",
+    });
+    assert.deepEqual(parseProxyUrl("socks5://localhost:1080"), {
+      socksHost: "localhost",
+      socksPort: 1080,
+      socksVersion: 5,
+      envUrl: "socks5://localhost:1080",
+    });
+  });
+
+  it("should build stable proxy signatures without hard-coded ports", function () {
+    assert.equal(
+      getSystemProxySignature({
+        httpHost: "LOCALHOST",
+        httpPort: 7897,
+        httpsHost: "127.0.0.1",
+        httpsPort: 7897,
+        noProxy: "localhost; 127.0.0.1",
+      }),
+      "http=localhost:7897;https=127.0.0.1:7897;socks=;socksVersion=;noProxy=localhost,127.0.0.1",
+    );
+  });
+
+  it("should update AIdea-managed proxy but preserve user-managed proxy", function () {
+    assert.equal(
+      decideSystemProxySync({
+        currentType: 1,
+        currentSignature: "http=127.0.0.1:7890",
+        systemSignature: "http=127.0.0.1:7897",
+        autoApplied: true,
+        lastSignature: "http=127.0.0.1:7890",
+        currentLoopback: true,
+        systemLoopback: true,
+      }),
+      "update-managed",
+    );
+
+    assert.equal(
+      decideSystemProxySync({
+        currentType: 1,
+        currentSignature: "http=192.168.1.10:8080",
+        systemSignature: "http=127.0.0.1:7897",
+        autoApplied: false,
+        lastSignature: "",
+        currentLoopback: false,
+        systemLoopback: true,
+        forceRefresh: true,
+      }),
+      "skip-user-managed",
+    );
+  });
+
+  it("should adopt legacy loopback proxy during forced refresh", function () {
+    assert.equal(
+      decideSystemProxySync({
+        currentType: 1,
+        currentSignature: "http=127.0.0.1:7890",
+        systemSignature: "http=127.0.0.1:7897",
+        autoApplied: false,
+        lastSignature: "",
+        currentLoopback: true,
+        systemLoopback: true,
+        forceRefresh: true,
+      }),
+      "adopt-legacy-loopback",
+    );
   });
 });

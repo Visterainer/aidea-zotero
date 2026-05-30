@@ -88,7 +88,7 @@ describe("custom endpoint request resolution", function () {
     assert.equal(config.apiBase, "oauth://qwen");
   });
 
-  it("rewrites mismatched OAuth markers to the detected provider marker", function () {
+  it("preserves explicit OAuth markers instead of guessing by model name", function () {
     setPluginPref(
       "oauthModelListCache",
       JSON.stringify({ qwen: [{ id: "qwen-max" }] }),
@@ -100,7 +100,7 @@ describe("custom endpoint request resolution", function () {
       apiBase: "oauth://openai-codex",
     });
 
-    assert.equal(config.apiBase, "oauth://qwen");
+    assert.equal(config.apiBase, "oauth://openai-codex");
   });
 
   it("uses the mode-aware custom primary profile when chat requests omit overrides", function () {

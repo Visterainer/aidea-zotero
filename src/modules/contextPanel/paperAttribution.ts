@@ -15,6 +15,20 @@ function extractYearValue(value: unknown): string | undefined {
   return match?.[0];
 }
 
+function getZoteroItem(itemId: number): Zotero.Item | null {
+  try {
+    if (
+      typeof Zotero === "undefined" ||
+      typeof Zotero.Items?.get !== "function"
+    ) {
+      return null;
+    }
+    return Zotero.Items.get(itemId) || null;
+  } catch {
+    return null;
+  }
+}
+
 export function resolvePaperContextDisplayMetadata(
   paperContext: PaperContextRef,
 ): {
@@ -23,8 +37,8 @@ export function resolvePaperContextDisplayMetadata(
 } {
   let firstCreator = normalizeText(paperContext.firstCreator || "");
   let year = extractYearValue(paperContext.year);
-  if ((!firstCreator || !year) && typeof Zotero !== "undefined") {
-    const zoteroItem = Zotero.Items.get(paperContext.itemId);
+  if (!firstCreator || !year) {
+    const zoteroItem = getZoteroItem(paperContext.itemId);
     if (zoteroItem?.isRegularItem?.()) {
       if (!firstCreator) {
         firstCreator = normalizeText(
@@ -91,7 +105,8 @@ export function formatPaperCitationLabel(
   const fallbackId =
     Number.isFinite(paperContext.itemId) && paperContext.itemId > 0
       ? Math.floor(paperContext.itemId)
-      : Number.isFinite(paperContext.contextItemId) && paperContext.contextItemId > 0
+      : Number.isFinite(paperContext.contextItemId) &&
+          paperContext.contextItemId > 0
         ? Math.floor(paperContext.contextItemId)
         : 0;
   return fallbackId > 0 ? `Paper ${fallbackId}` : "Paper";
@@ -114,7 +129,7 @@ export function resolvePaperContextRefFromAttachment(
     return null;
   }
   const parentItem = contextItem.parentID
-    ? Zotero.Items.get(contextItem.parentID) || null
+    ? getZoteroItem(contextItem.parentID)
     : null;
   const paperItem = parentItem || contextItem;
   const paperItemId = Number(paperItem.id);
@@ -135,7 +150,9 @@ export function resolvePaperContextRefFromAttachment(
         `Paper ${normalizedPaperItemId}`,
     ),
   );
-  const citationKey = normalizeText(String(paperItem.getField("citationKey") || ""));
+  const citationKey = normalizeText(
+    String(paperItem.getField("citationKey") || ""),
+  );
   const firstCreator = normalizeText(
     String(
       paperItem.getField("firstCreator") ||

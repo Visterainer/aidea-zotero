@@ -12,7 +12,32 @@
  * Compatible with Zotero 7 and 8 (toolkit ≥ 5.1.0).
  * -------------------------------------------------------------------------*/
 
-import { FilePickerHelper } from "zotero-plugin-toolkit";
+import { FilePickerHelper as ToolkitFilePickerHelper } from "zotero-plugin-toolkit";
+
+type FilePickerMode = "open" | "folder";
+type FilePickerFilter = [string, string];
+type FilePickerResult = string | false;
+type FilePickerHelperConstructor = new (
+  title: string,
+  mode: FilePickerMode,
+  filters?: FilePickerFilter[],
+) => {
+  open(): Promise<FilePickerResult>;
+};
+
+let FilePickerHelperCtor =
+  ToolkitFilePickerHelper as unknown as FilePickerHelperConstructor;
+
+export function setFilePickerHelperForTest(
+  ctor: FilePickerHelperConstructor,
+): void {
+  FilePickerHelperCtor = ctor;
+}
+
+export function resetFilePickerHelperForTest(): void {
+  FilePickerHelperCtor =
+    ToolkitFilePickerHelper as unknown as FilePickerHelperConstructor;
+}
 
 /**
  * Open a system-native file picker to select a single PDF file.
@@ -23,11 +48,9 @@ import { FilePickerHelper } from "zotero-plugin-toolkit";
  */
 export async function pickPdfFile(_win?: Window): Promise<string | null> {
   try {
-    const result = await new FilePickerHelper(
-      "Select PDF",
-      "open",
-      [["PDF Files (*.pdf)", "*.pdf"]],
-    ).open();
+    const result = await new FilePickerHelperCtor("Select PDF", "open", [
+      ["PDF Files (*.pdf)", "*.pdf"],
+    ]).open();
     // FilePickerHelper returns `false` on cancel, or a path string on success
     if (result === false) return null;
     return result as string;
@@ -44,7 +67,7 @@ export async function pickPdfFile(_win?: Window): Promise<string | null> {
  */
 export async function pickDirectory(_win?: Window): Promise<string | null> {
   try {
-    const result = await new FilePickerHelper(
+    const result = await new FilePickerHelperCtor(
       "Select Save Directory",
       "folder",
     ).open();

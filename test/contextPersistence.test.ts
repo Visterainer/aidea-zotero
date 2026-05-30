@@ -8,7 +8,41 @@
  * 4. clearConversation pool cleanup
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { assert } from "chai";
+
+function expect(actual: unknown) {
+  return {
+    toBe(expected: unknown) {
+      assert.strictEqual(actual, expected);
+    },
+    toContain(expected: unknown) {
+      assert.include(actual as any, expected as any);
+    },
+    toHaveLength(expected: number) {
+      assert.lengthOf(actual as any, expected);
+    },
+    toBeUndefined() {
+      assert.isUndefined(actual);
+    },
+    toBeNull() {
+      assert.isNull(actual);
+    },
+    toBeFalsy() {
+      assert.isNotOk(actual);
+    },
+    toBeLessThan(expected: number) {
+      assert.isBelow(actual as number, expected);
+    },
+    not: {
+      toContain(expected: unknown) {
+        assert.notInclude(actual as any, expected as any);
+      },
+      toBeNull() {
+        assert.isNotNull(actual);
+      },
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // 1. conversationContextPool (state.ts)
@@ -63,7 +97,8 @@ describe("conversationContextPool", () => {
     pool.set(123, entry);
 
     // Simulate first-turn caching.
-    entry.basePdfContext = "Paper Full Text (complete document): ...long content...";
+    entry.basePdfContext =
+      "Paper Full Text (complete document): ...long content...";
     entry.basePdfItemId = 456;
     entry.basePdfTitle = "时序研究（一）";
 
@@ -185,7 +220,7 @@ describe("conversationContextPool", () => {
     }
     expect(entry.supplementalContexts.size).toBe(1);
     expect(entry.supplementalContexts.has(10)).toBe(false); // Paper A removed.
-    expect(entry.supplementalContexts.has(20)).toBe(true);  // Paper B kept.
+    expect(entry.supplementalContexts.has(20)).toBe(true); // Paper B kept.
   });
 
   it("should clear pool entry when conversation is cleared", () => {
@@ -194,11 +229,16 @@ describe("conversationContextPool", () => {
       basePdfItemId: 1,
       basePdfTitle: "Paper",
       basePdfRemoved: false,
-      supplementalContexts: new Map([[10, {
-        ref: { itemId: 5, contextItemId: 10, title: "A" },
-        builtContext: "A...",
-        addedAtTurn: 1,
-      }]]),
+      supplementalContexts: new Map([
+        [
+          10,
+          {
+            ref: { itemId: 5, contextItemId: 10, title: "A" },
+            builtContext: "A...",
+            addedAtTurn: 1,
+          },
+        ],
+      ]),
     });
     expect(pool.has(100)).toBe(true);
 
@@ -212,7 +252,13 @@ describe("conversationContextPool", () => {
 // 2. Attachment classification (pinned vs ephemeral)
 // ---------------------------------------------------------------------------
 describe("attachment pinned/ephemeral classification", () => {
-  type AttachmentCategory = "image" | "pdf" | "markdown" | "code" | "text" | "file";
+  type AttachmentCategory =
+    | "image"
+    | "pdf"
+    | "markdown"
+    | "code"
+    | "text"
+    | "file";
 
   function isPinnedCategory(category: AttachmentCategory): boolean {
     return category !== "image";
@@ -298,7 +344,12 @@ describe("context combination", () => {
 // ---------------------------------------------------------------------------
 describe("buildSinglePaperContext metadata formatting", () => {
   function formatMetadataLabel(
-    ref: { title: string; citationKey?: string; firstCreator?: string; year?: string },
+    ref: {
+      title: string;
+      citationKey?: string;
+      firstCreator?: string;
+      year?: string;
+    },
     index: number,
   ): string {
     const title = ref.title || `Item unknown`;
@@ -441,7 +492,8 @@ describe("ContextRefsJson serialization", () => {
   it("should serialize compacted summary when present", () => {
     const refs: ContextRefsJson = {
       basePdf: { itemId: 1, contextItemId: 2, title: "Base" },
-      compactedSummary: "This paper discusses time-series analysis using LSTM models...",
+      compactedSummary:
+        "This paper discusses time-series analysis using LSTM models...",
     };
     const json = JSON.stringify(refs);
     const parsed = JSON.parse(json) as ContextRefsJson;
@@ -482,7 +534,9 @@ describe("buildContextRefsSnapshot logic", () => {
     }>;
   };
 
-  function buildSnapshot(pool: ConversationContextPoolEntry): ContextRefsJson | undefined {
+  function buildSnapshot(
+    pool: ConversationContextPoolEntry,
+  ): ContextRefsJson | undefined {
     const refs: ContextRefsJson = {};
     if (pool.basePdfItemId !== null) {
       refs.basePdf = {
@@ -544,8 +598,22 @@ describe("buildContextRefsSnapshot logic", () => {
       basePdfTitle: "",
       basePdfRemoved: false,
       supplementalContexts: new Map([
-        [10, { ref: { itemId: 5, contextItemId: 10, title: "Paper A" }, builtContext: "...", addedAtTurn: 1 }],
-        [20, { ref: { itemId: 6, contextItemId: 20, title: "Paper B" }, builtContext: "...", addedAtTurn: 2 }],
+        [
+          10,
+          {
+            ref: { itemId: 5, contextItemId: 10, title: "Paper A" },
+            builtContext: "...",
+            addedAtTurn: 1,
+          },
+        ],
+        [
+          20,
+          {
+            ref: { itemId: 6, contextItemId: 20, title: "Paper B" },
+            builtContext: "...",
+            addedAtTurn: 2,
+          },
+        ],
       ]),
     };
     const snap = buildSnapshot(pool)!;
@@ -581,7 +649,10 @@ describe("restoreContextPoolFromStoredMessages logic", () => {
     basePdfItemId: number | null;
     basePdfTitle: string;
     basePdfRemoved: boolean;
-    supplementalContexts: Map<number, { ref: any; builtContext: string; addedAtTurn: number }>;
+    supplementalContexts: Map<
+      number,
+      { ref: any; builtContext: string; addedAtTurn: number }
+    >;
   };
 
   function restorePool(messages: StoredMsg[]): PoolEntry | null {
@@ -615,18 +686,25 @@ describe("restoreContextPoolFromStoredMessages logic", () => {
   }
 
   it("should return null when no user messages have contextRefs", () => {
-    const messages: StoredMsg[] = [
-      { role: "user" },
-      { role: "assistant" },
-    ];
+    const messages: StoredMsg[] = [{ role: "user" }, { role: "assistant" }];
     expect(restorePool(messages)).toBeNull();
   });
 
   it("should restore base PDF from latest user message", () => {
     const messages: StoredMsg[] = [
-      { role: "user", contextRefs: { basePdf: { itemId: 1, contextItemId: 100, title: "First" } } },
+      {
+        role: "user",
+        contextRefs: {
+          basePdf: { itemId: 1, contextItemId: 100, title: "First" },
+        },
+      },
       { role: "assistant" },
-      { role: "user", contextRefs: { basePdf: { itemId: 1, contextItemId: 100, title: "Latest" } } },
+      {
+        role: "user",
+        contextRefs: {
+          basePdf: { itemId: 1, contextItemId: 100, title: "Latest" },
+        },
+      },
       { role: "assistant" },
     ];
     const pool = restorePool(messages)!;
@@ -637,7 +715,12 @@ describe("restoreContextPoolFromStoredMessages logic", () => {
 
   it("should restore removed flag", () => {
     const messages: StoredMsg[] = [
-      { role: "user", contextRefs: { basePdf: { itemId: 1, contextItemId: 100, title: "X", removed: true } } },
+      {
+        role: "user",
+        contextRefs: {
+          basePdf: { itemId: 1, contextItemId: 100, title: "X", removed: true },
+        },
+      },
       { role: "assistant" },
     ];
     const pool = restorePool(messages)!;
@@ -671,7 +754,14 @@ describe("restoreContextPoolFromStoredMessages logic", () => {
       basePdfTitle: "Paper",
       basePdfRemoved: false,
       supplementalContexts: new Map([
-        [20, { ref: { itemId: 10, contextItemId: 20, title: "A" }, builtContext: "", addedAtTurn: 1 }],
+        [
+          20,
+          {
+            ref: { itemId: 10, contextItemId: 20, title: "A" },
+            builtContext: "",
+            addedAtTurn: 1,
+          },
+        ],
       ]),
     };
     // Pool has basePdfItemId but empty basePdfContext → needs rebuild
@@ -778,9 +868,9 @@ describe("estimateHistoryLength", () => {
   }
 
   it("should count text length", () => {
-    expect(
-      estimateHistoryLength([{ text: "Hello" }, { text: "World" }]),
-    ).toBe(10);
+    expect(estimateHistoryLength([{ text: "Hello" }, { text: "World" }])).toBe(
+      10,
+    );
   });
 
   it("should include selected text", () => {
@@ -975,9 +1065,7 @@ describe("compressed context label", () => {
   }
 
   function formatChipLabel(title: string, context: string): string {
-    return isCompressed(context)
-      ? `📌 ${title} [Summary]`
-      : `📌 ${title}`;
+    return isCompressed(context) ? `📌 ${title} [Summary]` : `📌 ${title}`;
   }
 
   it("should detect compressed context (Chinese)", () => {

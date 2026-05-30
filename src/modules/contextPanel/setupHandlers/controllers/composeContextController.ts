@@ -3,11 +3,15 @@ import { sanitizeText } from "../../textUtils";
 import { resolvePaperContextDisplayMetadata as resolvePaperContextDisplayMetadataShared } from "../../paperAttribution";
 import type { PaperContextRef } from "../../types";
 
-export function normalizePaperContextEntries(value: unknown): PaperContextRef[] {
+export function normalizePaperContextEntries(
+  value: unknown,
+): PaperContextRef[] {
   return normalizePaperContextRefs(value, { sanitizeText });
 }
 
-export function resolvePaperContextDisplayMetadata(paperContext: PaperContextRef): {
+export function resolvePaperContextDisplayMetadata(
+  paperContext: PaperContextRef,
+): {
   firstCreator?: string;
   year?: string;
 } {
@@ -46,10 +50,24 @@ function extractPaperYear(paperContext: PaperContextRef): string | null {
   return resolvePaperContextDisplayMetadata(paperContext).year || null;
 }
 
+function getZoteroItem(itemId: number): Zotero.Item | null {
+  try {
+    if (
+      typeof Zotero === "undefined" ||
+      typeof Zotero.Items?.get !== "function"
+    ) {
+      return null;
+    }
+    return Zotero.Items.get(itemId) || null;
+  } catch {
+    return null;
+  }
+}
+
 function resolvePaperContextAttachmentItem(
   paperContext: PaperContextRef,
 ): Zotero.Item | null {
-  const attachment = Zotero.Items.get(paperContext.contextItemId) || null;
+  const attachment = getZoteroItem(paperContext.contextItemId);
   if (!attachment?.isAttachment?.()) return null;
   return attachment;
 }
@@ -57,11 +75,11 @@ function resolvePaperContextAttachmentItem(
 function resolvePaperContextParentItem(
   paperContext: PaperContextRef,
 ): Zotero.Item | null {
-  const item = Zotero.Items.get(paperContext.itemId) || null;
+  const item = getZoteroItem(paperContext.itemId);
   if (item?.isRegularItem?.()) return item;
   const contextAttachment = resolvePaperContextAttachmentItem(paperContext);
   if (contextAttachment?.parentID) {
-    const parent = Zotero.Items.get(contextAttachment.parentID) || null;
+    const parent = getZoteroItem(contextAttachment.parentID);
     if (parent?.isRegularItem?.()) return parent;
   }
   return null;
@@ -73,7 +91,7 @@ function resolveMultiPdfAttachmentTitle(paperContext: PaperContextRef): string {
   const attachmentIds = parentItem.getAttachments?.() || [];
   let pdfCount = 0;
   for (const attachmentId of attachmentIds) {
-    const attachment = Zotero.Items.get(attachmentId);
+    const attachment = getZoteroItem(attachmentId);
     if (
       attachment?.isAttachment?.() &&
       attachment.attachmentContentType === "application/pdf"
@@ -89,7 +107,9 @@ function resolveMultiPdfAttachmentTitle(paperContext: PaperContextRef): string {
     .trim();
 }
 
-export function formatPaperContextChipLabel(paperContext: PaperContextRef): string {
+export function formatPaperContextChipLabel(
+  paperContext: PaperContextRef,
+): string {
   const base = paperContext.title ? `📝 ${paperContext.title}` : "📝 Paper";
   const attachmentTitle = resolveMultiPdfAttachmentTitle(paperContext);
   return attachmentTitle && attachmentTitle !== paperContext.title
@@ -97,7 +117,9 @@ export function formatPaperContextChipLabel(paperContext: PaperContextRef): stri
     : base;
 }
 
-export function formatPaperContextChipTitle(paperContext: PaperContextRef): string {
+export function formatPaperContextChipTitle(
+  paperContext: PaperContextRef,
+): string {
   const metadata = resolvePaperContextDisplayMetadata(paperContext);
   const meta = [metadata.firstCreator || "", metadata.year || ""]
     .filter(Boolean)

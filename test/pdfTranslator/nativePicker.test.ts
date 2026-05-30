@@ -1,114 +1,112 @@
-/* ---------------------------------------------------------------------------
- * test/pdfTranslator/nativePicker.test.ts
- *
- * Unit tests for nativePicker module.
- * Run: npx tsx test/pdfTranslator/nativePicker.test.ts
- * -------------------------------------------------------------------------*/
+import { assert } from "chai";
+import {
+  pickDirectory,
+  pickPdfFile,
+  resetFilePickerHelperForTest,
+  setFilePickerHelperForTest,
+} from "../../src/modules/pdfTranslator/nativePicker";
 
-let passed = 0;
-let failed = 0;
+type PickerMode = "open" | "folder";
+type PickerFilter = [string, string];
 
-function assert(condition: boolean, msg: string) {
-  if (condition) {
-    console.log(`  ✅ ${msg}`);
-    passed++;
-  } else {
-    console.error(`  ❌ ${msg}`);
-    failed++;
+let nextResult: string | false = false;
+let shouldThrow = false;
+let lastPicker:
+  | {
+      title: string;
+      mode: PickerMode;
+      filters?: PickerFilter[];
+    }
+  | undefined;
+
+class MockFilePickerHelper {
+  constructor(
+    public title: string,
+    public mode: PickerMode,
+    public filters?: PickerFilter[],
+  ) {
+    lastPicker = { title, mode, filters };
+  }
+
+  async open(): Promise<string | false> {
+    if (shouldThrow) {
+      throw new Error("file picker failed");
+    }
+    return nextResult;
   }
 }
 
-/* ── Mock Gecko nsIFilePicker ── */
+describe("nativePicker", function () {
+  beforeEach(function () {
+    nextResult = false;
+    shouldThrow = false;
+    lastPicker = undefined;
+    setFilePickerHelperForTest(MockFilePickerHelper);
+  });
 
-let mockResult = 0; // 0 = OK, 1 = cancel
-let mockFilePath = "C:\\Users\\test\\paper.pdf";
+  afterEach(function () {
+    resetFilePickerHelperForTest();
+  });
 
-class MockFilePicker {
-  mode = 0;
-  title = "";
-  file: { path: string } | null = { path: mockFilePath };
+  describe("pickPdfFile", function () {
+    it("returns the selected PDF path", async function () {
+      nextResult = "C:\\Users\\test\\paper.pdf";
 
-  init(_win: any, title: string, mode: number) {
-    this.title = title;
-    this.mode = mode;
-  }
+      const result = await pickPdfFile({} as Window);
 
-  appendFilter(_label: string, _filter: string) {}
+      assert.equal(result, nextResult);
+      assert.deepEqual(lastPicker, {
+        title: "Select PDF",
+        mode: "open",
+        filters: [["PDF Files (*.pdf)", "*.pdf"]],
+      });
+    });
 
-  open(callback: (result: number) => void) {
-    callback(mockResult);
-  }
-}
+    it("returns null when the file picker is cancelled", async function () {
+      nextResult = false;
 
-(globalThis as any).Cc = {
-  "@mozilla.org/filepicker;1": {
-    createInstance() {
-      return new MockFilePicker();
-    },
-  },
-};
+      const result = await pickPdfFile({} as Window);
 
-(globalThis as any).Ci = {
-  nsIFilePicker: {},
-};
+      assert.isNull(result);
+    });
 
-// Import after mocks
-const { pickPdfFile, pickDirectory } = await import(
-  "../../src/modules/pdfTranslator/nativePicker"
-);
+    it("returns null when the file picker throws", async function () {
+      shouldThrow = true;
 
-/* ── Tests ── */
+      const result = await pickPdfFile({} as Window);
 
-console.log("\n=== nativePicker: pickPdfFile — OK ===");
-{
-  mockResult = 0;
-  mockFilePath = "C:\\Users\\test\\paper.pdf";
-  (globalThis as any).Cc["@mozilla.org/filepicker;1"].createInstance = () => {
-    const fp = new MockFilePicker();
-    fp.file = { path: mockFilePath };
-    return fp;
-  };
+      assert.isNull(result);
+    });
+  });
 
-  const result = await pickPdfFile({} as Window);
-  assert(result === mockFilePath, `returns file path: ${result}`);
-}
+  describe("pickDirectory", function () {
+    it("returns the selected directory path", async function () {
+      nextResult = "C:\\Users\\test\\output";
 
-console.log("\n=== nativePicker: pickPdfFile — cancel ===");
-{
-  mockResult = 1;
-  (globalThis as any).Cc["@mozilla.org/filepicker;1"].createInstance = () => {
-    const fp = new MockFilePicker();
-    return fp;
-  };
+      const result = await pickDirectory({} as Window);
 
-  const result = await pickPdfFile({} as Window);
-  assert(result === null, "returns null on cancel");
-}
+      assert.equal(result, nextResult);
+      assert.deepEqual(lastPicker, {
+        title: "Select Save Directory",
+        mode: "folder",
+        filters: undefined,
+      });
+    });
 
-console.log("\n=== nativePicker: pickDirectory — OK ===");
-{
-  mockResult = 0;
-  (globalThis as any).Cc["@mozilla.org/filepicker;1"].createInstance = () => {
-    const fp = new MockFilePicker();
-    fp.file = { path: "C:\\Users\\test\\output" };
-    return fp;
-  };
+    it("returns null when the directory picker is cancelled", async function () {
+      nextResult = false;
 
-  const result = await pickDirectory({} as Window);
-  assert(result === "C:\\Users\\test\\output", `returns directory: ${result}`);
-}
+      const result = await pickDirectory({} as Window);
 
-console.log("\n=== nativePicker: pickPdfFile — error handling ===");
-{
-  (globalThis as any).Cc["@mozilla.org/filepicker;1"].createInstance = () => {
-    throw new Error("XPCOM not available");
-  };
+      assert.isNull(result);
+    });
 
-  const result = await pickPdfFile({} as Window);
-  assert(result === null, "returns null on error");
-}
+    it("returns null when the directory picker throws", async function () {
+      shouldThrow = true;
 
-/* ── Summary ── */
-console.log(`\n${"=".repeat(40)}`);
-console.log(`Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) process.exit(1);
+      const result = await pickDirectory({} as Window);
+
+      assert.isNull(result);
+    });
+  });
+});

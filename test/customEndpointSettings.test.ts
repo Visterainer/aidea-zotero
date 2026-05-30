@@ -38,8 +38,10 @@ function parseStyleText(style: Record<string, string>, cssText: string): void {
 class MockElement {
   public readonly children: MockElement[] = [];
   public readonly style: Record<string, string> = {};
+  public readonly dataset: Record<string, string> = {};
   public readonly attributes = new Map<string, string>();
   public readonly listeners = new Map<string, Array<(event: any) => void>>();
+  private readonly classNames = new Set<string>();
   public parentElement: MockElement | null = null;
   public textContent = "";
   public value = "";
@@ -52,6 +54,26 @@ class MockElement {
   public scrollTop = 0;
   public scrollHeight = 0;
   public clientHeight = 0;
+  public readonly classList = {
+    add: (...names: string[]) => {
+      for (const name of names) {
+        if (name) this.classNames.add(name);
+      }
+    },
+    remove: (...names: string[]) => {
+      for (const name of names) this.classNames.delete(name);
+    },
+    toggle: (name: string, force?: boolean) => {
+      const shouldAdd = force ?? !this.classNames.has(name);
+      if (shouldAdd) {
+        this.classNames.add(name);
+      } else {
+        this.classNames.delete(name);
+      }
+      return shouldAdd;
+    },
+    contains: (name: string) => this.classNames.has(name),
+  };
 
   public constructor(
     public readonly ownerDocument: MockDocument,
@@ -70,6 +92,21 @@ class MockElement {
     return this.parentElement;
   }
 
+  public get firstChild(): MockElement | null {
+    return this.children[0] || null;
+  }
+
+  public get className(): string {
+    return Array.from(this.classNames).join(" ");
+  }
+
+  public set className(value: string) {
+    this.classNames.clear();
+    for (const name of String(value || "").split(/\s+/)) {
+      if (name) this.classNames.add(name);
+    }
+  }
+
   public get innerHTML(): string {
     return "";
   }
@@ -82,6 +119,9 @@ class MockElement {
     this.attributes.set(name, value);
     if (name === "id") {
       this.ownerDocument.registerId(value, this);
+    }
+    if (name === "class") {
+      this.className = value;
     }
     if (name === "style") {
       parseStyleText(this.style, value);
@@ -100,6 +140,20 @@ class MockElement {
     node.parentElement = this;
     this.children.push(node);
     return node;
+  }
+
+  public removeChild(node: MockElement): MockElement {
+    const index = this.children.indexOf(node);
+    if (index >= 0) {
+      this.children.splice(index, 1);
+      node.parentElement = null;
+      this.ownerDocument.unregisterTree(node);
+    }
+    return node;
+  }
+
+  public remove(): void {
+    this.parentElement?.removeChild(this);
   }
 
   public addEventListener(type: string, listener: (event: any) => void): void {
@@ -128,6 +182,9 @@ class MockElement {
       if (selector.startsWith("#")) {
         return node.id === selector.slice(1);
       }
+      if (selector.startsWith(".")) {
+        return node.classList.contains(selector.slice(1));
+      }
       return node.tagName.toLowerCase() === selector.toLowerCase();
     };
     const walk = (node: MockElement) => {
@@ -145,12 +202,31 @@ class MockElement {
     while (current) {
       if (selector.startsWith("#")) {
         if (current.id === selector.slice(1)) return current;
+      } else if (selector.startsWith(".")) {
+        if (current.classList.contains(selector.slice(1))) return current;
       } else if (current.tagName.toLowerCase() === selector.toLowerCase()) {
         return current;
       }
       current = current.parentElement;
     }
     return null;
+  }
+
+  public contains(node: MockElement | null): boolean {
+    if (!node) return false;
+    if (node === this) return true;
+    return this.children.some((child) => child.contains(node));
+  }
+
+  public getBoundingClientRect(): {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+    width: number;
+    height: number;
+  } {
+    return { top: 0, bottom: 32, left: 0, right: 160, width: 160, height: 32 };
   }
 
   private clearChildren(): void {
@@ -168,6 +244,7 @@ class MockDocument {
   public readonly body = new MockElement(this, "body");
   public readonly documentElement = this.body;
   public readonly listeners = new Map<string, Array<(event: any) => void>>();
+  public defaultView: any = null;
 
   public createElementNS(_ns: string, tagName: string): MockElement {
     return new MockElement(this, tagName);
@@ -185,6 +262,9 @@ class MockDocument {
       const match = this.querySelector(selector);
       return match ? [match] : [];
     }
+    if (selector.startsWith(".")) {
+      return this.body.querySelectorAll(selector);
+    }
     return this.body.querySelectorAll(selector);
   }
 
@@ -192,6 +272,13 @@ class MockDocument {
     const listeners = this.listeners.get(type) || [];
     listeners.push(listener);
     this.listeners.set(type, listeners);
+  }
+
+  public dispatchEvent(event: { type: string }): boolean {
+    for (const listener of this.listeners.get(event.type) || []) {
+      listener(event);
+    }
+    return true;
   }
 
   public registerId(id: string, element: MockElement): void {
@@ -282,15 +369,33 @@ function appendStaticShell(doc: MockDocument): void {
 function createMockWindow(): {
   document: MockDocument;
   setTimeout: typeof setTimeout;
+  addEventListener: (type: string, listener: (event: any) => void) => void;
+  removeEventListener: (type: string, listener: (event: any) => void) => void;
   confirm: () => true;
 } {
   const document = new MockDocument();
-  appendStaticShell(document);
-  return {
+  const listeners = new Map<string, Array<(event: any) => void>>();
+  const win = {
     document,
     setTimeout,
+    innerHeight: 800,
+    addEventListener(type: string, listener: (event: any) => void) {
+      const entries = listeners.get(type) || [];
+      entries.push(listener);
+      listeners.set(type, entries);
+    },
+    removeEventListener(type: string, listener: (event: any) => void) {
+      const entries = listeners.get(type) || [];
+      listeners.set(
+        type,
+        entries.filter((entry) => entry !== listener),
+      );
+    },
     confirm: () => true,
   };
+  document.defaultView = win;
+  appendStaticShell(document);
+  return win;
 }
 
 function findTextCount(root: MockElement, text: string): number {
@@ -374,7 +479,11 @@ describe("custom endpoint settings UI", function () {
     setPluginPref("model", "");
 
     const win = createMockWindow();
-    await preferenceScript.registerPrefsScripts(win as unknown as Window);
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
 
     const customFields = win.document.querySelector(
       `#${ADDON_REF}-custom-openai-fields`,
@@ -385,6 +494,15 @@ describe("custom endpoint settings UI", function () {
     const customModeRadio = win.document.querySelector(
       `#${ADDON_REF}-primary-connection-mode-custom`,
     ) as unknown as MockElement;
+    const tabButtons = win.document.querySelectorAll(
+      ".llm-set-tab-btn",
+    ) as unknown as MockElement[];
+    const oauthTabBtn = tabButtons.find(
+      (button) => button.textContent === "OAuth Providers",
+    ) as MockElement;
+    const customTabBtn = tabButtons.find(
+      (button) => button.textContent === "API Mode",
+    ) as MockElement;
     const apiBaseInput = win.document.querySelector(
       `#${ADDON_REF}-custom-api-base`,
     ) as unknown as MockElement;
@@ -400,11 +518,11 @@ describe("custom endpoint settings UI", function () {
 
     assert.equal(customFields.style.display, "none");
     assert.equal((apiBaseInput as any).disabled, true);
-    assert.equal(findTextCount(win.document.body, "OAuth Login"), 4);
+    assert.equal(findTextCount(win.document.body, "OAuth Login"), 3);
 
     (oauthModeRadio as any).checked = false;
     (customModeRadio as any).checked = true;
-    customModeRadio.emit("change");
+    customTabBtn.emit("click");
 
     assert.equal(getPluginPref("primaryConnectionMode"), "custom");
     assert.equal(customFields.style.display, "flex");
@@ -425,7 +543,7 @@ describe("custom endpoint settings UI", function () {
 
     (customModeRadio as any).checked = false;
     (oauthModeRadio as any).checked = true;
-    oauthModeRadio.emit("change");
+    oauthTabBtn.emit("click");
 
     assert.equal(getPluginPref("primaryConnectionMode"), "oauth");
     assert.equal(customFields.style.display, "none");

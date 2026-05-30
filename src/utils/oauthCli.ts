@@ -327,7 +327,7 @@ function getEnv(name: string): string {
   }
 }
 
-function setProxyEnv(proxyUrl: string): void {
+function setProxyEnv(proxyUrl: string, noProxy?: string): void {
   for (const key of [
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -337,6 +337,11 @@ function setProxyEnv(proxyUrl: string): void {
     "all_proxy",
   ]) {
     setProcessEnv(key, proxyUrl);
+  }
+  const bypass = String(noProxy || "").trim();
+  if (bypass) {
+    setProcessEnv("NO_PROXY", bypass);
+    setProcessEnv("no_proxy", bypass);
   }
 }
 
@@ -351,6 +356,22 @@ export type SystemProxyConfig = {
   noProxy?: string;
   envUrl?: string;
 };
+
+type ZoteroProxySnapshot = SystemProxyConfig & {
+  type: number;
+};
+
+export type ProxySyncDecision =
+  | "apply"
+  | "update-managed"
+  | "adopt-legacy-matching"
+  | "adopt-legacy-loopback"
+  | "skip-user-managed"
+  | "skip-non-manual";
+
+const PROXY_AUTO_APPLIED_PREF = "extensions.zotero.aidea.proxy.autoApplied";
+const PROXY_LAST_SIGNATURE_PREF = "extensions.zotero.aidea.proxy.lastSignature";
+const PROXY_LAST_MODE_PREF = "extensions.zotero.aidea.proxy.lastMode";
 
 function hasUsableSystemProxy(proxy: SystemProxyConfig): boolean {
   return Boolean(
@@ -369,13 +390,243 @@ function parseHostPort(value: string): { host: string; port: number } | null {
   return { host: host.trim(), port };
 }
 
-function applySystemProxyToZotero(proxy: SystemProxyConfig): boolean {
+function normalizeNoProxy(value: string | undefined): string {
+  return String(value || "")
+    .split(/[;,]/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join(",");
+}
+
+function normalizeProxyHost(value: string | undefined): string {
+  return String(value || "")
+    .trim()
+    .replace(/^\[(::1)\]$/i, "$1")
+    .toLowerCase();
+}
+
+function isLoopbackProxyHost(value: string | undefined): boolean {
+  const host = normalizeProxyHost(value);
+  return (
+    host === "localhost" ||
+    host === "::1" ||
+    host === "0:0:0:0:0:0:0:1" ||
+    host === "127.0.0.1" ||
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+  );
+}
+
+function hasLoopbackProxyEndpoint(proxy: SystemProxyConfig): boolean {
+  return Boolean(
+    (proxy.httpPort && isLoopbackProxyHost(proxy.httpHost)) ||
+    (proxy.httpsPort && isLoopbackProxyHost(proxy.httpsHost)) ||
+    (proxy.socksPort && isLoopbackProxyHost(proxy.socksHost)),
+  );
+}
+
+function endpointSignature(host?: string, port?: number): string {
+  const normalizedHost = normalizeProxyHost(host);
+  const normalizedPort =
+    typeof port === "number" && Number.isFinite(port) && port > 0
+      ? String(port)
+      : "";
+  return normalizedHost && normalizedPort
+    ? `${normalizedHost}:${normalizedPort}`
+    : "";
+}
+
+export function getSystemProxySignature(proxy: SystemProxyConfig): string {
+  return [
+    `http=${endpointSignature(proxy.httpHost, proxy.httpPort)}`,
+    `https=${endpointSignature(proxy.httpsHost, proxy.httpsPort)}`,
+    `socks=${endpointSignature(proxy.socksHost, proxy.socksPort)}`,
+    `socksVersion=${proxy.socksHost && proxy.socksPort ? proxy.socksVersion || 5 : ""}`,
+    `noProxy=${normalizeNoProxy(proxy.noProxy)}`,
+  ].join(";");
+}
+
+export function parseProxyUrl(value: string): SystemProxyConfig | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.includes("://") ? raw : `http://${raw}`);
+    const protocol = url.protocol.replace(/:$/, "").toLowerCase();
+    const host = url.hostname.trim();
+    const defaultPort = protocol.startsWith("socks")
+      ? 1080
+      : protocol === "https"
+        ? 443
+        : 80;
+    const port = Number(url.port || defaultPort);
+    if (!host || !Number.isInteger(port) || port <= 0) return null;
+    const envUrl = raw;
+    if (protocol.startsWith("socks")) {
+      return {
+        socksHost: host,
+        socksPort: port,
+        socksVersion: protocol === "socks4" ? 4 : 5,
+        envUrl,
+      };
+    }
+    return {
+      httpHost: host,
+      httpPort: port,
+      httpsHost: host,
+      httpsPort: port,
+      envUrl,
+    };
+  } catch {
+    const parsed = parseHostPort(raw);
+    if (!parsed) return null;
+    return {
+      httpHost: parsed.host,
+      httpPort: parsed.port,
+      httpsHost: parsed.host,
+      httpsPort: parsed.port,
+      envUrl: `http://${parsed.host}:${parsed.port}`,
+    };
+  }
+}
+
+export function decideSystemProxySync(params: {
+  currentType: number;
+  currentSignature: string;
+  systemSignature: string;
+  autoApplied: boolean;
+  lastSignature: string;
+  currentLoopback: boolean;
+  systemLoopback: boolean;
+  forceRefresh?: boolean;
+}): ProxySyncDecision {
+  if (params.currentType === 0 || params.currentType === 5) return "apply";
+  if (params.currentType !== 1) return "skip-non-manual";
+
+  if (params.autoApplied) {
+    return !params.lastSignature ||
+      params.currentSignature === params.lastSignature
+      ? "update-managed"
+      : "skip-user-managed";
+  }
+
+  if (params.currentSignature === params.systemSignature) {
+    return "adopt-legacy-matching";
+  }
+
+  if (params.forceRefresh && params.currentLoopback && params.systemLoopback) {
+    return "adopt-legacy-loopback";
+  }
+
+  return "skip-user-managed";
+}
+
+function getZoteroProxySnapshot(prefSvc: any): ZoteroProxySnapshot {
+  const getInt = (key: string, fallback = 0): number => {
+    try {
+      return prefSvc.getIntPref(key, fallback);
+    } catch {
+      return fallback;
+    }
+  };
+  const getChar = (key: string): string => {
+    try {
+      return String(prefSvc.getCharPref(key) || "").trim();
+    } catch {
+      return "";
+    }
+  };
+  return {
+    type: getInt("network.proxy.type", 0),
+    httpHost: getChar("network.proxy.http") || undefined,
+    httpPort: getInt("network.proxy.http_port", 0) || undefined,
+    httpsHost: getChar("network.proxy.ssl") || undefined,
+    httpsPort: getInt("network.proxy.ssl_port", 0) || undefined,
+    socksHost: getChar("network.proxy.socks") || undefined,
+    socksPort: getInt("network.proxy.socks_port", 0) || undefined,
+    socksVersion: (getInt("network.proxy.socks_version", 5) === 4 ? 4 : 5) as
+      | 4
+      | 5,
+    noProxy: getChar("network.proxy.no_proxies_on") || undefined,
+  };
+}
+
+function getPluginBooleanPref(key: string): boolean {
+  try {
+    return String(Zotero.Prefs.get(key, true) || "") === "true";
+  } catch {
+    return false;
+  }
+}
+
+function getPluginStringPref(key: string): string {
+  try {
+    return String(Zotero.Prefs.get(key, true) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function setPluginStringPref(key: string, value: string): void {
+  try {
+    Zotero.Prefs.set(key, value, true);
+  } catch {
+    /* ignore */
+  }
+}
+
+function getProxyEnvUrl(proxy: SystemProxyConfig): string {
+  if (proxy.envUrl) return proxy.envUrl;
+  if (proxy.httpsHost && proxy.httpsPort) {
+    return `http://${proxy.httpsHost}:${proxy.httpsPort}`;
+  }
+  if (proxy.httpHost && proxy.httpPort) {
+    return `http://${proxy.httpHost}:${proxy.httpPort}`;
+  }
+  if (proxy.socksHost && proxy.socksPort) {
+    return `socks${proxy.socksVersion || 5}://${proxy.socksHost}:${proxy.socksPort}`;
+  }
+  return "";
+}
+
+function rememberAppliedProxy(signature: string, mode: string): void {
+  setPluginStringPref(PROXY_AUTO_APPLIED_PREF, "true");
+  setPluginStringPref(PROXY_LAST_SIGNATURE_PREF, signature);
+  setPluginStringPref(PROXY_LAST_MODE_PREF, mode);
+}
+
+function applySystemProxyToZotero(
+  proxy: SystemProxyConfig,
+  options?: { forceRefresh?: boolean },
+): boolean {
   if (!hasUsableSystemProxy(proxy)) return false;
   try {
     const prefSvc = Cc["@mozilla.org/preferences-service;1"]?.getService(
       Ci.nsIPrefBranch,
     );
     if (!prefSvc) return false;
+
+    const systemSignature = getSystemProxySignature(proxy);
+    const current = getZoteroProxySnapshot(prefSvc);
+    const currentSignature = getSystemProxySignature(current);
+    const decision = decideSystemProxySync({
+      currentType: current.type,
+      currentSignature,
+      systemSignature,
+      autoApplied: getPluginBooleanPref(PROXY_AUTO_APPLIED_PREF),
+      lastSignature: getPluginStringPref(PROXY_LAST_SIGNATURE_PREF),
+      currentLoopback: hasLoopbackProxyEndpoint(current),
+      systemLoopback: hasLoopbackProxyEndpoint(proxy),
+      forceRefresh: options?.forceRefresh,
+    });
+
+    const proxyEnvUrl = getProxyEnvUrl(proxy);
+    if (proxyEnvUrl) setProxyEnv(proxyEnvUrl, proxy.noProxy);
+
+    if (decision === "skip-user-managed" || decision === "skip-non-manual") {
+      ztoolkit?.log?.(
+        `AIdea: Skipped Zotero proxy sync (${decision}); leaving user-managed proxy unchanged`,
+      );
+      return false;
+    }
 
     prefSvc.setIntPref("network.proxy.type", 1);
     prefSvc.setCharPref(
@@ -405,17 +656,10 @@ function applySystemProxyToZotero(proxy: SystemProxyConfig): boolean {
       prefSvc.setIntPref("network.proxy.socks_port", 0);
     }
 
-    if (proxy.envUrl) {
-      setProxyEnv(proxy.envUrl);
-    } else if (httpsHost && httpsPort) {
-      setProxyEnv(`http://${httpsHost}:${httpsPort}`);
-    } else if (httpHost && httpPort) {
-      setProxyEnv(`http://${httpHost}:${httpPort}`);
-    } else if (proxy.socksHost && proxy.socksPort) {
-      setProxyEnv(
-        `socks${proxy.socksVersion || 5}://${proxy.socksHost}:${proxy.socksPort}`,
-      );
-    }
+    rememberAppliedProxy(systemSignature, "manual");
+    ztoolkit?.log?.(
+      `AIdea: Applied system proxy to Zotero (${decision}): ${systemSignature}`,
+    );
     return true;
   } catch {
     return false;
@@ -547,8 +791,18 @@ function readWindowsSystemProxyConfig(): SystemProxyConfig | null {
 }
 
 async function readLinuxSystemProxyConfig(): Promise<SystemProxyConfig | null> {
-  // Reserved for desktop settings discovery (GNOME/KDE/gsettings) later.
-  return null;
+  const proxyUrl =
+    getEnv("HTTPS_PROXY") ||
+    getEnv("https_proxy") ||
+    getEnv("HTTP_PROXY") ||
+    getEnv("http_proxy") ||
+    getEnv("ALL_PROXY") ||
+    getEnv("all_proxy");
+  const proxy = parseProxyUrl(proxyUrl);
+  if (!proxy) return null;
+  const noProxy = getEnv("NO_PROXY") || getEnv("no_proxy");
+  if (noProxy) proxy.noProxy = normalizeNoProxy(noProxy);
+  return hasUsableSystemProxy(proxy) ? proxy : null;
 }
 
 async function readSystemProxyConfig(): Promise<SystemProxyConfig | null> {
@@ -566,19 +820,24 @@ async function readSystemProxyConfig(): Promise<SystemProxyConfig | null> {
  *
  * Call this during plugin initialization or before any fetch() to chatgpt.com.
  */
-export async function ensureZoteroProxyFromSystem(): Promise<void> {
+export async function ensureZoteroProxyFromSystem(options?: {
+  forceRefresh?: boolean;
+}): Promise<void> {
   try {
     const prefSvc = Cc["@mozilla.org/preferences-service;1"]?.getService(
       Ci.nsIPrefBranch,
     );
     if (!prefSvc) return;
 
-    // If the user has already explicitly configured a manual proxy, don't override
-    const currentType = prefSvc.getIntPref("network.proxy.type", 0);
-    if (currentType === 1) return; // already manual
-
     const proxy = await readSystemProxyConfig();
-    if (proxy && applySystemProxyToZotero(proxy)) {
+    const proxyEnvUrl = proxy ? getProxyEnvUrl(proxy) : "";
+    if (proxy && proxyEnvUrl) {
+      setProxyEnv(proxyEnvUrl, proxy.noProxy);
+      ztoolkit?.log?.(
+        `AIdea: Detected ${currentPlatform()} system proxy: ${getSystemProxySignature(proxy)}`,
+      );
+    }
+    if (proxy && applySystemProxyToZotero(proxy, options)) {
       ztoolkit?.log?.(
         `AIdea: Applied ${currentPlatform()} system proxy to Zotero`,
       );
@@ -983,24 +1242,30 @@ function looksLikePermissionError(text: string): boolean {
   );
 }
 
+export function buildWindowsUserPathPersistenceScript(binDir: string): string {
+  const quotedDir = `'${String(binDir).replace(/'/g, "''")}'`;
+  return [
+    `$dir = ${quotedDir}`,
+    "$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')",
+    "if ($null -eq $userPath) { $userPath = '' }",
+    "$parts = @($userPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })",
+    "if ($parts -contains $dir) {",
+    "  'User PATH already contains npm bin dir'",
+    "} else {",
+    "  $next = @($parts + $dir) | Select-Object -Unique",
+    "  [Environment]::SetEnvironmentVariable('Path', ($next -join ';'), 'User')",
+    "  'Added npm bin dir to user PATH'",
+    "}",
+  ].join("\n");
+}
+
 async function persistBinDirToUserPath(binDir: string): Promise<string> {
   const normalized = String(binDir || "").trim();
   if (!normalized) return "Skipped PATH persistence: empty bin dir";
 
   const platform = currentPlatform();
   if (platform === "windows") {
-    const script = [
-      `$dir = ${escapeShellArg(normalized)}`,
-      "$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')",
-      "if ($null -eq $userPath) { $userPath = '' }",
-      "$parts = @($userPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })",
-      "if ($parts -contains $dir) { 'User PATH already contains npm bin dir' }",
-      "else {",
-      "  $next = @($parts + $dir) | Select-Object -Unique",
-      "  [Environment]::SetEnvironmentVariable('Path', ($next -join ';'), 'User')",
-      "  'Added npm bin dir to user PATH'",
-      "}",
-    ].join("; ");
+    const script = buildWindowsUserPathPersistenceScript(normalized);
     const result = await runShellCommand(script, { hidden: true });
     return (
       [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
@@ -2306,6 +2571,7 @@ const COPILOT_KNOWN_MODELS: ProviderModelOption[] = [
 export async function fetchAvailableModels(
   provider: OAuthProviderId,
 ): Promise<ProviderModelOption[]> {
+  await ensureZoteroProxyFromSystem({ forceRefresh: true });
   const cred = await readProviderOAuthCredential(provider);
   if (!cred) {
     return [];
@@ -2451,17 +2717,18 @@ function dedupeModels(models: ProviderModelOption[]): ProviderModelOption[] {
     const id = String(row.id || "").trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({
+    const option: ProviderModelOption = {
       id,
       label: String(row.label || id).trim() || id,
-      apiBase: row.apiBase,
-      apiKey: row.apiKey,
-      supportedEndpoints: Array.isArray(row.supportedEndpoints)
-        ? [...row.supportedEndpoints]
-        : undefined,
-      policyState: row.policyState,
-      status: row.status,
-    });
+    };
+    if (row.apiBase !== undefined) option.apiBase = row.apiBase;
+    if (row.apiKey !== undefined) option.apiKey = row.apiKey;
+    if (Array.isArray(row.supportedEndpoints)) {
+      option.supportedEndpoints = [...row.supportedEndpoints];
+    }
+    if (row.policyState !== undefined) option.policyState = row.policyState;
+    if (row.status !== undefined) option.status = row.status;
+    out.push(option);
   }
   out.sort((a, b) => a.id.localeCompare(b.id));
   return out;
@@ -3302,6 +3569,7 @@ async function loginCopilotDeviceCode(): Promise<{
 export async function runProviderOAuthLogin(
   provider: OAuthProviderId,
 ): Promise<{ ok: boolean; message: string }> {
+  await ensureZoteroProxyFromSystem({ forceRefresh: true });
   // Qwen and Copilot use in-plugin Device Code flows
 
   if (provider === "github-copilot") return loginCopilotDeviceCode();
@@ -3432,6 +3700,7 @@ export async function autoConfigureEnvironment(params?: {
     output: platform,
   });
   append("Detected platform", platform);
+  await ensureZoteroProxyFromSystem({ forceRefresh: true });
 
   const formatNpmState = (state: NpmEnvironmentState): string =>
     [
