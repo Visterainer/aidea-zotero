@@ -33,6 +33,11 @@ import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n } from "./contextPanel/i18n";
 import { refreshTranslateTabI18n } from "./contextPanel/i18n";
 import {
+  getOAuthEnvUpdateMode,
+  refreshOAuthEnvUpdateSchedulerMode,
+  type OAuthEnvUpdateMode,
+} from "./oauthEnvUpdateScheduler";
+import {
   detectPanelLangFromLocale,
   getUiLanguageOption,
   normalizeUiLanguageCode,
@@ -66,7 +71,11 @@ type PrefKey =
   | "oauthModelListCache"
   | "oauthModelSelectionCache"
   | "oauthSetupLog"
+  | "oauthEnvUpdateMode"
   | "oauthRiskAccepted"
+  | "providerModelSectionState"
+  | "contextPanel.lastActiveTab.library"
+  | "contextPanel.lastActiveTab.reader"
   | "primaryConnectionMode"
   | "settingsSectionState"
   | "settingsScrollTop"
@@ -74,6 +83,13 @@ type PrefKey =
   | "selectionTranslate.provider"
   | "selectionTranslate.sourceLang"
   | "selectionTranslate.targetLang"
+  | "translate.sourceLang"
+  | "translate.targetLang"
+  | "translate.outputDir"
+  | "translate.qps"
+  | "translate.poolMaxWorker"
+  | "translate.fontFamily"
+  | "translate.scrollTop"
   | "uiLanguage";
 
 type Lang = PanelLang;
@@ -89,6 +105,27 @@ const PROFILE_KEYS = [
   "Tertiary",
   "Quaternary",
 ] as const;
+const OAUTH_ENV_UPDATE_MODE_OPTIONS: Array<{
+  value: OAuthEnvUpdateMode;
+  labelKey: string;
+  hintKey: string;
+}> = [
+  {
+    value: "auto",
+    labelKey: "oauthEnvUpdateAuto",
+    hintKey: "oauthEnvUpdateAutoHint",
+  },
+  {
+    value: "notify",
+    labelKey: "oauthEnvUpdateNotify",
+    hintKey: "oauthEnvUpdateNotifyHint",
+  },
+  {
+    value: "silent",
+    labelKey: "oauthEnvUpdateSilent",
+    hintKey: "oauthEnvUpdateSilentHint",
+  },
+];
 
 const pref = (key: PrefKey) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: PrefKey): string => {
@@ -1518,6 +1555,148 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "कोल्ड स्टार्ट हर लेख के लिए चयन अनुवाद पहली बार सक्षम होने पर एक बार चलता है: AIdea पूरा पाठ पढ़ता है, संक्षिप्त सार और तकनीकी शब्दों का सारांश बनाता है, और उसे स्थानीय रूप से सहेजता है। बाद के चयन अनुवाद इसी स्थानीय कैश को संदर्भ के रूप में उपयोग करते हैं; इसे फिर से बनाने के लिए कोल्ड-स्टार्ट कैश साफ करें।",
     },
   };
+const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "en-US": {
+    oauthEnvUpdateMode: "OAuth environment updates",
+    oauthEnvUpdateAuto: "Auto",
+    oauthEnvUpdateNotify: "Notify",
+    oauthEnvUpdateSilent: "Silent",
+    oauthEnvUpdateAutoHint:
+      "Checks for OAuth CLI environment updates, shows a toast, then updates automatically after 60 seconds unless you postpone or minimize it.",
+    oauthEnvUpdateNotifyHint:
+      "Checks for OAuth CLI environment updates and shows a toast. Nothing is updated unless you click Update now.",
+    oauthEnvUpdateSilentHint:
+      "Disables OAuth CLI environment update checks and reminders.",
+  },
+  "zh-CN": {
+    oauthEnvUpdateMode: "OAuth 环境更新",
+    oauthEnvUpdateAuto: "自动更新",
+    oauthEnvUpdateNotify: "提示更新",
+    oauthEnvUpdateSilent: "静默",
+    oauthEnvUpdateAutoHint:
+      "定期检查 OAuth CLI 环境更新，弹出提示后 60 秒自动更新；点击稍后或最小化会暂停 24 小时。",
+    oauthEnvUpdateNotifyHint:
+      "定期检查 OAuth CLI 环境更新，只弹出提示；只有点击立即更新时才会执行更新。",
+    oauthEnvUpdateSilentHint: "不检查 OAuth CLI 环境更新，也不显示提醒。",
+  },
+  "zh-TW": {
+    oauthEnvUpdateMode: "OAuth 環境更新",
+    oauthEnvUpdateAuto: "自動更新",
+    oauthEnvUpdateNotify: "提示更新",
+    oauthEnvUpdateSilent: "靜默",
+    oauthEnvUpdateAutoHint:
+      "定期檢查 OAuth CLI 環境更新，顯示提示後 60 秒自動更新；稍後或最小化會暫停 24 小時。",
+    oauthEnvUpdateNotifyHint:
+      "定期檢查 OAuth CLI 環境更新，只顯示提示；只有點擊立即更新才會執行更新。",
+    oauthEnvUpdateSilentHint: "不檢查 OAuth CLI 環境更新，也不顯示提醒。",
+  },
+  "ja-JP": {
+    oauthEnvUpdateMode: "OAuth 環境更新",
+    oauthEnvUpdateAuto: "自動更新",
+    oauthEnvUpdateNotify: "通知のみ",
+    oauthEnvUpdateSilent: "サイレント",
+    oauthEnvUpdateAutoHint:
+      "OAuth CLI 環境の更新を定期的に確認し、通知後 60 秒で自動更新します。後で実行または最小化すると 24 時間延期します。",
+    oauthEnvUpdateNotifyHint:
+      "OAuth CLI 環境の更新を定期的に確認して通知します。今すぐ更新を押すまで更新は実行しません。",
+    oauthEnvUpdateSilentHint: "OAuth CLI 環境の更新確認と通知を無効にします。",
+  },
+  "ko-KR": {
+    oauthEnvUpdateMode: "OAuth 환경 업데이트",
+    oauthEnvUpdateAuto: "자동 업데이트",
+    oauthEnvUpdateNotify: "알림만",
+    oauthEnvUpdateSilent: "무음",
+    oauthEnvUpdateAutoHint:
+      "OAuth CLI 환경 업데이트를 정기적으로 확인하고 알림 후 60초 뒤 자동 업데이트합니다. 나중에 또는 최소화를 누르면 24시간 연기됩니다.",
+    oauthEnvUpdateNotifyHint:
+      "OAuth CLI 환경 업데이트를 정기적으로 확인하고 알림만 표시합니다. 지금 업데이트를 누를 때만 업데이트합니다.",
+    oauthEnvUpdateSilentHint: "OAuth CLI 환경 업데이트 확인과 알림을 끕니다.",
+  },
+  "fr-FR": {
+    oauthEnvUpdateMode: "Mises a jour de l'environnement OAuth",
+    oauthEnvUpdateAuto: "Auto",
+    oauthEnvUpdateNotify: "Notifier",
+    oauthEnvUpdateSilent: "Silencieux",
+    oauthEnvUpdateAutoHint:
+      "Verifie les mises a jour de l'environnement OAuth CLI, affiche une notification, puis lance la mise a jour apres 60 secondes sauf report ou minimisation.",
+    oauthEnvUpdateNotifyHint:
+      "Verifie les mises a jour de l'environnement OAuth CLI et affiche une notification. Rien n'est mis a jour sans clic sur Mettre a jour.",
+    oauthEnvUpdateSilentHint:
+      "Desactive les verifications et notifications de mise a jour OAuth CLI.",
+  },
+  "de-DE": {
+    oauthEnvUpdateMode: "OAuth-Umgebung aktualisieren",
+    oauthEnvUpdateAuto: "Auto",
+    oauthEnvUpdateNotify: "Hinweis",
+    oauthEnvUpdateSilent: "Still",
+    oauthEnvUpdateAutoHint:
+      "Prueft die OAuth-CLI-Umgebung regelmaessig, zeigt einen Hinweis und aktualisiert nach 60 Sekunden automatisch, sofern nicht verschoben oder minimiert.",
+    oauthEnvUpdateNotifyHint:
+      "Prueft die OAuth-CLI-Umgebung regelmaessig und zeigt nur einen Hinweis. Aktualisiert erst nach Klick auf Jetzt aktualisieren.",
+    oauthEnvUpdateSilentHint:
+      "Deaktiviert Pruefungen und Hinweise fuer OAuth-CLI-Updates.",
+  },
+  "es-ES": {
+    oauthEnvUpdateMode: "Actualizaciones del entorno OAuth",
+    oauthEnvUpdateAuto: "Auto",
+    oauthEnvUpdateNotify: "Avisar",
+    oauthEnvUpdateSilent: "Silencio",
+    oauthEnvUpdateAutoHint:
+      "Comprueba actualizaciones del entorno OAuth CLI, muestra un aviso y actualiza automaticamente tras 60 segundos salvo que se posponga o minimice.",
+    oauthEnvUpdateNotifyHint:
+      "Comprueba actualizaciones del entorno OAuth CLI y solo muestra un aviso. No actualiza hasta pulsar Actualizar ahora.",
+    oauthEnvUpdateSilentHint:
+      "Desactiva las comprobaciones y avisos de actualizacion OAuth CLI.",
+  },
+  "ru-RU": {
+    oauthEnvUpdateMode: "Обновления среды OAuth",
+    oauthEnvUpdateAuto: "Авто",
+    oauthEnvUpdateNotify: "Уведомлять",
+    oauthEnvUpdateSilent: "Тихо",
+    oauthEnvUpdateAutoHint:
+      "Периодически проверяет среду OAuth CLI, показывает уведомление и запускает обновление через 60 секунд, если его не отложить или не свернуть.",
+    oauthEnvUpdateNotifyHint:
+      "Периодически проверяет среду OAuth CLI и только показывает уведомление. Обновление запускается только по кнопке.",
+    oauthEnvUpdateSilentHint:
+      "Отключает проверки и уведомления об обновлении OAuth CLI.",
+  },
+  "pt-BR": {
+    oauthEnvUpdateMode: "Atualizacoes do ambiente OAuth",
+    oauthEnvUpdateAuto: "Auto",
+    oauthEnvUpdateNotify: "Avisar",
+    oauthEnvUpdateSilent: "Silencioso",
+    oauthEnvUpdateAutoHint:
+      "Verifica atualizacoes do ambiente OAuth CLI, mostra um aviso e atualiza automaticamente apos 60 segundos, salvo adiamento ou minimizacao.",
+    oauthEnvUpdateNotifyHint:
+      "Verifica atualizacoes do ambiente OAuth CLI e apenas mostra um aviso. Nada e atualizado sem clicar em Atualizar agora.",
+    oauthEnvUpdateSilentHint:
+      "Desativa verificacoes e avisos de atualizacao OAuth CLI.",
+  },
+  "ar-SA": {
+    oauthEnvUpdateMode: "تحديثات بيئة OAuth",
+    oauthEnvUpdateAuto: "تلقائي",
+    oauthEnvUpdateNotify: "تنبيه",
+    oauthEnvUpdateSilent: "صامت",
+    oauthEnvUpdateAutoHint:
+      "يفحص تحديثات بيئة OAuth CLI دوريا، ثم يعرض تنبيها ويحدث تلقائيا بعد 60 ثانية ما لم يتم التأجيل أو التصغير.",
+    oauthEnvUpdateNotifyHint:
+      "يفحص تحديثات بيئة OAuth CLI ويعرض تنبيها فقط. لا يتم التحديث إلا عند الضغط على التحديث الآن.",
+    oauthEnvUpdateSilentHint: "يعطل فحص تحديثات OAuth CLI والتنبيهات.",
+  },
+  "hi-IN": {
+    oauthEnvUpdateMode: "OAuth environment updates",
+    oauthEnvUpdateAuto: "Auto",
+    oauthEnvUpdateNotify: "Notify",
+    oauthEnvUpdateSilent: "Silent",
+    oauthEnvUpdateAutoHint:
+      "OAuth CLI environment updates check करता है, toast दिखाता है, फिर 60 seconds बाद auto update करता है unless आप postpone या minimize करें.",
+    oauthEnvUpdateNotifyHint:
+      "OAuth CLI environment updates check करता है और सिर्फ toast दिखाता है. Update now दबाने तक update नहीं होगा.",
+    oauthEnvUpdateSilentHint:
+      "OAuth CLI environment update checks और reminders बंद करता है.",
+  },
+};
+
 const tt = (l: Lang): Dict =>
   ({
     ...(I18N["en-US"] as unknown as Dict),
@@ -1525,6 +1704,7 @@ const tt = (l: Lang): Dict =>
     ...(SETTINGS_I18N_BASE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES[l] || {}),
   }) as Dict;
 
 function localizeAuthStatus(raw: string, L: Dict): string {
@@ -1636,6 +1816,26 @@ function saveModelSelectionState(selectionCache: ProviderModelSelectionCache) {
     "oauthModelSelectionCache",
     serializeModelSelectionCache(selectionCache),
   );
+}
+
+function parseProviderModelSectionState(): Record<string, boolean> {
+  const raw = (getPref("providerModelSectionState") || "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+    const state: Record<string, boolean> = {};
+    for (const [provider, expanded] of Object.entries(parsed)) {
+      if (typeof expanded === "boolean") state[provider] = expanded;
+    }
+    return state;
+  } catch {
+    return {};
+  }
+}
+
+function saveProviderModelSectionState(state: Record<string, boolean>): void {
+  setPref("providerModelSectionState", JSON.stringify(state));
 }
 
 export function syncSidebarModelPrefsFromSelection(
@@ -1862,6 +2062,7 @@ export async function bootstrapSettingTab(
   let L = tt(lang);
   let cache = parseModelCache();
   let selectionCache = parseModelSelectionState();
+  let providerModelSectionState = parseProviderModelSectionState();
   const initialSelection = reconcileModelSelectionCache(cache, selectionCache);
   if (initialSelection.changed) {
     selectionCache = initialSelection.cache;
@@ -2247,6 +2448,49 @@ export async function bootstrapSettingTab(
   // Panel containers for the two modes
   const oauthPanel = createEl(doc, "div", "llm-set-mode-panel");
   const customPanel = createEl(doc, "div", "llm-set-mode-panel");
+
+  const oauthEnvUpdateModeField = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-segment-field",
+  );
+  const oauthEnvUpdateModeLabel = createEl(doc, "label", "llm-set-label");
+  const oauthEnvUpdateModeTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  let oauthEnvUpdateModeValue = getOAuthEnvUpdateMode();
+  let oauthEnvUpdateModeBtns: Array<{
+    button: HTMLButtonElement;
+    option: (typeof OAUTH_ENV_UPDATE_MODE_OPTIONS)[number];
+  }> = [];
+  const updateOAuthEnvUpdateModeUi = () => {
+    oauthEnvUpdateModeBtns.forEach(({ button, option }) => {
+      button.textContent = L[option.labelKey] || option.value;
+      button.title = L[option.hintKey] || "";
+      button.classList.toggle(
+        "active",
+        option.value === oauthEnvUpdateModeValue,
+      );
+    });
+  };
+  oauthEnvUpdateModeBtns = OAUTH_ENV_UPDATE_MODE_OPTIONS.map((option) => {
+    const button = createEl(
+      doc,
+      "button",
+      "llm-set-tab-btn",
+    ) as HTMLButtonElement;
+    button.type = "button";
+    button.addEventListener("click", () => {
+      oauthEnvUpdateModeValue = option.value;
+      setPref("oauthEnvUpdateMode", option.value);
+      updateOAuthEnvUpdateModeUi();
+      refreshOAuthEnvUpdateSchedulerMode();
+    });
+    oauthEnvUpdateModeTabBar.appendChild(button);
+    return { button, option };
+  });
+  oauthEnvUpdateModeField.append(
+    oauthEnvUpdateModeLabel,
+    oauthEnvUpdateModeTabBar,
+  );
 
   const customFieldsBox = createEl(doc, "div", "llm-set-custom-fields");
   customFieldsBox.id = `${config.addonRef}-custom-openai-fields`;
@@ -2645,6 +2889,8 @@ export async function bootstrapSettingTab(
     advancedTitle.textContent = L.advanced;
     oauthTabBtn.textContent = L.oauthProvidersMode;
     customTabBtn.textContent = L.customCompatibleMode;
+    oauthEnvUpdateModeLabel.textContent = L.oauthEnvUpdateMode;
+    updateOAuthEnvUpdateModeUi();
 
     customApiBaseLabel.textContent = L.customApiBase;
     customApiBaseInput.placeholder = L.customApiBasePlaceholder;
@@ -3123,6 +3369,36 @@ export async function bootstrapSettingTab(
     );
   };
 
+  const isProviderModelSectionExpanded = (provider: string) =>
+    providerModelSectionState[provider] !== false;
+  const setProviderModelSectionUi = (
+    section: HTMLElement,
+    toggleButton: HTMLButtonElement,
+    body: HTMLElement,
+    expanded: boolean,
+  ) => {
+    section.dataset.collapsed = expanded ? "false" : "true";
+    toggleButton.dataset.collapsed = expanded ? "false" : "true";
+    toggleButton.setAttribute("aria-expanded", expanded ? "true" : "false");
+    body.style.display = expanded ? "flex" : "none";
+    const arrow = toggleButton.querySelector(".llm-set-provider-toggle-icon");
+    if (arrow) arrow.textContent = expanded ? "\u25BE" : "\u25B8";
+  };
+  const setProviderModelSectionExpanded = (
+    provider: string,
+    section: HTMLElement,
+    toggleButton: HTMLButtonElement,
+    body: HTMLElement,
+    expanded: boolean,
+  ) => {
+    providerModelSectionState = {
+      ...providerModelSectionState,
+      [provider]: expanded,
+    };
+    saveProviderModelSectionState(providerModelSectionState);
+    setProviderModelSectionUi(section, toggleButton, body, expanded);
+  };
+
   const renderModels = () => {
     modelsTable.innerHTML = "";
     let count = 0;
@@ -3147,14 +3423,27 @@ export async function bootstrapSettingTab(
         selected.has(normalizeModelId(row.id)),
       ).length;
 
+      const providerId = String(provider);
       const section = createEl(doc, "div", "llm-set-provider-section");
-      const header = createEl(doc, "div", "llm-set-row llm-set-row--spread");
-      const title = createEl(
+      const header = createEl(
         doc,
         "div",
-        "llm-set-provider-title",
+        "llm-set-provider-header llm-set-row llm-set-row--spread",
+      );
+      const title = createEl(
+        doc,
+        "button",
+        "llm-set-provider-title llm-set-provider-toggle",
+      ) as HTMLButtonElement;
+      title.type = "button";
+      const titleIcon = createEl(doc, "span", "llm-set-provider-toggle-icon");
+      const titleText = createEl(
+        doc,
+        "span",
+        "llm-set-provider-title-text",
         getProviderLabel(provider as OAuthProviderId),
       );
+      title.append(titleIcon, titleText);
       const summaryText = L.selectedSummary
         .replace("{selected}", String(selectedCount))
         .replace("{total}", String(providerModels.length));
@@ -3165,8 +3454,19 @@ export async function bootstrapSettingTab(
         summaryText,
       );
       header.append(title, summary);
+      const body = createEl(doc, "div", "llm-set-provider-body");
+      const expanded = isProviderModelSectionExpanded(providerId);
+      title.addEventListener("click", () => {
+        setProviderModelSectionExpanded(
+          providerId,
+          section,
+          title,
+          body,
+          section.dataset.collapsed === "true",
+        );
+      });
+      setProviderModelSectionUi(section, title, body, expanded);
 
-      const actions = createEl(doc, "div", "llm-set-row llm-set-gap-sm");
       const defaultBtn = createEl(
         doc,
         "button",
@@ -3228,13 +3528,6 @@ export async function bootstrapSettingTab(
       perProviderRefreshBtn.addEventListener("click", async () => {
         await refreshOneProvider(provider as OAuthProviderId);
       });
-      actions.append(
-        defaultBtn,
-        allBtn,
-        clearBtn,
-        perProviderRefreshBtn,
-        perProviderStatus,
-      );
 
       // Provider-level delete button (ghost style, requires confirm)
       const deleteProviderBtn = createEl(
@@ -3278,7 +3571,7 @@ export async function bootstrapSettingTab(
         "llm-set-row llm-set-row--spread",
       );
       actionsRow.append(actionsLeft, deleteProviderBtn);
-      section.append(header, actionsRow);
+      body.appendChild(actionsRow);
 
       for (const row of providerModels) {
         const id = String(row.id || "").trim();
@@ -3360,9 +3653,10 @@ export async function bootstrapSettingTab(
         });
 
         line.append(checkbox, textBox, delModelBtn);
-        section.appendChild(line);
+        body.appendChild(line);
       }
 
+      section.append(header, body);
       modelsTable.appendChild(section);
     }
     if (!count) {
@@ -3732,13 +4026,24 @@ export async function bootstrapSettingTab(
       oauthModelListCache: "",
       oauthModelSelectionCache: "",
       oauthSetupLog: "",
+      oauthEnvUpdateMode: "notify",
       oauthRiskAccepted: "",
+      providerModelSectionState: "",
+      "contextPanel.lastActiveTab.library": "discussion",
+      "contextPanel.lastActiveTab.reader": "discussion",
       settingsSectionState: JSON.stringify(defaultSectionState),
       settingsScrollTop: "0",
       "selectionTranslate.model": "",
       "selectionTranslate.provider": "",
       "selectionTranslate.sourceLang": "auto",
       "selectionTranslate.targetLang": "zh-CN",
+      "translate.sourceLang": "en",
+      "translate.targetLang": "zh-CN",
+      "translate.outputDir": "",
+      "translate.qps": "10",
+      "translate.poolMaxWorker": "1",
+      "translate.fontFamily": "auto",
+      "translate.scrollTop": "0",
     };
     for (const [key, value] of Object.entries(defaults)) {
       setPref(key as PrefKey, value);
@@ -3760,6 +4065,20 @@ export async function bootstrapSettingTab(
     Zotero.Prefs.set(`${config.prefsPrefix}.showAllModels`, false, true);
     setBoolPref("selectionTranslate.enabled", true);
     setBoolPref("selectionTranslate.auto", true);
+    setBoolPref("translate.outputMono", true);
+    setBoolPref("translate.outputDual", true);
+    setBoolPref("translate.skipReferencesAuto", true);
+    setBoolPref("translate.keepAppendixTranslated", true);
+    setBoolPref("translate.protectAuthorBlock", true);
+    setBoolPref("translate.disableRichTextTranslate", false);
+    setBoolPref("translate.enhanceCompatibility", false);
+    setBoolPref("translate.translateTableText", false);
+    setBoolPref("translate.ocr", false);
+    setBoolPref("translate.autoOcr", false);
+    setBoolPref("translate.saveGlossary", true);
+    setBoolPref("translate.disableGlossary", false);
+    setBoolPref("translate.advancedCollapsed", true);
+    setBoolPref("translate.consoleCollapsed", false);
     // Clear all shortcut customizations (custom bubbles, overrides, labels, order, deleted IDs)
     const shortcutPrefsToClear = [
       "shortcuts",
@@ -3787,6 +4106,7 @@ export async function bootstrapSettingTab(
     // Update local state
     cache = {};
     selectionCache = {};
+    providerModelSectionState = {};
     logsBox.value = "";
     renderModels();
     void renderAccounts();
@@ -3832,6 +4152,9 @@ export async function bootstrapSettingTab(
     setPref("settingsScrollTop", "0");
     renderSelectionTranslateLanguageOptions();
     renderSelectionTranslateModelOptions();
+    oauthEnvUpdateModeValue = "notify";
+    updateOAuthEnvUpdateModeUi();
+    refreshOAuthEnvUpdateSchedulerMode();
     oauthModeRadio.checked = true;
     customModeRadio.checked = false;
     // Clear custom endpoint UI fields — don't show OAuth markers in these inputs
@@ -4412,7 +4735,7 @@ export async function bootstrapSettingTab(
   consoleSection.append(consoleTitle, consoleCard);
 
   // ── Move authCards, accountsBox into OAuth panel ──
-  oauthPanel.append(authCards, accountsBox);
+  oauthPanel.append(oauthEnvUpdateModeField, authCards, accountsBox);
 
   // ── Final assembly — optimized section order ──
   root.appendChild(langBox);

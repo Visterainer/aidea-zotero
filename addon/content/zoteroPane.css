@@ -629,14 +629,26 @@
 
 /* ── Model Provider Section ── */
 .llm-set-provider-section {
-  padding: 6px 0;
+  margin-left: 14px;
+  padding: 6px 0 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
 /* Provider title — also uses the horizontal line divider */
+.llm-set-provider-header {
+  cursor: default;
+}
+
 .llm-set-provider-title {
+  appearance: none;
+  -moz-appearance: none;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-weight: 600;
   font-size: var(--llm-fs-11, 11px);
   color: #1f2937;
@@ -644,6 +656,10 @@
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  flex: 1 1 auto;
 }
 
 .llm-set-provider-title::after {
@@ -653,9 +669,34 @@
   background: #e1e4e8;
 }
 
+.llm-set-provider-title:hover {
+  color: #111827;
+}
+
+.llm-set-provider-toggle-icon {
+  width: 12px;
+  flex: 0 0 12px;
+  color: #6b7280;
+  font-size: var(--llm-fs-10, 10px);
+  line-height: 1;
+  text-align: center;
+}
+
+.llm-set-provider-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .llm-set-provider-summary {
   font-size: var(--llm-fs-11, 11px);
   color: #6b7280;
+  flex-shrink: 0;
+}
+
+.llm-set-provider-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* ── Model Checkbox Row — flat, no border ── */
@@ -896,6 +937,30 @@
   background: #565656;
   color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.llm-set-segment-field {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 0 0 2px;
+  padding: 0 0 1px;
+}
+
+.llm-set-segment-field > .llm-set-label {
+  color: #374151;
+  font-size: var(--llm-fs-10, 10px);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.llm-set-segment-field > .llm-set-tab-bar {
+  margin-left: 0;
+  margin-right: 0;
+  align-self: center;
 }
 
 .llm-set-dropdown {

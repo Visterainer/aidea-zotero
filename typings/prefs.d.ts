@@ -30,6 +30,10 @@ declare namespace _ZoteroTypes {
       "oauthModelSelectionCache": string;
       "oauthSetupLog": string;
       "oauthEnvUpdateState": string;
+      "oauthEnvUpdateMode": string;
+      "providerModelSectionState": string;
+      "contextPanel.lastActiveTab.library": string;
+      "contextPanel.lastActiveTab.reader": string;
       "updateNoticeSeen": string;
       "settingsSectionState": string;
       "settingsScrollTop": string;
@@ -54,8 +58,14 @@ declare namespace _ZoteroTypes {
       "customShortcuts": string;
       "shortcutOrder": string;
       "showAllModels": boolean;
+      "translate.sourceLang": string;
+      "translate.targetLang": string;
+      "translate.outputMono": boolean;
+      "translate.outputDual": boolean;
       "translate.skipReferencesAuto": boolean;
       "translate.outputDir": string;
+      "translate.qps": string;
+      "translate.poolMaxWorker": string;
       "translate.keepAppendixTranslated": boolean;
       "translate.protectAuthorBlock": boolean;
       "translate.disableRichTextTranslate": boolean;
@@ -66,6 +76,9 @@ declare namespace _ZoteroTypes {
       "translate.saveGlossary": boolean;
       "translate.disableGlossary": boolean;
       "translate.fontFamily": string;
+      "translate.advancedCollapsed": boolean;
+      "translate.consoleCollapsed": boolean;
+      "translate.scrollTop": string;
       "hideTabNav": boolean;
     };
   }

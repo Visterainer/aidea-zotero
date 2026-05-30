@@ -7,7 +7,6 @@ import {
   type OAuthProviderId,
 } from "../utils/oauthCli";
 import {
-  OAUTH_ENV_UPDATE_INTERVAL_MS,
   getDueOAuthEnvUpdateProviders,
   recordOAuthEnvUpdateChecked,
   snoozeOAuthEnvUpdateProviders,
@@ -17,10 +16,13 @@ import { getUiLanguageOption } from "./contextPanel/languages";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const STARTUP_DELAY_MS = 90 * 1000;
-const ACTIVE_THRESHOLD_MS = 5 * 60 * 1000;
 const COUNTDOWN_SECONDS = 60;
+const PROMPT_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const TOAST_ID = `${config.addonRef}-oauth-env-update-toast`;
 const LOG_EVENT = `${config.addonRef}-oauth-env-update-log`;
+const MODE_PREF = `${config.prefsPrefix}.oauthEnvUpdateMode`;
+
+export type OAuthEnvUpdateMode = "auto" | "notify" | "silent";
 
 type SchedulerWindowState = {
   cleanup: () => void;
@@ -35,11 +37,13 @@ type PromptState = {
   actions: HTMLElement;
   nowButton: HTMLButtonElement;
   laterButton: HTMLButtonElement;
+  closeButton: HTMLButtonElement;
   minimizeButton: HTMLButtonElement;
   countdownTimer: ReturnType<typeof setInterval> | null;
   countdownRemaining: number;
-  mode: "active" | "idle" | "updating";
+  mode: "auto" | "notify" | "updating";
   minimized: boolean;
+  dismissSnoozes: boolean;
 };
 
 type OAuthEnvUpdateCopy = {
@@ -55,6 +59,7 @@ type OAuthEnvUpdateCopy = {
   countdown: string;
   snoozed: string;
   ok: string;
+  close?: string;
   minimize?: string;
   restore?: string;
 };
@@ -75,6 +80,7 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
     countdown: "Auto update in {n}s",
     snoozed: "Snoozed",
     ok: "OK",
+    close: "Close",
     minimize: "Minimize",
     restore: "Restore",
   },
@@ -253,9 +259,36 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
   },
 };
 
+const OAUTH_ENV_UPDATE_MODE_BODY_OVERRIDES: Partial<
+  Record<PanelLang, { auto: string; notify: string }>
+> = {
+  "en-US": {
+    auto: "AIdea detected that the OAuth authorization environment needs an update or repair. AIdea will update automatically after the countdown unless you postpone or minimize it.",
+    notify:
+      "AIdea detected that the OAuth authorization environment needs an update or repair. Nothing will be changed unless you click Update now.",
+  },
+  "zh-CN": {
+    auto: "AIdea 检测到 OAuth 授权环境需要更新或修复。倒计时结束后会自动更新；点击稍后或最小化会暂停 24 小时。",
+    notify:
+      "AIdea 检测到 OAuth 授权环境需要更新或修复。只有点击立即更新时才会执行更新。",
+  },
+  "zh-TW": {
+    auto: "AIdea 偵測到 OAuth 授權環境需要更新或修復。倒數結束後會自動更新；點擊稍後或最小化會暫停 24 小時。",
+    notify:
+      "AIdea 偵測到 OAuth 授權環境需要更新或修復。只有點擊立即更新時才會執行更新。",
+  },
+};
+
+const OAUTH_ENV_UPDATE_CONTROL_COPIES: Partial<
+  Record<PanelLang, { close: string; minimize: string; restore: string }>
+> = {
+  "en-US": { close: "Close", minimize: "Minimize", restore: "Restore" },
+  "zh-CN": { close: "关闭", minimize: "最小化", restore: "展开" },
+  "zh-TW": { close: "關閉", minimize: "最小化", restore: "展開" },
+};
+
 const windowStates = new Map<Window, SchedulerWindowState>();
 
-let lastActivityAt = Date.now();
 let checkTimer: ReturnType<typeof setTimeout> | null = null;
 let promptState: PromptState | null = null;
 let updateRunning = false;
@@ -269,6 +302,23 @@ function setStringPref(key: string, value: string): void {
     Zotero.Prefs.set(prefKey(key), value, true);
   } catch (err) {
     ztoolkit?.log?.("AIdea: failed to persist OAuth env update pref", err);
+  }
+}
+
+function normalizeOAuthEnvUpdateMode(value: unknown): OAuthEnvUpdateMode {
+  const mode = String(value || "")
+    .trim()
+    .toLowerCase();
+  return mode === "auto" || mode === "silent" || mode === "notify"
+    ? mode
+    : "notify";
+}
+
+export function getOAuthEnvUpdateMode(): OAuthEnvUpdateMode {
+  try {
+    return normalizeOAuthEnvUpdateMode(Zotero.Prefs.get(MODE_PREF, true));
+  } catch {
+    return "notify";
   }
 }
 
@@ -313,17 +363,6 @@ function getHostWindow(): Window | null {
   return null;
 }
 
-function isUserActive(now = Date.now()): boolean {
-  return now - lastActivityAt < ACTIVE_THRESHOLD_MS;
-}
-
-function markActivity(): void {
-  lastActivityAt = Date.now();
-  if (promptState?.mode === "idle" && !updateRunning) {
-    switchPromptMode("active");
-  }
-}
-
 function scheduleNextCheck(delayMs = CHECK_INTERVAL_MS): void {
   if (checkTimer) clearTimeout(checkTimer);
   checkTimer = setTimeout(
@@ -333,6 +372,12 @@ function scheduleNextCheck(delayMs = CHECK_INTERVAL_MS): void {
     },
     Math.max(5_000, delayMs),
   );
+}
+
+function clearNextCheck(): void {
+  if (!checkTimer) return;
+  clearTimeout(checkTimer);
+  checkTimer = null;
 }
 
 function getCopy(): OAuthEnvUpdateCopy {
@@ -398,11 +443,14 @@ function styleButton(button: HTMLButtonElement, primary = false): void {
   });
 }
 
-function styleMinimizeButton(button: HTMLButtonElement): void {
+function stylePromptIconButton(
+  button: HTMLButtonElement,
+  rightPx: number,
+): void {
   Object.assign(button.style, {
     position: "absolute",
     top: "8px",
-    right: "9px",
+    right: `${rightPx}px`,
     width: "24px",
     height: "24px",
     padding: "0",
@@ -428,9 +476,43 @@ function setButtonDisabled(button: HTMLButtonElement, disabled: boolean): void {
 
 function getMinimizeText(prompt: PromptState): string {
   const copy = getCopy();
+  const controls = OAUTH_ENV_UPDATE_CONTROL_COPIES[getPanelLang()];
   return prompt.minimized
-    ? copy.restore || OAUTH_ENV_UPDATE_COPIES["en-US"].restore || "Restore"
-    : copy.minimize || OAUTH_ENV_UPDATE_COPIES["en-US"].minimize || "Minimize";
+    ? controls?.restore ||
+        copy.restore ||
+        OAUTH_ENV_UPDATE_COPIES["en-US"].restore ||
+        "Restore"
+    : controls?.minimize ||
+        copy.minimize ||
+        OAUTH_ENV_UPDATE_COPIES["en-US"].minimize ||
+        "Minimize";
+}
+
+function getCloseText(): string {
+  const copy = getCopy();
+  const controls = OAUTH_ENV_UPDATE_CONTROL_COPIES[getPanelLang()];
+  return (
+    controls?.close ||
+    copy.close ||
+    OAUTH_ENV_UPDATE_COPIES["en-US"].close ||
+    "Close"
+  );
+}
+
+function getModeBody(
+  copy: OAuthEnvUpdateCopy,
+  mode: PromptState["mode"],
+): string {
+  const body = OAUTH_ENV_UPDATE_MODE_BODY_OVERRIDES[getPanelLang()];
+  if (mode === "auto") return body?.auto || copy.idle;
+  if (mode === "notify") return body?.notify || copy.active;
+  return copy.updating;
+}
+
+function clearPromptCountdown(prompt: PromptState | null = promptState): void {
+  if (!prompt?.countdownTimer) return;
+  clearInterval(prompt.countdownTimer);
+  prompt.countdownTimer = null;
 }
 
 function setPromptMinimized(prompt: PromptState, minimized: boolean): void {
@@ -438,74 +520,88 @@ function setPromptMinimized(prompt: PromptState, minimized: boolean): void {
   prompt.body.style.display = minimized ? "none" : "";
   prompt.status.style.display = minimized ? "none" : "";
   prompt.actions.style.display = minimized ? "none" : "flex";
-  prompt.root.style.width = minimized ? "280px" : "360px";
+  prompt.root.style.width = minimized ? "300px" : "360px";
   prompt.root.style.padding = minimized
-    ? "10px 42px 10px 12px"
+    ? "10px 72px 10px 12px"
     : "14px 14px 12px";
   prompt.title.style.marginBottom = minimized ? "0" : "7px";
   prompt.minimizeButton.textContent = minimized ? "+" : "-";
   prompt.minimizeButton.title = getMinimizeText(prompt);
+  prompt.closeButton.title = getCloseText();
 }
 
 function closePrompt(): void {
   if (!promptState) return;
-  if (promptState.countdownTimer) {
-    clearInterval(promptState.countdownTimer);
-  }
+  clearPromptCountdown(promptState);
   promptState.root.remove();
   promptState = null;
 }
 
-function switchPromptMode(mode: "active" | "idle" | "updating"): void {
+function snoozePromptProviders(providers: OAuthProviderId[]): void {
+  snoozeOAuthEnvUpdateProviders(providers, Date.now() + PROMPT_SNOOZE_MS);
+  scheduleNextCheck(PROMPT_SNOOZE_MS);
+}
+
+function dismissPromptWithSnooze(prompt: PromptState): void {
+  snoozePromptProviders(prompt.providers);
+  closePrompt();
+}
+
+function renderPromptMode(mode: "auto" | "notify" | "updating"): void {
   const prompt = promptState;
   if (!prompt) return;
   const copy = getCopy();
   prompt.mode = mode;
-  if (prompt.countdownTimer) {
-    clearInterval(prompt.countdownTimer);
-    prompt.countdownTimer = null;
-  }
+  clearPromptCountdown(prompt);
 
   prompt.title.textContent = copy.title;
-  prompt.body.textContent =
-    mode === "updating"
-      ? copy.updating
-      : mode === "idle"
-        ? copy.idle
-        : copy.active;
+  prompt.body.textContent = getModeBody(copy, mode);
   prompt.status.textContent =
-    mode === "idle"
+    mode === "auto"
       ? copy.countdown.replace("{n}", String(prompt.countdownRemaining))
       : `${copy.providers}: ${providerText(prompt.providers)}`;
   setButtonDisabled(prompt.nowButton, mode === "updating");
   setButtonDisabled(prompt.laterButton, mode === "updating");
+  setButtonDisabled(prompt.closeButton, mode === "updating");
+  setButtonDisabled(prompt.minimizeButton, mode === "updating");
 
-  if (mode === "idle") {
+  if (mode === "auto") {
+    prompt.countdownRemaining = COUNTDOWN_SECONDS;
+    prompt.status.textContent = copy.countdown.replace(
+      "{n}",
+      String(prompt.countdownRemaining),
+    );
     prompt.countdownTimer = setInterval(() => {
       if (!promptState || promptState !== prompt) return;
-      if (isUserActive()) {
-        switchPromptMode("active");
-        return;
-      }
       prompt.countdownRemaining -= 1;
       prompt.status.textContent = copy.countdown.replace(
         "{n}",
         String(Math.max(0, prompt.countdownRemaining)),
       );
       if (prompt.countdownRemaining <= 0) {
+        const targetProviders = [...prompt.providers];
         closePrompt();
-        void runOAuthEnvUpdate(prompt.providers);
+        void runOAuthEnvUpdate(targetProviders);
       }
     }, 1000);
   }
 }
 
 function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
+  const updateMode = getOAuthEnvUpdateMode();
+  if (updateMode === "silent") return;
   const win = getHostWindow();
   const doc = win?.document;
   if (!win || !doc?.documentElement) return;
 
-  closePrompt();
+  if (promptState) {
+    promptState.providers = [...providers];
+    promptState.dismissSnoozes = true;
+    setPromptMinimized(promptState, false);
+    renderPromptMode(updateMode);
+    return;
+  }
+
   const existing = doc.getElementById(TOAST_ID);
   existing?.remove();
 
@@ -515,16 +611,21 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
   root.setAttribute("dir", getLanguageDirection());
   applyToastStyles(root);
 
+  const closeButton = makeEl(doc, "button", "", "×");
+  closeButton.type = "button";
+  stylePromptIconButton(closeButton, 8);
+  closeButton.title = getCloseText();
+
   const minimizeButton = makeEl(doc, "button", "", "-");
   minimizeButton.type = "button";
-  styleMinimizeButton(minimizeButton);
+  stylePromptIconButton(minimizeButton, 36);
   minimizeButton.title =
     copy.minimize || OAUTH_ENV_UPDATE_COPIES["en-US"].minimize || "Minimize";
 
   const title = makeEl(doc, "div", "", copy.title);
   Object.assign(title.style, {
     marginBottom: "7px",
-    paddingRight: "28px",
+    paddingRight: "58px",
     fontWeight: "750",
     fontSize: "14px",
     color: "#111827",
@@ -559,11 +660,11 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
   setButtonDisabled(laterButton, false);
   setButtonDisabled(nowButton, false);
   actions.append(laterButton, nowButton);
-  root.append(minimizeButton, title, body, status, actions);
+  root.append(closeButton, minimizeButton, title, body, status, actions);
   doc.documentElement.appendChild(root);
 
   promptState = {
-    providers,
+    providers: [...providers],
     root,
     title,
     body,
@@ -571,51 +672,65 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
     actions,
     nowButton,
     laterButton,
+    closeButton,
     minimizeButton,
     countdownTimer: null,
     countdownRemaining: COUNTDOWN_SECONDS,
-    mode: "active",
+    mode: updateMode,
     minimized: false,
+    dismissSnoozes: true,
   };
+
+  closeButton.addEventListener("click", () => {
+    if (!promptState) return;
+    if (promptState.dismissSnoozes) {
+      dismissPromptWithSnooze(promptState);
+      return;
+    }
+    closePrompt();
+  });
 
   minimizeButton.addEventListener("click", () => {
     if (!promptState) return;
+    if (!promptState.minimized && promptState.mode === "auto") {
+      clearPromptCountdown(promptState);
+      snoozePromptProviders(promptState.providers);
+      promptState.status.textContent = copy.snoozed;
+      setPromptMinimized(promptState, true);
+      return;
+    }
     setPromptMinimized(promptState, !promptState.minimized);
   });
 
   let updateStarted = false;
   nowButton.addEventListener("click", () => {
-    if (updateStarted || updateRunning) return;
+    if (!promptState || updateStarted || updateRunning) return;
     updateStarted = true;
     setButtonDisabled(nowButton, true);
     setButtonDisabled(laterButton, true);
-    const targetProviders = [...providers];
+    const targetProviders = [...promptState.providers];
     closePrompt();
     void runOAuthEnvUpdate(targetProviders);
   });
   let snoozeStarted = false;
   laterButton.addEventListener("click", () => {
-    if (snoozeStarted || updateRunning) return;
+    if (!promptState || snoozeStarted || updateRunning) return;
     snoozeStarted = true;
     setButtonDisabled(nowButton, true);
     setButtonDisabled(laterButton, true);
-    snoozeOAuthEnvUpdateProviders(
-      providers,
-      Date.now() + OAUTH_ENV_UPDATE_INTERVAL_MS,
-    );
     status.textContent = copy.snoozed;
-    closePrompt();
-    scheduleNextCheck(OAUTH_ENV_UPDATE_INTERVAL_MS);
+    dismissPromptWithSnooze(promptState);
   });
 
-  switchPromptMode(isUserActive() ? "active" : "idle");
+  renderPromptMode(updateMode);
 }
 
 async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
   if (updateRunning || !providers.length) return;
   updateRunning = true;
   showOAuthEnvUpdatePrompt(providers);
-  switchPromptMode("updating");
+  if (promptState) promptState.dismissSnoozes = false;
+  renderPromptMode("updating");
 
   const logs: string[] = [];
   const liveLogs: string[] = [];
@@ -633,8 +748,9 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
   let allOk = true;
   for (const provider of providers) {
     const label = getProviderLabel(provider);
-    promptState &&
-      (promptState.status.textContent = `${label}: ${getCopy().updating}`);
+    if (promptState) {
+      promptState.status.textContent = `${label}: ${getCopy().updating}`;
+    }
     const result = await autoConfigureEnvironment({
       provider,
       onProgress: (event) => {
@@ -685,6 +801,8 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
       : failedSteps[failedSteps.length - 1] ||
         `${copy.providers}: ${providerText(providers)}`;
     setButtonDisabled(promptState.nowButton, true);
+    setButtonDisabled(promptState.closeButton, false);
+    setButtonDisabled(promptState.minimizeButton, false);
     const okButton = promptState.laterButton.cloneNode(
       true,
     ) as HTMLButtonElement;
@@ -697,10 +815,7 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
   }
 
   if (!allOk) {
-    snoozeOAuthEnvUpdateProviders(
-      providers,
-      Date.now() + Math.floor(OAUTH_ENV_UPDATE_INTERVAL_MS / 3),
-    );
+    snoozeOAuthEnvUpdateProviders(providers, Date.now() + PROMPT_SNOOZE_MS);
   }
   updateRunning = false;
   scheduleNextCheck();
@@ -708,7 +823,13 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
 
 async function checkOAuthEnvUpdateDue(): Promise<void> {
   try {
-    if (updateRunning || promptState) {
+    const updateMode = getOAuthEnvUpdateMode();
+    if (updateMode === "silent") {
+      closePrompt();
+      clearNextCheck();
+      return;
+    }
+    if (updateRunning || (promptState && !promptState.minimized)) {
       scheduleNextCheck();
       return;
     }
@@ -747,24 +868,24 @@ async function checkOAuthEnvUpdateDue(): Promise<void> {
 
 export function registerOAuthEnvUpdateSchedulerWindow(win: Window): void {
   if (windowStates.has(win)) return;
-  const onActivity = () => markActivity();
-  const events = ["keydown", "pointerdown", "mousedown", "wheel", "scroll"];
-  for (const event of events) {
-    win.document?.addEventListener?.(event, onActivity, {
-      capture: true,
-      passive: true,
-    } as AddEventListenerOptions);
-  }
   windowStates.set(win, {
-    cleanup: () => {
-      for (const event of events) {
-        win.document?.removeEventListener?.(event, onActivity, {
-          capture: true,
-        } as EventListenerOptions);
-      }
-    },
+    cleanup: () => undefined,
   });
-  scheduleNextCheck(STARTUP_DELAY_MS);
+  if (getOAuthEnvUpdateMode() !== "silent") scheduleNextCheck(STARTUP_DELAY_MS);
+}
+
+export function refreshOAuthEnvUpdateSchedulerMode(): void {
+  const updateMode = getOAuthEnvUpdateMode();
+  if (updateMode === "silent") {
+    clearNextCheck();
+    closePrompt();
+    return;
+  }
+  if (promptState) {
+    setPromptMinimized(promptState, false);
+    renderPromptMode(updateMode);
+  }
+  scheduleNextCheck(5_000);
 }
 
 export function unregisterOAuthEnvUpdateSchedulerWindow(win: Window): void {
@@ -776,10 +897,7 @@ export function unregisterOAuthEnvUpdateSchedulerWindow(win: Window): void {
 }
 
 export function shutdownOAuthEnvUpdateScheduler(): void {
-  if (checkTimer) {
-    clearTimeout(checkTimer);
-    checkTimer = null;
-  }
+  clearNextCheck();
   closePrompt();
   for (const state of windowStates.values()) {
     state.cleanup();

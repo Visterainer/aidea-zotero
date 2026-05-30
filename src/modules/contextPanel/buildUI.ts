@@ -10,6 +10,43 @@ import { isGlobalPortalItem } from "./portalScope";
 import { getPanelI18n } from "./i18n";
 import { TRANSLATION_LANGUAGE_OPTIONS } from "./languages";
 
+type PanelTab = "discussion" | "translate" | "setting";
+
+const PANEL_TABS: PanelTab[] = ["discussion", "translate", "setting"];
+const TAB_ICON_MAP: Record<PanelTab, string> = {
+  discussion: "chrome://aidea/content/icons/logo-talk.png",
+  translate: "chrome://aidea/content/icons/logo-translate.png",
+  setting: "chrome://aidea/content/icons/logo-setting.png",
+};
+
+function isPanelTab(value: unknown): value is PanelTab {
+  return typeof value === "string" && PANEL_TABS.includes(value as PanelTab);
+}
+
+function getActiveTabPrefKey(body: Element): string {
+  const tabType =
+    (body as HTMLElement).dataset?.tabType === "reader" ? "reader" : "library";
+  return `${config.prefsPrefix}.contextPanel.lastActiveTab.${tabType}`;
+}
+
+function getPersistedActiveTab(body: Element): PanelTab {
+  try {
+    const value = Zotero.Prefs.get(getActiveTabPrefKey(body), true);
+    if (isPanelTab(value)) return value;
+  } catch {
+    /* pref may not be registered during early startup */
+  }
+  return "discussion";
+}
+
+function persistActiveTab(body: Element, tab: PanelTab): void {
+  try {
+    Zotero.Prefs.set(getActiveTabPrefKey(body), tab, true);
+  } catch {
+    /* ignore pref write failures */
+  }
+}
+
 function createActionDropdown(doc: Document, spec: ActionDropdownSpec) {
   const slot = createElement(
     doc,
@@ -42,6 +79,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
         : item.id
       : 0;
   const i18n = getPanelI18n();
+  const initialActiveTab = getPersistedActiveTab(body);
 
   // Disable CSS scroll anchoring on the Zotero-provided panel body so that
   // Gecko doesn't fight with our programmatic scroll management.
@@ -62,7 +100,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   container.dataset.itemId =
     conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";
-  container.dataset.activeTab = "discussion";
+  container.dataset.activeTab = initialActiveTab;
 
   // ═══════════════════════════════════════════════════════════
   // Tab Navigation
@@ -79,23 +117,38 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   } catch {
     /* pref not yet registered */
   }
-  const tabDiscussionBtn = createElement(doc, "button", "llm-tab-btn active", {
-    id: "llm-tab-btn-discussion",
-    type: "button",
-    textContent: i18n.tabDiscussion,
-  });
+  const tabDiscussionBtn = createElement(
+    doc,
+    "button",
+    `llm-tab-btn${initialActiveTab === "discussion" ? " active" : ""}`,
+    {
+      id: "llm-tab-btn-discussion",
+      type: "button",
+      textContent: i18n.tabDiscussion,
+    },
+  );
   tabDiscussionBtn.dataset.tab = "discussion";
-  const tabSettingBtn = createElement(doc, "button", "llm-tab-btn", {
-    id: "llm-tab-btn-setting",
-    type: "button",
-    textContent: i18n.tabSetting,
-  });
+  const tabSettingBtn = createElement(
+    doc,
+    "button",
+    `llm-tab-btn${initialActiveTab === "setting" ? " active" : ""}`,
+    {
+      id: "llm-tab-btn-setting",
+      type: "button",
+      textContent: i18n.tabSetting,
+    },
+  );
   tabSettingBtn.dataset.tab = "setting";
-  const tabTranslateBtn = createElement(doc, "button", "llm-tab-btn", {
-    id: "llm-tab-btn-translate",
-    type: "button",
-    textContent: i18n.tabTranslate,
-  });
+  const tabTranslateBtn = createElement(
+    doc,
+    "button",
+    `llm-tab-btn${initialActiveTab === "translate" ? " active" : ""}`,
+    {
+      id: "llm-tab-btn-translate",
+      type: "button",
+      textContent: i18n.tabTranslate,
+    },
+  );
   tabTranslateBtn.dataset.tab = "translate";
   tabNav.append(tabDiscussionBtn, tabTranslateBtn, tabSettingBtn);
 
@@ -107,9 +160,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   });
 
   // ── Discussion Panel (upper) ──
-  const discussionPanel = createElement(doc, "div", "llm-tab-panel visible", {
-    id: "llm-tab-panel-discussion",
-  });
+  const discussionPanel = createElement(
+    doc,
+    "div",
+    `llm-tab-panel${initialActiveTab === "discussion" ? " visible" : ""}`,
+    {
+      id: "llm-tab-panel-discussion",
+    },
+  );
   discussionPanel.dataset.tab = "discussion";
 
   // Header section
@@ -118,7 +176,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const headerInfo = createElement(doc, "div", "llm-header-info");
   const headerIcon = createElement(doc, "img", "llm-header-icon", {
     alt: "AIdea",
-    src: `chrome://aidea/content/icons/logo-talk.png`,
+    src: TAB_ICON_MAP[initialActiveTab],
   }) as HTMLImageElement;
   headerIcon.style.width = "28px";
   headerIcon.style.height = "28px";
@@ -249,9 +307,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   contentWrapper.appendChild(discussionPanel);
 
   // ── Setting Panel (upper) ──
-  const settingPanel = createElement(doc, "div", "llm-tab-panel", {
-    id: "llm-tab-panel-setting",
-  });
+  const settingPanel = createElement(
+    doc,
+    "div",
+    `llm-tab-panel${initialActiveTab === "setting" ? " visible" : ""}`,
+    {
+      id: "llm-tab-panel-setting",
+    },
+  );
   settingPanel.dataset.tab = "setting";
 
   const settingScroll = createElement(doc, "div", "llm-setting-scroll", {
@@ -269,9 +332,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   contentWrapper.appendChild(settingPanel);
 
   // ── Translate Panel (upper) ──
-  const translatePanel = createElement(doc, "div", "llm-tab-panel", {
-    id: "llm-tab-panel-translate",
-  });
+  const translatePanel = createElement(
+    doc,
+    "div",
+    `llm-tab-panel${initialActiveTab === "translate" ? " visible" : ""}`,
+    {
+      id: "llm-tab-panel-translate",
+    },
+  );
   translatePanel.dataset.tab = "translate";
 
   const translateScroll = createElement(doc, "div", "llm-translate-scroll", {
@@ -1183,9 +1251,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   });
 
   // ── Discussion Bottom ──
-  const discussionBottom = createElement(doc, "div", "llm-tab-bottom visible", {
-    id: "llm-tab-bottom-discussion",
-  });
+  const discussionBottom = createElement(
+    doc,
+    "div",
+    `llm-tab-bottom${initialActiveTab === "discussion" ? " visible" : ""}`,
+    {
+      id: "llm-tab-bottom-discussion",
+    },
+  );
   discussionBottom.dataset.tab = "discussion";
 
   // Input section
@@ -1509,18 +1582,28 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   bottomWrapper.appendChild(discussionBottom);
 
   // ── Setting Bottom (spacer to maintain height) ──
-  const settingBottom = createElement(doc, "div", "llm-tab-bottom", {
-    id: "llm-tab-bottom-setting",
-  });
+  const settingBottom = createElement(
+    doc,
+    "div",
+    `llm-tab-bottom${initialActiveTab === "setting" ? " visible" : ""}`,
+    {
+      id: "llm-tab-bottom-setting",
+    },
+  );
   settingBottom.dataset.tab = "setting";
   // Setting tab uses the bottom as a spacer — no content needed,
   // but it fills the space so wrapper height stays linked.
   bottomWrapper.appendChild(settingBottom);
 
   // ── Translate Bottom (spacer to maintain height, like Setting) ──
-  const translateBottom = createElement(doc, "div", "llm-tab-bottom", {
-    id: "llm-tab-bottom-translate",
-  });
+  const translateBottom = createElement(
+    doc,
+    "div",
+    `llm-tab-bottom${initialActiveTab === "translate" ? " visible" : ""}`,
+    {
+      id: "llm-tab-bottom-translate",
+    },
+  );
   translateBottom.dataset.tab = "translate";
   // Console + actions are now inside translateScroll (contentWrapper),
   // so this bottom panel is an empty spacer — same as settingBottom.
@@ -1553,9 +1636,10 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const tabBottoms = [discussionBottom, settingBottom, translateBottom];
   for (const btn of tabBtns) {
     btn.addEventListener("click", () => {
-      const tab = btn.dataset.tab;
+      const tab = isPanelTab(btn.dataset.tab) ? btn.dataset.tab : "discussion";
       // Track active tab on container for CSS-driven visibility
-      container.dataset.activeTab = tab || "discussion";
+      container.dataset.activeTab = tab;
+      persistActiveTab(body, tab);
       // Update button active state
       for (const b of tabBtns) b.classList.toggle("active", b === btn);
       // Toggle panel visibility (upper)
@@ -1565,14 +1649,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       for (const b of tabBottoms)
         b.classList.toggle("visible", b.dataset.tab === tab);
       // Swap header icon based on active tab
-      const logoMap: Record<string, string> = {
-        discussion: "chrome://aidea/content/icons/logo-talk.png",
-        translate: "chrome://aidea/content/icons/logo-translate.png",
-        setting: "chrome://aidea/content/icons/logo-setting.png",
-      };
-      const activeTab = tab || "discussion";
-      (headerIcon as HTMLImageElement).src =
-        logoMap[activeTab] ?? "chrome://aidea/content/icons/logo-talk.png";
+      (headerIcon as HTMLImageElement).src = TAB_ICON_MAP[tab];
     });
   }
 }

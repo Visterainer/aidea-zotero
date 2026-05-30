@@ -16,10 +16,27 @@ import type { ProgressData, TranslationStats, WarningStats } from "./types";
 const TRANSLATE_MODEL_PREF = "lastUsedModelName.translate";
 const TRANSLATE_PROVIDER_PREF = "lastUsedModelProvider.translate";
 const TRANSLATE_PREFS = {
+  sourceLang: "translate.sourceLang",
+  targetLang: "translate.targetLang",
+  outputMono: "translate.outputMono",
+  outputDual: "translate.outputDual",
   skipRefsAuto: "translate.skipReferencesAuto",
   outputDir: "translate.outputDir",
+  qps: "translate.qps",
+  poolMaxWorker: "translate.poolMaxWorker",
+  keepAppendixTranslated: "translate.keepAppendixTranslated",
+  protectAuthorBlock: "translate.protectAuthorBlock",
+  disableRichTextTranslate: "translate.disableRichTextTranslate",
+  enhanceCompatibility: "translate.enhanceCompatibility",
+  translateTableText: "translate.translateTableText",
   ocr: "translate.ocr",
   autoOcr: "translate.autoOcr",
+  saveGlossary: "translate.saveGlossary",
+  disableGlossary: "translate.disableGlossary",
+  fontFamily: "translate.fontFamily",
+  advancedCollapsed: "translate.advancedCollapsed",
+  consoleCollapsed: "translate.consoleCollapsed",
+  scrollTop: "translate.scrollTop",
 } as const;
 
 declare const Zotero: any;
@@ -132,6 +149,265 @@ function setStringPref(key: string, value: string): void {
   } catch {
     // ignore
   }
+}
+
+function getNumberPref(
+  key: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
+  try {
+    const value = Zotero.Prefs.get(translatePrefKey(key), true);
+    const parsed =
+      typeof value === "number"
+        ? value
+        : parseInt(String(value ?? "").trim(), 10);
+    if (Number.isFinite(parsed)) {
+      return Math.max(min, Math.min(max, Math.floor(parsed)));
+    }
+  } catch {
+    // ignore
+  }
+  return defaultValue;
+}
+
+function setNumberPref(
+  key: string,
+  value: number,
+  min: number,
+  max: number,
+): number {
+  const normalized = Number.isFinite(value)
+    ? Math.max(min, Math.min(max, Math.floor(value)))
+    : min;
+  setStringPref(key, String(normalized));
+  return normalized;
+}
+
+function readStepperValue(
+  el: HTMLElement | null,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
+  const parsed = parseInt(el?.textContent || String(defaultValue), 10);
+  if (!Number.isFinite(parsed)) return defaultValue;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
+
+function bindCheckboxPref(
+  body: Element,
+  id: string,
+  key: string,
+  defaultValue: boolean,
+): HTMLInputElement | null {
+  const el = body.querySelector(`#${id}`) as HTMLInputElement | null;
+  if (!el) return null;
+  el.checked = getBoolPref(key, defaultValue);
+  el.addEventListener("change", () => setBoolPref(key, !!el.checked));
+  return el;
+}
+
+function setDropdownValue(
+  dropdown: HTMLElement | null,
+  value: string,
+  fallbackValue: string,
+): void {
+  if (!dropdown) return;
+  const items = Array.from(
+    dropdown.querySelectorAll(".llm-tr-dropdown-item"),
+  ) as HTMLElement[];
+  const selected =
+    items.find((item) => item.dataset.value === value) ||
+    items.find((item) => item.dataset.value === fallbackValue) ||
+    items[0];
+  if (!selected) return;
+  const selectedValue = selected.dataset.value || fallbackValue;
+  const trigger = dropdown.querySelector(
+    ".llm-tr-dropdown-trigger",
+  ) as HTMLElement | null;
+  const menu = dropdown.querySelector(
+    ".llm-tr-dropdown-menu",
+  ) as HTMLElement | null;
+  dropdown.dataset.value = selectedValue;
+  if (trigger) {
+    const arrow = trigger.querySelector(".llm-tr-dropdown-arrow");
+    trigger.textContent = selected.textContent || selectedValue;
+    if (arrow) trigger.appendChild(arrow);
+  }
+  for (const item of items) {
+    item.classList.toggle("selected", item === selected);
+  }
+  if (menu) menu.style.display = "none";
+  dropdown.classList.remove("open");
+}
+
+function bindDropdownPref(
+  body: Element,
+  id: string,
+  key: string,
+  fallbackValue: string,
+): HTMLElement | null {
+  const dropdown = body.querySelector(`#${id}`) as HTMLElement | null;
+  if (!dropdown) return null;
+  setDropdownValue(dropdown, getStringPref(key, fallbackValue), fallbackValue);
+  dropdown.addEventListener("click", (event: Event) => {
+    const target = event.target as Element | null;
+    const item = target?.closest?.(
+      ".llm-tr-dropdown-item",
+    ) as HTMLElement | null;
+    if (!item || !dropdown.contains(item)) return;
+    setStringPref(key, item.dataset.value || fallbackValue);
+  });
+  return dropdown;
+}
+
+function bindStepperPref(
+  body: Element,
+  id: string,
+  key: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+): HTMLElement | null {
+  const el = body.querySelector(`#${id}`) as HTMLElement | null;
+  if (!el) return null;
+  const apply = (value: number) => {
+    const normalized = setNumberPref(key, value, min, max);
+    el.textContent = String(normalized);
+  };
+  apply(getNumberPref(key, defaultValue, min, max));
+  const persist = () => apply(readStepperValue(el, defaultValue, min, max));
+  el.addEventListener("input", persist);
+  el.addEventListener("blur", persist);
+  el.parentElement?.addEventListener("click", () => {
+    const win = el.ownerDocument?.defaultView;
+    if (win) {
+      win.setTimeout(persist, 0);
+    } else {
+      persist();
+    }
+  });
+  return el;
+}
+
+function setTranslateCollapsible(
+  toggle: HTMLElement | null,
+  body: HTMLElement | null,
+  collapsed: boolean,
+): void {
+  if (!toggle || !body) return;
+  toggle.dataset.collapsed = collapsed ? "true" : "false";
+  body.style.display = collapsed ? "none" : "";
+}
+
+function bindCollapsiblePref(
+  root: Element,
+  toggleId: string,
+  bodyId: string,
+  key: string,
+  defaultCollapsed: boolean,
+): void {
+  const toggle = root.querySelector(`#${toggleId}`) as HTMLElement | null;
+  const content = root.querySelector(`#${bodyId}`) as HTMLElement | null;
+  if (!toggle || !content) return;
+  setTranslateCollapsible(toggle, content, getBoolPref(key, defaultCollapsed));
+  toggle.addEventListener("click", () => {
+    setBoolPref(key, toggle.dataset.collapsed === "true");
+  });
+}
+
+function bindTranslateScrollPref(body: Element): void {
+  const scroll = body.querySelector(
+    "#llm-translate-scroll",
+  ) as HTMLElement | null;
+  if (!scroll) return;
+  const saved = getNumberPref(TRANSLATE_PREFS.scrollTop, 0, 0, 1000000);
+  const win = scroll.ownerDocument?.defaultView;
+  if (saved > 0) {
+    const restore = () => {
+      scroll.scrollTop = saved;
+    };
+    if (win) win.setTimeout(restore, 0);
+    else restore();
+  }
+  let saveTimer = 0;
+  scroll.addEventListener("scroll", () => {
+    if (!win) {
+      setNumberPref(
+        TRANSLATE_PREFS.scrollTop,
+        scroll.scrollTop || 0,
+        0,
+        1000000,
+      );
+      return;
+    }
+    if (saveTimer) win.clearTimeout(saveTimer);
+    saveTimer = win.setTimeout(() => {
+      setNumberPref(
+        TRANSLATE_PREFS.scrollTop,
+        scroll.scrollTop || 0,
+        0,
+        1000000,
+      );
+      saveTimer = 0;
+    }, 150);
+  });
+}
+
+function persistCurrentTranslateOptions(body: Element): void {
+  const checkboxPrefs: Array<[string, string]> = [
+    ["llm-tr-mono", TRANSLATE_PREFS.outputMono],
+    ["llm-tr-dual", TRANSLATE_PREFS.outputDual],
+    ["llm-tr-skip-refs-auto", TRANSLATE_PREFS.skipRefsAuto],
+    ["llm-tr-keep-appendix", TRANSLATE_PREFS.keepAppendixTranslated],
+    ["llm-tr-protect-author", TRANSLATE_PREFS.protectAuthorBlock],
+    ["llm-tr-disable-rich-text", TRANSLATE_PREFS.disableRichTextTranslate],
+    ["llm-tr-enhance-compat", TRANSLATE_PREFS.enhanceCompatibility],
+    ["llm-tr-translate-table", TRANSLATE_PREFS.translateTableText],
+    ["llm-tr-ocr", TRANSLATE_PREFS.ocr],
+    ["llm-tr-auto-ocr", TRANSLATE_PREFS.autoOcr],
+    ["llm-tr-save-glossary", TRANSLATE_PREFS.saveGlossary],
+    ["llm-tr-disable-glossary", TRANSLATE_PREFS.disableGlossary],
+  ];
+  for (const [id, key] of checkboxPrefs) {
+    const el = body.querySelector(`#${id}`) as HTMLInputElement | null;
+    if (el) setBoolPref(key, !!el.checked);
+  }
+
+  const dropdownPrefs: Array<[string, string, string]> = [
+    ["llm-tr-source-lang", TRANSLATE_PREFS.sourceLang, "en"],
+    ["llm-tr-target-lang", TRANSLATE_PREFS.targetLang, "zh-CN"],
+    ["llm-tr-font-family", TRANSLATE_PREFS.fontFamily, "auto"],
+  ];
+  for (const [id, key, fallback] of dropdownPrefs) {
+    const el = body.querySelector(`#${id}`) as HTMLElement | null;
+    setStringPref(key, el?.dataset.value || fallback);
+  }
+
+  setNumberPref(
+    TRANSLATE_PREFS.qps,
+    readStepperValue(
+      body.querySelector("#llm-tr-qps") as HTMLElement | null,
+      10,
+      1,
+      100,
+    ),
+    1,
+    100,
+  );
+  setNumberPref(
+    TRANSLATE_PREFS.poolMaxWorker,
+    readStepperValue(
+      body.querySelector("#llm-tr-pool-max-worker") as HTMLElement | null,
+      1,
+      1,
+      32,
+    ),
+    1,
+    32,
+  );
 }
 
 function getPersistedTranslateModel(): string {
@@ -319,13 +595,6 @@ export function initTranslateTab(body: Element): void {
   const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   if (!modelSelect) return;
 
-  const skipRefsAutoEl = body.querySelector(
-    "#llm-tr-skip-refs-auto",
-  ) as HTMLInputElement | null;
-  const ocrEl = body.querySelector("#llm-tr-ocr") as HTMLInputElement | null;
-  const autoOcrEl = body.querySelector(
-    "#llm-tr-auto-ocr",
-  ) as HTMLInputElement | null;
   const outputDirEl = body.querySelector(
     "#llm-tr-output-dir",
   ) as HTMLInputElement | null;
@@ -334,23 +603,104 @@ export function initTranslateTab(body: Element): void {
   populateTranslateModelSelector(modelSelect);
 
   // Restore persisted translate options
-  if (skipRefsAutoEl)
-    skipRefsAutoEl.checked = getBoolPref(TRANSLATE_PREFS.skipRefsAuto, true);
-  if (ocrEl) ocrEl.checked = getBoolPref(TRANSLATE_PREFS.ocr, false);
-  if (autoOcrEl) autoOcrEl.checked = getBoolPref(TRANSLATE_PREFS.autoOcr, true);
+  bindDropdownPref(
+    body,
+    "llm-tr-source-lang",
+    TRANSLATE_PREFS.sourceLang,
+    "en",
+  );
+  bindDropdownPref(
+    body,
+    "llm-tr-target-lang",
+    TRANSLATE_PREFS.targetLang,
+    "zh-CN",
+  );
+  bindDropdownPref(
+    body,
+    "llm-tr-font-family",
+    TRANSLATE_PREFS.fontFamily,
+    "auto",
+  );
+  bindCheckboxPref(body, "llm-tr-mono", TRANSLATE_PREFS.outputMono, true);
+  bindCheckboxPref(body, "llm-tr-dual", TRANSLATE_PREFS.outputDual, true);
+  bindCheckboxPref(
+    body,
+    "llm-tr-skip-refs-auto",
+    TRANSLATE_PREFS.skipRefsAuto,
+    true,
+  );
+  bindCheckboxPref(
+    body,
+    "llm-tr-keep-appendix",
+    TRANSLATE_PREFS.keepAppendixTranslated,
+    true,
+  );
+  bindCheckboxPref(
+    body,
+    "llm-tr-protect-author",
+    TRANSLATE_PREFS.protectAuthorBlock,
+    true,
+  );
+  bindCheckboxPref(
+    body,
+    "llm-tr-disable-rich-text",
+    TRANSLATE_PREFS.disableRichTextTranslate,
+    false,
+  );
+  bindCheckboxPref(
+    body,
+    "llm-tr-enhance-compat",
+    TRANSLATE_PREFS.enhanceCompatibility,
+    false,
+  );
+  bindCheckboxPref(
+    body,
+    "llm-tr-translate-table",
+    TRANSLATE_PREFS.translateTableText,
+    false,
+  );
+  bindCheckboxPref(body, "llm-tr-ocr", TRANSLATE_PREFS.ocr, false);
+  bindCheckboxPref(body, "llm-tr-auto-ocr", TRANSLATE_PREFS.autoOcr, false);
+  bindCheckboxPref(
+    body,
+    "llm-tr-save-glossary",
+    TRANSLATE_PREFS.saveGlossary,
+    true,
+  );
+  bindCheckboxPref(
+    body,
+    "llm-tr-disable-glossary",
+    TRANSLATE_PREFS.disableGlossary,
+    false,
+  );
+  bindStepperPref(body, "llm-tr-qps", TRANSLATE_PREFS.qps, 10, 1, 100);
+  bindStepperPref(
+    body,
+    "llm-tr-pool-max-worker",
+    TRANSLATE_PREFS.poolMaxWorker,
+    1,
+    1,
+    32,
+  );
+  bindCollapsiblePref(
+    body,
+    "llm-tr-advanced-toggle",
+    "llm-tr-advanced-body",
+    TRANSLATE_PREFS.advancedCollapsed,
+    true,
+  );
+  bindCollapsiblePref(
+    body,
+    "llm-tr-console-toggle",
+    "llm-tr-console",
+    TRANSLATE_PREFS.consoleCollapsed,
+    false,
+  );
+  bindTranslateScrollPref(body);
   if (outputDirEl)
     outputDirEl.value = getStringPref(TRANSLATE_PREFS.outputDir, "");
 
   // Persist translate options on change
-  skipRefsAutoEl?.addEventListener("change", () =>
-    setBoolPref(TRANSLATE_PREFS.skipRefsAuto, !!skipRefsAutoEl.checked),
-  );
-  ocrEl?.addEventListener("change", () =>
-    setBoolPref(TRANSLATE_PREFS.ocr, !!ocrEl.checked),
-  );
-  autoOcrEl?.addEventListener("change", () =>
-    setBoolPref(TRANSLATE_PREFS.autoOcr, !!autoOcrEl.checked),
-  );
   outputDirEl?.addEventListener("change", () =>
     setStringPref(TRANSLATE_PREFS.outputDir, outputDirEl.value || ""),
   );
@@ -369,6 +719,10 @@ export function initTranslateTab(body: Element): void {
       populateTranslateModelSelector(modelSelect);
       updatePdfSourceFromItem(body);
     });
+  }
+  const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+  if (panelRoot?.dataset.activeTab === "translate") {
+    void updatePdfSourceFromItem(body);
   }
 
   // ── Language swap button ──
@@ -1157,13 +1511,18 @@ async function startTranslation(body: Element): Promise<void> {
     (body.querySelector("#llm-tr-skip-refs-auto") as HTMLInputElement)
       ?.checked ?? true;
   // ── Performance inputs ──
-  const qps =
-    parseInt(body.querySelector("#llm-tr-qps")?.textContent || "10", 10) || 10;
-  const poolMaxWorker =
-    parseInt(
-      body.querySelector("#llm-tr-pool-max-worker")?.textContent || "1",
-      10,
-    ) || 1;
+  const qps = readStepperValue(
+    body.querySelector("#llm-tr-qps") as HTMLElement | null,
+    10,
+    1,
+    100,
+  );
+  const poolMaxWorker = readStepperValue(
+    body.querySelector("#llm-tr-pool-max-worker") as HTMLElement | null,
+    1,
+    1,
+    32,
+  );
 
   // ── Advanced settings (read from collapsible panel) ──
   const keepAppendixTranslated =
@@ -1187,7 +1546,7 @@ async function startTranslation(body: Element): Promise<void> {
   ) as HTMLInputElement | null;
   const ocr = ocrEl?.checked ?? getBoolPref(TRANSLATE_PREFS.ocr, false);
   const autoOcr =
-    autoOcrEl?.checked ?? getBoolPref(TRANSLATE_PREFS.autoOcr, true);
+    autoOcrEl?.checked ?? getBoolPref(TRANSLATE_PREFS.autoOcr, false);
   const saveGlossary =
     (body.querySelector("#llm-tr-save-glossary") as HTMLInputElement)
       ?.checked ?? true;
@@ -1196,6 +1555,7 @@ async function startTranslation(body: Element): Promise<void> {
       ?.checked ?? false;
   const fontFamily = ((body.querySelector("#llm-tr-font-family") as HTMLElement)
     ?.dataset.value || "auto") as "auto" | "serif" | "sans-serif" | "script";
+  persistCurrentTranslateOptions(body);
 
   if (!outputDirInput) {
     consoleLog(body, `⚠️ ${i18n.requiredOutputFolder}`, "error");

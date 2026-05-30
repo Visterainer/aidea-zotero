@@ -198,15 +198,17 @@ class MockElement {
   }
 
   public closest(selector: string): MockElement | null {
-    let current: MockElement | null = this;
-    while (current) {
-      if (selector.startsWith("#")) {
-        if (current.id === selector.slice(1)) return current;
-      } else if (selector.startsWith(".")) {
-        if (current.classList.contains(selector.slice(1))) return current;
-      } else if (current.tagName.toLowerCase() === selector.toLowerCase()) {
-        return current;
+    const matches = (node: MockElement) => {
+      if (selector.startsWith("#")) return node.id === selector.slice(1);
+      if (selector.startsWith(".")) {
+        return node.classList.contains(selector.slice(1));
       }
+      return node.tagName.toLowerCase() === selector.toLowerCase();
+    };
+    if (matches(this)) return this;
+    let current = this.parentElement;
+    while (current) {
+      if (matches(current)) return current;
       current = current.parentElement;
     }
     return null;
@@ -550,5 +552,96 @@ describe("custom endpoint settings UI", function () {
     assert.equal(getPluginPref("apiBase"), "http://localhost:11434/v1/");
     assert.equal(getPluginPref("apiKey"), "local-token");
     assert.equal(getPluginPref("model"), "llama3.1:8b");
+  });
+
+  it("renders OAuth environment update mode buttons with tooltips and saves selection", async function () {
+    setPluginPref("primaryConnectionMode", "oauth");
+    setPluginPref("oauthEnvUpdateMode", "notify");
+
+    const win = createMockWindow();
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
+
+    const tabButtons = win.document.querySelectorAll(
+      ".llm-set-tab-btn",
+    ) as unknown as MockElement[];
+    const updateModeField = win.document.querySelector(
+      ".llm-set-segment-field",
+    ) as unknown as MockElement;
+    const autoBtn = tabButtons.find(
+      (button) => button.textContent === "Auto",
+    ) as MockElement;
+    const notifyBtn = tabButtons.find(
+      (button) => button.textContent === "Notify",
+    ) as MockElement;
+    const silentBtn = tabButtons.find(
+      (button) => button.textContent === "Silent",
+    ) as MockElement;
+
+    assert.exists(autoBtn);
+    assert.exists(notifyBtn);
+    assert.exists(silentBtn);
+    assert.equal(updateModeField.querySelectorAll(".llm-set-hint").length, 0);
+    assert.include((autoBtn as any).title || "", "60 seconds");
+    assert.include((notifyBtn as any).title || "", "Update now");
+    assert.include((silentBtn as any).title || "", "Disables");
+    assert.equal(notifyBtn.classList.contains("active"), true);
+
+    silentBtn.emit("click");
+
+    assert.equal(getPluginPref("oauthEnvUpdateMode"), "silent");
+    assert.equal(notifyBtn.classList.contains("active"), false);
+    assert.equal(silentBtn.classList.contains("active"), true);
+  });
+
+  it("collapses provider model sections and persists their state", async function () {
+    setPluginPref("primaryConnectionMode", "oauth");
+    setPluginPref(
+      "oauthModelListCache",
+      JSON.stringify({
+        "openai-codex": [
+          { id: "gpt-5.2", label: "GPT 5.2" },
+          { id: "gpt-5.3-codex", label: "GPT 5.3 Codex" },
+        ],
+        "google-gemini-cli": [
+          { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+        ],
+      }),
+    );
+
+    const win = createMockWindow();
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
+
+    const providerSections = win.document.querySelectorAll(
+      ".llm-set-provider-section",
+    ) as unknown as MockElement[];
+    assert.lengthOf(providerSections, 2);
+
+    const firstSection = providerSections[0];
+    const firstToggle = firstSection.querySelector(
+      ".llm-set-provider-toggle",
+    ) as MockElement;
+    const firstBody = firstSection.querySelector(
+      ".llm-set-provider-body",
+    ) as MockElement;
+
+    assert.equal(firstToggle.getAttribute("aria-expanded"), "true");
+    assert.equal(firstBody.style.display, "flex");
+
+    firstToggle.emit("click");
+
+    assert.equal(firstToggle.getAttribute("aria-expanded"), "false");
+    assert.equal(firstBody.style.display, "none");
+    assert.deepInclude(
+      JSON.parse(String(getPluginPref("providerModelSectionState") || "{}")),
+      { "openai-codex": false },
+    );
   });
 });

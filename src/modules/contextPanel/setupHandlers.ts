@@ -420,6 +420,11 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     translateTabBtn?.addEventListener("click", () =>
       heightSync.switchToSetting(),
     );
+    if (panelRoot.dataset.activeTab === "discussion") {
+      heightSync.switchToDiscussion();
+    } else {
+      heightSync.switchToSetting();
+    }
     (
       panelRoot as typeof panelRoot & {
         __llmHeightSync?: { dispose?: () => void } | null;

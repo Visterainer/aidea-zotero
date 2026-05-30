@@ -3,7 +3,7 @@ import { config } from "../../package.json";
 import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 
-const NOTICE_ID = "openai-oauth-image2-dialog-v1";
+const NOTICE_ID = "v2.3.4-oauth-env-update-modes-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -13,6 +13,7 @@ type UpdateNoticeCopy = {
   note: string;
   exampleLabel: string;
   examplePrompt: string;
+  modeItems?: Array<{ label: string; text: string }>;
   confirm: string;
   close: string;
 };
@@ -150,6 +151,81 @@ const COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   },
 };
 
+const OAUTH_ENV_UPDATE_COPIES: Partial<Record<PanelLang, UpdateNoticeCopy>> = {
+  "en-US": {
+    eyebrow: "Update",
+    title: "OAuth environment updates can now run in the background",
+    lead: "AIdea now supports background updates for OAuth configuration environments. The update frequency depends on the OAuth provider.",
+    note: "Note: the plugin has been updated. Please restart Zotero to make sure the new plugin code is active.",
+    exampleLabel: "OAuth configuration environment update modes",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Auto update",
+        text: "When an OAuth environment update is detected, AIdea shows a prompt. If there is no action within 60 seconds, it updates automatically. Later, close, or minimize pauses the prompt for 24 hours.",
+      },
+      {
+        label: "Notify update",
+        text: "When an OAuth environment update is detected, AIdea only shows a prompt and does not update automatically. It updates only after you click Update now. This is the default.",
+      },
+      {
+        label: "Silent",
+        text: "AIdea does not check OAuth environment updates and does not show prompts.",
+      },
+    ],
+    confirm: "OK",
+    close: "Close update notice",
+  },
+  "zh-CN": {
+    eyebrow: "更新提示",
+    title: "支持后台自动更新 OAuth 配置环境",
+    lead: "支持后台自动更新 OAuth 配置环境，更新频率取决于 OAuth 提供商。",
+    note: "注意：插件已更新，请重启 Zotero 确保插件生效。",
+    exampleLabel: "OAuth 配置环境更新模式",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "自动更新",
+        text: "检查到 OAuth 环境更新后弹出提示，60 秒内未操作则自动更新；稍后、关闭或最小化会暂停 24 小时。",
+      },
+      {
+        label: "提示更新",
+        text: "检查到 OAuth 环境更新后只弹出提示，不会自动更新；只有点击“立即更新”才会更新。默认设置。",
+      },
+      {
+        label: "静默",
+        text: "不检查 OAuth 环境更新，也不显示弹窗。请定期手动更新。",
+      },
+    ],
+    confirm: "确认",
+    close: "关闭更新提示",
+  },
+  "zh-TW": {
+    eyebrow: "更新提示",
+    title: "支援背景自動更新 OAuth 設定環境",
+    lead: "支援背景自動更新 OAuth 設定環境，更新頻率取決於 OAuth 提供商。",
+    note: "注意：外掛已更新，請重啟 Zotero 以確保外掛生效。",
+    exampleLabel: "OAuth 配置環境更新模式",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "自動更新",
+        text: "檢查到 OAuth 環境更新後顯示提示，60 秒內未操作則自動更新；稍後、關閉或最小化會暫停 24 小時。",
+      },
+      {
+        label: "提示更新",
+        text: "檢查到 OAuth 環境更新後只顯示提示，不會自動更新；只有點擊「立即更新」才會更新。這是預設設定。",
+      },
+      {
+        label: "靜默",
+        text: "不檢查 OAuth 環境更新，也不顯示彈窗。",
+      },
+    ],
+    confirm: "確認",
+    close: "關閉更新提示",
+  },
+};
+
 let noticeShowingOrSeen = false;
 
 function wasNoticeSeen(): boolean {
@@ -170,6 +246,49 @@ function markNoticeSeen(): void {
 }
 
 function createNoticeBody(copy: UpdateNoticeCopy, dir: string) {
+  const detailChildren = copy.modeItems?.length
+    ? copy.modeItems.map((item) => {
+        const separator = /[A-Za-z]/.test(item.label) ? ": " : "：";
+        return {
+          tag: "div",
+          namespace: "html",
+          styles: {
+            marginBottom: "9px",
+            color: "#1f2328",
+            fontSize: "13px",
+            lineHeight: "1.58",
+          },
+          children: [
+            {
+              tag: "span",
+              namespace: "html",
+              properties: { innerText: `${item.label}${separator}` },
+              styles: {
+                fontWeight: "750",
+              },
+            },
+            {
+              tag: "span",
+              namespace: "html",
+              properties: { innerText: item.text },
+            },
+          ],
+        };
+      })
+    : [
+        {
+          tag: "div",
+          namespace: "html",
+          properties: { innerText: copy.examplePrompt },
+          styles: {
+            color: "#1f2328",
+            fontSize: "13px",
+            lineHeight: "1.58",
+            userSelect: "text",
+            whiteSpace: "pre-wrap",
+          },
+        },
+      ];
   return {
     tag: "div",
     namespace: "html",
@@ -257,48 +376,21 @@ function createNoticeBody(copy: UpdateNoticeCopy, dir: string) {
               fontWeight: "750",
             },
           },
-          {
-            tag: "div",
-            namespace: "html",
-            properties: { innerText: copy.examplePrompt },
-            styles: {
-              color: "#1f2328",
-              fontSize: "13px",
-              lineHeight: "1.58",
-              userSelect: "text",
-              whiteSpace: "normal",
-            },
-          },
+          ...detailChildren,
         ],
       },
     ],
   };
 }
 
-async function copyTextToClipboard(win: Window, text: string): Promise<void> {
-  try {
-    await win.navigator?.clipboard?.writeText(text);
-    return;
-  } catch {
-    // Fall back to Firefox/XUL clipboard helper below.
-  }
-
-  try {
-    const components = (globalThis as any).Components;
-    const helper = components.classes[
-      "@mozilla.org/widget/clipboardhelper;1"
-    ].getService(components.interfaces.nsIClipboardHelper);
-    helper.copyString(text);
-  } catch (err) {
-    ztoolkit.log("AIdea: failed to copy update notice example", err);
-  }
-}
-
 export function maybeShowOpenAIUpdateNotice(win: Window): void {
   if (noticeShowingOrSeen || wasNoticeSeen()) return;
 
   const lang = getPanelLang();
-  const copy = COPIES[lang] || COPIES["en-US"];
+  const copy =
+    OAUTH_ENV_UPDATE_COPIES[lang] ||
+    OAUTH_ENV_UPDATE_COPIES["en-US"] ||
+    COPIES["en-US"];
   const language = getUiLanguageOption(lang);
   noticeShowingOrSeen = true;
 
@@ -306,14 +398,11 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
     const dialog = new DialogHelper(1, 1);
     dialog
       .addCell(0, 0, createNoticeBody(copy, language.dir), false)
-      .addButton(copy.confirm, "copy-example-confirm", {
+      .addButton(copy.confirm, "confirm-update-notice", {
         noClose: true,
         callback: () => {
-          void (async () => {
-            await copyTextToClipboard(win, copy.examplePrompt);
-            markNoticeSeen();
-            dialog.window.close();
-          })();
+          markNoticeSeen();
+          dialog.window.close();
         },
       })
       .setDialogData({
