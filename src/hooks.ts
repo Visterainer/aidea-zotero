@@ -27,6 +27,10 @@ import {
   shutdownOAuthEnvUpdateScheduler,
   unregisterOAuthEnvUpdateSchedulerWindow,
 } from "./modules/oauthEnvUpdateScheduler";
+import {
+  registerAuthorProfiles,
+  shutdownAuthorProfiles,
+} from "./modules/authorProfiles";
 
 async function onStartup() {
   await Promise.all([
@@ -78,6 +82,7 @@ async function onStartup() {
   })();
 
   registerPrefsPane();
+  registerAuthorProfiles();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
@@ -130,6 +135,7 @@ async function onMainWindowUnload(win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  shutdownAuthorProfiles();
   shutdownOAuthEnvUpdateScheduler();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();

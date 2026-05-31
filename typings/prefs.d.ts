@@ -38,6 +38,10 @@ declare namespace _ZoteroTypes {
       "settingsSectionState": string;
       "settingsScrollTop": string;
       "showPopupAddText": boolean;
+      "authorProfiles.contextMenuEnabled": boolean;
+      "authorProfiles.model": string;
+      "authorProfiles.provider": string;
+      "authorProfiles.language": string;
       "selectionTranslate.enabled": boolean;
       "selectionTranslate.auto": boolean;
       "selectionTranslate.model": string;

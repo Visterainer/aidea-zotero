@@ -32,6 +32,7 @@ import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n } from "./contextPanel/i18n";
 import { refreshTranslateTabI18n } from "./contextPanel/i18n";
+import { AUTHOR_PROFILE_SETTINGS_I18N } from "./authorProfiles/i18n";
 import {
   getOAuthEnvUpdateMode,
   refreshOAuthEnvUpdateSchedulerMode,
@@ -90,10 +91,14 @@ type PrefKey =
   | "translate.poolMaxWorker"
   | "translate.fontFamily"
   | "translate.scrollTop"
+  | "authorProfiles.model"
+  | "authorProfiles.provider"
+  | "authorProfiles.language"
   | "uiLanguage";
 
 type Lang = PanelLang;
 const OAUTH_ENV_UPDATE_LOG_EVENT = `${config.addonRef}-oauth-env-update-log`;
+const GITHUB_ISSUES_URL = "https://github.com/Visterainer/aidea-zotero/issues";
 const PROVIDERS: OAuthProviderId[] = [
   "openai-codex",
   "google-gemini-cli",
@@ -332,6 +337,17 @@ const I18N = {
     showAddText: 'Show "Add Text" in reader selection popup',
     showAddTextHint:
       "Disable this if you prefer not to show the Add Text option in Zotero's text selection popup menu.",
+    authorProfilesTitle: "Online Author Lookup",
+    authorProfilesContextMenu: "Enable right-click author profile lookup",
+    authorProfilesContextMenuHint:
+      "Adds an AIdea menu item to Zotero item right-click menus. Multi-selected items can be generated in batch; existing AIdea author profile notes are regenerated and overwritten.",
+    authorProfilesModel: "Generation model",
+    authorProfilesModelFollow: "Follow current chat model",
+    authorProfilesLanguage: "Author profile language",
+    authorProfilesLanguageFollow: "Follow plugin UI language",
+    authorProfilesLanguageHint:
+      "Controls the language used in generated corresponding-author profile notes.",
+    authorProfilesBeta: "BETA",
     selectionTranslateTitle: "Selection Translation",
     selectionTranslateEnable: "Enable selection translation",
     selectionTranslateEnableHint:
@@ -406,6 +422,17 @@ const I18N = {
 type Dict = Record<string, string>;
 const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "zh-CN": {
+    authorProfilesTitle: "联网搜索作者信息",
+    authorProfilesContextMenu: "启用右键生成通讯作者介绍",
+    authorProfilesContextMenuHint:
+      "在 Zotero 条目右键菜单中显示 AIdea 入口。支持多选条目后批量生成；已有 AIdea 通讯作者介绍会重新生成并覆盖。",
+    authorProfilesModel: "生成模型",
+    authorProfilesModelFollow: "跟随当前对话模型",
+    authorProfilesLanguage: "通讯作者介绍生成语言",
+    authorProfilesLanguageFollow: "跟随插件界面语言",
+    authorProfilesLanguageHint:
+      "控制生成后的通讯作者介绍使用哪种语言，避免输出语言跟随模型或界面自动变化。",
+    authorProfilesBeta: "BETA",
     selectionTranslateTitle: "划词翻译",
     selectionTranslateEnable: "启用划词翻译",
     selectionTranslateEnableHint:
@@ -1555,6 +1582,93 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "कोल्ड स्टार्ट हर लेख के लिए चयन अनुवाद पहली बार सक्षम होने पर एक बार चलता है: AIdea पूरा पाठ पढ़ता है, संक्षिप्त सार और तकनीकी शब्दों का सारांश बनाता है, और उसे स्थानीय रूप से सहेजता है। बाद के चयन अनुवाद इसी स्थानीय कैश को संदर्भ के रूप में उपयोग करते हैं; इसे फिर से बनाने के लिए कोल्ड-स्टार्ट कैश साफ करें।",
     },
   };
+
+const SETTINGS_I18N_CONSOLE_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "en-US": {
+    consoleIssuePrefix: "Having trouble?",
+    consoleIssueLink: "Open a GitHub issue ↗",
+    consoleIssueSuffix:
+      'and include the outputs from "Progress" and "Detailed logs" below to help diagnose the problem.',
+    consoleIssueOpen: "Open GitHub Issues",
+  },
+  "zh-CN": {
+    consoleIssuePrefix: "遇到问题？",
+    consoleIssueLink: "在 GitHub 提交 issue ↗",
+    consoleIssueSuffix:
+      "，并复制下方“运行进度”和“详细日志”的输出，帮助定位问题。",
+    consoleIssueOpen: "打开 GitHub Issues",
+  },
+  "zh-TW": {
+    consoleIssuePrefix: "遇到問題？",
+    consoleIssueLink: "在 GitHub 提交 issue ↗",
+    consoleIssueSuffix:
+      "，並複製下方「執行進度」與「詳細日誌」的輸出，協助定位問題。",
+    consoleIssueOpen: "開啟 GitHub Issues",
+  },
+  "ja-JP": {
+    consoleIssuePrefix: "問題がある場合は、",
+    consoleIssueLink: "GitHub issue を作成 ↗",
+    consoleIssueSuffix:
+      "し、下の「進行状況」と「詳細ログ」の出力を添付すると原因調査に役立ちます。",
+    consoleIssueOpen: "GitHub Issues を開く",
+  },
+  "ko-KR": {
+    consoleIssuePrefix: "문제가 있으면",
+    consoleIssueLink: "GitHub issue 열기 ↗",
+    consoleIssueSuffix:
+      "를 사용하고 아래의 진행 상황과 상세 로그 출력을 함께 첨부하면 원인 파악에 도움이 됩니다.",
+    consoleIssueOpen: "GitHub Issues 열기",
+  },
+  "fr-FR": {
+    consoleIssuePrefix: "Un problème ?",
+    consoleIssueLink: "Ouvrir une issue GitHub ↗",
+    consoleIssueSuffix:
+      'et joignez les sorties "Progress" et "Detailed logs" ci-dessous pour faciliter le diagnostic.',
+    consoleIssueOpen: "Ouvrir GitHub Issues",
+  },
+  "de-DE": {
+    consoleIssuePrefix: "Bei Problemen:",
+    consoleIssueLink: "GitHub-Issue öffnen ↗",
+    consoleIssueSuffix:
+      'und die Ausgaben aus "Progress" und "Detailed logs" unten zur Diagnose hinzufügen.',
+    consoleIssueOpen: "GitHub Issues öffnen",
+  },
+  "es-ES": {
+    consoleIssuePrefix: "¿Hay algún problema?",
+    consoleIssueLink: "Abrir un issue en GitHub ↗",
+    consoleIssueSuffix:
+      'e incluye las salidas de "Progress" y "Detailed logs" para ayudar al diagnóstico.',
+    consoleIssueOpen: "Abrir GitHub Issues",
+  },
+  "ru-RU": {
+    consoleIssuePrefix: "Возникла проблема?",
+    consoleIssueLink: "Создать issue на GitHub ↗",
+    consoleIssueSuffix:
+      "и приложить выводы Progress и Detailed logs ниже, чтобы помочь диагностике.",
+    consoleIssueOpen: "Открыть GitHub Issues",
+  },
+  "pt-BR": {
+    consoleIssuePrefix: "Com problemas?",
+    consoleIssueLink: "Abrir uma issue no GitHub ↗",
+    consoleIssueSuffix:
+      'e inclua as saídas de "Progress" e "Detailed logs" abaixo para ajudar no diagnóstico.',
+    consoleIssueOpen: "Abrir GitHub Issues",
+  },
+  "ar-SA": {
+    consoleIssuePrefix: "هل تواجه مشكلة؟",
+    consoleIssueLink: "افتح issue على GitHub ↗",
+    consoleIssueSuffix:
+      "وأرفق مخرجات Progress و Detailed logs أدناه للمساعدة في التشخيص.",
+    consoleIssueOpen: "فتح GitHub Issues",
+  },
+  "hi-IN": {
+    consoleIssuePrefix: "समस्या आ रही है?",
+    consoleIssueLink: "GitHub issue खोलें ↗",
+    consoleIssueSuffix:
+      'और निदान में मदद के लिए नीचे के "Progress" और "Detailed logs" आउटपुट शामिल करें.',
+    consoleIssueOpen: "GitHub Issues खोलें",
+  },
+};
 const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "en-US": {
     oauthEnvUpdateMode: "OAuth environment updates",
@@ -1702,7 +1816,9 @@ const tt = (l: Lang): Dict =>
     ...(I18N["en-US"] as unknown as Dict),
     ...((I18N as unknown as Partial<Record<Lang, Dict>>)[l] || {}),
     ...(SETTINGS_I18N_BASE_OVERRIDES[l] || {}),
+    ...(AUTHOR_PROFILE_SETTINGS_I18N[l] || {}),
     ...(SETTINGS_I18N_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_CONSOLE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES[l] || {}),
   }) as Dict;
@@ -2304,6 +2420,25 @@ export async function bootstrapSettingTab(
     refreshTranslateTabI18n(doc);
   };
 
+  const openGitHubIssues = () => {
+    try {
+      const launch = (
+        Zotero as unknown as { launchURL?: (url: string) => void }
+      ).launchURL;
+      if (typeof launch === "function") {
+        launch(GITHUB_ISSUES_URL);
+        return;
+      }
+    } catch {
+      /* fallback below */
+    }
+    try {
+      win.open(GITHUB_ISSUES_URL, "_blank");
+    } catch {
+      ztoolkit.log("LLM: failed to open GitHub issues");
+    }
+  };
+
   langBox.append(langLeft, hideNavGroup, langRight, dangerStatus);
 
   const refreshAllBtn = createEl(
@@ -2376,13 +2511,51 @@ export async function bootstrapSettingTab(
   });
   logsWrap.append(logsBox, logsCopyBtn);
 
+  const consoleIssueHelp = createEl(doc, "div", "llm-set-console-help");
+  const consoleIssueBtn = createEl(
+    doc,
+    "button",
+    "llm-set-console-issue-btn",
+  ) as HTMLButtonElement;
+  consoleIssueBtn.type = "button";
+  consoleIssueBtn.title = L.consoleIssueOpen;
+  consoleIssueBtn.setAttribute("aria-label", L.consoleIssueOpen);
+  consoleIssueBtn.addEventListener("click", openGitHubIssues);
+  const consoleIssueSentence = createEl(
+    doc,
+    "span",
+    "llm-set-console-help-sentence",
+  );
+  const consoleIssuePrefix = createEl(doc, "span", "", L.consoleIssuePrefix);
+  consoleIssuePrefix.id = `${config.addonRef}-console-issue-prefix`;
+  const consoleIssueLink = createEl(
+    doc,
+    "button",
+    "llm-set-console-issue-link",
+    L.consoleIssueLink,
+  ) as HTMLButtonElement;
+  consoleIssueLink.type = "button";
+  consoleIssueLink.title = L.consoleIssueOpen;
+  consoleIssueLink.setAttribute("aria-label", L.consoleIssueOpen);
+  consoleIssueLink.addEventListener("click", openGitHubIssues);
+  const consoleIssueSuffix = createEl(doc, "span", "", L.consoleIssueSuffix);
+  consoleIssueSuffix.id = `${config.addonRef}-console-issue-suffix`;
+  consoleIssueSentence.append(
+    consoleIssuePrefix,
+    " ",
+    consoleIssueLink,
+    " ",
+    consoleIssueSuffix,
+  );
+  consoleIssueHelp.append(consoleIssueBtn, consoleIssueSentence);
+
   // Console area — collapsible, collapsed by default
   const consoleCard = createEl(
     doc,
     "div",
-    "llm-set-card llm-set-collapsible-body",
+    "llm-set-card llm-set-collapsible-body llm-set-console-body",
   );
-  consoleCard.append(logsWrap, progressListWrap);
+  consoleCard.append(consoleIssueHelp, logsWrap, progressListWrap);
   const consoleTitle = createEl(
     doc,
     "div",
@@ -2452,7 +2625,7 @@ export async function bootstrapSettingTab(
   const oauthEnvUpdateModeField = createEl(
     doc,
     "div",
-    "llm-set-field llm-set-segment-field",
+    "llm-set-field llm-set-segment-field llm-set-oauth-env-update-field",
   );
   const oauthEnvUpdateModeLabel = createEl(doc, "label", "llm-set-label");
   const oauthEnvUpdateModeTabBar = createEl(doc, "div", "llm-set-tab-bar");
@@ -2879,6 +3052,13 @@ export async function bootstrapSettingTab(
         hideNavBtns[i].textContent = tt(lang)[opt.labelKey] as string;
     });
     consoleTitle.textContent = L.console;
+    consoleIssueBtn.title = L.consoleIssueOpen;
+    consoleIssueBtn.setAttribute("aria-label", L.consoleIssueOpen);
+    consoleIssuePrefix.textContent = L.consoleIssuePrefix;
+    consoleIssueLink.textContent = L.consoleIssueLink;
+    consoleIssueLink.title = L.consoleIssueOpen;
+    consoleIssueLink.setAttribute("aria-label", L.consoleIssueOpen);
+    consoleIssueSuffix.textContent = L.consoleIssueSuffix;
     refreshAllBtn.textContent = L.refreshAllModels;
     restoreDefaultsBtn.textContent = L.restoreDefaults;
     clearAllHistoryBtn.textContent = L.clearAllHistory;
@@ -2929,6 +3109,28 @@ export async function bootstrapSettingTab(
     if (atl) atl.textContent = L.showAddText;
     const ath = doc.querySelector(`#${config.addonRef}-popup-add-text-hint`);
     if (ath) ath.textContent = L.showAddTextHint;
+    const apt = doc.querySelector(`#${config.addonRef}-author-profiles-title`);
+    if (apt) apt.textContent = L.authorProfilesTitle;
+    const apm = doc.querySelector(
+      `#${config.addonRef}-author-profiles-menu-label`,
+    );
+    if (apm) apm.textContent = L.authorProfilesContextMenu;
+    const aph = doc.querySelector(`#${config.addonRef}-author-profiles-hint`);
+    if (aph) aph.textContent = L.authorProfilesContextMenuHint;
+    const apb = doc.querySelector(`#${config.addonRef}-author-profiles-beta`);
+    if (apb) apb.textContent = L.authorProfilesBeta;
+    const apml = doc.querySelector(
+      `#${config.addonRef}-author-profiles-model-label`,
+    );
+    if (apml) apml.textContent = L.authorProfilesModel;
+    const apl = doc.querySelector(
+      `#${config.addonRef}-author-profiles-language-label`,
+    );
+    if (apl) apl.textContent = L.authorProfilesLanguage;
+    const aplh = doc.querySelector(
+      `#${config.addonRef}-author-profiles-language-hint`,
+    );
+    if (aplh) aplh.textContent = L.authorProfilesLanguageHint;
     const stTitle = doc.querySelector(
       `#${config.addonRef}-selection-translate-title`,
     );
@@ -2976,7 +3178,9 @@ export async function bootstrapSettingTab(
     );
     if (stClear) stClear.textContent = L.selectionTranslateClearCache;
     renderSelectionTranslateLanguageOptions();
+    renderAuthorProfileLanguageOptions();
     renderSelectionTranslateModelOptions();
+    renderAuthorProfileModelOptions();
     const saml = doc.querySelector(`#${config.addonRef}-show-all-models-label`);
     if (saml) saml.textContent = L.showAllModels;
     const samh = doc.querySelector(`#${config.addonRef}-show-all-models-hint`);
@@ -3094,6 +3298,8 @@ export async function bootstrapSettingTab(
   let selectionTranslateModelDropdown: HTMLDivElement | null = null;
   let selectionTranslateSourceDropdown: HTMLDivElement | null = null;
   let selectionTranslateTargetDropdown: HTMLDivElement | null = null;
+  let authorProfilesModelDropdown: HTMLDivElement | null = null;
+  let authorProfilesLanguageDropdown: HTMLDivElement | null = null;
 
   const createTranslateStyleDropdown = (id: string): HTMLDivElement => {
     const dropdown = createEl(doc, "div", "llm-tr-dropdown") as HTMLDivElement;
@@ -3283,6 +3489,107 @@ export async function bootstrapSettingTab(
     }
   };
 
+  const renderAuthorProfileModelOptions = () => {
+    if (!authorProfilesModelDropdown) return;
+    const dropdown = authorProfilesModelDropdown;
+    const menu = dropdown.querySelector(
+      ".llm-tr-dropdown-menu",
+    ) as HTMLDivElement | null;
+    if (!menu) return;
+    const { choices } = getModelChoices();
+    const savedModel = getPref("authorProfiles.model");
+    const savedProvider = getPref("authorProfiles.provider");
+    const previousModel = dropdown.dataset.value || savedModel;
+    const previousProvider = dropdown.dataset.providerId || savedProvider;
+    const selectedChoice = previousModel
+      ? choices.find(
+          (choice) =>
+            choice.model === previousModel &&
+            (choice.providerId || "") === previousProvider,
+        ) || choices.find((choice) => choice.model === previousModel)
+      : undefined;
+
+    menu.innerHTML = "";
+
+    const selectChoice = (
+      model: string,
+      providerId: string,
+      label: string,
+      persist: boolean,
+    ) => {
+      dropdown.dataset.value = model;
+      dropdown.dataset.providerId = providerId;
+      setDropdownTriggerText(dropdown, label);
+      menu.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
+        const item = el as HTMLElement;
+        item.classList.toggle(
+          "selected",
+          item.dataset.value === model &&
+            (item.dataset.providerId || "") === providerId,
+        );
+      });
+      closeTranslateStyleDropdown(dropdown);
+      if (persist) {
+        setPref("authorProfiles.model", model);
+        setPref("authorProfiles.provider", providerId);
+      }
+    };
+
+    const followItem = createEl(
+      doc,
+      "div",
+      "llm-tr-dropdown-item",
+      L.authorProfilesModelFollow,
+    ) as HTMLDivElement;
+    followItem.dataset.value = "";
+    followItem.dataset.providerId = "";
+    followItem.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectChoice("", "", L.authorProfilesModelFollow, true);
+    });
+    menu.appendChild(followItem);
+
+    let lastProvider = "";
+    for (const choice of choices) {
+      const provider = choice.provider || "";
+      if (provider && provider !== lastProvider) {
+        lastProvider = provider;
+        const groupLabel = createEl(
+          doc,
+          "div",
+          "llm-tr-dropdown-group",
+          provider,
+        );
+        menu.appendChild(groupLabel);
+      }
+
+      const item = createEl(
+        doc,
+        "div",
+        "llm-tr-dropdown-item",
+        choice.model,
+      ) as HTMLDivElement;
+      item.dataset.value = choice.model;
+      item.dataset.providerId = choice.providerId || "";
+      item.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectChoice(choice.model, choice.providerId || "", choice.model, true);
+      });
+      menu.appendChild(item);
+    }
+
+    if (selectedChoice) {
+      selectChoice(
+        selectedChoice.model,
+        selectedChoice.providerId || "",
+        selectedChoice.model,
+        false,
+      );
+    } else {
+      selectChoice("", "", L.authorProfilesModelFollow, false);
+    }
+  };
+
   const buildSelectionLanguageOptions = (includeAuto: boolean) => {
     const options: { value: string; label: string }[] = [];
     const seen = new Set<string>();
@@ -3367,6 +3674,59 @@ export async function bootstrapSettingTab(
       "selectionTranslate.targetLang",
       "zh-CN",
     );
+  };
+
+  const getDefaultAuthorProfileLanguageForSettings = () =>
+    getUiLanguageOption(lang).translateCode || "en";
+
+  const renderAuthorProfileLanguageOptions = () => {
+    const dropdown = authorProfilesLanguageDropdown;
+    if (!dropdown) return;
+    const menu = dropdown.querySelector(
+      ".llm-tr-dropdown-menu",
+    ) as HTMLDivElement | null;
+    if (!menu) return;
+
+    const saved = getPref("authorProfiles.language").trim();
+    const fallback = getDefaultAuthorProfileLanguageForSettings();
+    const fallbackLabel =
+      TRANSLATION_LANGUAGE_OPTIONS.find((option) => option.code === fallback)
+        ?.label || fallback;
+    const followLabel = `${L.authorProfilesLanguageFollow} / ${fallbackLabel}`;
+    const options = [
+      { value: "", label: followLabel },
+      ...buildSelectionLanguageOptions(false),
+    ];
+    const selected =
+      options.find((option) => option.value === saved) || options[0];
+    menu.innerHTML = "";
+
+    const selectOption = (value: string, label: string, persist: boolean) => {
+      dropdown.dataset.value = value;
+      setDropdownTriggerText(dropdown, label);
+      menu.querySelectorAll(".llm-tr-dropdown-item").forEach((el: Element) => {
+        const item = el as HTMLElement;
+        item.classList.toggle("selected", item.dataset.value === value);
+      });
+      closeTranslateStyleDropdown(dropdown);
+      if (persist) setPref("authorProfiles.language", value);
+    };
+
+    for (const option of options) {
+      const item = createEl(
+        doc,
+        "div",
+        "llm-tr-dropdown-item",
+        option.label,
+      ) as HTMLDivElement;
+      item.dataset.value = option.value;
+      item.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectOption(option.value, option.label, true);
+      });
+      menu.appendChild(item);
+    }
+    selectOption(selected.value, selected.label, false);
   };
 
   const isProviderModelSectionExpanded = (provider: string) =>
@@ -3663,6 +4023,7 @@ export async function bootstrapSettingTab(
       modelsTable.appendChild(createEl(doc, "div", "llm-set-hint", L.noModels));
     }
     renderSelectionTranslateModelOptions();
+    renderAuthorProfileModelOptions();
   };
 
   const refreshOneProvider = async (provider: OAuthProviderId) => {
@@ -4037,6 +4398,9 @@ export async function bootstrapSettingTab(
       "selectionTranslate.provider": "",
       "selectionTranslate.sourceLang": "auto",
       "selectionTranslate.targetLang": "zh-CN",
+      "authorProfiles.model": "",
+      "authorProfiles.provider": "",
+      "authorProfiles.language": "",
       "translate.sourceLang": "en",
       "translate.targetLang": "zh-CN",
       "translate.outputDir": "",
@@ -4063,6 +4427,7 @@ export async function bootstrapSettingTab(
     }
     Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, true, true);
     Zotero.Prefs.set(`${config.prefsPrefix}.showAllModels`, false, true);
+    setBoolPref("authorProfiles.contextMenuEnabled", true);
     setBoolPref("selectionTranslate.enabled", true);
     setBoolPref("selectionTranslate.auto", true);
     setBoolPref("translate.outputMono", true);
@@ -4112,6 +4477,16 @@ export async function bootstrapSettingTab(
     void renderAccounts();
     if (systemPromptInput) systemPromptInput.value = "";
     if (popupInput) popupInput.checked = true;
+    if (authorProfilesMenuInput) {
+      authorProfilesMenuInput.checked = true;
+    }
+    if (authorProfilesLanguageDropdown) {
+      authorProfilesLanguageDropdown.dataset.value = "";
+    }
+    if (authorProfilesModelDropdown) {
+      authorProfilesModelDropdown.dataset.value = "";
+      authorProfilesModelDropdown.dataset.providerId = "";
+    }
     if (selectionTranslateEnableInput) {
       selectionTranslateEnableInput.checked = true;
     }
@@ -4151,7 +4526,9 @@ export async function bootstrapSettingTab(
     scrollContainer.scrollTop = 0;
     setPref("settingsScrollTop", "0");
     renderSelectionTranslateLanguageOptions();
+    renderAuthorProfileLanguageOptions();
     renderSelectionTranslateModelOptions();
+    renderAuthorProfileModelOptions();
     oauthEnvUpdateModeValue = "notify";
     updateOAuthEnvUpdateModeUi();
     refreshOAuthEnvUpdateSchedulerMode();
@@ -4475,6 +4852,125 @@ export async function bootstrapSettingTab(
     );
   });
 
+  const authorProfilesWrap = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-author-profiles-section",
+  );
+  const authorProfilesTitleRow = createEl(doc, "div", "llm-set-row");
+  Object.assign(authorProfilesTitleRow.style, {
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
+  });
+  const authorProfilesTitle = createEl(
+    doc,
+    "div",
+    "llm-set-label llm-set-label--md",
+    L.authorProfilesTitle,
+  );
+  authorProfilesTitle.id = `${config.addonRef}-author-profiles-title`;
+  const authorProfilesBeta = createEl(doc, "span", "", L.authorProfilesBeta);
+  authorProfilesBeta.id = `${config.addonRef}-author-profiles-beta`;
+  Object.assign(authorProfilesBeta.style, {
+    background: "#fef3c7",
+    border: "1px solid #f59e0b",
+    borderRadius: "999px",
+    color: "#92400e",
+    fontSize: "11px",
+    fontWeight: "700",
+    lineHeight: "1",
+    padding: "2px 7px",
+  });
+  authorProfilesTitleRow.append(authorProfilesTitle, authorProfilesBeta);
+  const authorProfilesMenuLabel = createEl(doc, "label", "llm-set-radio-label");
+  const authorProfilesMenuInput = createEl(
+    doc,
+    "input",
+    "llm-set-checkbox",
+  ) as HTMLInputElement;
+  authorProfilesMenuInput.type = "checkbox";
+  authorProfilesMenuInput.checked = getBoolPref(
+    "authorProfiles.contextMenuEnabled",
+    true,
+  );
+  const authorProfilesMenuText = createEl(
+    doc,
+    "span",
+    "",
+    L.authorProfilesContextMenu,
+  );
+  authorProfilesMenuText.id = `${config.addonRef}-author-profiles-menu-label`;
+  authorProfilesMenuLabel.append(
+    authorProfilesMenuInput,
+    authorProfilesMenuText,
+  );
+  const authorProfilesHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.authorProfilesContextMenuHint,
+  );
+  authorProfilesHint.id = `${config.addonRef}-author-profiles-hint`;
+  const authorProfilesOptionRow = createEl(
+    doc,
+    "div",
+    "llm-tr-lang-row llm-set-author-profiles-options",
+  );
+
+  const authorProfilesModelField = createEl(doc, "div", "llm-tr-lang-half");
+  const authorProfilesModelLabel = createEl(
+    doc,
+    "div",
+    "llm-tr-field-label",
+    L.authorProfilesModel,
+  );
+  authorProfilesModelLabel.id = `${config.addonRef}-author-profiles-model-label`;
+  const authorProfilesModelInput = createTranslateStyleDropdown(
+    `${config.addonRef}-author-profiles-model`,
+  );
+  authorProfilesModelDropdown = authorProfilesModelInput;
+  authorProfilesModelField.append(
+    authorProfilesModelLabel,
+    authorProfilesModelInput,
+  );
+
+  const authorProfilesLanguageField = createEl(doc, "div", "llm-tr-lang-half");
+  const authorProfilesLanguageLabel = createEl(
+    doc,
+    "div",
+    "llm-tr-field-label",
+    L.authorProfilesLanguage,
+  );
+  authorProfilesLanguageLabel.id = `${config.addonRef}-author-profiles-language-label`;
+  const authorProfilesLanguageInput = createTranslateStyleDropdown(
+    `${config.addonRef}-author-profiles-language`,
+  );
+  authorProfilesLanguageDropdown = authorProfilesLanguageInput;
+  authorProfilesLanguageField.append(
+    authorProfilesLanguageLabel,
+    authorProfilesLanguageInput,
+  );
+  authorProfilesOptionRow.append(
+    authorProfilesModelField,
+    authorProfilesLanguageField,
+  );
+  authorProfilesWrap.append(
+    authorProfilesTitleRow,
+    authorProfilesMenuLabel,
+    authorProfilesHint,
+    authorProfilesOptionRow,
+  );
+  advancedBody.appendChild(authorProfilesWrap);
+  authorProfilesMenuInput.addEventListener("change", () => {
+    setBoolPref(
+      "authorProfiles.contextMenuEnabled",
+      authorProfilesMenuInput.checked,
+    );
+  });
+  renderAuthorProfileModelOptions();
+  renderAuthorProfileLanguageOptions();
+
   const selectionTranslateGroup = createEl(doc, "div", "llm-set-card");
   const selectionTranslateTitle = createEl(
     doc,
@@ -4719,6 +5215,7 @@ export async function bootstrapSettingTab(
   });
   renderSelectionTranslateLanguageOptions();
   renderSelectionTranslateModelOptions();
+  renderAuthorProfileModelOptions();
 
   // showAllModels feature is hidden from the UI but we must NOT force-write
   // the pref on every render — that would silently override any user/external value.

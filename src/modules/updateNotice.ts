@@ -227,6 +227,10 @@ const OAUTH_ENV_UPDATE_COPIES: Partial<Record<PanelLang, UpdateNoticeCopy>> = {
 };
 
 let noticeShowingOrSeen = false;
+const NOTICE_DIALOG_WIDTH = 760;
+const NOTICE_DIALOG_HEIGHT = 420;
+const NOTICE_BODY_WIDTH = NOTICE_DIALOG_WIDTH - 40;
+const NOTICE_CONFIRM_BUTTON_ID = "confirm-update-notice";
 
 function wasNoticeSeen(): boolean {
   try {
@@ -294,7 +298,7 @@ function createNoticeBody(copy: UpdateNoticeCopy, dir: string) {
     namespace: "html",
     attributes: { dir },
     styles: {
-      width: "520px",
+      width: `${NOTICE_BODY_WIDTH}px`,
       padding: "22px 24px 8px",
       boxSizing: "border-box",
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -383,6 +387,22 @@ function createNoticeBody(copy: UpdateNoticeCopy, dir: string) {
   };
 }
 
+function styleConfirmButton(dialog: DialogHelper): void {
+  const button = dialog.window?.document?.getElementById(
+    NOTICE_CONFIRM_BUTTON_ID,
+  ) as HTMLElement | null;
+  if (!button) return;
+  Object.assign(button.style, {
+    minWidth: "86px",
+    minHeight: "40px",
+    padding: "6px 18px",
+    borderRadius: "6px",
+    fontSize: "14px",
+    fontWeight: "650",
+    lineHeight: "1.35",
+  });
+}
+
 export function maybeShowOpenAIUpdateNotice(win: Window): void {
   if (noticeShowingOrSeen || wasNoticeSeen()) return;
 
@@ -398,7 +418,7 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
     const dialog = new DialogHelper(1, 1);
     dialog
       .addCell(0, 0, createNoticeBody(copy, language.dir), false)
-      .addButton(copy.confirm, "confirm-update-notice", {
+      .addButton(copy.confirm, NOTICE_CONFIRM_BUTTON_ID, {
         noClose: true,
         callback: () => {
           markNoticeSeen();
@@ -411,13 +431,14 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
         },
       })
       .open(copy.title, {
-        width: 560,
-        height: 420,
+        width: NOTICE_DIALOG_WIDTH,
+        height: NOTICE_DIALOG_HEIGHT,
         centerscreen: true,
         resizable: false,
         fitContent: true,
         alwaysRaised: true,
       });
+    styleConfirmButton(dialog);
     (globalThis as any).addon.data.dialog = dialog;
   } catch (err) {
     ztoolkit.log("AIdea: DialogHelper update notice failed", err);
