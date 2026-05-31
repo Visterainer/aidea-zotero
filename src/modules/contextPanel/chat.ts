@@ -72,7 +72,6 @@ import {
   getAttachmentTypeLabel,
   buildQuestionWithSelectedTextContexts,
   buildModelPromptWithFileContext,
-  getSelectedTextSourceIcon,
   resolvePromptText,
 } from "./textUtils";
 import {
@@ -2586,7 +2585,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
         screenshotIcon.className = "llm-user-screenshots-icon";
-        screenshotIcon.textContent = i18n.figureBadgeIcon;
+        screenshotIcon.setAttribute("aria-hidden", "true");
 
         const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
         screenshotLabel.className = "llm-user-screenshots-label";
@@ -2716,7 +2715,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const papersIcon = doc.createElement("span") as HTMLSpanElement;
         papersIcon.className = "llm-user-papers-icon";
-        papersIcon.textContent = i18n.paperBadgeIcon;
+        papersIcon.setAttribute("aria-hidden", "true");
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
         papersLabel.className = "llm-user-papers-label";
@@ -2817,7 +2816,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const filesIcon = doc.createElement("span") as HTMLSpanElement;
         filesIcon.className = "llm-user-files-icon";
-        filesIcon.textContent = i18n.fileBadgeIcon;
+        filesIcon.setAttribute("aria-hidden", "true");
 
         const filesLabel = doc.createElement("span") as HTMLSpanElement;
         filesLabel.className = "llm-user-files-label";
@@ -2956,7 +2955,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
           const selectedIcon = doc.createElement("span") as HTMLSpanElement;
           selectedIcon.className = "llm-user-selected-text-icon";
-          selectedIcon.textContent = getSelectedTextSourceIcon(selectedSource);
+          selectedIcon.setAttribute("aria-hidden", "true");
 
           const selectedContent = doc.createElement("span") as HTMLSpanElement;
           selectedContent.className = "llm-user-selected-text-content";

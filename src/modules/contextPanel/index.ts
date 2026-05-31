@@ -54,13 +54,22 @@ import {
   getSelectionFromDocument,
 } from "./readerSelection";
 import { resolvePaperContextRefFromAttachment } from "./paperAttribution";
-import { getSharedReaderPanelHostForItem } from "./readerPanel";
+import {
+  bootstrapSharedReaderPanel,
+  getSharedReaderPanelHostForItem,
+} from "./readerPanel";
 import { getPanelI18n } from "./i18n";
 import {
   isSelectionTranslateEnabled,
   translateSelectedTextForReader,
 } from "./selectionTranslate";
 import { appendSelectionTranslationToNote } from "./notes";
+
+type ReaderSelectionPopupHandler =
+  _ZoteroTypes.Reader.EventHandler<"renderTextSelectionPopup">;
+
+let readerContextPanelSectionKey: string | null = null;
+let readerSelectionPopupHandler: ReaderSelectionPopupHandler | null = null;
 
 // =============================================================================
 // Public API
@@ -72,7 +81,7 @@ import { appendSelectionTranslationToNote } from "./notes";
 
 export function registerLLMStyles(win: _ZoteroTypes.MainWindow) {
   const doc = win.document;
-  if (doc.getElementById(`${config.addonRef}-styles`)) return;
+  removeLLMStyles(win);
 
   // Main styles
   const link = doc.createElement("link") as HTMLLinkElement;
@@ -91,10 +100,16 @@ export function registerLLMStyles(win: _ZoteroTypes.MainWindow) {
   doc.documentElement?.appendChild(katexLink);
 }
 
+export function removeLLMStyles(win: Window) {
+  const doc = win.document;
+  doc.getElementById(`${config.addonRef}-styles`)?.remove();
+  doc.getElementById(`${config.addonRef}-katex-styles`)?.remove();
+}
+
 export function registerReaderContextPanel() {
   if (readerContextPanelRegistered) return;
-  setReaderContextPanelRegistered(true);
-  Zotero.ItemPaneManager.registerSection({
+  unregisterReaderContextPanel();
+  const sectionKey = Zotero.ItemPaneManager.registerSection({
     paneID: PANE_ID,
     pluginID: config.addonID,
     header: {
@@ -224,6 +239,23 @@ export function registerReaderContextPanel() {
       await bootstrapSharedReaderPanel(win, host, readerItem);
     },
   });
+  if (sectionKey === false) {
+    ztoolkit.log("LLM: failed to register reader context panel");
+    return;
+  }
+  readerContextPanelSectionKey = sectionKey;
+  setReaderContextPanelRegistered(true);
+}
+
+export function unregisterReaderContextPanel() {
+  const key = readerContextPanelSectionKey || PANE_ID;
+  try {
+    Zotero.ItemPaneManager.unregisterSection(key);
+  } catch (_err) {
+    void _err;
+  }
+  readerContextPanelSectionKey = null;
+  setReaderContextPanelRegistered(false);
 }
 
 type SelectionPopupRect = {
@@ -455,8 +487,23 @@ function scheduleSelectionTranslatePopupLayout(params: {
 export function registerReaderSelectionTracking() {
   const readerAPI = Zotero.Reader as _ZoteroTypes.Reader & {
     __llmSelectionTrackingRegistered?: boolean;
+    __llmSelectionTrackingHandler?: ReaderSelectionPopupHandler | null;
   };
-  if (!readerAPI || readerAPI.__llmSelectionTrackingRegistered) return;
+  if (!readerAPI) return;
+  if (readerAPI.__llmSelectionTrackingRegistered && readerSelectionPopupHandler)
+    return;
+  if (readerAPI.__llmSelectionTrackingHandler) {
+    try {
+      Zotero.Reader.unregisterEventListener(
+        "renderTextSelectionPopup",
+        readerAPI.__llmSelectionTrackingHandler,
+      );
+    } catch (_err) {
+      void _err;
+    }
+  }
+  readerAPI.__llmSelectionTrackingRegistered = false;
+  readerAPI.__llmSelectionTrackingHandler = null;
 
   const handler: _ZoteroTypes.Reader.EventHandler<
     "renderTextSelectionPopup"
@@ -563,7 +610,7 @@ export function registerReaderSelectionTracking() {
 
     if (selectedText || showAddTextInPopup) {
       let popupSentinelEl: HTMLElement | null = null;
-      const addTextToPanel = () => {
+      const addTextToPanel = async () => {
         const effectiveSelectedText =
           normalizeSelectedText(selectedText) ||
           resolveSelectedTextForPopupAction();
@@ -572,6 +619,24 @@ export function registerReaderSelectionTracking() {
           return;
         }
         try {
+          let preferredPanelRoot: HTMLDivElement | null = null;
+          const readerWin = (event.doc.defaultView?.top ||
+            null) as Window | null;
+          if (readerWin && item) {
+            try {
+              const host = getSharedReaderPanelHostForItem(readerWin, item);
+              await bootstrapSharedReaderPanel(readerWin, host, item);
+              preferredPanelRoot = host.querySelector(
+                "#llm-main",
+              ) as HTMLDivElement | null;
+            } catch (err) {
+              ztoolkit.log(
+                "LLM: Add Text popup reader panel bootstrap failed",
+                err,
+              );
+            }
+          }
+
           const docs = new Set<Document>();
           const pushDoc = (doc?: Document | null) => {
             if (doc) docs.add(doc);
@@ -594,6 +659,10 @@ export function registerReaderSelectionTracking() {
 
           const panelRoots: HTMLDivElement[] = [];
           const seenRoots = new Set<Element>();
+          if (preferredPanelRoot) {
+            seenRoots.add(preferredPanelRoot);
+            panelRoots.push(preferredPanelRoot);
+          }
           for (const doc of docs) {
             const roots = Array.from(
               doc.querySelectorAll("#llm-main"),
@@ -697,19 +766,25 @@ export function registerReaderSelectionTracking() {
                   ownerDoc?.activeElement &&
                   root.contains(ownerDoc.activeElement),
                 ),
+                isPreferredReaderRoot: root === preferredPanelRoot,
               };
             })
             .filter(
               (state) => state.panelItemId !== null && state.conversationKey,
             );
           if (!rootStates.length) return;
+          const preferredStates = rootStates.filter(
+            (state) => state.isPreferredReaderRoot,
+          );
           const sameLibraryStates =
             normalizedReaderLibraryID > 0
               ? rootStates.filter((state) => state.sameLibrary)
               : [];
-          const rankedStates = sameLibraryStates.length
-            ? sameLibraryStates
-            : rootStates;
+          const rankedStates = preferredStates.length
+            ? preferredStates
+            : sameLibraryStates.length
+              ? sameLibraryStates
+              : rootStates;
 
           // Deterministic status/focus target ranking:
           // 1) same doc + visible + focused panel
@@ -723,6 +798,7 @@ export function registerReaderSelectionTracking() {
           // 9) same doc
           // 10) focused panel
           const scoreState = (state: (typeof rankedStates)[number]) => {
+            if (state.isPreferredReaderRoot) return 100;
             if (state.sameDoc && state.visible && state.hasActiveFocus)
               return 8;
             if (state.visible && state.hasActiveFocus) return 7;
@@ -1077,7 +1153,7 @@ export function registerReaderSelectionTracking() {
             addTextHandled = true;
             e.preventDefault();
             e.stopPropagation();
-            addTextToPanel();
+            void addTextToPanel();
           };
           const isPrimaryButton = (e: Event): boolean => {
             const maybeMouse = e as MouseEvent;
@@ -1173,7 +1249,35 @@ export function registerReaderSelectionTracking() {
     handler,
     config.addonID,
   );
+  readerSelectionPopupHandler = handler;
+  readerAPI.__llmSelectionTrackingHandler = handler;
   readerAPI.__llmSelectionTrackingRegistered = true;
+}
+
+export function unregisterReaderSelectionTracking() {
+  const readerAPI = Zotero.Reader as
+    | (_ZoteroTypes.Reader & {
+        __llmSelectionTrackingRegistered?: boolean;
+        __llmSelectionTrackingHandler?: ReaderSelectionPopupHandler | null;
+      })
+    | undefined;
+  if (!readerAPI) return;
+  const handler =
+    readerSelectionPopupHandler || readerAPI.__llmSelectionTrackingHandler;
+  if (handler) {
+    try {
+      Zotero.Reader.unregisterEventListener(
+        "renderTextSelectionPopup",
+        handler,
+      );
+    } catch (_err) {
+      void _err;
+    }
+  }
+  readerSelectionPopupHandler = null;
+  readerAPI.__llmSelectionTrackingHandler = null;
+  readerAPI.__llmSelectionTrackingRegistered = false;
+  recentReaderSelectionCache.clear();
 }
 
 export function clearConversation(itemId: number) {

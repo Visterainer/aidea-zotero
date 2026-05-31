@@ -34,6 +34,7 @@ import {
 interface ReaderPanelState {
   host: HTMLElement;
   hasBootstrapped: boolean;
+  bootstrapPromise: Promise<void> | null;
 }
 
 const panelStateByWindow = new WeakMap<Window, Map<number, ReaderPanelState>>();
@@ -66,7 +67,7 @@ export function getSharedReaderPanelHostForItem(
     ) as HTMLDivElement;
     host.id = "llm-reader-panel-host";
     host.dataset.tabType = "reader";
-    state = { host, hasBootstrapped: false };
+    state = { host, hasBootstrapped: false, bootstrapPromise: null };
     map.set(key, state);
   }
   return state.host;
@@ -81,7 +82,15 @@ export async function bootstrapSharedReaderPanel(
   const map = getWindowMap(win);
   const state = map.get(key);
   if (!state) return;
+  if (state.bootstrapPromise) {
+    return state.bootstrapPromise;
+  }
   if (state.hasBootstrapped) return;
+
+  let resolveBootstrap: () => void = () => undefined;
+  state.bootstrapPromise = new Promise<void>((resolve) => {
+    resolveBootstrap = resolve;
+  });
 
   // Mark immediately to prevent parallel initialization
   state.hasBootstrapped = true;
@@ -160,6 +169,9 @@ export async function bootstrapSharedReaderPanel(
   } catch (err) {
     ztoolkit.log(`LLM: bootstrapSharedReaderPanel failed: ${err}`);
     state.hasBootstrapped = false;
+  } finally {
+    resolveBootstrap();
+    state.bootstrapPromise = null;
   }
 }
 
@@ -178,6 +190,7 @@ export function invalidateSharedReaderPanelForItem(
     ).__llmHeightSync;
     heightSync?.dispose?.();
     state.hasBootstrapped = false;
+    state.bootstrapPromise = null;
     // Clear stale file preview expansion for this item
     selectedFilePreviewExpandedCache.delete(key);
   }

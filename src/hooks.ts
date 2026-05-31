@@ -1,9 +1,12 @@
 import { initLocale } from "./utils/locale";
 import { config } from "../package.json";
 import {
+  removeLLMStyles,
   registerReaderContextPanel,
   registerLLMStyles,
   registerReaderSelectionTracking,
+  unregisterReaderContextPanel,
+  unregisterReaderSelectionTracking,
 } from "./modules/contextPanel";
 import {
   injectLibraryPanel,
@@ -31,6 +34,8 @@ import {
   registerAuthorProfiles,
   shutdownAuthorProfiles,
 } from "./modules/authorProfiles";
+
+const PREF_PANE_ID = `${config.addonRef}-preferences-pane`;
 
 async function onStartup() {
   await Promise.all([
@@ -118,8 +123,14 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 }
 
 function registerPrefsPane() {
+  try {
+    Zotero.PreferencePanes.unregister(PREF_PANE_ID);
+  } catch (_err) {
+    void _err;
+  }
   Zotero.PreferencePanes.register({
     pluginID: addon.data.config.addonID,
+    id: PREF_PANE_ID,
     src: `chrome://${addon.data.config.addonRef}/content/preferences.xhtml`,
     label: "AIdea",
     image: `chrome://${addon.data.config.addonRef}/content/icons/icon-20.png`,
@@ -130,11 +141,33 @@ async function onMainWindowUnload(win: Window): Promise<void> {
   unregisterOAuthEnvUpdateSchedulerWindow(win);
   removeLibraryPanel(win);
   removeReaderPanels(win);
+  removeLLMStyles(win);
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
 }
 
 function onShutdown(): void {
+  try {
+    for (const win of Zotero.getMainWindows()) {
+      try {
+        unregisterOAuthEnvUpdateSchedulerWindow(win);
+        removeLibraryPanel(win);
+        removeReaderPanels(win);
+        removeLLMStyles(win);
+      } catch (err) {
+        ztoolkit.log("LLM: failed to clean up main window on shutdown", err);
+      }
+    }
+  } catch (err) {
+    ztoolkit.log("LLM: failed to enumerate main windows on shutdown", err);
+  }
+  unregisterReaderSelectionTracking();
+  unregisterReaderContextPanel();
+  try {
+    Zotero.PreferencePanes.unregister(PREF_PANE_ID);
+  } catch (_err) {
+    void _err;
+  }
   shutdownAuthorProfiles();
   shutdownOAuthEnvUpdateScheduler();
   ztoolkit.unregisterAll();

@@ -324,6 +324,12 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     ztoolkit.log("LLM: Could not find panel root");
     return;
   }
+  const responsiveResizeCleanupHost = body as Element & {
+    __llmResponsiveResizeCleanup?: () => void;
+  };
+  responsiveResizeCleanupHost.__llmResponsiveResizeCleanup?.();
+  delete responsiveResizeCleanupHost.__llmResponsiveResizeCleanup;
+
   const panelDoc = body.ownerDocument;
   if (!panelDoc) {
     ztoolkit.log("LLM: Could not find panel document");
@@ -336,6 +342,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     Boolean(ElementCtor && value instanceof ElementCtor);
   panelRoot.tabIndex = 0;
   applyPanelFontScale(panelRoot);
+
+  const shieldInputEventFromZoteroShortcuts = (event: Event) => {
+    // Library tabs share Zotero's main document, whose item-list shortcuts can
+    // also see key/input events from our embedded textarea. Let the textarea
+    // keep its default editing behavior, but keep those events inside AIdea.
+    event.stopPropagation();
+  };
 
   if (settingScroll && !settingScroll.dataset.rendered) {
     settingScroll.dataset.rendered = "true";
@@ -4044,6 +4057,22 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   };
 
   let layoutRetryScheduled = false;
+  let lastActionLayoutSignature = "";
+  let actionLayoutMeasureContext:
+    | CanvasRenderingContext2D
+    | null
+    | undefined;
+  const getActionLayoutMeasureContext = () => {
+    if (actionLayoutMeasureContext !== undefined) {
+      return actionLayoutMeasureContext;
+    }
+    const canvas = body.ownerDocument?.createElement(
+      "canvas",
+    ) as HTMLCanvasElement | null;
+    actionLayoutMeasureContext =
+      (canvas?.getContext("2d") as CanvasRenderingContext2D | null) || null;
+    return actionLayoutMeasureContext;
+  };
   const applyResponsiveActionButtonsLayout = () => {
     if (!modelBtn || !actionsLeft) return;
     const modelLabel = modelBtn.dataset.modelLabel || "default";
@@ -4069,6 +4098,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
       return;
     }
+    const actionLayoutSignature = [
+      Math.round(immediateAvailableWidth),
+      modelLabel,
+      modelHint,
+      modelCanUseTwoLineWrap ? "wrap" : "nowrap",
+      uploadBtn?.disabled ? "upload-disabled" : "upload-enabled",
+      selectTextBtn?.disabled ? "text-disabled" : "text-enabled",
+      screenshotBtn?.disabled ? "shot-disabled" : "shot-enabled",
+      sendBtn?.disabled ? "send-disabled" : "send-enabled",
+      cancelBtn?.style.display || "",
+    ].join("|");
+    if (actionLayoutSignature === lastActionLayoutSignature) {
+      return;
+    }
+    lastActionLayoutSignature = actionLayoutSignature;
 
     const getComputedSizePx = (
       style: CSSStyleDeclaration | null | undefined,
@@ -4080,14 +4124,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       return Number.isFinite(value) ? value : fallback;
     };
 
-    const textMeasureContext = (() => {
-      const canvas = body.ownerDocument?.createElement(
-        "canvas",
-      ) as HTMLCanvasElement | null;
-      return (
-        (canvas?.getContext("2d") as CanvasRenderingContext2D | null) || null
-      );
-    })();
+    const textMeasureContext = getActionLayoutMeasureContext();
 
     const measureLabelTextWidth = (
       button: HTMLButtonElement | null,
@@ -4824,39 +4861,100 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   // syncModelFromPrefs → updateModelButton → applyResponsiveActionButtonsLayout
   // mutates DOM → changes flex layout → resizes .llm-messages → shifts scroll
   // position.  pointerenter is sufficient and fires before interaction.
-  body.addEventListener("pointerenter", () => {
+  const resizeLayoutCleanups: Array<() => void> = [];
+  const layoutWin = body.ownerDocument?.defaultView || null;
+
+  const onPointerEnterSyncModel = () => {
     withScrollGuard(chatBox, conversationKey, syncModelFromPrefs);
-  });
-  body.ownerDocument?.defaultView?.addEventListener(
-    "resize",
-    positionExpandedContextPanels,
-    { passive: true },
+  };
+  body.addEventListener("pointerenter", onPointerEnterSyncModel);
+  resizeLayoutCleanups.push(() =>
+    body.removeEventListener("pointerenter", onPointerEnterSyncModel),
   );
-  chatBox?.addEventListener("scroll", positionExpandedContextPanels, {
+
+  const onWindowResizePositionContext = () => {
+    positionExpandedContextPanels();
+  };
+  layoutWin?.addEventListener("resize", onWindowResizePositionContext, {
     passive: true,
   });
-  const ResizeObserverCtor = body.ownerDocument?.defaultView?.ResizeObserver;
+  if (layoutWin) {
+    resizeLayoutCleanups.push(() =>
+      layoutWin.removeEventListener("resize", onWindowResizePositionContext),
+    );
+  }
+
+  const onChatScrollPositionContext = () => {
+    positionExpandedContextPanels();
+  };
+  chatBox?.addEventListener("scroll", onChatScrollPositionContext, {
+    passive: true,
+  });
+  if (chatBox) {
+    resizeLayoutCleanups.push(() =>
+      chatBox.removeEventListener("scroll", onChatScrollPositionContext),
+    );
+  }
+
+  let responsiveResizeRaf: number | null = null;
+  let lastResponsiveResizeSignature = "";
+  const buildResponsiveResizeSignature = () =>
+    [
+      panelRoot?.clientWidth || 0,
+      panelRoot?.clientHeight || 0,
+      actionsRow?.clientWidth || 0,
+      actionsLeft?.clientWidth || 0,
+      actionsRight?.clientWidth || 0,
+      inputSection?.clientWidth || 0,
+      inputSection?.clientHeight || 0,
+      inputBox?.clientWidth || 0,
+      inputBox?.clientHeight || 0,
+      chatBox?.clientWidth || 0,
+      chatBox?.clientHeight || 0,
+      modelBtn?.dataset.modelLabel || "",
+      modelBtn?.dataset.modelHint || "",
+    ]
+      .map((value) => (typeof value === "number" ? Math.round(value) : value))
+      .join("|");
+  const runResponsiveResizeLayout = () => {
+    const signature = buildResponsiveResizeSignature();
+    if (signature === lastResponsiveResizeSignature) {
+      return;
+    }
+    lastResponsiveResizeSignature = signature;
+    withScrollGuard(
+      chatBox,
+      conversationKey,
+      () => {
+        applyResponsiveActionButtonsLayout();
+        syncUserContextAlignmentWidths(body);
+        positionPaperPicker();
+        positionExpandedContextPanels();
+      },
+      "relative",
+    );
+  };
+  const scheduleResponsiveResizeLayout = () => {
+    if (!layoutWin) {
+      runResponsiveResizeLayout();
+      return;
+    }
+    if (responsiveResizeRaf !== null) return;
+    responsiveResizeRaf = layoutWin.requestAnimationFrame(() => {
+      responsiveResizeRaf = null;
+      runResponsiveResizeLayout();
+    }) as unknown as number;
+  };
+
+  const ResizeObserverCtor = layoutWin?.ResizeObserver;
   if (ResizeObserverCtor && panelRoot && modelBtn) {
-    const ro = new ResizeObserverCtor(() => {
-      // Wrap layout mutations in scroll guard so that flex-driven
-      // resize of .llm-messages doesn't corrupt the scroll snapshot.
-      withScrollGuard(
-        chatBox,
-        conversationKey,
-        () => {
-          applyResponsiveActionButtonsLayout();
-          syncUserContextAlignmentWidths(body);
-          positionPaperPicker();
-          positionExpandedContextPanels();
-        },
-        "relative",
-      );
-    });
+    const ro = new ResizeObserverCtor(scheduleResponsiveResizeLayout);
     ro.observe(panelRoot);
     if (actionsRow) ro.observe(actionsRow);
     if (actionsLeft) ro.observe(actionsLeft);
     if (inputSection) ro.observe(inputSection);
     if (inputBox) ro.observe(inputBox);
+    resizeLayoutCleanups.push(() => ro.disconnect());
     if (chatBox) {
       const chatBoxResizeObserver = new ResizeObserverCtor(() => {
         if (!chatBox) return;
@@ -4909,8 +5007,26 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         positionExpandedContextPanels();
       });
       chatBoxResizeObserver.observe(chatBox);
+      resizeLayoutCleanups.push(() => chatBoxResizeObserver.disconnect());
     }
   }
+  const responsiveResizeCleanup = () => {
+    if (responsiveResizeRaf !== null && layoutWin) {
+      layoutWin.cancelAnimationFrame(responsiveResizeRaf);
+      responsiveResizeRaf = null;
+    }
+    for (const cleanup of resizeLayoutCleanups.splice(0)) {
+      cleanup();
+    }
+    if (
+      responsiveResizeCleanupHost.__llmResponsiveResizeCleanup ===
+      responsiveResizeCleanup
+    ) {
+      delete responsiveResizeCleanupHost.__llmResponsiveResizeCleanup;
+    }
+  };
+  responsiveResizeCleanupHost.__llmResponsiveResizeCleanup =
+    responsiveResizeCleanup;
 
   const getSelectedProfile = () => {
     if (!item) return null;
@@ -5740,7 +5856,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     clearComposeState();
   });
 
-  // Enter key (Shift+Enter for newline)
+  const insertInputNewlineAtCursor = () => {
+    const start =
+      typeof inputBox.selectionStart === "number"
+        ? inputBox.selectionStart
+        : inputBox.value.length;
+    const end =
+      typeof inputBox.selectionEnd === "number" ? inputBox.selectionEnd : start;
+    const before = inputBox.value.slice(0, start);
+    const after = inputBox.value.slice(end);
+    inputBox.value = `${before}\n${after}`;
+    inputBox.selectionStart = inputBox.selectionEnd = start + 1;
+    inputBox.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  // Enter sends. Shift+Enter inserts a newline.
   inputBox.addEventListener("keydown", (e: Event) => {
     const ke = e as KeyboardEvent;
     if (isPaperPickerOpen()) {
@@ -5790,7 +5920,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         return;
       }
     }
-    if (ke.key === "Enter" && !ke.shiftKey) {
+    if (ke.key === "Enter" && ke.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      insertInputNewlineAtCursor();
+      return;
+    }
+    if (ke.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
       doSend();
@@ -5798,6 +5934,24 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       clearComposeState();
     }
   });
+
+  for (const eventName of [
+    "pointerdown",
+    "mousedown",
+    "click",
+    "focusin",
+    "keydown",
+    "keypress",
+    "keyup",
+    "beforeinput",
+    "input",
+    "paste",
+    "compositionstart",
+    "compositionupdate",
+    "compositionend",
+  ]) {
+    inputBox.addEventListener(eventName, shieldInputEventFromZoteroShortcuts);
+  }
 
   if (
     panelDoc &&
@@ -5905,21 +6059,36 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     let pendingSelectedText = "";
     const cacheSelectionBeforeFocusShift = () => {
       if (!item) return;
-      pendingSelectedText = getActiveReaderSelectionText(
+      const selectedText = getActiveReaderSelectionText(
         body.ownerDocument as Document,
         item,
       );
+      if (selectedText) {
+        pendingSelectedText = selectedText;
+      }
     };
     selectTextBtn.addEventListener(
       "pointerdown",
       cacheSelectionBeforeFocusShift,
+      true,
     );
-    selectTextBtn.addEventListener("mousedown", cacheSelectionBeforeFocusShift);
+    selectTextBtn.addEventListener(
+      "mousedown",
+      cacheSelectionBeforeFocusShift,
+      true,
+    );
+    selectTextBtn.addEventListener(
+      "touchstart",
+      cacheSelectionBeforeFocusShift,
+      true,
+    );
     selectTextBtn.addEventListener("click", (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
       if (!item) return;
-      const selectedText = pendingSelectedText;
+      const selectedText =
+        pendingSelectedText ||
+        getActiveReaderSelectionText(body.ownerDocument as Document, item);
       pendingSelectedText = "";
       const activeReaderAttachment =
         item?.isAttachment?.() &&

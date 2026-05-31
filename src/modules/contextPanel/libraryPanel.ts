@@ -38,6 +38,7 @@ interface LibraryPanelState {
   selectionPollTimer: number | null;
   lastSelectionSignature: string;
   updateTimer: number | null;
+  applyingVisibility: boolean;
 }
 
 const panelStateByWindow = new WeakMap<Window, LibraryPanelState>();
@@ -61,6 +62,7 @@ export function getSharedLibraryPanelHost(win: Window): HTMLElement {
       selectionPollTimer: null,
       lastSelectionSignature: "",
       updateTimer: null,
+      applyingVisibility: false,
     };
     panelStateByWindow.set(win, state);
   }
@@ -283,6 +285,7 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
 
 async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   const doc = win.document;
+  const state = panelStateByWindow.get(win);
   const itemPane = getItemPaneElement(doc);
   const messagePane = getItemMessagePaneElement(doc);
   if (!messagePane) return;
@@ -296,8 +299,21 @@ async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   prepareStandaloneMessagePaneLayout(messagePane);
 
   const host = getSharedLibraryPanelHost(win);
-  messagePane.renderCustomHead?.();
-  messagePane.render?.(host);
+  if (!messagePane.contains(host)) {
+    if (state) {
+      state.applyingVisibility = true;
+    }
+    try {
+      messagePane.renderCustomHead?.();
+      messagePane.render?.(host);
+    } finally {
+      if (state) {
+        win.setTimeout(() => {
+          state.applyingVisibility = false;
+        }, 0);
+      }
+    }
+  }
   host.style.display = "flex";
 
   ensureStandaloneLibrarySidenavButton(win);
@@ -373,7 +389,25 @@ export async function injectLibraryPanel(
   }
 
   if (!state.mutationObserver) {
-    const observer = new win.MutationObserver(() => {
+    const observer = new win.MutationObserver((mutations: MutationRecord[]) => {
+      if (state.applyingVisibility) return;
+      const onlyPluginInternalChanges = mutations.every((mutation) => {
+        const target = mutation.target;
+        if (target === state.host || state.host.contains(target)) {
+          return true;
+        }
+        const changedNodes = [
+          ...Array.from(mutation.addedNodes),
+          ...Array.from(mutation.removedNodes),
+        ].filter((node): node is Node => Boolean(node));
+        return (
+          changedNodes.length > 0 &&
+          changedNodes.every(
+            (node) => node === state.host || state.host.contains(node),
+          )
+        );
+      });
+      if (onlyPluginInternalChanges) return;
       scheduleLibraryPanelVisibilityUpdate(win);
     });
 
@@ -390,7 +424,6 @@ export async function injectLibraryPanel(
       observer.observe(messagePane, {
         childList: true,
         subtree: true,
-        characterData: true,
       });
     }
 

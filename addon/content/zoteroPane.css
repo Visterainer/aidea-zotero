@@ -101,7 +101,7 @@
   flex-direction: column;
   flex-shrink: 0;
   height: 28vh;
-  min-height: 20vh;
+  min-height: 188px;
   max-height: 50vh;
   box-sizing: border-box;
   padding: 0 12px 12px 0;
@@ -2373,9 +2373,18 @@
 }
 
 .llm-user-selected-text-icon {
-  flex: 0 0 auto;
-  font-size: var(--llm-fs-14);
-  line-height: 1.2;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask-image: url("icons/action-add-text.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: url("icons/action-add-text.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
   opacity: 0.9;
 }
 
@@ -2469,11 +2478,25 @@
   color: var(--fill-primary);
 }
 
-.llm-user-files-icon {
+.llm-user-files-icon,
+.llm-user-papers-icon,
+.llm-user-screenshots-icon {
   flex: 0 0 auto;
-  font-size: var(--llm-fs-13);
-  line-height: 1.1;
+  width: 14px;
+  height: 14px;
   opacity: 0.9;
+  background-color: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.llm-user-files-icon {
+  mask-image: url("icons/file-type-generic.svg");
+  -webkit-mask-image: url("icons/file-type-generic.svg");
 }
 
 .llm-user-files-label {
@@ -2688,10 +2711,8 @@
 }
 
 .llm-user-papers-icon {
-  flex: 0 0 auto;
-  font-size: var(--llm-fs-13);
-  line-height: 1.1;
-  opacity: 0.9;
+  mask-image: url("icons/preview-paper.svg");
+  -webkit-mask-image: url("icons/preview-paper.svg");
 }
 
 .llm-user-papers-label {
@@ -2791,10 +2812,8 @@
 }
 
 .llm-user-screenshots-icon {
-  flex: 0 0 auto;
-  font-size: var(--llm-fs-13);
-  line-height: 1.1;
-  opacity: 0.9;
+  mask-image: url("icons/preview-image.svg");
+  -webkit-mask-image: url("icons/preview-image.svg");
 }
 
 .llm-user-screenshots-label {
@@ -2829,10 +2848,10 @@
 }
 
 .llm-message-wrapper.user.llm-user-context-aligned .llm-user-context-badges {
-  width: var(--llm-user-bubble-width, min(95%, 620px));
-  max-width: var(--llm-user-bubble-width, min(95%, 620px));
+  width: fit-content;
+  max-width: min(95%, 620px);
   box-sizing: border-box;
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .llm-message-wrapper.user .llm-message-meta {

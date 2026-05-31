@@ -1477,6 +1477,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     "llm-shortcut-btn llm-action-btn llm-action-btn-secondary llm-select-text-btn llm-action-icon-only",
     {
       id: "llm-select-text",
+      type: "button",
       textContent: "",
       title: i18n.addTextTitle,
       disabled: !hasItem,
