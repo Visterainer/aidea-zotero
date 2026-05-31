@@ -84,6 +84,7 @@ declare namespace _ZoteroTypes {
       "translate.consoleCollapsed": boolean;
       "translate.scrollTop": string;
       "hideTabNav": boolean;
+      "composerTheme": string;
     };
   }
 }

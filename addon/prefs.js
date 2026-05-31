@@ -75,3 +75,4 @@ pref("translate.advancedCollapsed", true);
 pref("translate.consoleCollapsed", false);
 pref("translate.scrollTop", "0");
 pref("hideTabNav", false);
+pref("composerTheme", "default");

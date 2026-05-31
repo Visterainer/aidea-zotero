@@ -5619,7 +5619,11 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       setInputDropActive(false);
       if (isZoteroItemDragEvent(dragEvent)) {
         void resolveZoteroItemFiles(dragEvent).then((files) => {
-          if (files.length) void processIncomingFiles(files);
+          const fallbackFiles = dragEvent.dataTransfer?.files
+            ? Array.from(dragEvent.dataTransfer.files)
+            : [];
+          const incomingFiles = files.length ? files : fallbackFiles;
+          if (incomingFiles.length) void processIncomingFiles(incomingFiles);
         });
       } else {
         const files = dragEvent.dataTransfer?.files

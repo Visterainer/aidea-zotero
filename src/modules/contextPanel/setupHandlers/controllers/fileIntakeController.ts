@@ -129,47 +129,118 @@ export function isZoteroItemDragEvent(event: DragEvent): boolean {
   return types.includes("zotero/item");
 }
 
+function getSelectedZoteroItems(): Zotero.Item[] {
+  try {
+    const pane = Zotero.getActiveZoteroPane?.() as
+      | {
+          getSelectedItems?: () => Zotero.Item[];
+          itemsView?: { getSelectedItems?: (asIDs?: boolean) => Zotero.Item[] };
+        }
+      | undefined;
+    const items =
+      pane?.getSelectedItems?.() || pane?.itemsView?.getSelectedItems?.() || [];
+    return Array.isArray(items) ? items.filter(Boolean) : [];
+  } catch (_err) {
+    void _err;
+  }
+  return [];
+}
+
+function getZoteroDragItemIds(event: DragEvent): number[] {
+  const raw = event.dataTransfer?.getData("zotero/item") || "";
+  const rawIds = Array.from(raw.matchAll(/\d+/g))
+    .map((match) => Number.parseInt(match[0], 10))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  const selectedIds = getSelectedZoteroItems()
+    .map((item) => Number(item?.id || 0))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  const selectedSet = new Set(selectedIds);
+  if (
+    selectedIds.length > rawIds.length &&
+    (!rawIds.length || rawIds.some((id) => selectedSet.has(id)))
+  ) {
+    return Array.from(selectedSet);
+  }
+  return Array.from(new Set(rawIds));
+}
+
+function inferMimeType(fileName: string, fallback: string): string {
+  const normalizedFallback = (fallback || "").trim();
+  if (normalizedFallback) return normalizedFallback;
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".md") || lower.endsWith(".markdown"))
+    return "text/markdown";
+  if (lower.endsWith(".txt")) return "text/plain";
+  if (lower.endsWith(".json")) return "application/json";
+  if (lower.endsWith(".csv")) return "text/csv";
+  return "application/octet-stream";
+}
+
+function getFileNameFromPath(filePath: string): string {
+  return filePath.split(/[\\/]/).pop()?.trim() || "document";
+}
+
+async function readAttachmentAsFile(
+  attachment: Zotero.Item,
+): Promise<File | null> {
+  const filePath = await attachment.getFilePathAsync();
+  if (!filePath) return null;
+  const bytes: Uint8Array = await IOUtils.read(filePath);
+  const fileName =
+    (attachment as unknown as { attachmentFilename?: string })
+      .attachmentFilename ||
+    getFileNameFromPath(filePath) ||
+    "document";
+  const mimeType = inferMimeType(
+    fileName,
+    (attachment as unknown as { attachmentContentType?: string })
+      .attachmentContentType || "",
+  );
+  return new File([bytes], fileName, { type: mimeType });
+}
+
+function isReadableLocalAttachment(
+  item: Zotero.Item | null | undefined,
+): boolean {
+  if (!item?.isAttachment?.()) return false;
+  const contentType =
+    (item as unknown as { attachmentContentType?: string })
+      .attachmentContentType || "";
+  if (contentType === "text/x-moz-url") return false;
+  return true;
+}
+
 export async function resolveZoteroItemFiles(
   event: DragEvent,
 ): Promise<File[]> {
-  const raw = event.dataTransfer?.getData("zotero/item") || "";
-  const ids = raw
-    .split(/[\n,]/)
-    .map((s) => parseInt(s.trim(), 10))
-    .filter(Number.isFinite);
+  const ids = getZoteroDragItemIds(event);
   const files: File[] = [];
+  const seenAttachmentIds = new Set<number>();
   for (const id of ids) {
     try {
       const zoteroItem = Zotero.Items.get(id);
       if (!zoteroItem) continue;
-      let attachment: Zotero.Item | null = null;
-      if (
-        zoteroItem.isAttachment() &&
-        zoteroItem.attachmentContentType === "application/pdf"
-      ) {
-        attachment = zoteroItem;
-      } else if (zoteroItem.isRegularItem()) {
+      const candidateAttachments: Zotero.Item[] = [];
+      if (isReadableLocalAttachment(zoteroItem)) {
+        candidateAttachments.push(zoteroItem);
+      } else if ((zoteroItem as Zotero.Item).isRegularItem()) {
         const attachmentIds = zoteroItem.getAttachments();
         for (const attId of attachmentIds) {
           const att = Zotero.Items.get(attId);
-          if (
-            att &&
-            att.isAttachment() &&
-            att.attachmentContentType === "application/pdf"
-          ) {
-            attachment = att;
-            break;
+          if (isReadableLocalAttachment(att)) {
+            candidateAttachments.push(att);
           }
         }
       }
-      if (!attachment) continue;
-      const filePath = await attachment.getFilePathAsync();
-      if (!filePath) continue;
-      const bytes: Uint8Array = await IOUtils.read(filePath);
-      const fileName =
-        (attachment as unknown as { attachmentFilename?: string })
-          .attachmentFilename || "document.pdf";
-      files.push(new File([bytes], fileName, { type: "application/pdf" }));
+      for (const attachment of candidateAttachments) {
+        const attachmentId = Number(attachment.id || 0);
+        if (attachmentId > 0 && seenAttachmentIds.has(attachmentId)) continue;
+        const file = await readAttachmentAsFile(attachment);
+        if (!file) continue;
+        if (attachmentId > 0) seenAttachmentIds.add(attachmentId);
+        files.push(file);
+      }
     } catch (err) {
       ztoolkit.log("LLM: Failed to resolve Zotero item drag", id, err);
     }

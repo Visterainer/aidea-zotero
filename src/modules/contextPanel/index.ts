@@ -54,7 +54,6 @@ import {
   getSelectionFromDocument,
 } from "./readerSelection";
 import { resolvePaperContextRefFromAttachment } from "./paperAttribution";
-import { getSharedLibraryPanelHost } from "./libraryPanel";
 import { getSharedReaderPanelHostForItem } from "./readerPanel";
 import { getPanelI18n } from "./i18n";
 import {
@@ -107,38 +106,19 @@ export function registerReaderContextPanel() {
       icon: `chrome://${config.addonRef}/content/icons/icon-20.png`,
     },
     onInit: ({ body, setEnabled, tabType }) => {
-      // Enable for both reader and library. In library mode without a selected
-      // item, the section DOM is created by libraryPanel.ts calling
-      // renderCustomSections() directly. The UI bootstrap is also done there.
-      const enabled = tabType === "reader" || tabType === "library";
+      // Reader tabs use Zotero's managed section. Library tabs are handled
+      // by libraryPanel.ts so no/single/multi selection share one host.
+      const enabled = tabType === "reader";
       setEnabled(enabled);
       ztoolkit.log(`LLM: panel init tabType=${tabType} enabled=${enabled}`);
     },
     onItemChange: ({ body, setEnabled, tabType }) => {
-      const enabled = tabType === "reader" || tabType === "library";
+      const enabled = tabType === "reader";
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel itemChange tabType=${tabType} enabled=${enabled}`,
       );
       if (tabType === "library") {
-        // Synchronously reparent the cached host into the (possibly new) body
-        // to avoid flash. This runs before any async render.
-        try {
-          const doc = body.ownerDocument;
-          const win = doc?.defaultView;
-          if (win) {
-            const host = getSharedLibraryPanelHost(win);
-            if (!body.contains(host)) {
-              body.appendChild(host);
-            }
-            host.style.display = "flex";
-          }
-        } catch (err) {
-          ztoolkit.log("LLM: library itemChange reparent failed", err);
-        }
-        // Removed: deferredScrollToSection(body) — was hijacking sidebar scroll
-        // Return false to prevent Zotero from calling onRender/onAsyncRender,
-        // which would cause a visible flash as the body gets cleared.
         return false;
       }
     },
@@ -149,24 +129,8 @@ export function registerReaderContextPanel() {
       if (typeof tabType === "string") {
         (body as HTMLElement).dataset.tabType = tabType;
       }
-      // ── Library mode: synchronously reparent the cached host ──
-      // This prevents flash by ensuring the DOM is never empty between
-      // render cycles. The async bootstrap only runs once.
+      // Library mode is fully owned by libraryPanel.ts.
       if (tabType === "library") {
-        try {
-          const doc = body.ownerDocument;
-          const win = doc?.defaultView;
-          if (win) {
-            const host = getSharedLibraryPanelHost(win);
-            if (!body.contains(host)) {
-              body.appendChild(host);
-            }
-            host.style.display = "flex";
-          }
-          // Removed: scrollSectionIntoView(body) — was hijacking sidebar scroll
-        } catch (err) {
-          ztoolkit.log("LLM: library sync reparent failed", err);
-        }
         return;
       }
       // ── Reader mode: synchronously reparent the cached host ──
@@ -207,7 +171,7 @@ export function registerReaderContextPanel() {
       }
     },
     onAsyncRender: async ({ body, item, setEnabled, tabType }) => {
-      const enabled = tabType === "reader" || tabType === "library";
+      const enabled = tabType === "reader";
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel asyncRender tabType=${tabType} enabled=${enabled} hasItem=${Boolean(item)}`,
@@ -217,24 +181,8 @@ export function registerReaderContextPanel() {
         (body as HTMLElement).dataset.tabType = tabType;
       }
 
-      // ── Library mode: bootstrap shared persistent DOM ──
+      // Library mode is fully owned by libraryPanel.ts.
       if (tabType === "library") {
-        const doc = body.ownerDocument;
-        if (!doc) return;
-        const win = doc.defaultView;
-        if (!win) return;
-
-        const host = getSharedLibraryPanelHost(win);
-
-        // Always ensure host is attached and visible
-        if (!body.contains(host)) {
-          body.appendChild(host);
-        }
-        host.style.display = "flex";
-        // Removed: scrollSectionIntoView(body) — was hijacking sidebar scroll
-
-        const { bootstrapSharedLibraryPanel } = await import("./libraryPanel");
-        await bootstrapSharedLibraryPanel(win, host);
         return;
       }
 

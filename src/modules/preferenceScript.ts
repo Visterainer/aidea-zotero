@@ -80,6 +80,7 @@ type PrefKey =
   | "primaryConnectionMode"
   | "settingsSectionState"
   | "settingsScrollTop"
+  | "composerTheme"
   | "selectionTranslate.model"
   | "selectionTranslate.provider"
   | "selectionTranslate.sourceLang"
@@ -131,6 +132,16 @@ const OAUTH_ENV_UPDATE_MODE_OPTIONS: Array<{
     hintKey: "oauthEnvUpdateSilentHint",
   },
 ];
+type ComposerTheme = "default" | "soft-blue";
+const COMPOSER_THEME_OPTIONS: Array<{
+  value: ComposerTheme;
+  labelKey: "composerThemeDefault" | "composerThemeSoftBlue";
+}> = [
+  { value: "default", labelKey: "composerThemeDefault" },
+  { value: "soft-blue", labelKey: "composerThemeSoftBlue" },
+];
+const normalizeComposerTheme = (value: unknown): ComposerTheme =>
+  value === "soft-blue" ? "soft-blue" : "default";
 
 const pref = (key: PrefKey) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: PrefKey): string => {
@@ -1810,6 +1821,18 @@ const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "OAuth CLI environment update checks और reminders बंद करता है.",
   },
 };
+const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "en-US": {
+    composerTheme: "Input Theme:",
+    composerThemeDefault: "Default",
+    composerThemeSoftBlue: "Soft Blue",
+  },
+  "zh-CN": {
+    composerTheme: "输入框主题：",
+    composerThemeDefault: "默认",
+    composerThemeSoftBlue: "浅蓝",
+  },
+};
 
 const tt = (l: Lang): Dict =>
   ({
@@ -1821,6 +1844,8 @@ const tt = (l: Lang): Dict =>
     ...(SETTINGS_I18N_CONSOLE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES["en-US"] || {}),
+    ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES[l] || {}),
   }) as Dict;
 
 function localizeAuthStatus(raw: string, L: Dict): string {
@@ -2165,6 +2190,48 @@ export function applyHideTabNavToAllPanels(hide: boolean): void {
   }
 }
 
+export function applyComposerThemeToAllPanels(theme: ComposerTheme): void {
+  try {
+    const allDocs = new Set<Document>();
+    try {
+      const wins: Window[] = Zotero.getMainWindows?.() || [];
+      for (const w of wins) {
+        if (w?.document) allDocs.add(w.document);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const mainWin: Window | null = Zotero.getMainWindow?.() || null;
+      if (mainWin?.document) allDocs.add(mainWin.document);
+    } catch {
+      /* ignore */
+    }
+    try {
+      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
+        Ci.nsIWindowMediator,
+      );
+      if (wm) {
+        const enumerator = wm.getEnumerator("navigator:browser");
+        while (enumerator.hasMoreElements()) {
+          const w = enumerator.getNext() as Window;
+          if (w?.document) allDocs.add(w.document);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    for (const doc of allDocs) {
+      doc.querySelectorAll("#llm-main").forEach((root: Element) => {
+        (root as HTMLElement).dataset.composerTheme = theme;
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function bootstrapSettingTab(
   doc: Document,
   scrollContainer: HTMLElement,
@@ -2392,6 +2459,38 @@ export async function bootstrapSettingTab(
   });
   hideNavGroup.append(hideNavLabel, hideNavTabBar);
 
+  const composerThemeGroup = createEl(doc, "div", "llm-set-toolbar-left");
+  const composerThemeLabel = createEl(
+    doc,
+    "label",
+    "llm-set-label llm-set-label--title",
+  );
+  const composerThemeTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  let composerThemeValue = normalizeComposerTheme(getPref("composerTheme"));
+  let composerThemeBtns: Array<{
+    button: HTMLButtonElement;
+    option: (typeof COMPOSER_THEME_OPTIONS)[number];
+  }> = [];
+  const updateComposerThemeUi = () => {
+    composerThemeBtns.forEach(({ button, option }) => {
+      button.textContent = L[option.labelKey] || option.value;
+      button.classList.toggle("active", option.value === composerThemeValue);
+    });
+  };
+  composerThemeBtns = COMPOSER_THEME_OPTIONS.map((option) => {
+    const btn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      composerThemeValue = option.value;
+      setPref("composerTheme", composerThemeValue);
+      updateComposerThemeUi();
+      applyComposerThemeToAllPanels(composerThemeValue);
+    });
+    composerThemeTabBar.appendChild(btn);
+    return { button: btn, option };
+  });
+  composerThemeGroup.append(composerThemeLabel, composerThemeTabBar);
+
   // Danger buttons (moved from bottom dangerZone)
   const langRight = createEl(doc, "div", "llm-set-toolbar-right");
   const restoreDefaultsBtn = createEl(
@@ -2439,7 +2538,13 @@ export async function bootstrapSettingTab(
     }
   };
 
-  langBox.append(langLeft, hideNavGroup, langRight, dangerStatus);
+  langBox.append(
+    langLeft,
+    composerThemeGroup,
+    hideNavGroup,
+    langRight,
+    dangerStatus,
+  );
 
   const refreshAllBtn = createEl(
     doc,
@@ -3046,6 +3151,8 @@ export async function bootstrapSettingTab(
     L = tt(lang);
     // "Language" label stays English regardless of selected language
     langLabel.textContent = "Language:";
+    composerThemeLabel.textContent = L.composerTheme;
+    updateComposerThemeUi();
     hideNavLabel.textContent = L.hideTabNav;
     HIDE_NAV_OPTIONS.forEach((opt, i) => {
       if (hideNavBtns[i])
@@ -4394,6 +4501,7 @@ export async function bootstrapSettingTab(
       "contextPanel.lastActiveTab.reader": "discussion",
       settingsSectionState: JSON.stringify(defaultSectionState),
       settingsScrollTop: "0",
+      composerTheme: "default",
       "selectionTranslate.model": "",
       "selectionTranslate.provider": "",
       "selectionTranslate.sourceLang": "auto",
@@ -4525,6 +4633,9 @@ export async function bootstrapSettingTab(
     saveSectionState();
     scrollContainer.scrollTop = 0;
     setPref("settingsScrollTop", "0");
+    composerThemeValue = "default";
+    updateComposerThemeUi();
+    applyComposerThemeToAllPanels(composerThemeValue);
     renderSelectionTranslateLanguageOptions();
     renderAuthorProfileLanguageOptions();
     renderSelectionTranslateModelOptions();

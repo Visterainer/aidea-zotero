@@ -14,10 +14,7 @@ import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 import { ensureConversationLoaded, refreshChat } from "./chat";
 import { renderShortcuts } from "./shortcuts";
-import {
-  createGlobalPortalItem,
-  resolveActiveLibraryID,
-} from "./portalScope";
+import { createGlobalPortalItem, resolveActiveLibraryID } from "./portalScope";
 import { config } from "../../../package.json";
 import {
   createGlobalConversation,
@@ -37,6 +34,9 @@ interface LibraryPanelState {
   notifierID: string | null;
   hasBootstrapped: boolean;
   mutationObserver: MutationObserver | null;
+  selectionListener: (() => void) | null;
+  selectionPollTimer: number | null;
+  lastSelectionSignature: string;
   updateTimer: number | null;
 }
 
@@ -57,6 +57,9 @@ export function getSharedLibraryPanelHost(win: Window): HTMLElement {
       notifierID: null,
       hasBootstrapped: false,
       mutationObserver: null,
+      selectionListener: null,
+      selectionPollTimer: null,
+      lastSelectionSignature: "",
       updateTimer: null,
     };
     panelStateByWindow.set(win, state);
@@ -64,11 +67,14 @@ export function getSharedLibraryPanelHost(win: Window): HTMLElement {
   return state.host;
 }
 
-export async function bootstrapSharedLibraryPanel(win: Window, host: HTMLElement): Promise<void> {
+export async function bootstrapSharedLibraryPanel(
+  win: Window,
+  host: HTMLElement,
+): Promise<void> {
   const state = panelStateByWindow.get(win);
   if (!state) return;
   if (state.hasBootstrapped) return;
-  
+
   // Mark as bootstrapped immediately to prevent parallel initialization
   state.hasBootstrapped = true;
 
@@ -81,11 +87,15 @@ export async function bootstrapSharedLibraryPanel(win: Window, host: HTMLElement
       try {
         const latest = await getLatestEmptyGlobalConversation(libraryID);
         globalKey = Number(latest?.conversationKey || 0);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       if (!Number.isFinite(globalKey) || globalKey <= 0) {
         try {
           globalKey = await createGlobalConversation(libraryID);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     }
 
@@ -126,18 +136,20 @@ function isLibraryTab(win: any): boolean {
   return false;
 }
 
-function hasSelectedItem(win: any): boolean {
+function getSelectedItemIds(win: any): number[] {
   try {
     const zp = win?.ZoteroPane;
     if (zp?.getSelectedItems) {
       const items = zp.getSelectedItems();
-      const count = items?.length || 0;
-      return count > 0;
+      return (items || [])
+        .map((item: Zotero.Item) => Number(item?.id || 0))
+        .filter((id: number) => Number.isFinite(id) && id > 0)
+        .sort((a: number, b: number) => a - b);
     }
   } catch (_err) {
     void _err;
   }
-  return false;
+  return [];
 }
 
 function findItemMessagePane(doc: Document): Element | null {
@@ -149,21 +161,58 @@ const STANDALONE_SIDENAV_BUTTON_ID = "llm-library-standalone-sidenav-btn";
 function getItemPaneElement(doc: Document) {
   return doc.getElementById("zotero-item-pane") as
     | (HTMLElement & {
-      mode?: string;
-      collapsed?: boolean;
-      editable?: boolean;
-      collectionTreeRow?: unknown;
-    })
+        mode?: string;
+        collapsed?: boolean;
+        editable?: boolean;
+        collectionTreeRow?: unknown;
+      })
     | null;
 }
 
 function getItemMessagePaneElement(doc: Document) {
   return doc.getElementById("zotero-item-message") as
     | (HTMLElement & {
-        render?: (content: Node | string | { l10nId: string; l10nArgs?: Record<string, unknown> }) => void;
+        render?: (
+          content:
+            | Node
+            | string
+            | { l10nId: string; l10nArgs?: Record<string, unknown> },
+        ) => void;
         renderCustomHead?: (callback?: unknown) => void;
       })
     | null;
+}
+
+function prepareStandaloneMessagePaneLayout(messagePane: HTMLElement): void {
+  const groupbox = messagePane.querySelector(
+    "#zotero-item-pane-groupbox",
+  ) as HTMLElement | null;
+  const messageBox = messagePane.querySelector(
+    "#zotero-item-pane-message-box",
+  ) as HTMLElement | null;
+
+  for (const element of [messagePane, groupbox, messageBox]) {
+    if (!element) continue;
+    element.setAttribute("flex", "1");
+    element.style.display = "flex";
+    element.style.flex = "1 1 auto";
+    element.style.minWidth = "0";
+    element.style.minHeight = "0";
+    element.style.width = "100%";
+    element.style.height = "100%";
+  }
+
+  groupbox?.removeAttribute("pack");
+  groupbox?.removeAttribute("align");
+  if (groupbox) {
+    groupbox.style.alignItems = "stretch";
+    groupbox.style.justifyContent = "stretch";
+  }
+  if (messageBox) {
+    messageBox.style.flexDirection = "column";
+    messageBox.style.alignItems = "stretch";
+    messageBox.style.justifyContent = "stretch";
+  }
 }
 
 function getItemPaneSidenavButtonContainer(doc: Document): HTMLElement | null {
@@ -206,12 +255,21 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const itemPane = getItemPaneElement(doc);
-    if (itemPane?.collapsed) {
-      itemPane.collapsed = false;
-    }
-    const input = doc.querySelector("#llm-input") as HTMLTextAreaElement | null;
-    input?.focus({ preventScroll: true });
+    void (async () => {
+      const itemPane = getItemPaneElement(doc);
+      if (itemPane?.collapsed) {
+        itemPane.collapsed = false;
+      }
+      if (itemPane && isLibraryTab(win)) {
+        await ensureStandaloneLibraryPanelVisible(win);
+      }
+      const input = doc.querySelector(
+        "#llm-input",
+      ) as HTMLTextAreaElement | null;
+      input?.focus({ preventScroll: true });
+    })().catch((err) => {
+      ztoolkit.log("LLM: standalone library sidenav click failed", err);
+    });
   });
   button.addEventListener("keydown", (event: KeyboardEvent) => {
     if (!["Enter", " "].includes(event.key)) return;
@@ -225,8 +283,17 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
 
 async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   const doc = win.document;
+  const itemPane = getItemPaneElement(doc);
   const messagePane = getItemMessagePaneElement(doc);
   if (!messagePane) return;
+
+  if (itemPane?.collapsed) {
+    itemPane.collapsed = false;
+  }
+  if (itemPane && itemPane.mode !== "message") {
+    itemPane.mode = "message";
+  }
+  prepareStandaloneMessagePaneLayout(messagePane);
 
   const host = getSharedLibraryPanelHost(win);
   messagePane.renderCustomHead?.();
@@ -247,19 +314,16 @@ async function runLibraryPanelVisibilityUpdate(win: Window): Promise<void> {
     return;
   }
 
-  if (hasSelectedItem(win)) {
-    removeStandaloneLibrarySidenavButton(doc);
-    return;
-  }
-
   await ensureStandaloneLibraryPanelVisible(win);
 }
 
 function scheduleLibraryPanelVisibilityUpdate(win: Window): void {
-  const state = panelStateByWindow.get(win) || (() => {
-    getSharedLibraryPanelHost(win);
-    return panelStateByWindow.get(win)!;
-  })();
+  const state =
+    panelStateByWindow.get(win) ||
+    (() => {
+      getSharedLibraryPanelHost(win);
+      return panelStateByWindow.get(win)!;
+    })();
 
   if (state.updateTimer !== null) {
     win.clearTimeout(state.updateTimer);
@@ -277,7 +341,7 @@ function scheduleLibraryPanelVisibilityUpdate(win: Window): void {
 // Standalone panel injection (for no-item-selected case)
 // ---------------------------------------------------------------------------
 
-// Removed: standalone panel injection logic. 
+// Removed: standalone panel injection logic.
 // We now only show the panel when an item is selected (handled by index.ts).
 
 // ---------------------------------------------------------------------------
@@ -287,10 +351,12 @@ function scheduleLibraryPanelVisibilityUpdate(win: Window): void {
 export async function injectLibraryPanel(
   win: _ZoteroTypes.MainWindow,
 ): Promise<void> {
-  const state = panelStateByWindow.get(win) || (() => {
-    getSharedLibraryPanelHost(win);
-    return panelStateByWindow.get(win)!;
-  })();
+  const state =
+    panelStateByWindow.get(win) ||
+    (() => {
+      getSharedLibraryPanelHost(win);
+      return panelStateByWindow.get(win)!;
+    })();
 
   if (!state.notifierID) {
     state.notifierID = Zotero.Notifier.registerObserver(
@@ -331,6 +397,29 @@ export async function injectLibraryPanel(
     state.mutationObserver = observer;
   }
 
+  if (!state.selectionListener) {
+    state.selectionListener = () => scheduleLibraryPanelVisibilityUpdate(win);
+    try {
+      const onSelect = (win as any)?.ZoteroPane?.itemsView?.onSelect;
+      if (onSelect?.addListener) {
+        onSelect.addListener(state.selectionListener);
+      }
+    } catch (err) {
+      ztoolkit.log("LLM: failed to attach library selection listener", err);
+    }
+  }
+
+  if (state.selectionPollTimer === null) {
+    state.lastSelectionSignature = getSelectedItemIds(win).join(",");
+    state.selectionPollTimer = win.setInterval(() => {
+      if (!isLibraryTab(win)) return;
+      const nextSignature = getSelectedItemIds(win).join(",");
+      if (nextSignature === state.lastSelectionSignature) return;
+      state.lastSelectionSignature = nextSignature;
+      scheduleLibraryPanelVisibilityUpdate(win);
+    }, 350);
+  }
+
   scheduleLibraryPanelVisibilityUpdate(win);
 }
 
@@ -352,6 +441,21 @@ export function removeLibraryPanel(win: Window): void {
 
   if (state.mutationObserver) {
     state.mutationObserver.disconnect();
+  }
+
+  if (state.selectionListener) {
+    try {
+      const onSelect = (win as any)?.ZoteroPane?.itemsView?.onSelect;
+      if (onSelect?.removeListener) {
+        onSelect.removeListener(state.selectionListener);
+      }
+    } catch (_err) {
+      void _err;
+    }
+  }
+
+  if (state.selectionPollTimer !== null) {
+    win.clearInterval(state.selectionPollTimer);
   }
 
   if (state.updateTimer !== null) {

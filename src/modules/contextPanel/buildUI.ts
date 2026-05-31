@@ -11,8 +11,10 @@ import { getPanelI18n } from "./i18n";
 import { TRANSLATION_LANGUAGE_OPTIONS } from "./languages";
 
 type PanelTab = "discussion" | "translate" | "setting";
+type ComposerTheme = "default" | "soft-blue";
 
 const PANEL_TABS: PanelTab[] = ["discussion", "translate", "setting"];
+const COMPOSER_THEMES: ComposerTheme[] = ["default", "soft-blue"];
 const TAB_ICON_MAP: Record<PanelTab, string> = {
   discussion: "chrome://aidea/content/icons/logo-talk.png",
   translate: "chrome://aidea/content/icons/logo-translate.png",
@@ -45,6 +47,21 @@ function persistActiveTab(body: Element, tab: PanelTab): void {
   } catch {
     /* ignore pref write failures */
   }
+}
+
+function getPersistedComposerTheme(): ComposerTheme {
+  try {
+    const value = Zotero.Prefs.get(
+      `${config.prefsPrefix}.composerTheme`,
+      true,
+    );
+    if (COMPOSER_THEMES.includes(value as ComposerTheme)) {
+      return value as ComposerTheme;
+    }
+  } catch {
+    /* pref may not be registered during early startup */
+  }
+  return "default";
 }
 
 function createActionDropdown(doc: Document, spec: ActionDropdownSpec) {
@@ -101,6 +118,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";
   container.dataset.activeTab = initialActiveTab;
+  container.dataset.composerTheme = getPersistedComposerTheme();
 
   // ═══════════════════════════════════════════════════════════
   // Tab Navigation

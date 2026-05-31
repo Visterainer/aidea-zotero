@@ -3499,6 +3499,11 @@
   overflow: visible;
 }
 
+.llm-panel[data-composer-theme="soft-blue"] .llm-input-section {
+  border-color: rgba(37, 99, 235, 0.1);
+  background: #f0f5ff;
+}
+
 .llm-input-section.llm-input-drop-active {
   border-color: var(--color-accent);
   background: color-mix(
@@ -3863,9 +3868,23 @@
   transition: border-color 0.15s;
 }
 
+.llm-panel[data-composer-theme="soft-blue"] .llm-input {
+  border-color: rgba(37, 99, 235, 0.06);
+  background: #fbfdff;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
 .llm-input:focus {
   outline: none;
   border-color: var(--color-accent);
+}
+
+.llm-panel[data-composer-theme="soft-blue"] .llm-input:focus {
+  border-color: rgba(37, 99, 235, 0.42);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
 }
 
 .llm-input:disabled {
@@ -3874,6 +3893,10 @@
 
 .llm-input::placeholder {
   color: var(--fill-tertiary);
+}
+
+.llm-panel[data-composer-theme="soft-blue"] .llm-input::placeholder {
+  color: #6f7782;
 }
 
 /* Actions Bar */
