@@ -43,6 +43,7 @@ export type PanelTypographySettings = {
   selectionFontSize: number;
   selectionLineHeight: number;
   selectionPopupWidth: number;
+  chatImageScale: number;
 };
 
 export type PanelTypographyPreset =
@@ -69,6 +70,7 @@ export const PANEL_TYPOGRAPHY_PRESETS: Record<
     selectionFontSize: 12,
     selectionLineHeight: 1.45,
     selectionPopupWidth: 420,
+    chatImageScale: 1,
   },
   standard: {
     chatFontSize: 14,
@@ -84,6 +86,7 @@ export const PANEL_TYPOGRAPHY_PRESETS: Record<
     selectionFontSize: 13,
     selectionLineHeight: 1.5,
     selectionPopupWidth: 450,
+    chatImageScale: 1,
   },
   comfortable: {
     chatFontSize: 15,
@@ -99,6 +102,7 @@ export const PANEL_TYPOGRAPHY_PRESETS: Record<
     selectionFontSize: 14,
     selectionLineHeight: 1.55,
     selectionPopupWidth: 480,
+    chatImageScale: 1,
   },
   large: {
     chatFontSize: 17,
@@ -114,6 +118,7 @@ export const PANEL_TYPOGRAPHY_PRESETS: Record<
     selectionFontSize: 16,
     selectionLineHeight: 1.65,
     selectionPopupWidth: 540,
+    chatImageScale: 1,
   },
 };
 
@@ -135,25 +140,27 @@ const PANEL_TYPOGRAPHY_PREF_KEYS: Record<
   selectionFontSize: "font.selectionSize",
   selectionLineHeight: "font.selectionLineHeight",
   selectionPopupWidth: "font.selectionPopupWidth",
+  chatImageScale: "font.chatImageScale",
 };
 
 const PANEL_TYPOGRAPHY_BOUNDS: Record<
   keyof PanelTypographySettings,
   { min: number; max: number; step: number }
 > = {
-  chatFontSize: { min: 11, max: 24, step: 1 },
-  chatLineHeight: { min: 1.25, max: 2, step: 0.05 },
-  messageGap: { min: 4, max: 28, step: 1 },
-  bubblePaddingY: { min: 6, max: 24, step: 1 },
-  bubblePaddingX: { min: 8, max: 28, step: 1 },
-  composerFontSize: { min: 11, max: 24, step: 1 },
-  composerLineHeight: { min: 1.25, max: 2, step: 0.05 },
+  chatFontSize: { min: 10, max: 28, step: 1 },
+  chatLineHeight: { min: 1.2, max: 2.2, step: 0.05 },
+  messageGap: { min: 2, max: 36, step: 1 },
+  bubblePaddingY: { min: 4, max: 32, step: 1 },
+  bubblePaddingX: { min: 6, max: 36, step: 1 },
+  composerFontSize: { min: 10, max: 28, step: 1 },
+  composerLineHeight: { min: 1.2, max: 2.2, step: 0.05 },
   composerPaddingY: { min: 6, max: 24, step: 1 },
   composerPaddingX: { min: 8, max: 30, step: 1 },
   composerGap: { min: 4, max: 24, step: 1 },
-  selectionFontSize: { min: 11, max: 22, step: 1 },
-  selectionLineHeight: { min: 1.25, max: 2, step: 0.05 },
-  selectionPopupWidth: { min: 360, max: 760, step: 10 },
+  selectionFontSize: { min: 10, max: 26, step: 1 },
+  selectionLineHeight: { min: 1.2, max: 2.2, step: 0.05 },
+  selectionPopupWidth: { min: 320, max: 900, step: 10 },
+  chatImageScale: { min: 0.6, max: 1.4, step: 0.05 },
 };
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -536,6 +543,14 @@ export function applyPanelTypography(panel: HTMLElement | null): void {
     `${settings.composerPaddingX}px`,
   );
   panel.style.setProperty("--llm-composer-gap", `${settings.composerGap}px`);
+  panel.style.setProperty(
+    "--llm-chat-image-max-width",
+    `${Math.round(720 * settings.chatImageScale)}px`,
+  );
+  panel.style.setProperty(
+    "--llm-chat-image-max-height",
+    `${Math.round(70 * settings.chatImageScale)}vh`,
+  );
 }
 
 /** Get/set JSON preferences with error handling */

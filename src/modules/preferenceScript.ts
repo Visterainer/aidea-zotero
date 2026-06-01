@@ -105,6 +105,7 @@ type PrefKey =
   | "font.selectionSize"
   | "font.selectionLineHeight"
   | "font.selectionPopupWidth"
+  | "font.chatImageScale"
   | "selectionTranslate.model"
   | "selectionTranslate.provider"
   | "selectionTranslate.sourceLang"
@@ -1847,12 +1848,12 @@ const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
 };
 const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "en-US": {
-    composerTheme: "Input Theme:",
+    composerTheme: "Input Theme",
     composerThemeDefault: "Default",
     composerThemeSoftBlue: "Soft Blue",
   },
   "zh-CN": {
-    composerTheme: "输入框主题：",
+    composerTheme: "输入框主题",
     composerThemeDefault: "默认",
     composerThemeSoftBlue: "浅蓝",
   },
@@ -1861,9 +1862,9 @@ const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "en-US": {
     basicConfig: "Basic Configuration",
     maintenance: "Maintenance",
-    fontSize: "Font Size:",
-    fontSizeOpen: "Adjust",
-    fontInspectorTitle: "Font Size",
+    fontSize: "Font Size",
+    fontSizeOpen: "Display & Text",
+    fontInspectorTitle: "Display & Text",
     fontReset: "Reset",
     fontClose: "Close",
     fontPresetCompact: "Compact",
@@ -1882,13 +1883,15 @@ const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontComposerPaddingX: "Input horizontal padding",
     fontComposerGap: "Attachment spacing",
     fontSelectionPopupWidth: "Popup width",
+    fontImageSection: "Images",
+    fontImageScale: "Display scale",
   },
   "zh-CN": {
     basicConfig: "\u57fa\u7840\u914d\u7f6e",
     maintenance: "\u7ef4\u62a4",
-    fontSize: "\u5b57\u4f53\u5927\u5c0f\uff1a",
-    fontSizeOpen: "\u8c03\u6574",
-    fontInspectorTitle: "\u5b57\u4f53\u5927\u5c0f",
+    fontSize: "\u5b57\u4f53\u5927\u5c0f",
+    fontSizeOpen: "\u663e\u793a\u4e0e\u5b57\u4f53",
+    fontInspectorTitle: "\u663e\u793a\u4e0e\u5b57\u4f53",
     fontReset: "\u91cd\u7f6e",
     fontClose: "\u5173\u95ed",
     fontPresetCompact: "\u7d27\u51d1",
@@ -1907,6 +1910,8 @@ const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontComposerPaddingX: "\u8f93\u5165\u533a\u5de6\u53f3\u7559\u767d",
     fontComposerGap: "\u9644\u4ef6\u95f4\u8ddd",
     fontSelectionPopupWidth: "\u5f39\u7a97\u5bbd\u5ea6",
+    fontImageSection: "\u56fe\u7247",
+    fontImageScale: "\u663e\u793a\u7f29\u653e",
   },
 };
 
@@ -2532,6 +2537,9 @@ export async function bootstrapSettingTab(
 
   const langBox = createEl(doc, "div", "llm-basic-settings-grid");
   const basicTopRow = createEl(doc, "div", "llm-basic-top-row");
+  const basicMiddleRow = createEl(doc, "div", "llm-basic-middle-row");
+  const basicBottomRow = createEl(doc, "div", "llm-basic-bottom-row");
+  const basicDisplayGroup = createEl(doc, "div", "llm-basic-display-group");
   const langLeft = createEl(
     doc,
     "div",
@@ -2631,7 +2639,11 @@ export async function bootstrapSettingTab(
     { value: true, labelKey: "hideTabNavOn" },
     { value: false, labelKey: "hideTabNavOff" },
   ];
-  const hideNavTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  const hideNavTabBar = createEl(
+    doc,
+    "div",
+    "llm-set-tab-bar llm-basic-tab-toggle",
+  );
   const currentHideTabNav = () => {
     const v = Zotero.Prefs.get(`${config.prefsPrefix}.hideTabNav`, true);
     return v === true || String(v).toLowerCase() === "true";
@@ -2653,7 +2665,11 @@ export async function bootstrapSettingTab(
   });
   hideNavGroup.append(hideNavLabel, hideNavTabBar);
 
-  const composerThemeGroup = createEl(doc, "div", "llm-basic-setting-group");
+  const composerThemeGroup = createEl(
+    doc,
+    "div",
+    "llm-basic-setting-group llm-basic-theme-group",
+  );
   const composerThemeLabel = createEl(
     doc,
     "label",
@@ -2740,7 +2756,11 @@ export async function bootstrapSettingTab(
   });
   composerThemeGroup.append(composerThemeLabel, composerThemeDropdown);
 
-  const fontGroup = createEl(doc, "div", "llm-basic-setting-group");
+  const fontGroup = createEl(
+    doc,
+    "div",
+    "llm-basic-setting-group llm-basic-font-group",
+  );
   const fontLabel = createEl(
     doc,
     "label",
@@ -2749,10 +2769,10 @@ export async function bootstrapSettingTab(
   const fontOpenBtn = createEl(
     doc,
     "button",
-    "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+    "llm-set-btn llm-basic-font-open",
   ) as HTMLButtonElement;
   fontOpenBtn.type = "button";
-  fontGroup.append(fontLabel, fontOpenBtn);
+  fontGroup.append(fontOpenBtn);
 
   // Danger buttons (moved from bottom dangerZone)
   const langRight = createEl(doc, "div", "llm-basic-top-actions");
@@ -2802,13 +2822,10 @@ export async function bootstrapSettingTab(
   };
 
   basicTopRow.append(langLeft, langRight);
-  langBox.append(
-    basicTopRow,
-    hideNavGroup,
-    fontGroup,
-    composerThemeGroup,
-    dangerStatus,
-  );
+  basicDisplayGroup.append(hideNavGroup, fontGroup);
+  basicMiddleRow.append(basicDisplayGroup);
+  basicBottomRow.append(composerThemeGroup);
+  langBox.append(basicTopRow, basicMiddleRow, basicBottomRow, dangerStatus);
 
   const typographyBounds = getPanelTypographyBounds();
   type TypographyKey = keyof PanelTypographySettings;
@@ -2837,11 +2854,26 @@ export async function bootstrapSettingTab(
     comfortable: "fontPresetComfortable",
     large: "fontPresetLarge",
   };
+  const fontPresetKeys: TypographyKey[] = [
+    "chatFontSize",
+    "chatLineHeight",
+    "messageGap",
+    "bubblePaddingY",
+    "bubblePaddingX",
+    "composerFontSize",
+    "composerLineHeight",
+    "selectionFontSize",
+    "selectionLineHeight",
+    "selectionPopupWidth",
+  ];
 
   const formatFontControlValue = (
     key: TypographyKey,
     value: number,
   ): string => {
+    if (key === "chatImageScale") {
+      return `${Math.round(value * 100)}%`;
+    }
     if (
       key === "chatLineHeight" ||
       key === "composerLineHeight" ||
@@ -2857,7 +2889,7 @@ export async function bootstrapSettingTab(
   ): PanelTypographyPreset | null => {
     for (const preset of fontPresetOrder) {
       const values = PANEL_TYPOGRAPHY_PRESETS[preset];
-      const same = (Object.keys(values) as TypographyKey[]).every(
+      const same = fontPresetKeys.every(
         (key) => Math.abs(settings[key] - values[key]) < 0.001,
       );
       if (same) return preset;
@@ -2949,28 +2981,17 @@ export async function bootstrapSettingTab(
     };
   };
 
-  const positionFontInspectorAtCenter = (
-    inspector: HTMLElement,
-    panelRoot: HTMLElement | null,
-  ) => {
+  const positionFontInspectorAtCenter = (inspector: HTMLElement) => {
     win.requestAnimationFrame(() => {
       const viewportWidth =
         win.innerWidth || doc.documentElement?.clientWidth || 0;
       const viewportHeight =
         win.innerHeight || doc.documentElement?.clientHeight || 0;
-      const hostRect =
-        panelRoot?.getBoundingClientRect() ||
-        ({
-          left: 0,
-          top: 0,
-          width: viewportWidth,
-          height: viewportHeight,
-        } as DOMRect);
       const rect = inspector.getBoundingClientRect();
       const next = clampFontInspectorPosition(
         inspector,
-        hostRect.left + hostRect.width / 2 - rect.width / 2,
-        hostRect.top + hostRect.height / 2 - rect.height / 2,
+        viewportWidth / 2 - rect.width / 2,
+        viewportHeight / 2 - rect.height / 2,
       );
       inspector.style.left = `${next.left}px`;
       inspector.style.top = `${next.top}px`;
@@ -3093,9 +3114,12 @@ export async function bootstrapSettingTab(
       ) as HTMLButtonElement;
       btn.type = "button";
       btn.addEventListener("click", () => {
-        const next = setPanelTypographySettings(
-          PANEL_TYPOGRAPHY_PRESETS[preset],
-        );
+        const presetValues = PANEL_TYPOGRAPHY_PRESETS[preset];
+        const nextValues: Partial<PanelTypographySettings> = {};
+        for (const key of fontPresetKeys) {
+          nextValues[key] = presetValues[key];
+        }
+        const next = setPanelTypographySettings(nextValues);
         syncFontInspectorControls(next);
         applyTypographyToAllSurfaces();
       });
@@ -3114,14 +3138,14 @@ export async function bootstrapSettingTab(
     createFontSection(bodyEl, L.fontComposerSection, [
       { label: L.fontTextSize, key: "composerFontSize" },
       { label: L.fontLineHeight, key: "composerLineHeight" },
-      { label: L.fontComposerPaddingY, key: "composerPaddingY" },
-      { label: L.fontComposerPaddingX, key: "composerPaddingX" },
-      { label: L.fontComposerGap, key: "composerGap" },
     ]);
     createFontSection(bodyEl, L.fontSelectionSection, [
       { label: L.fontTextSize, key: "selectionFontSize" },
       { label: L.fontLineHeight, key: "selectionLineHeight" },
       { label: L.fontSelectionPopupWidth, key: "selectionPopupWidth" },
+    ]);
+    createFontSection(bodyEl, L.fontImageSection, [
+      { label: L.fontImageScale, key: "chatImageScale" },
     ]);
 
     resetBtn.addEventListener("click", () => {
@@ -3140,7 +3164,7 @@ export async function bootstrapSettingTab(
     host.appendChild(inspector);
     fontInspector = inspector;
     disposeFontInspectorDrag = makeFontInspectorDraggable(inspector, header);
-    positionFontInspectorAtCenter(inspector, panelRoot);
+    positionFontInspectorAtCenter(inspector);
     syncFontInspectorControls();
   };
 
@@ -3281,7 +3305,11 @@ export async function bootstrapSettingTab(
     "div",
     "llm-set-title llm-set-collapsible-toggle",
   );
-  const connectionModeBody = createEl(doc, "div", "llm-set-collapsible-body");
+  const connectionModeBody = createEl(
+    doc,
+    "div",
+    "llm-set-collapsible-body llm-connection-mode-body",
+  );
   applyCollapsibleState(
     connectionModeTitle,
     connectionModeBody,
@@ -3311,7 +3339,11 @@ export async function bootstrapSettingTab(
   customModeRadio.style.display = "none";
 
   // Tab bar for connection mode
-  const modeTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  const modeTabBar = createEl(
+    doc,
+    "div",
+    "llm-set-tab-bar llm-connection-mode-tabs",
+  );
   const oauthTabBtn = createEl(
     doc,
     "button",
@@ -3754,7 +3786,7 @@ export async function bootstrapSettingTab(
     L = tt(lang);
     basicTitle.textContent = L.basicConfig;
     // "Language" label stays English regardless of selected language
-    langLabel.textContent = "Language:";
+    langLabel.textContent = "Language";
     composerThemeLabel.textContent = L.composerTheme;
     updateComposerThemeUi();
     hideNavLabel.textContent = L.hideTabNav;
@@ -4905,7 +4937,7 @@ export async function bootstrapSettingTab(
     const perProviderSetupBtn = createEl(
       doc,
       "button",
-      "llm-set-btn llm-set-btn--success",
+      "llm-set-btn llm-set-btn--success llm-provider-setup-btn",
     ) as HTMLButtonElement;
     perProviderSetupBtn.type = "button";
     const loginBtn = createEl(
@@ -5122,6 +5154,7 @@ export async function bootstrapSettingTab(
       "font.selectionSize": "14",
       "font.selectionLineHeight": "1.55",
       "font.selectionPopupWidth": "480",
+      "font.chatImageScale": "1",
       "selectionTranslate.model": "",
       "selectionTranslate.provider": "",
       "selectionTranslate.sourceLang": "auto",

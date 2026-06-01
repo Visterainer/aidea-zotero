@@ -89,3 +89,4 @@ pref("font.composerGap", "10");
 pref("font.selectionSize", "14");
 pref("font.selectionLineHeight", "1.55");
 pref("font.selectionPopupWidth", "480");
+pref("font.chatImageScale", "1");

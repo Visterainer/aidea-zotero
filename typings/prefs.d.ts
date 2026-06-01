@@ -98,6 +98,7 @@ declare namespace _ZoteroTypes {
       "font.selectionSize": string;
       "font.selectionLineHeight": string;
       "font.selectionPopupWidth": string;
+      "font.chatImageScale": string;
     };
   }
 }
