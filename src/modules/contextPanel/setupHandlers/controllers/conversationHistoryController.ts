@@ -69,9 +69,12 @@ export function normalizeHistoryTitle(raw: unknown): string {
   return normalizeConversationTitleSeed(raw, GLOBAL_HISTORY_TITLE_MAX_LENGTH);
 }
 
-export function formatHistoryRowDisplayTitle(title: string): string {
+export function formatHistoryRowDisplayTitle(
+  title: string,
+  fallback = "Untitled chat",
+): string {
   return (
     normalizeConversationTitleSeed(title, HISTORY_ROW_TITLE_MAX_LENGTH) ||
-    "Untitled chat"
+    fallback
   );
 }

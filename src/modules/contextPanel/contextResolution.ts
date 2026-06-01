@@ -623,7 +623,10 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
       "llm-selected-context-meta-corrupted",
       isCorrupted,
     );
-    previewMeta.title = isExpanded ? "Unpin text context" : "Pin text context";
+    const i18n = getPanelI18n();
+    previewMeta.title = isExpanded
+      ? i18n.unpinTextContext
+      : i18n.pinTextContext;
     previewMeta.setAttribute("aria-expanded", isExpanded ? "true" : "false");
 
     const previewClear = ownerDoc.createElement("button");
@@ -631,11 +634,8 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     previewClear.className = "llm-remove-img-btn llm-selected-context-clear";
     previewClear.dataset.contextIndex = `${index}`;
     previewClear.textContent = "×";
-    previewClear.title = getPanelI18n().clearSelectedContext;
-    previewClear.setAttribute(
-      "aria-label",
-      getPanelI18n().clearSelectedContext,
-    );
+    previewClear.title = i18n.clearSelectedContext;
+    previewClear.setAttribute("aria-label", i18n.clearSelectedContext);
 
     previewHeader.append(previewMeta, previewClear);
 

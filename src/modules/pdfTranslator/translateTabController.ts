@@ -768,7 +768,8 @@ export function initTranslateTab(body: Element): void {
           setSelectedPdfPath(body, path);
         }
       } catch (err) {
-        consoleLog(body, `❌ Error: ${err}`, "error");
+        const i18n = getPanelI18n();
+        consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
       }
     });
   }
@@ -794,7 +795,8 @@ export function initTranslateTab(body: Element): void {
           }
         }
       } catch (err) {
-        consoleLog(body, `❌ Error: ${err}`, "error");
+        const i18n = getPanelI18n();
+        consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
       }
     });
   }
@@ -825,8 +827,9 @@ export function initTranslateTab(body: Element): void {
   ) as HTMLButtonElement | null;
   if (installBtn) {
     installBtn.addEventListener("click", async () => {
+      const i18n = getPanelI18n();
       installBtn.disabled = true;
-      consoleLog(body, "Starting environment setup...", "info");
+      consoleLog(body, i18n.trLogEnvironmentSetupStarting, "info");
       try {
         const { installEnvironment } = await import("./envManager");
         await installEnvironment((step, detail) => {
@@ -836,9 +839,9 @@ export function initTranslateTab(body: Element): void {
             detail.startsWith("✅") ? "success" : "info",
           );
         });
-        consoleLog(body, "✅ Environment setup complete!", "success");
+        consoleLog(body, `✅ ${i18n.trLogEnvironmentSetupComplete}`, "success");
       } catch (err) {
-        consoleLog(body, `❌ Error: ${err}`, "error");
+        consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
         // Try to read the stderr log for more details
         try {
           const tempDir = String(PathUtils.tempDir || "").trim();
@@ -848,7 +851,11 @@ export function initTranslateTab(body: Element): void {
           if (logPath && (await IOUtils.exists(logPath))) {
             const logText = await IOUtils.readUTF8(logPath);
             if (logText.trim()) {
-              consoleLog(body, `📝 Details: ${logText.trim()}`, "error");
+              consoleLog(
+                body,
+                `📝 ${i18n.trLogDetails(logText.trim())}`,
+                "error",
+              );
             }
           }
         } catch {
@@ -876,7 +883,8 @@ export function initTranslateTab(body: Element): void {
       try {
         await startTranslation(body);
       } catch (err) {
-        consoleLog(body, `❌ ${err}`, "error");
+        const i18n = getPanelI18n();
+        consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
       } finally {
         startBtn.disabled = false;
       }
@@ -895,7 +903,7 @@ export function initTranslateTab(body: Element): void {
           const i18n = getPanelI18n();
           pauseBtn.textContent = `⏸ ${i18n.trPause}`;
           pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
-          consoleLog(body, "▶️ " + i18n.trResume + "d", "info");
+          consoleLog(body, `▶️ ${i18n.trLogResumed}`, "info");
         } else {
           // Pause
           session.activeController.pause();
@@ -903,10 +911,11 @@ export function initTranslateTab(body: Element): void {
           const i18n = getPanelI18n();
           pauseBtn.textContent = `▶ ${i18n.trResume}`;
           pauseBtn.className = "llm-tr-btn llm-tr-btn-primary";
-          consoleLog(body, "⏸ " + i18n.trPause + "d", "info");
+          consoleLog(body, `⏸ ${i18n.trLogPaused}`, "info");
         }
       } catch (err) {
-        consoleLog(body, `❌ Pause error: ${err}`, "error");
+        const i18n = getPanelI18n();
+        consoleLog(body, `❌ ${i18n.trLogPauseError(String(err))}`, "error");
       }
     });
   }
@@ -918,11 +927,8 @@ export function initTranslateTab(body: Element): void {
       const session = getTranslationSession(body);
       const activeState = session.activeController?.getState?.();
       if (activeState === "running" && !session.isPaused) {
-        consoleLog(
-          body,
-          "⚠️ Cannot clear cache while translation is running. Pause or wait for it to finish.",
-          "error",
-        );
+        const i18n = getPanelI18n();
+        consoleLog(body, `⚠️ ${i18n.trLogCannotClearRunning}`, "error");
         return;
       }
       clearBtn.disabled = true;
@@ -937,18 +943,15 @@ export function initTranslateTab(body: Element): void {
         }
         const cleared = await clearTranslateTempCache();
         const i18n = getPanelI18n();
-        const skipped =
-          cleared.skippedRunning > 0
-            ? `, skipped active jobs: ${cleared.skippedRunning}`
-            : "";
         consoleLog(
           body,
-          `Cache details: ${cleared.removed} item(s) removed${skipped}`,
+          i18n.trLogCacheDetails(cleared.removed, cleared.skippedRunning),
           "info",
         );
-        consoleLog(body, `🗑 ${i18n.trClearCache}: done`, "info");
+        consoleLog(body, `🗑 ${i18n.trLogClearDone}`, "info");
       } catch (err) {
-        consoleLog(body, `❌ Clear error: ${err}`, "error");
+        const i18n = getPanelI18n();
+        consoleLog(body, `❌ ${i18n.trLogClearError(String(err))}`, "error");
       } finally {
         resetTranslationSessionUi(session, body);
       }
@@ -1465,11 +1468,7 @@ async function startTranslation(body: Element): Promise<void> {
   const session = getTranslationSession(body);
   const activeState = session.activeController?.getState?.();
   if (activeState === "running") {
-    consoleLog(
-      body,
-      "⚠️ A translation job is already running. Wait for it to finish before starting another one.",
-      "error",
-    );
+    consoleLog(body, i18n.trLogError(i18n.trTranslating), "error");
     return;
   }
 
@@ -1478,19 +1477,11 @@ async function startTranslation(body: Element): Promise<void> {
   const modelName = modelSelect?.dataset.value || "";
   const modelProviderId = modelSelect?.dataset.providerId || "";
   if (!modelName) {
-    consoleLog(
-      body,
-      "⚠️ No model selected — go to Settings tab to configure LLM models",
-      "error",
-    );
+    consoleLog(body, i18n.trLogError(i18n.modelNoModels), "error");
     return;
   }
   if (!session.selectedPdfPath) {
-    consoleLog(
-      body,
-      "⚠️ No PDF file selected — click 'Select local PDF' or open a PDF in Zotero",
-      "error",
-    );
+    consoleLog(body, i18n.trLogError(i18n.trNoPdfFound), "error");
     return;
   }
 
@@ -1567,16 +1558,20 @@ async function startTranslation(body: Element): Promise<void> {
   // Detailed console logging
   const pdfBasename =
     session.selectedPdfPath.split(/[\\/]/).pop() || session.selectedPdfPath;
-  consoleLog(body, `─── Translation Job Started ───`, "info");
-  consoleLog(body, `📄 PDF: ${pdfBasename}`, "info");
+  consoleLog(body, `─── ${i18n.trLogJobStarted} ───`, "info");
+  consoleLog(body, `📄 ${i18n.trLogPdfLabel}: ${pdfBasename}`, "info");
   consoleLog(
     body,
     `   ${i18n.trLogFullPath}: ${session.selectedPdfPath}`,
     "info",
   );
-  consoleLog(body, `🤖 Model: ${modelName}`, "info");
-  consoleLog(body, `🌐 Language: ${srcLang} → ${tgtLang}`, "info");
-  consoleLog(body, `📁 Output: ${outputDir}`, "info");
+  consoleLog(body, `🤖 ${i18n.trLogModelLabel}: ${modelName}`, "info");
+  consoleLog(
+    body,
+    `🌐 ${i18n.trLogLanguageLabel}: ${srcLang} → ${tgtLang}`,
+    "info",
+  );
+  consoleLog(body, `📁 ${i18n.trLogOutputLabel}: ${outputDir}`, "info");
   consoleLog(
     body,
     `📝 ${i18n.trLogOutputFormat(monoChecked, dualChecked)}`,
@@ -1584,7 +1579,12 @@ async function startTranslation(body: Element): Promise<void> {
   );
   consoleLog(
     body,
-    `⚙️ Skip references: ${skipReferencesAuto} | Compatibility: ${enhanceCompatibility} | OCR: force=${ocr}, auto=${autoOcr}`,
+    `⚙️ ${i18n.trLogAdvancedOptions(
+      skipReferencesAuto,
+      enhanceCompatibility,
+      ocr,
+      autoOcr,
+    )}`,
     "info",
   );
 
@@ -1598,7 +1598,11 @@ async function startTranslation(body: Element): Promise<void> {
       modelProviderId || undefined,
     );
   } catch (err) {
-    consoleLog(body, `❌ Failed to resolve credentials: ${err}`, "error");
+    consoleLog(
+      body,
+      `❌ ${i18n.trLogFailedToResolveCredentials(String(err))}`,
+      "error",
+    );
     return;
   }
   const authMode = creds.oauthProxy
@@ -1606,9 +1610,9 @@ async function startTranslation(body: Element): Promise<void> {
       ? "API Key (proxied)"
       : `OAuth (${creds.oauthProxy.provider})`
     : "API Key";
-  consoleLog(body, `🔑 Auth: ${authMode}`, "success");
-  consoleLog(body, `   Model ID: ${creds.modelId}`, "info");
-  consoleLog(body, `   API Base: ${creds.apiUrl}`, "info");
+  consoleLog(body, `🔑 ${i18n.trLogAuthLabel}: ${authMode}`, "success");
+  consoleLog(body, `   ${i18n.trLogModelIdLabel}: ${creds.modelId}`, "info");
+  consoleLog(body, `   ${i18n.trLogApiBaseLabel}: ${creds.apiUrl}`, "info");
 
   // Check environment
   consoleLog(body, `🔍 ${i18n.trLogCheckingEnvironment}`, "info");
@@ -1628,9 +1632,21 @@ async function startTranslation(body: Element): Promise<void> {
     consoleLog(body, `   ${i18n.trLogInstallEnvironmentInstruction}`, "error");
     return;
   }
-  consoleLog(body, `✅ Environment ready (${envStatus.venvDir})`, "success");
-  consoleLog(body, `   Python: ${envStatus.pythonBin}`, "info");
-  consoleLog(body, `   pdf2zh: ${envStatus.pdf2zhBin}`, "info");
+  consoleLog(
+    body,
+    `✅ ${i18n.trLogEnvironmentReady(envStatus.venvDir)}`,
+    "success",
+  );
+  consoleLog(
+    body,
+    `   ${i18n.trLogPythonLabel}: ${envStatus.pythonBin}`,
+    "info",
+  );
+  consoleLog(
+    body,
+    `   ${i18n.trLogPdf2zhLabel}: ${envStatus.pdf2zhBin}`,
+    "info",
+  );
 
   // Reset timer and pause state
   session.translationStartTime = Date.now();
@@ -1694,7 +1710,12 @@ async function startTranslation(body: Element): Promise<void> {
               : 0;
           consoleLog(
             body,
-            `📊 Page ${event.data.current}/${event.data.total} (${pct}%) [${formatDuration(elapsed)}]`,
+            `📊 ${i18n.trLogPageProgress(
+              event.data.current,
+              event.data.total,
+              pct,
+              formatDuration(elapsed),
+            )}`,
             "info",
           );
         }
@@ -1719,7 +1740,7 @@ async function startTranslation(body: Element): Promise<void> {
         // Log output files on completion
         if (status === "done" && event.data.outputFiles?.length) {
           for (const f of event.data.outputFiles) {
-            consoleLog(body, `   📄 Output: ${f}`, "success");
+            consoleLog(body, `   📄 ${i18n.trLogOutputFile(f)}`, "success");
           }
         }
         if (status === "done") {
@@ -1743,21 +1764,25 @@ async function startTranslation(body: Element): Promise<void> {
           const errLines: string[] = event.data.errorLines || [];
           consoleLog(
             body,
-            `⚠️ Translation completed with ${errCount} error(s) — some pages may contain untranslated text`,
+            `⚠️ ${i18n.trLogCompletedWithErrors(errCount)}`,
             "error",
           );
           for (const errLine of errLines.slice(0, 10)) {
             consoleLog(body, `   ${errLine}`, "error");
           }
           if (event.data.logFile) {
-            consoleLog(body, `   📝 Full log: ${event.data.logFile}`, "info");
+            consoleLog(
+              body,
+              `   📝 ${i18n.trLogFullLog(event.data.logFile)}`,
+              "info",
+            );
           }
         }
 
         // Log errors with full detail
         if (status === "error") {
           const errMsg =
-            event.data.error || event.data.message || "Unknown error";
+            event.data.error || event.data.message || i18n.trLogUnknownError;
           consoleLog(body, `❌ ${i18n.trLogBridgeError(errMsg)}`, "error");
           if (event.data.errorDetail) {
             const lines = event.data.errorDetail.split("\n").slice(-10);
@@ -1766,7 +1791,11 @@ async function startTranslation(body: Element): Promise<void> {
             }
           }
           if (event.data.logFile) {
-            consoleLog(body, `   📝 Full log: ${event.data.logFile}`, "info");
+            consoleLog(
+              body,
+              `   📝 ${i18n.trLogFullLog(event.data.logFile)}`,
+              "info",
+            );
           }
         }
         break;
@@ -1790,7 +1819,11 @@ async function startTranslation(body: Element): Promise<void> {
           _stopProgressTimer(session);
           restoreTranslationControls(body);
         } else if (event.state === "error") {
-          consoleLog(body, `❌ ${i18n.trError} — see details above`, "error");
+          consoleLog(
+            body,
+            `❌ ${i18n.trError} - ${i18n.trLogSeeDetailsAbove}`,
+            "error",
+          );
           session.translationStartTime = 0;
           session.activeController = null;
           session.isPaused = false;
@@ -1806,7 +1839,7 @@ async function startTranslation(body: Element): Promise<void> {
         }
         break;
       case "error":
-        consoleLog(body, `❌ Error: ${event.message}`, "error");
+        consoleLog(body, `❌ ${i18n.trLogError(event.message)}`, "error");
         break;
       case "env_progress":
         consoleLog(body, `🔧 ${event.detail}`, "info");
@@ -1851,7 +1884,7 @@ async function startTranslation(body: Element): Promise<void> {
     if (err instanceof Error && err.stack) {
       consoleLog(body, `${i18n.trLogStackTrace}:\n${err.stack}`, "error");
     }
-    consoleLog(body, `❌ ${i18n.trError}: ${err}`, "error");
+    consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
     session.translationStartTime = 0;
     _stopProgressTimer(session);
     restoreTranslationControls(body);

@@ -37,6 +37,7 @@ declare namespace _ZoteroTypes {
       "updateNoticeSeen": string;
       "settingsSectionState": string;
       "settingsScrollTop": string;
+      "uiLanguage": string;
       "showPopupAddText": boolean;
       "authorProfiles.contextMenuEnabled": boolean;
       "authorProfiles.model": string;

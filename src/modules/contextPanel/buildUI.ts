@@ -7,8 +7,8 @@ import {
 } from "./constants";
 import type { ActionDropdownSpec } from "./types";
 import { isGlobalPortalItem } from "./portalScope";
-import { getPanelI18n } from "./i18n";
-import { TRANSLATION_LANGUAGE_OPTIONS } from "./languages";
+import { getPanelI18n, getPanelLang } from "./i18n";
+import { getUiLanguageOption, TRANSLATION_LANGUAGE_OPTIONS } from "./languages";
 
 type PanelTab = "discussion" | "translate" | "setting";
 type ComposerTheme = "default" | "soft-blue";
@@ -51,10 +51,7 @@ function persistActiveTab(body: Element, tab: PanelTab): void {
 
 function getPersistedComposerTheme(): ComposerTheme {
   try {
-    const value = Zotero.Prefs.get(
-      `${config.prefsPrefix}.composerTheme`,
-      true,
-    );
+    const value = Zotero.Prefs.get(`${config.prefsPrefix}.composerTheme`, true);
     if (COMPOSER_THEMES.includes(value as ComposerTheme)) {
       return value as ComposerTheme;
     }
@@ -96,6 +93,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
         : item.id
       : 0;
   const i18n = getPanelI18n();
+  const languageOption = getUiLanguageOption(getPanelLang());
   const initialActiveTab = getPersistedActiveTab(body);
 
   // Disable CSS scroll anchoring on the Zotero-provided panel body so that
@@ -110,10 +108,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     hostBody.style.maxWidth = "100%";
     hostBody.style.overflowX = "hidden";
     hostBody.style.boxSizing = "border-box";
+    hostBody.lang = languageOption.htmlLang;
+    hostBody.dir = languageOption.dir;
   }
 
   // Main container
   const container = createElement(doc, "div", "llm-panel", { id: "llm-main" });
+  container.lang = languageOption.htmlLang;
+  container.dir = languageOption.dir;
   container.dataset.itemId =
     conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";
@@ -1535,7 +1537,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     buttonId: "llm-model-toggle",
     buttonClassName:
       "llm-shortcut-btn llm-action-btn llm-action-btn-secondary llm-model-btn",
-    buttonText: "Model: ...",
+    buttonText: i18n.modelSelectHint,
     menuId: "llm-model-menu",
     menuClassName: "llm-model-menu",
     disabled: !hasItem,

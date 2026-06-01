@@ -21,6 +21,7 @@ import {
   GLOBAL_HISTORY_LIMIT,
   PAPER_CONVERSATION_KEY_BASE,
   PAPER_HISTORY_LIMIT,
+  config,
   type ModelProfileKey,
 } from "./constants";
 import {
@@ -218,7 +219,13 @@ import { createHeightSync } from "./heightSync";
 const SETTING_TAB_RENDER_VERSION = "2026-06-01-font-theme-layout";
 
 export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
-  const i18n = getPanelI18n();
+  let i18n = getPanelI18n();
+  body.ownerDocument?.addEventListener(
+    `${config.addonRef}-ui-language-change`,
+    () => {
+      i18n = getPanelI18n();
+    },
+  );
   let item = initialItem || null;
   const tabType = (body as HTMLElement).dataset?.tabType || "";
   const initialPaperItem =
@@ -1638,7 +1645,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
     // Phase 4: Show base PDF chip at the top if pool has one.
     if (hasBasePdf && pool) {
-      const basePdfTitle = pool.basePdfTitle || "Active Document";
+      const basePdfTitle = pool.basePdfTitle || i18n.trCurrentPdf;
       const isCompressed =
         pool.basePdfContext.startsWith("[摘要]") ||
         pool.basePdfContext.startsWith("[Summary]");
@@ -1673,10 +1680,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         {
           type: "button",
           textContent: "×",
-          title: `Unpin ${basePdfTitle}`,
+          title: i18n.unpinNamedContext(basePdfTitle),
         },
       ) as HTMLButtonElement;
-      removeBtn.setAttribute("aria-label", `Unpin ${basePdfTitle}`);
+      removeBtn.setAttribute(
+        "aria-label",
+        i18n.unpinNamedContext(basePdfTitle),
+      );
       removeBtn.addEventListener("click", (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1756,9 +1766,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         "llm-paper-context-chip-label",
         {
           textContent: `PDF (${paperChips.length})`,
-          title: paperExpanded
-            ? "Click to collapse PDFs"
-            : "Click to expand PDFs",
+          title: paperExpanded ? i18n.collapsePdfs : i18n.expandPdfs,
         },
       );
       const summaryIndicator = createElement(ownerDoc, "span", "", {
@@ -1893,7 +1901,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
       updateFilePreview();
       if (status) {
-        setStatus(status, `Attachment removed (${nextFiles.length})`, "ready");
+        setStatus(status, i18n.attachmentRemoved(nextFiles.length), "ready");
       }
     };
 
@@ -2464,8 +2472,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const showHistoryUndoToast = (title: string) => {
     if (!historyUndo || !historyUndoText) return;
     const displayTitle =
-      normalizeHistoryTitle(title) || normalizeHistoryTitle("Untitled chat");
-    historyUndoText.textContent = `Deleted "${displayTitle}"`;
+      normalizeHistoryTitle(title) || normalizeHistoryTitle(i18n.untitledChat);
+    historyUndoText.textContent = i18n.deletedConversation(displayTitle);
     historyUndo.style.display = "flex";
   };
 
@@ -2508,14 +2516,14 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
             ? firstUserText.slice(0, MAX_TITLE_LEN) + "…"
             : firstUserText
           : normalizeHistoryTitle(basePaperItem.getField("title")) ||
-            "Paper chat";
+            i18n.paperChat;
       entries.push({
         kind: "paper",
         conversationKey: pc.conversationKey,
         title,
         timestampText: pc.lastActivityAt
           ? formatGlobalHistoryTimestamp(pc.lastActivityAt)
-          : "Paper chat",
+          : i18n.paperChat,
         deletable: true,
         isDraft: pc.userTurnCount === 0,
         isPendingDelete: false,
@@ -2663,7 +2671,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           "span",
           "llm-history-row-title",
           {
-            textContent: formatHistoryRowDisplayTitle(entry.title),
+            textContent: formatHistoryRowDisplayTitle(
+              entry.title,
+              i18n.untitledChat,
+            ),
             title: entry.title,
           },
         );
@@ -2691,7 +2702,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           },
         ) as HTMLButtonElement;
         renameBtn.appendChild(createEditIcon(body.ownerDocument as Document));
-        renameBtn.setAttribute("aria-label", `Rename ${entry.title}`);
+        renameBtn.setAttribute(
+          "aria-label",
+          i18n.renameConversationAria(entry.title),
+        );
         renameBtn.dataset.action = "rename";
         row.appendChild(renameBtn);
 
@@ -2711,7 +2725,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         pinBtn.appendChild(createPinIcon(body.ownerDocument as Document));
         pinBtn.setAttribute(
           "aria-label",
-          entry.isPinned ? `Unpin ${entry.title}` : `Pin ${entry.title}`,
+          entry.isPinned
+            ? i18n.unpinConversationAria(entry.title)
+            : i18n.pinConversationAria(entry.title),
         );
         pinBtn.dataset.action = "pin";
         row.appendChild(pinBtn);
@@ -2723,13 +2739,16 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
             "llm-history-row-action llm-history-row-delete",
             {
               type: "button",
-              title: "Delete conversation",
+              title: i18n.deleteConversation,
             },
           ) as HTMLButtonElement;
           deleteBtn.appendChild(
             createTrashIcon(body.ownerDocument as Document),
           );
-          deleteBtn.setAttribute("aria-label", `Delete ${entry.title}`);
+          deleteBtn.setAttribute(
+            "aria-label",
+            i18n.deleteConversationAria(entry.title),
+          );
           deleteBtn.dataset.action = "delete";
           row.appendChild(deleteBtn);
         }
@@ -2818,7 +2837,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         if (pendingHistoryDeletionKeys.has(normalizedKey)) continue;
         if (seenGlobalKeys.has(normalizedKey)) continue;
         seenGlobalKeys.add(normalizedKey);
-        const title = normalizeHistoryTitle(entry.title) || "Untitled chat";
+        const title = normalizeHistoryTitle(entry.title) || i18n.untitledChat;
         const lastActivity = Number(
           entry.lastActivityAt || entry.createdAt || 0,
         );
@@ -2827,7 +2846,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           conversationKey: normalizedKey,
           title,
           timestampText:
-            formatGlobalHistoryTimestamp(lastActivity) || "Standalone chat",
+            formatGlobalHistoryTimestamp(lastActivity) || i18n.standaloneChat,
           deletable: true,
           isDraft: false,
           isPendingDelete: false,
@@ -3544,7 +3563,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     const input = createElement(doc, "input", "llm-history-rename-input", {
       type: "text",
       value: entry.title,
-      placeholder: "Conversation name…",
+      placeholder: i18n.conversationNamePlaceholder,
       maxLength: 64,
     }) as HTMLInputElement;
 
@@ -5443,7 +5462,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     if (!paperPickerGroups.length) {
       paperPickerList.innerHTML = "";
       const empty = createElement(ownerDoc, "div", "llm-paper-picker-empty", {
-        textContent: "No papers matched.",
+        textContent: i18n.noPapersMatched,
       });
       paperPickerList.appendChild(empty);
       showPaperPicker();
@@ -5453,7 +5472,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     if (!paperPickerRows.length) {
       paperPickerList.innerHTML = "";
       const empty = createElement(ownerDoc, "div", "llm-paper-picker-empty", {
-        textContent: "No papers matched.",
+        textContent: i18n.noPapersMatched,
       });
       paperPickerList.appendChild(empty);
       showPaperPicker();
@@ -5511,7 +5530,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
             "span",
             "llm-paper-picker-group-meta",
             {
-              textContent: `${group.attachments.length} PDFs`,
+              textContent: i18n.pdfCount(group.attachments.length),
             },
           );
           const chevron = createElement(
@@ -5526,7 +5545,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         }
         rowMain.appendChild(titleLine);
         const meta = createElement(ownerDoc, "span", "llm-paper-picker-meta", {
-          textContent: buildPaperMetaText(group) || "Supplemental paper",
+          textContent: buildPaperMetaText(group) || i18n.supplementalPaper,
         });
         rowMain.appendChild(meta);
         option.appendChild(rowMain);
@@ -5560,7 +5579,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           },
         );
         const meta = createElement(ownerDoc, "span", "llm-paper-picker-meta", {
-          textContent: "PDF attachment",
+          textContent: i18n.pdfAttachment,
         });
         attachmentMain.append(title, meta);
         option.append(indent, attachmentMain);
@@ -6528,7 +6547,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           } catch (err) {
             ztoolkit.log("Save single message as note failed:", err);
             const errMsg = err instanceof Error ? err.message : String(err);
-            if (status) setStatus(status, `Failed: ${errMsg}`, "error");
+            if (status)
+              setStatus(status, i18n.operationFailed(errMsg), "error");
           }
         })();
         return;

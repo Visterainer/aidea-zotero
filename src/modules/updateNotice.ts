@@ -151,7 +151,7 @@ const COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   },
 };
 
-const OAUTH_ENV_UPDATE_COPIES: Partial<Record<PanelLang, UpdateNoticeCopy>> = {
+const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   "en-US": {
     eyebrow: "Update",
     title: "OAuth environment updates can now run in the background",
@@ -224,6 +224,224 @@ const OAUTH_ENV_UPDATE_COPIES: Partial<Record<PanelLang, UpdateNoticeCopy>> = {
     confirm: "確認",
     close: "關閉更新提示",
   },
+  "ja-JP": {
+    eyebrow: "更新",
+    title: "OAuth 環境更新をバックグラウンドで実行できます",
+    lead: "AIdea は OAuth 設定環境のバックグラウンド更新に対応しました。更新頻度は OAuth プロバイダーによって異なります。",
+    note: "注意: プラグインは更新されています。新しいコードを有効にするため Zotero を再起動してください。",
+    exampleLabel: "OAuth 設定環境の更新モード",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "自動更新",
+        text: "OAuth 環境の更新を検出すると AIdea が通知します。60 秒以内に操作がない場合は自動更新します。後で、閉じる、最小化を選ぶと 24 時間通知を停止します。",
+      },
+      {
+        label: "通知のみ",
+        text: "OAuth 環境の更新を検出しても通知のみ表示し、自動更新はしません。今すぐ更新をクリックした場合だけ更新します。既定値です。",
+      },
+      {
+        label: "サイレント",
+        text: "AIdea は OAuth 環境更新を確認せず、通知も表示しません。",
+      },
+    ],
+    confirm: "OK",
+    close: "更新通知を閉じる",
+  },
+  "ko-KR": {
+    eyebrow: "업데이트",
+    title: "OAuth 환경 업데이트를 백그라운드에서 실행할 수 있습니다",
+    lead: "AIdea가 OAuth 구성 환경의 백그라운드 업데이트를 지원합니다. 업데이트 빈도는 OAuth 제공자에 따라 달라집니다.",
+    note: "주의: 플러그인이 업데이트되었습니다. 새 플러그인 코드가 적용되도록 Zotero를 다시 시작하세요.",
+    exampleLabel: "OAuth 구성 환경 업데이트 모드",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "자동 업데이트",
+        text: "OAuth 환경 업데이트가 감지되면 AIdea가 알림을 표시합니다. 60초 동안 동작이 없으면 자동으로 업데이트합니다. 나중에, 닫기, 최소화는 알림을 24시간 일시 중지합니다.",
+      },
+      {
+        label: "업데이트 알림",
+        text: "OAuth 환경 업데이트가 감지되면 AIdea는 알림만 표시하고 자동 업데이트하지 않습니다. 지금 업데이트를 클릭한 경우에만 업데이트합니다. 기본값입니다.",
+      },
+      {
+        label: "무음",
+        text: "AIdea는 OAuth 환경 업데이트를 확인하지 않고 알림도 표시하지 않습니다.",
+      },
+    ],
+    confirm: "확인",
+    close: "업데이트 알림 닫기",
+  },
+  "fr-FR": {
+    eyebrow: "Mise a jour",
+    title:
+      "Les mises a jour de l'environnement OAuth peuvent s'executer en arriere-plan",
+    lead: "AIdea prend maintenant en charge les mises a jour en arriere-plan des environnements de configuration OAuth. La frequence depend du fournisseur OAuth.",
+    note: "Remarque : le plugin a ete mis a jour. Redemarrez Zotero pour activer le nouveau code du plugin.",
+    exampleLabel: "Modes de mise a jour de l'environnement OAuth",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Mise a jour auto",
+        text: "Quand une mise a jour OAuth est detectee, AIdea affiche une invite. Sans action pendant 60 secondes, la mise a jour s'execute automatiquement. Plus tard, fermer ou reduire met l'invite en pause pendant 24 heures.",
+      },
+      {
+        label: "Notifier",
+        text: "Quand une mise a jour OAuth est detectee, AIdea affiche seulement une invite et ne met pas a jour automatiquement. La mise a jour se lance uniquement apres un clic sur Mettre a jour maintenant. C'est le reglage par defaut.",
+      },
+      {
+        label: "Silencieux",
+        text: "AIdea ne verifie pas les mises a jour OAuth et n'affiche pas d'invite.",
+      },
+    ],
+    confirm: "OK",
+    close: "Fermer l'avis de mise a jour",
+  },
+  "de-DE": {
+    eyebrow: "Update",
+    title: "OAuth-Umgebungsupdates koennen jetzt im Hintergrund laufen",
+    lead: "AIdea unterstuetzt jetzt Hintergrundupdates fuer OAuth-Konfigurationsumgebungen. Die Haeufigkeit haengt vom OAuth-Anbieter ab.",
+    note: "Hinweis: Das Plugin wurde aktualisiert. Starten Sie Zotero neu, damit der neue Plugin-Code aktiv wird.",
+    exampleLabel: "Update-Modi fuer die OAuth-Konfigurationsumgebung",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Automatisch",
+        text: "Wenn ein OAuth-Umgebungsupdate erkannt wird, zeigt AIdea eine Meldung. Ohne Aktion innerhalb von 60 Sekunden wird automatisch aktualisiert. Spaeter, Schliessen oder Minimieren pausiert die Meldung fuer 24 Stunden.",
+      },
+      {
+        label: "Benachrichtigen",
+        text: "Wenn ein OAuth-Umgebungsupdate erkannt wird, zeigt AIdea nur eine Meldung und aktualisiert nicht automatisch. Aktualisiert wird erst nach Klick auf Jetzt aktualisieren. Dies ist die Voreinstellung.",
+      },
+      {
+        label: "Still",
+        text: "AIdea prueft keine OAuth-Umgebungsupdates und zeigt keine Meldungen.",
+      },
+    ],
+    confirm: "OK",
+    close: "Update-Hinweis schliessen",
+  },
+  "es-ES": {
+    eyebrow: "Actualizacion",
+    title:
+      "Las actualizaciones del entorno OAuth pueden ejecutarse en segundo plano",
+    lead: "AIdea ahora admite actualizaciones en segundo plano para entornos de configuracion OAuth. La frecuencia depende del proveedor OAuth.",
+    note: "Nota: el plugin se ha actualizado. Reinicia Zotero para asegurarte de que el nuevo codigo del plugin este activo.",
+    exampleLabel: "Modos de actualizacion del entorno OAuth",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Actualizacion automatica",
+        text: "Cuando se detecta una actualizacion del entorno OAuth, AIdea muestra un aviso. Si no hay accion en 60 segundos, actualiza automaticamente. Mas tarde, cerrar o minimizar pausa el aviso durante 24 horas.",
+      },
+      {
+        label: "Notificar",
+        text: "Cuando se detecta una actualizacion del entorno OAuth, AIdea solo muestra un aviso y no actualiza automaticamente. Solo actualiza al hacer clic en Actualizar ahora. Es el valor predeterminado.",
+      },
+      {
+        label: "Silencioso",
+        text: "AIdea no comprueba actualizaciones del entorno OAuth ni muestra avisos.",
+      },
+    ],
+    confirm: "Aceptar",
+    close: "Cerrar aviso de actualizacion",
+  },
+  "ru-RU": {
+    eyebrow: "Обновление",
+    title: "Обновления среды OAuth теперь могут работать в фоне",
+    lead: "AIdea теперь поддерживает фоновые обновления сред конфигурации OAuth. Частота обновлений зависит от провайдера OAuth.",
+    note: "Примечание: плагин обновлен. Перезапустите Zotero, чтобы новый код плагина точно был активен.",
+    exampleLabel: "Режимы обновления среды конфигурации OAuth",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Автообновление",
+        text: "Когда обнаружено обновление среды OAuth, AIdea показывает подсказку. Если в течение 60 секунд нет действий, обновление запускается автоматически. Позже, закрыть или свернуть приостанавливает подсказку на 24 часа.",
+      },
+      {
+        label: "Уведомлять",
+        text: "Когда обнаружено обновление среды OAuth, AIdea только показывает подсказку и не обновляет автоматически. Обновление запускается только после нажатия Обновить сейчас. Это значение по умолчанию.",
+      },
+      {
+        label: "Тихий режим",
+        text: "AIdea не проверяет обновления среды OAuth и не показывает подсказки.",
+      },
+    ],
+    confirm: "OK",
+    close: "Закрыть уведомление об обновлении",
+  },
+  "pt-BR": {
+    eyebrow: "Atualizacao",
+    title: "Atualizacoes do ambiente OAuth agora podem rodar em segundo plano",
+    lead: "AIdea agora oferece atualizacoes em segundo plano para ambientes de configuracao OAuth. A frequencia depende do provedor OAuth.",
+    note: "Observacao: o plugin foi atualizado. Reinicie o Zotero para garantir que o novo codigo do plugin esteja ativo.",
+    exampleLabel: "Modos de atualizacao do ambiente OAuth",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Atualizacao automatica",
+        text: "Quando uma atualizacao do ambiente OAuth e detectada, AIdea mostra um aviso. Se nao houver acao em 60 segundos, atualiza automaticamente. Mais tarde, fechar ou minimizar pausa o aviso por 24 horas.",
+      },
+      {
+        label: "Notificar",
+        text: "Quando uma atualizacao do ambiente OAuth e detectada, AIdea apenas mostra um aviso e nao atualiza automaticamente. A atualizacao ocorre apenas ao clicar em Atualizar agora. Este e o padrao.",
+      },
+      {
+        label: "Silencioso",
+        text: "AIdea nao verifica atualizacoes do ambiente OAuth e nao mostra avisos.",
+      },
+    ],
+    confirm: "OK",
+    close: "Fechar aviso de atualizacao",
+  },
+  "ar-SA": {
+    eyebrow: "تحديث",
+    title: "يمكن الآن تشغيل تحديثات بيئة OAuth في الخلفية",
+    lead: "يدعم AIdea الآن تحديثات الخلفية لبيئات إعداد OAuth. يعتمد معدل التحديث على مزود OAuth.",
+    note: "ملاحظة: تم تحديث الإضافة. أعد تشغيل Zotero للتأكد من تفعيل كود الإضافة الجديد.",
+    exampleLabel: "أوضاع تحديث بيئة إعداد OAuth",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "تحديث تلقائي",
+        text: "عند اكتشاف تحديث لبيئة OAuth يعرض AIdea تنبيها. إذا لم يحدث أي إجراء خلال 60 ثانية فسيتم التحديث تلقائيا. لاحقا أو إغلاق أو تصغير يوقف التنبيه لمدة 24 ساعة.",
+      },
+      {
+        label: "تنبيه فقط",
+        text: "عند اكتشاف تحديث لبيئة OAuth يعرض AIdea تنبيها فقط ولا يحدث تلقائيا. يتم التحديث فقط بعد النقر على حدث الآن. هذا هو الوضع الافتراضي.",
+      },
+      {
+        label: "صامت",
+        text: "لا يفحص AIdea تحديثات بيئة OAuth ولا يعرض تنبيهات.",
+      },
+    ],
+    confirm: "حسنا",
+    close: "إغلاق تنبيه التحديث",
+  },
+  "hi-IN": {
+    eyebrow: "अपडेट",
+    title: "OAuth वातावरण अपडेट अब पृष्ठभूमि में चल सकते हैं",
+    lead: "AIdea अब OAuth कॉन्फ़िगरेशन वातावरण के लिए पृष्ठभूमि अपडेट का समर्थन करता है। अपडेट आवृत्ति OAuth प्रदाता पर निर्भर करती है।",
+    note: "नोट: प्लगइन अपडेट हो गया है। नया प्लगइन कोड सक्रिय करने के लिए Zotero पुनः शुरू करें।",
+    exampleLabel: "OAuth कॉन्फ़िगरेशन वातावरण अपडेट मोड",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "स्वचालित अपडेट",
+        text: "OAuth वातावरण अपडेट मिलने पर AIdea एक संकेत दिखाता है। 60 सेकंड तक कोई कार्रवाई न होने पर यह अपने आप अपडेट होगा। बाद में, बंद करें या छोटा करें संकेत को 24 घंटे रोकता है।",
+      },
+      {
+        label: "अपडेट सूचना",
+        text: "OAuth वातावरण अपडेट मिलने पर AIdea केवल संकेत दिखाता है और अपने आप अपडेट नहीं करता। अपडेट तभी होता है जब आप अभी अपडेट करें पर क्लिक करते हैं। यह डिफ़ॉल्ट है।",
+      },
+      {
+        label: "मौन",
+        text: "AIdea OAuth वातावरण अपडेट की जांच नहीं करता और संकेत नहीं दिखाता।",
+      },
+    ],
+    confirm: "ठीक है",
+    close: "अपडेट सूचना बंद करें",
+  },
 };
 
 let noticeShowingOrSeen = false;
@@ -249,7 +467,10 @@ function markNoticeSeen(): void {
   }
 }
 
-function createNoticeBody(copy: UpdateNoticeCopy, dir: string) {
+function createNoticeBody(
+  copy: UpdateNoticeCopy,
+  language: { dir: string; htmlLang: string },
+) {
   const detailChildren = copy.modeItems?.length
     ? copy.modeItems.map((item) => {
         const separator = /[A-Za-z]/.test(item.label) ? ": " : "：";
@@ -296,7 +517,7 @@ function createNoticeBody(copy: UpdateNoticeCopy, dir: string) {
   return {
     tag: "div",
     namespace: "html",
-    attributes: { dir },
+    attributes: { dir: language.dir, lang: language.htmlLang },
     styles: {
       width: `${NOTICE_BODY_WIDTH}px`,
       padding: "22px 24px 8px",
@@ -417,7 +638,7 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
   try {
     const dialog = new DialogHelper(1, 1);
     dialog
-      .addCell(0, 0, createNoticeBody(copy, language.dir), false)
+      .addCell(0, 0, createNoticeBody(copy, language), false)
       .addButton(copy.confirm, NOTICE_CONFIRM_BUTTON_ID, {
         noClose: true,
         callback: () => {

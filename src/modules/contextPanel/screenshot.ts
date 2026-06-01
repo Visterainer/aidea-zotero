@@ -1,4 +1,5 @@
 import { HTML_NS } from "../../utils/domHelpers";
+import { getPanelI18n } from "./i18n";
 
 function estimateDataUrlByteLength(dataUrl: string): number {
   const commaIndex = dataUrl.indexOf(",");
@@ -72,6 +73,7 @@ async function optimizeImageDataUrl(
 async function captureScreenshotSelection(win: Window): Promise<string | null> {
   return new Promise((resolve) => {
     const doc = win.document;
+    const i18n = getPanelI18n();
 
     // Find the appropriate container (body for HTML, documentElement for XUL)
     const container = doc.body || doc.documentElement;
@@ -113,8 +115,7 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       zIndex: "10001",
       pointerEvents: "none",
     });
-    instructions.textContent =
-      "Click and drag to select a region, then release";
+    instructions.textContent = i18n.screenshotSelectionInstruction;
 
     // Cancel button
     const cancelBtn = doc.createElementNS(
@@ -142,7 +143,7 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       lineHeight: "1",
       minWidth: "120px",
     });
-    cancelBtn.textContent = "Cancel (Esc)";
+    cancelBtn.textContent = i18n.cancelEsc;
 
     // Selection rectangle
     const selection = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;

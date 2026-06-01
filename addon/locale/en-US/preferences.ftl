@@ -8,3 +8,6 @@ pref-test-button = Test Connection
 pref-test-running = Testing...
 pref-test-success = Connection OK
 pref-test-failed = Failed
+pref-sidebar-moved-title = Preferences moved to Sidebar
+pref-sidebar-moved-desc = The AIdea settings have been migrated to the new tabbed interface within the main chat sidebar.
+pref-sidebar-moved-action = Open a PDF or select an item in the library, then switch to the Setting tab in the Zotero side panel.

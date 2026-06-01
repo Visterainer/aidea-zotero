@@ -206,6 +206,26 @@ function getLang(): Lang {
   }
 }
 
+function applyPanelLanguageAttributes(doc: Document, lang: Lang): void {
+  const language = getUiLanguageOption(lang);
+  const HTMLElementCtor =
+    doc.defaultView?.HTMLElement ||
+    (typeof HTMLElement !== "undefined" ? HTMLElement : null);
+  if (!HTMLElementCtor) return;
+  const targets = [
+    doc.getElementById("llm-main"),
+    doc.querySelector(".llm-panel"),
+    doc.querySelector(".llm-settings-root"),
+  ];
+  for (const target of targets) {
+    if (target && target instanceof HTMLElementCtor) {
+      const htmlTarget = target as HTMLElement;
+      htmlTarget.lang = language.htmlLang;
+      htmlTarget.dir = language.dir;
+    }
+  }
+}
+
 const I18N = {
   "zh-CN": {
     primaryConnectionMode: "主连接模式",
@@ -1578,42 +1598,180 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
 const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
   {
     "zh-TW": {
+      selectionTranslateTitle: "劃詞翻譯",
+      selectionTranslateEnable: "啟用劃詞翻譯",
+      selectionTranslateEnableHint:
+        "啟用後，可在 Zotero 閱讀器的選取彈窗中翻譯文字選取內容。",
+      selectionTranslateAuto: "選取後自動翻譯",
+      selectionTranslateAutoHint: "關閉後，仍可從選取彈窗中手動啟動翻譯。",
+      selectionTranslateModel: "劃詞翻譯模型",
+      selectionTranslateModelHint: "使用與對話面板相同的 OAuth/API 模型列表。",
+      selectionTranslateSourceLang: "來源語言",
+      selectionTranslateTargetLang: "目標語言",
+      selectionTranslateAutoDetect: "自動偵測",
+      selectionTranslateNoModels: "沒有可用模型",
       selectionTranslateColdStartHint:
         "冷啟動會在某篇文獻首次啟用劃詞翻譯時執行一次：AIdea 讀取全文，產生精簡概述與專業術語摘要，並儲存在本機。之後劃詞翻譯會重用這份本機快取作為上下文；需要重建時可清理冷啟動快取。",
     },
     "ja-JP": {
+      selectionTranslateTitle: "選択範囲翻訳",
+      selectionTranslateEnable: "選択範囲翻訳を有効化",
+      selectionTranslateEnableHint:
+        "有効にすると、Zotero リーダーの選択ポップアップで選択したテキストを翻訳できます。",
+      selectionTranslateAuto: "選択後に自動翻訳",
+      selectionTranslateAutoHint:
+        "無効にしても、選択ポップアップから手動で翻訳を開始できます。",
+      selectionTranslateModel: "選択範囲翻訳モデル",
+      selectionTranslateModelHint:
+        "対話パネルと同じ OAuth/API モデル一覧を使用します。",
+      selectionTranslateSourceLang: "元の言語",
+      selectionTranslateTargetLang: "翻訳先言語",
+      selectionTranslateAutoDetect: "自動検出",
+      selectionTranslateNoModels: "利用可能なモデルがありません",
       selectionTranslateColdStartHint:
         "コールドスタートは、文献で初めて選択範囲翻訳を有効にしたときに一度だけ実行されます。AIdea が全文を読み、要約と専門用語の短いまとめを作成してローカルに保存します。以後の翻訳ではこのローカルキャッシュを文脈として再利用します。作り直す場合はコールドスタートキャッシュをクリアしてください。",
     },
     "ko-KR": {
+      selectionTranslateTitle: "선택 번역",
+      selectionTranslateEnable: "선택 번역 사용",
+      selectionTranslateEnableHint:
+        "사용하면 Zotero 리더의 선택 팝업에서 선택한 텍스트를 번역할 수 있습니다.",
+      selectionTranslateAuto: "선택 후 자동 번역",
+      selectionTranslateAutoHint:
+        "꺼도 선택 팝업에서 수동으로 번역을 시작할 수 있습니다.",
+      selectionTranslateModel: "선택 번역 모델",
+      selectionTranslateModelHint:
+        "대화 패널과 같은 OAuth/API 모델 목록을 사용합니다.",
+      selectionTranslateSourceLang: "원본 언어",
+      selectionTranslateTargetLang: "대상 언어",
+      selectionTranslateAutoDetect: "자동 감지",
+      selectionTranslateNoModels: "사용 가능한 모델 없음",
       selectionTranslateColdStartHint:
         "콜드 스타트는 문헌에서 선택 번역을 처음 사용할 때 한 번 실행됩니다. AIdea가 전체 텍스트를 읽고 간단한 개요와 전문 용어 요약을 만든 뒤 로컬에 저장합니다. 이후 선택 번역은 이 로컬 캐시를 문맥으로 재사용합니다. 다시 만들려면 콜드 스타트 캐시를 지우세요.",
     },
     "fr-FR": {
+      selectionTranslateTitle: "Traduction de selection",
+      selectionTranslateEnable: "Activer la traduction de selection",
+      selectionTranslateEnableHint:
+        "Une fois activee, les selections de texte du lecteur Zotero peuvent etre traduites dans la fenetre de selection.",
+      selectionTranslateAuto: "Traduire automatiquement apres selection",
+      selectionTranslateAutoHint:
+        "Si desactive, la traduction reste disponible manuellement depuis la fenetre de selection.",
+      selectionTranslateModel: "Modele de traduction de selection",
+      selectionTranslateModelHint:
+        "Utilise la meme liste de modeles OAuth/API que le panneau de discussion.",
+      selectionTranslateSourceLang: "Langue source",
+      selectionTranslateTargetLang: "Langue cible",
+      selectionTranslateAutoDetect: "Detection automatique",
+      selectionTranslateNoModels: "Aucun modele disponible",
       selectionTranslateColdStartHint:
         "Le démarrage à froid s'exécute une fois par article lorsque la traduction de sélection est activée : AIdea lit le texte complet, crée un aperçu compact et un résumé terminologique, puis les stocke localement. Les traductions suivantes réutilisent ce cache local comme contexte ; effacez le cache pour le régénérer.",
     },
     "de-DE": {
+      selectionTranslateTitle: "Markierungsuebersetzung",
+      selectionTranslateEnable: "Markierungsuebersetzung aktivieren",
+      selectionTranslateEnableHint:
+        "Wenn aktiviert, koennen Textmarkierungen im Zotero Reader ueber das Auswahl-Popup uebersetzt werden.",
+      selectionTranslateAuto: "Nach Auswahl automatisch uebersetzen",
+      selectionTranslateAutoHint:
+        "Wenn deaktiviert, kann die Uebersetzung weiterhin manuell im Auswahl-Popup gestartet werden.",
+      selectionTranslateModel: "Modell fuer Markierungsuebersetzung",
+      selectionTranslateModelHint:
+        "Verwendet dieselbe OAuth/API-Modellliste wie das Diskussionspanel.",
+      selectionTranslateSourceLang: "Ausgangssprache",
+      selectionTranslateTargetLang: "Zielsprache",
+      selectionTranslateAutoDetect: "Automatisch erkennen",
+      selectionTranslateNoModels: "Kein Modell verfuegbar",
       selectionTranslateColdStartHint:
         "Der Kaltstart wird pro Dokument einmal ausgeführt, wenn die Markierungsübersetzung aktiviert ist: AIdea liest den Volltext, erstellt eine kurze Übersicht und eine Fachbegriff-Zusammenfassung und speichert sie lokal. Spätere Übersetzungen verwenden diesen lokalen Cache als Kontext; zum Neuerstellen den Kaltstart-Cache leeren.",
     },
     "es-ES": {
+      selectionTranslateTitle: "Traduccion de seleccion",
+      selectionTranslateEnable: "Activar traduccion de seleccion",
+      selectionTranslateEnableHint:
+        "Cuando esta activada, las selecciones de texto del lector de Zotero se pueden traducir en la ventana de seleccion.",
+      selectionTranslateAuto: "Traducir automaticamente tras seleccionar",
+      selectionTranslateAutoHint:
+        "Si esta desactivada, aun puedes iniciar la traduccion manualmente desde la ventana de seleccion.",
+      selectionTranslateModel: "Modelo de traduccion de seleccion",
+      selectionTranslateModelHint:
+        "Usa la misma lista de modelos OAuth/API que el panel de conversacion.",
+      selectionTranslateSourceLang: "Idioma de origen",
+      selectionTranslateTargetLang: "Idioma de destino",
+      selectionTranslateAutoDetect: "Detectar automaticamente",
+      selectionTranslateNoModels: "No hay modelos disponibles",
       selectionTranslateColdStartHint:
         "El arranque en frío se ejecuta una vez por documento cuando se activa la traducción de selección: AIdea lee el texto completo, crea una descripción breve y un resumen de términos técnicos, y lo guarda localmente. Las traducciones posteriores reutilizan esa caché local como contexto; borra la caché para regenerarla.",
     },
     "ru-RU": {
+      selectionTranslateTitle: "Перевод выделенного текста",
+      selectionTranslateEnable: "Включить перевод выделенного текста",
+      selectionTranslateEnableHint:
+        "Если включено, выделенный текст в Zotero Reader можно переводить во всплывающем меню выделения.",
+      selectionTranslateAuto: "Переводить автоматически после выделения",
+      selectionTranslateAutoHint:
+        "Если выключено, перевод можно запускать вручную из всплывающего меню выделения.",
+      selectionTranslateModel: "Модель перевода выделения",
+      selectionTranslateModelHint:
+        "Использует тот же список моделей OAuth/API, что и панель диалога.",
+      selectionTranslateSourceLang: "Исходный язык",
+      selectionTranslateTargetLang: "Целевой язык",
+      selectionTranslateAutoDetect: "Определять автоматически",
+      selectionTranslateNoModels: "Нет доступных моделей",
       selectionTranslateColdStartHint:
         "Холодный запуск выполняется один раз для статьи при включении перевода выделенного текста: AIdea читает полный текст, создает краткий обзор и сводку терминов, затем сохраняет их локально. Последующие переводы используют этот локальный кэш как контекст; очистите кэш, чтобы создать его заново.",
     },
     "pt-BR": {
+      selectionTranslateTitle: "Traducao da selecao",
+      selectionTranslateEnable: "Ativar traducao da selecao",
+      selectionTranslateEnableHint:
+        "Quando ativado, selecoes de texto no leitor do Zotero podem ser traduzidas no popup de selecao.",
+      selectionTranslateAuto: "Traduzir automaticamente apos selecionar",
+      selectionTranslateAutoHint:
+        "Quando desativado, ainda e possivel iniciar a traducao manualmente pelo popup de selecao.",
+      selectionTranslateModel: "Modelo de traducao da selecao",
+      selectionTranslateModelHint:
+        "Usa a mesma lista de modelos OAuth/API do painel de discussao.",
+      selectionTranslateSourceLang: "Idioma de origem",
+      selectionTranslateTargetLang: "Idioma de destino",
+      selectionTranslateAutoDetect: "Detectar automaticamente",
+      selectionTranslateNoModels: "Nenhum modelo disponivel",
       selectionTranslateColdStartHint:
         "A inicialização a frio é executada uma vez por artigo quando a tradução por seleção é ativada: o AIdea lê o texto completo, cria um resumo compacto e uma síntese de termos técnicos, e salva tudo localmente. As próximas traduções reutilizam esse cache local como contexto; limpe o cache para recriá-lo.",
     },
     "ar-SA": {
+      selectionTranslateTitle: "ترجمة التحديد",
+      selectionTranslateEnable: "تفعيل ترجمة التحديد",
+      selectionTranslateEnableHint:
+        "عند التفعيل، يمكن ترجمة النص المحدد في قارئ Zotero من نافذة التحديد.",
+      selectionTranslateAuto: "الترجمة تلقائيا بعد التحديد",
+      selectionTranslateAutoHint:
+        "عند إيقافها، يمكنك بدء الترجمة يدويا من نافذة التحديد.",
+      selectionTranslateModel: "نموذج ترجمة التحديد",
+      selectionTranslateModelHint:
+        "يستخدم قائمة نماذج OAuth/API نفسها المستخدمة في لوحة النقاش.",
+      selectionTranslateSourceLang: "لغة المصدر",
+      selectionTranslateTargetLang: "لغة الهدف",
+      selectionTranslateAutoDetect: "اكتشاف تلقائي",
+      selectionTranslateNoModels: "لا توجد نماذج متاحة",
       selectionTranslateColdStartHint:
         "يعمل البدء البارد مرة واحدة لكل مقالة عند تفعيل ترجمة التحديد: يقرأ AIdea النص الكامل، وينشئ ملخصا موجزا وملخصا للمصطلحات المتخصصة، ثم يحفظهما محليا. تستخدم الترجمات اللاحقة هذا التخزين المحلي كسياق؛ امسح ذاكرة البدء البارد لإعادة إنشائها.",
     },
     "hi-IN": {
+      selectionTranslateTitle: "चयन अनुवाद",
+      selectionTranslateEnable: "चयन अनुवाद चालू करें",
+      selectionTranslateEnableHint:
+        "चालू होने पर Zotero रीडर में चुने गए पाठ का चयन पॉपअप से अनुवाद किया जा सकता है।",
+      selectionTranslateAuto: "चयन के बाद अपने आप अनुवाद करें",
+      selectionTranslateAutoHint:
+        "बंद होने पर भी चयन पॉपअप से अनुवाद मैन्युअल रूप से शुरू किया जा सकता है।",
+      selectionTranslateModel: "चयन अनुवाद मॉडल",
+      selectionTranslateModelHint:
+        "चर्चा पैनल जैसी ही OAuth/API मॉडल सूची का उपयोग करता है।",
+      selectionTranslateSourceLang: "स्रोत भाषा",
+      selectionTranslateTargetLang: "लक्ष्य भाषा",
+      selectionTranslateAutoDetect: "अपने आप पहचानें",
+      selectionTranslateNoModels: "कोई उपलब्ध मॉडल नहीं",
       selectionTranslateColdStartHint:
         "कोल्ड स्टार्ट हर लेख के लिए चयन अनुवाद पहली बार सक्षम होने पर एक बार चलता है: AIdea पूरा पाठ पढ़ता है, संक्षिप्त सार और तकनीकी शब्दों का सारांश बनाता है, और उसे स्थानीय रूप से सहेजता है। बाद के चयन अनुवाद इसी स्थानीय कैश को संदर्भ के रूप में उपयोग करते हैं; इसे फिर से बनाने के लिए कोल्ड-स्टार्ट कैश साफ करें।",
     },
@@ -1915,6 +2073,160 @@ const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
   },
 };
 
+const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "zh-TW": {
+    language: "介面語言",
+    basicConfig: "基本設定",
+    composerTheme: "輸入框主題",
+    composerThemeDefault: "預設",
+    composerThemeSoftBlue: "柔和藍",
+    hideTabNav: "標籤列：",
+    hideTabNavOn: "隱藏",
+    hideTabNavOff: "顯示",
+    fontSizeOpen: "顯示與字體",
+    fontInspectorTitle: "顯示與字體",
+    selectionTranslateClearCache: "清理冷啟動快取",
+    selectionTranslateClearCacheRunning: "清理中...",
+    selectionTranslateClearCacheDone: "已清理冷啟動快取（{n}）",
+  },
+  "ja-JP": {
+    language: "UI 言語",
+    basicConfig: "基本設定",
+    composerTheme: "入力テーマ",
+    composerThemeDefault: "既定",
+    composerThemeSoftBlue: "ソフトブルー",
+    hideTabNav: "タブバー:",
+    hideTabNavOn: "非表示",
+    hideTabNavOff: "表示",
+    fontSizeOpen: "表示と文字",
+    fontInspectorTitle: "表示と文字",
+    selectionTranslateClearCache: "コールドスタートキャッシュを削除",
+    selectionTranslateClearCacheRunning: "削除中...",
+    selectionTranslateClearCacheDone:
+      "コールドスタートキャッシュを削除しました（{n}）",
+  },
+  "ko-KR": {
+    language: "UI 언어",
+    basicConfig: "기본 설정",
+    composerTheme: "입력 테마",
+    composerThemeDefault: "기본값",
+    composerThemeSoftBlue: "소프트 블루",
+    hideTabNav: "탭 표시줄:",
+    hideTabNavOn: "숨김",
+    hideTabNavOff: "표시",
+    fontSizeOpen: "표시 및 글꼴",
+    fontInspectorTitle: "표시 및 글꼴",
+    selectionTranslateClearCache: "콜드 스타트 캐시 지우기",
+    selectionTranslateClearCacheRunning: "지우는 중...",
+    selectionTranslateClearCacheDone: "콜드 스타트 캐시 지움 ({n})",
+  },
+  "fr-FR": {
+    language: "Langue de l'interface",
+    basicConfig: "Configuration de base",
+    composerTheme: "Theme de saisie",
+    composerThemeDefault: "Par defaut",
+    composerThemeSoftBlue: "Bleu doux",
+    hideTabNav: "Barre d'onglets :",
+    hideTabNavOn: "Masquer",
+    hideTabNavOff: "Afficher",
+    fontSizeOpen: "Affichage et texte",
+    fontInspectorTitle: "Affichage et texte",
+    selectionTranslateClearCache: "Effacer le cache de demarrage",
+    selectionTranslateClearCacheRunning: "Effacement...",
+    selectionTranslateClearCacheDone: "Cache de demarrage efface ({n})",
+  },
+  "de-DE": {
+    language: "Oberflaechensprache",
+    basicConfig: "Grundeinstellungen",
+    composerTheme: "Eingabethema",
+    composerThemeDefault: "Standard",
+    composerThemeSoftBlue: "Sanftes Blau",
+    hideTabNav: "Tableiste:",
+    hideTabNavOn: "Ausblenden",
+    hideTabNavOff: "Anzeigen",
+    fontSizeOpen: "Anzeige und Schrift",
+    fontInspectorTitle: "Anzeige und Schrift",
+    selectionTranslateClearCache: "Startcache leeren",
+    selectionTranslateClearCacheRunning: "Wird geleert...",
+    selectionTranslateClearCacheDone: "Startcache geleert ({n})",
+  },
+  "es-ES": {
+    language: "Idioma de la interfaz",
+    basicConfig: "Configuracion basica",
+    composerTheme: "Tema de entrada",
+    composerThemeDefault: "Predeterminado",
+    composerThemeSoftBlue: "Azul suave",
+    hideTabNav: "Barra de pestanas:",
+    hideTabNavOn: "Ocultar",
+    hideTabNavOff: "Mostrar",
+    fontSizeOpen: "Visualizacion y texto",
+    fontInspectorTitle: "Visualizacion y texto",
+    selectionTranslateClearCache: "Borrar cache de arranque",
+    selectionTranslateClearCacheRunning: "Borrando...",
+    selectionTranslateClearCacheDone: "Cache de arranque borrada ({n})",
+  },
+  "ru-RU": {
+    language: "Язык интерфейса",
+    basicConfig: "Основные настройки",
+    composerTheme: "Тема поля ввода",
+    composerThemeDefault: "По умолчанию",
+    composerThemeSoftBlue: "Мягкий синий",
+    hideTabNav: "Панель вкладок:",
+    hideTabNavOn: "Скрыть",
+    hideTabNavOff: "Показать",
+    fontSizeOpen: "Отображение и шрифт",
+    fontInspectorTitle: "Отображение и шрифт",
+    selectionTranslateClearCache: "Очистить кеш запуска",
+    selectionTranslateClearCacheRunning: "Очистка...",
+    selectionTranslateClearCacheDone: "Кеш запуска очищен ({n})",
+  },
+  "pt-BR": {
+    language: "Idioma da interface",
+    basicConfig: "Configuracao basica",
+    composerTheme: "Tema de entrada",
+    composerThemeDefault: "Padrao",
+    composerThemeSoftBlue: "Azul suave",
+    hideTabNav: "Barra de abas:",
+    hideTabNavOn: "Ocultar",
+    hideTabNavOff: "Mostrar",
+    fontSizeOpen: "Exibicao e texto",
+    fontInspectorTitle: "Exibicao e texto",
+    selectionTranslateClearCache: "Limpar cache de inicializacao",
+    selectionTranslateClearCacheRunning: "Limpando...",
+    selectionTranslateClearCacheDone: "Cache de inicializacao limpo ({n})",
+  },
+  "ar-SA": {
+    language: "لغة الواجهة",
+    basicConfig: "الإعدادات الأساسية",
+    composerTheme: "سمة الإدخال",
+    composerThemeDefault: "افتراضي",
+    composerThemeSoftBlue: "أزرق هادئ",
+    hideTabNav: "شريط التبويب:",
+    hideTabNavOn: "إخفاء",
+    hideTabNavOff: "إظهار",
+    fontSizeOpen: "العرض والنص",
+    fontInspectorTitle: "العرض والنص",
+    selectionTranslateClearCache: "مسح ذاكرة البدء البارد",
+    selectionTranslateClearCacheRunning: "جار المسح...",
+    selectionTranslateClearCacheDone: "تم مسح ذاكرة البدء البارد ({n})",
+  },
+  "hi-IN": {
+    language: "इंटरफ़ेस भाषा",
+    basicConfig: "मूल सेटिंग",
+    composerTheme: "इनपुट थीम",
+    composerThemeDefault: "डिफ़ॉल्ट",
+    composerThemeSoftBlue: "हल्का नीला",
+    hideTabNav: "टैब बार:",
+    hideTabNavOn: "छिपाएँ",
+    hideTabNavOff: "दिखाएँ",
+    fontSizeOpen: "डिस्प्ले और टेक्स्ट",
+    fontInspectorTitle: "डिस्प्ले और टेक्स्ट",
+    selectionTranslateClearCache: "कोल्ड-स्टार्ट कैश साफ़ करें",
+    selectionTranslateClearCacheRunning: "साफ़ हो रहा है...",
+    selectionTranslateClearCacheDone: "कोल्ड-स्टार्ट कैश साफ़ हुआ ({n})",
+  },
+};
+
 const tt = (l: Lang): Dict =>
   ({
     ...(I18N["en-US"] as unknown as Dict),
@@ -1929,6 +2241,7 @@ const tt = (l: Lang): Dict =>
     ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_TYPOGRAPHY_OVERRIDES["en-US"] || {}),
     ...(SETTINGS_I18N_TYPOGRAPHY_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_RUNTIME_OVERRIDES[l] || {}),
   }) as Dict;
 
 function localizeAuthStatus(raw: string, L: Dict): string {
@@ -2430,6 +2743,7 @@ export async function bootstrapSettingTab(
 
   const root = createEl(doc, "div", "llm-settings-root");
   scrollContainer.appendChild(root);
+  applyPanelLanguageAttributes(doc, lang);
 
   type SettingsSectionId =
     | "basic"
@@ -2754,8 +3068,6 @@ export async function bootstrapSettingTab(
     composerThemeMenu.appendChild(item);
     return { item, option };
   });
-  composerThemeGroup.append(composerThemeLabel, composerThemeDropdown);
-
   const fontGroup = createEl(
     doc,
     "div",
@@ -2773,6 +3085,13 @@ export async function bootstrapSettingTab(
   ) as HTMLButtonElement;
   fontOpenBtn.type = "button";
   fontGroup.append(fontOpenBtn);
+  const composerThemeControlRow = createEl(
+    doc,
+    "div",
+    "llm-basic-theme-control-row",
+  );
+  composerThemeControlRow.append(composerThemeDropdown, fontGroup);
+  composerThemeGroup.append(composerThemeLabel, composerThemeControlRow);
 
   // Danger buttons (moved from bottom dangerZone)
   const langRight = createEl(doc, "div", "llm-basic-top-actions");
@@ -2794,6 +3113,19 @@ export async function bootstrapSettingTab(
   const switchLang = (next: Lang) => {
     lang = next;
     setPref("uiLanguage", lang);
+    applyPanelLanguageAttributes(doc, lang);
+    try {
+      const CustomEventCtor =
+        win.CustomEvent ||
+        (typeof CustomEvent !== "undefined" ? CustomEvent : null);
+      if (CustomEventCtor) {
+        doc.dispatchEvent(
+          new CustomEventCtor(`${config.addonRef}-ui-language-change`),
+        );
+      }
+    } catch {
+      /* best-effort notification for already-bound panel handlers */
+    }
     updateLanguageDropdown(lang);
     renderStaticText();
     renderModels();
@@ -2822,7 +3154,7 @@ export async function bootstrapSettingTab(
   };
 
   basicTopRow.append(langLeft, langRight);
-  basicDisplayGroup.append(hideNavGroup, fontGroup);
+  basicDisplayGroup.append(hideNavGroup);
   basicMiddleRow.append(basicDisplayGroup);
   basicBottomRow.append(composerThemeGroup);
   langBox.append(basicTopRow, basicMiddleRow, basicBottomRow, dangerStatus);
@@ -3785,8 +4117,7 @@ export async function bootstrapSettingTab(
   const renderStaticText = () => {
     L = tt(lang);
     basicTitle.textContent = L.basicConfig;
-    // "Language" label stays English regardless of selected language
-    langLabel.textContent = "Language";
+    langLabel.textContent = L.language;
     composerThemeLabel.textContent = L.composerTheme;
     updateComposerThemeUi();
     hideNavLabel.textContent = L.hideTabNav;
@@ -5188,7 +5519,7 @@ export async function bootstrapSettingTab(
     }
     Zotero.Prefs.set(`${config.prefsPrefix}.showPopupAddText`, true, true);
     Zotero.Prefs.set(`${config.prefsPrefix}.showAllModels`, false, true);
-    setBoolPref("authorProfiles.contextMenuEnabled", true);
+    setBoolPref("authorProfiles.contextMenuEnabled", false);
     setBoolPref("selectionTranslate.enabled", true);
     setBoolPref("selectionTranslate.auto", true);
     setBoolPref("translate.outputMono", true);
@@ -5239,7 +5570,7 @@ export async function bootstrapSettingTab(
     if (systemPromptInput) systemPromptInput.value = "";
     if (popupInput) popupInput.checked = true;
     if (authorProfilesMenuInput) {
-      authorProfilesMenuInput.checked = true;
+      authorProfilesMenuInput.checked = false;
     }
     if (authorProfilesLanguageDropdown) {
       authorProfilesLanguageDropdown.dataset.value = "";
@@ -5660,7 +5991,7 @@ export async function bootstrapSettingTab(
   authorProfilesMenuInput.type = "checkbox";
   authorProfilesMenuInput.checked = getBoolPref(
     "authorProfiles.contextMenuEnabled",
-    true,
+    false,
   );
   const authorProfilesMenuText = createEl(
     doc,

@@ -26,6 +26,7 @@ import {
   createPaperConversation,
   getLatestPaperConversation,
 } from "../../utils/chatStore";
+import { getPanelI18n } from "./i18n";
 
 // ---------------------------------------------------------------------------
 // State
@@ -128,9 +129,7 @@ export async function bootstrapSharedReaderPanel(
       void ensurePDFTextCached(item);
       if (isSelectionTranslateEnabled()) {
         const status = host.querySelector("#llm-status") as HTMLElement | null;
-        const isZh = String((Zotero as any)?.locale || "")
-          .toLowerCase()
-          .startsWith("zh");
+        const i18n = getPanelI18n();
         void warmSelectionTranslateColdStartForReader({
           item,
           callbacks: {
@@ -139,9 +138,7 @@ export async function bootstrapSharedReaderPanel(
                 if (status) {
                   setStatus(
                     status,
-                    isZh
-                      ? "划词翻译冷启动中..."
-                      : "Selection translation cold starting...",
+                    i18n.selectionTranslateColdStartStatus,
                     "ready",
                   );
                 }
@@ -152,13 +149,7 @@ export async function bootstrapSharedReaderPanel(
           .then((ready) => {
             if (!ready) return;
             if (status) {
-              setStatus(
-                status,
-                isZh
-                  ? "划词翻译冷启动缓存已就绪"
-                  : "Selection translation cache ready",
-                "ready",
-              );
+              setStatus(status, i18n.selectionTranslateCacheReady, "ready");
             }
           })
           .catch((err) => {

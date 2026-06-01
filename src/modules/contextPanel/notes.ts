@@ -11,6 +11,7 @@ import {
   rememberAssistantNoteForParent,
 } from "./prefHelpers";
 import type { Message } from "./types";
+import { getPanelLang, type PanelLang } from "./i18n";
 
 function resolveParentItemForNote(item: Zotero.Item): Zotero.Item | null {
   if (item.isAttachment() && item.parentID) {
@@ -135,6 +136,130 @@ function appendAssistantAnswerToNoteHtml(
 
 const SELECTION_TRANSLATION_NOTE_TITLE = "AIdea \u5212\u8bcd\u7ffb\u8bd1";
 
+type SelectionTranslationNoteCopy = {
+  original: string;
+  translation: string;
+  source: string;
+  model: string;
+  provider: string;
+  time: string;
+  currentPdf: string;
+};
+
+const SELECTION_TRANSLATION_NOTE_COPIES: Record<
+  PanelLang,
+  SelectionTranslationNoteCopy
+> = {
+  "en-US": {
+    original: "Original",
+    translation: "Translation",
+    source: "Source",
+    model: "Model",
+    provider: "Provider",
+    time: "Time",
+    currentPdf: "Current PDF",
+  },
+  "zh-CN": {
+    original: "\u539f\u6587",
+    translation: "\u8bd1\u6587",
+    source: "\u6765\u6e90",
+    model: "\u6a21\u578b",
+    provider: "\u63d0\u4f9b\u5546",
+    time: "\u65f6\u95f4",
+    currentPdf: "\u5f53\u524d PDF",
+  },
+  "zh-TW": {
+    original: "原文",
+    translation: "譯文",
+    source: "來源",
+    model: "模型",
+    provider: "提供商",
+    time: "時間",
+    currentPdf: "目前 PDF",
+  },
+  "ja-JP": {
+    original: "原文",
+    translation: "翻訳",
+    source: "出典",
+    model: "モデル",
+    provider: "プロバイダー",
+    time: "時刻",
+    currentPdf: "現在の PDF",
+  },
+  "ko-KR": {
+    original: "원문",
+    translation: "번역",
+    source: "출처",
+    model: "모델",
+    provider: "제공자",
+    time: "시간",
+    currentPdf: "현재 PDF",
+  },
+  "fr-FR": {
+    original: "Original",
+    translation: "Traduction",
+    source: "Source",
+    model: "Modele",
+    provider: "Fournisseur",
+    time: "Heure",
+    currentPdf: "PDF actuel",
+  },
+  "de-DE": {
+    original: "Original",
+    translation: "Uebersetzung",
+    source: "Quelle",
+    model: "Modell",
+    provider: "Anbieter",
+    time: "Zeit",
+    currentPdf: "Aktuelles PDF",
+  },
+  "es-ES": {
+    original: "Original",
+    translation: "Traduccion",
+    source: "Fuente",
+    model: "Modelo",
+    provider: "Proveedor",
+    time: "Hora",
+    currentPdf: "PDF actual",
+  },
+  "ru-RU": {
+    original: "Оригинал",
+    translation: "Перевод",
+    source: "Источник",
+    model: "Модель",
+    provider: "Провайдер",
+    time: "Время",
+    currentPdf: "Текущий PDF",
+  },
+  "pt-BR": {
+    original: "Original",
+    translation: "Traducao",
+    source: "Fonte",
+    model: "Modelo",
+    provider: "Provedor",
+    time: "Hora",
+    currentPdf: "PDF atual",
+  },
+  "ar-SA": {
+    original: "النص الأصلي",
+    translation: "الترجمة",
+    source: "المصدر",
+    model: "النموذج",
+    provider: "المزود",
+    time: "الوقت",
+    currentPdf: "ملف PDF الحالي",
+  },
+  "hi-IN": {
+    original: "मूल पाठ",
+    translation: "अनुवाद",
+    source: "स्रोत",
+    model: "मॉडल",
+    provider: "प्रदाता",
+    time: "समय",
+    currentPdf: "वर्तमान PDF",
+  },
+};
+
 type SelectionTranslationNoteParams = {
   selectedText: string;
   translation: string;
@@ -144,28 +269,10 @@ type SelectionTranslationNoteParams = {
 };
 
 function getSelectionTranslationNoteCopy() {
-  const isZh = String((Zotero as any)?.locale || "")
-    .toLowerCase()
-    .startsWith("zh");
-  return isZh
-    ? {
-        original: "\u539f\u6587",
-        translation: "\u8bd1\u6587",
-        source: "\u6765\u6e90",
-        model: "\u6a21\u578b",
-        provider: "\u63d0\u4f9b\u5546",
-        time: "\u65f6\u95f4",
-        currentPdf: "\u5f53\u524d PDF",
-      }
-    : {
-        original: "Original",
-        translation: "Translation",
-        source: "Source",
-        model: "Model",
-        provider: "Provider",
-        time: "Time",
-        currentPdf: "Current PDF",
-      };
+  return (
+    SELECTION_TRANSLATION_NOTE_COPIES[getPanelLang()] ||
+    SELECTION_TRANSLATION_NOTE_COPIES["en-US"]
+  );
 }
 
 function renderPlainTextForNote(text: string): string {

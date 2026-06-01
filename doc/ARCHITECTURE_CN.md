@@ -18,7 +18,7 @@
 7. [UI 构建：buildUI.ts](#7-ui-构建builduits)
 8. [事件处理：setupHandlers.ts](#8-事件处理setuphandlersts)
 9. [聊天流程：chat.ts](#9-聊天流程chatts)
-    - 9.1. [流式增量更新：streamingUpdate.ts](#91-流式增量更新streamingupdatets)
+   - 9.1. [流式增量更新：streamingUpdate.ts](#91-流式增量更新streamingupdatets)
 10. [上下文解析：contextResolution.ts](#10-上下文解析contextresolutionts)
 11. [控制器层：setupHandlers/controllers](#11-控制器层setuphandlerscontrollers)
 12. [LLM 客户端：llmClient.ts](#12-llm-客户端llmclientts)
@@ -47,15 +47,15 @@
 
 ## 1. 项目概览
 
-| 属性 | 值 |
-|---|---|
-| 名称 | `aidea-for-zotero` (addonName: `AIdea`) |
-| 插件 ID | `aidea@visterainer` |
-| 偏好前缀 | `extensions.zotero.aidea` |
-| 目标环境 | Zotero 7 (Firefox 115 ESR) |
-| 语言 | TypeScript → esbuild 打包 → JS |
-| 样式 | 原生 CSS（无框架） |
-| 许可证 | AGPL-3.0-or-later |
+| 属性     | 值                                      |
+| -------- | --------------------------------------- |
+| 名称     | `aidea-for-zotero` (addonName: `AIdea`) |
+| 插件 ID  | `aidea@visterainer`                     |
+| 偏好前缀 | `extensions.zotero.aidea`               |
+| 目标环境 | Zotero 7 (Firefox 115 ESR)              |
+| 语言     | TypeScript → esbuild 打包 → JS          |
+| 样式     | 原生 CSS（无框架）                      |
+| 许可证   | AGPL-3.0-or-later                       |
 
 本插件在 Zotero 的 PDF 阅读器 / 文库侧边栏中提供一个 **AI 聊天面板**，支持多模型、多轮对话、文件上传、截图、论文上下文引用等功能。
 
@@ -74,7 +74,7 @@ Zotero_LLM_Plugin/
 │   │   ├── icons/                  # SVG 图标（action-* + file-type-* + preview-*）
 │   │   ├── preferences.xhtml       # 偏好面板 UI
 │   │   └── scripts/                # 构建输出目标目录
-│   └── locale/                     # 国际化 FTL 文件（en-US / zh-CN）
+│   └── locale/                     # Zotero FTL 文件（en-US / zh-CN fallback）
 │
 ├── src/                            # TypeScript 源码
 │   ├── index.ts                    # 全局入口（注册 addon 实例）
@@ -124,11 +124,11 @@ npm run test:unit    # 运行单元测试
 
 ### 4.1 入口文件
 
-| 文件 | 职责 |
-|---|---|
-| `src/index.ts` | 注册全局 `Zotero.AIdea` 实例 |
+| 文件           | 职责                                     |
+| -------------- | ---------------------------------------- |
+| `src/index.ts` | 注册全局 `Zotero.AIdea` 实例             |
 | `src/addon.ts` | `Addon` 类，持有 `data.initialized` 状态 |
-| `src/hooks.ts` | Zotero 插件生命周期钩子 |
+| `src/hooks.ts` | Zotero 插件生命周期钩子                  |
 
 ### 4.2 钩子流程
 
@@ -165,44 +165,44 @@ onMainWindowUnload(win)
 
 ### 5.1 文件清单
 
-| 文件 | 大小 | 职责 |
-|---|---|---|
-| `index.ts` | 30KB | 模块公共 API，注册面板，独占模式管理 |
-| **`setupHandlers.ts`** | **185KB** | ★ 最大文件！所有 UI 事件绑定（~5236行）|
-| `buildUI.ts` | 19KB | DOM 元素创建 |
-| **`chat.ts`** | **100KB** | ★ 聊天消息渲染、发送、重试、编辑、压缩（~2795行）|
-| `contextResolution.ts` | 22KB | 上下文/选中文本解析 |
-| `constants.ts` | 5.5KB | 常量定义 |
-| `types.ts` | 3KB | 类型定义 |
-| `state.ts` | 4KB | 全局状态缓存（集中管理）|
-| `textUtils.ts` | 11KB | 文本处理工具 |
-| `screenshot.ts` | 12KB | 截图捕获与优化 |
-| `pdfContext.ts` | 13KB | PDF 内容分块 & 检索 |
-| `attachmentStorage.ts` | 14KB | 附件文件管理（含 blob 存储）|
-| `notes.ts` | 8.5KB | Zotero 笔记导出 |
-| `shortcuts.ts` | 27KB | 快捷指令系统 |
-| `paperContext.ts` | 5KB | 论文引用上下文 |
-| `paperSearch.ts` | 8KB | `@` 搜索论文 |
-| `paperAttribution.ts` | 5KB | 论文归属解析 |
-| `chatScroll.ts` | 9KB | 聊天滚动管理 |
-| `streamingUpdate.ts` | 5KB | 流式输出增量 DOM 更新 |
-| `menuPositioning.ts` | 3KB | 浮动菜单定位 |
-| `normalizers.ts` | 4KB | 数据规范化 |
-| `portalScope.ts` | 2KB | 全局对话"虚拟 Item" |
-| `prefHelpers.ts` | 11KB | 偏好读写帮助（含文件附件状态持久化）|
-| `readerSelection.ts` | 2KB | 阅读器选区读取 |
-| `i18n.ts` | 5KB | 面板内国际化（zh-CN / en-US）|
-| **`libraryPanel.ts`** | **6KB** | ★ 文库模式面板 DOM 缓存/重挂载 |
-| **`readerPanel.ts`** | **3KB** | ★ 阅读器模式面板 DOM 缓存/重挂载 |
-| `README.md` | 3KB | 模块自述 |
+| 文件                   | 大小      | 职责                                              |
+| ---------------------- | --------- | ------------------------------------------------- |
+| `index.ts`             | 30KB      | 模块公共 API，注册面板，独占模式管理              |
+| **`setupHandlers.ts`** | **185KB** | ★ 最大文件！所有 UI 事件绑定（~5236行）           |
+| `buildUI.ts`           | 19KB      | DOM 元素创建                                      |
+| **`chat.ts`**          | **100KB** | ★ 聊天消息渲染、发送、重试、编辑、压缩（~2795行） |
+| `contextResolution.ts` | 22KB      | 上下文/选中文本解析                               |
+| `constants.ts`         | 5.5KB     | 常量定义                                          |
+| `types.ts`             | 3KB       | 类型定义                                          |
+| `state.ts`             | 4KB       | 全局状态缓存（集中管理）                          |
+| `textUtils.ts`         | 11KB      | 文本处理工具                                      |
+| `screenshot.ts`        | 12KB      | 截图捕获与优化                                    |
+| `pdfContext.ts`        | 13KB      | PDF 内容分块 & 检索                               |
+| `attachmentStorage.ts` | 14KB      | 附件文件管理（含 blob 存储）                      |
+| `notes.ts`             | 8.5KB     | Zotero 笔记导出                                   |
+| `shortcuts.ts`         | 27KB      | 快捷指令系统                                      |
+| `paperContext.ts`      | 5KB       | 论文引用上下文                                    |
+| `paperSearch.ts`       | 8KB       | `@` 搜索论文                                      |
+| `paperAttribution.ts`  | 5KB       | 论文归属解析                                      |
+| `chatScroll.ts`        | 9KB       | 聊天滚动管理                                      |
+| `streamingUpdate.ts`   | 5KB       | 流式输出增量 DOM 更新                             |
+| `menuPositioning.ts`   | 3KB       | 浮动菜单定位                                      |
+| `normalizers.ts`       | 4KB       | 数据规范化                                        |
+| `portalScope.ts`       | 2KB       | 全局对话"虚拟 Item"                               |
+| `prefHelpers.ts`       | 11KB      | 偏好读写帮助（含文件附件状态持久化）              |
+| `readerSelection.ts`   | 2KB       | 阅读器选区读取                                    |
+| `i18n.ts`              | 5KB       | 面板内国际化（12 种 UI 语言）                     |
+| **`libraryPanel.ts`**  | **6KB**   | ★ 文库模式面板 DOM 缓存/重挂载                    |
+| **`readerPanel.ts`**   | **3KB**   | ★ 阅读器模式面板 DOM 缓存/重挂载                  |
+| `README.md`            | 3KB       | 模块自述                                          |
 
 ### 5.2 子目录 setupHandlers/
 
-| 文件 | 职责 |
-|---|---|
-| `domRefs.ts` (8KB) | DOM 元素引用查询（60+ 字段 `querySelector` 映射）|
-| `types.ts` | setupHandlers 内部类型 |
-| `controllers/` | 功能控制器拆分（见第 11 节）|
+| 文件               | 职责                                              |
+| ------------------ | ------------------------------------------------- |
+| `domRefs.ts` (8KB) | DOM 元素引用查询（60+ 字段 `querySelector` 映射） |
+| `types.ts`         | setupHandlers 内部类型                            |
+| `controllers/`     | 功能控制器拆分（见第 11 节）                      |
 
 ---
 
@@ -210,25 +210,25 @@ onMainWindowUnload(win)
 
 **路径**: `src/utils/`
 
-| 文件 | 大小 | 职责 |
-|---|---|---|
-| **`llmClient.ts`** | **67KB** | ★ LLM API 调用（流式/非流式, ~2275行）|
-| **`chatStore.ts`** | **35KB** | ★ 聊天持久化（SQLite via Zotero.DB, ~1020行）|
-| **`oauthCli.ts`** | **35KB** | ★ OAuth 认证流程（openai-codex / google-gemini-cli）|
-| `markdown.ts` | 25KB | Markdown 渲染（含 KaTeX 公式）|
-| `reasoningProfiles.ts` | 16KB | 推理配置文件（GPT-5/o1/Claude/Gemini/Qwen/DeepSeek 等）|
-| `memoryStore.ts` | 14KB | 记忆系统存储 |
-| `fileExtraction.ts` | 10KB | 文件内容提取（PDF/MD/代码等）|
-| `attachmentRefStore.ts` | 7KB | 附件引用计数 & GC |
-| `processRunner.ts` | 5KB | 进程运行器 |
-| `apiHelpers.ts` | 4KB | API 请求工具 |
-| `locale.ts` | 3KB | 语言环境获取 |
-| `migrations.ts` | 2KB | 数据迁移 |
-| `normalization.ts` | 1KB | 字符串规范化 |
-| `pathFileUrl.ts` | 1KB | 路径 ↔ file:// URL 转换 |
-| `domHelpers.ts` | 0.5KB | `createElement` 帮助函数 |
-| `ztoolkit.ts` | 2KB | zotero-plugin-toolkit 封装 |
-| `llmDefaults.ts` | 0.1KB | LLM 默认参数 |
+| 文件                    | 大小     | 职责                                                    |
+| ----------------------- | -------- | ------------------------------------------------------- |
+| **`llmClient.ts`**      | **67KB** | ★ LLM API 调用（流式/非流式, ~2275行）                  |
+| **`chatStore.ts`**      | **35KB** | ★ 聊天持久化（SQLite via Zotero.DB, ~1020行）           |
+| **`oauthCli.ts`**       | **35KB** | ★ OAuth 认证流程（openai-codex / google-gemini-cli）    |
+| `markdown.ts`           | 25KB     | Markdown 渲染（含 KaTeX 公式）                          |
+| `reasoningProfiles.ts`  | 16KB     | 推理配置文件（GPT-5/o1/Claude/Gemini/Qwen/DeepSeek 等） |
+| `memoryStore.ts`        | 14KB     | 记忆系统存储                                            |
+| `fileExtraction.ts`     | 10KB     | 文件内容提取（PDF/MD/代码等）                           |
+| `attachmentRefStore.ts` | 7KB      | 附件引用计数 & GC                                       |
+| `processRunner.ts`      | 5KB      | 进程运行器                                              |
+| `apiHelpers.ts`         | 4KB      | API 请求工具                                            |
+| `locale.ts`             | 3KB      | 语言环境获取                                            |
+| `migrations.ts`         | 2KB      | 数据迁移                                                |
+| `normalization.ts`      | 1KB      | 字符串规范化                                            |
+| `pathFileUrl.ts`        | 1KB      | 路径 ↔ file:// URL 转换                                 |
+| `domHelpers.ts`         | 0.5KB    | `createElement` 帮助函数                                |
+| `ztoolkit.ts`           | 2KB      | zotero-plugin-toolkit 封装                              |
+| `llmDefaults.ts`        | 0.1KB    | LLM 默认参数                                            |
 
 ---
 
@@ -273,20 +273,20 @@ onMainWindowUnload(win)
 
 ### 8.2 关键内部函数
 
-| 函数 | 行范围 (约) | 职责 |
-|---|---|---|
-| `resolveLibraryIdFromItem` | ~195 | 解析 Item 的 libraryID |
-| `scheduleAttachmentGc` | ~341 | 附件垃圾回收定时器 |
-| `persistScroll` | ~411 | 持久化聊天滚动位置 |
-| `updateSelectionPopup` | ~537 | 更新选区弹出菜单 |
-| `updateSelectedTextPreview` | ~700+ | 更新选中文本预览 |
-| `appendPaperChip` | ~1162 | 创建论文上下文 chip |
-| `updatePaperPreview` | ~1219 | 更新论文预览 |
-| **`updateFilePreview`** | **~1285** | **★ 文件预览渲染（按类型分组+SVG图标）** |
-| `updateImagePreview` | ~1650+ | 截图预览渲染 |
-| `appendMessageBubble` | ~2300+ | 渲染消息气泡 |
-| `refreshChat` | ~3200+ | 刷新整个聊天 UI |
-| `handleSend` | ~3900+ | 处理发送逻辑 |
+| 函数                        | 行范围 (约) | 职责                                     |
+| --------------------------- | ----------- | ---------------------------------------- |
+| `resolveLibraryIdFromItem`  | ~195        | 解析 Item 的 libraryID                   |
+| `scheduleAttachmentGc`      | ~341        | 附件垃圾回收定时器                       |
+| `persistScroll`             | ~411        | 持久化聊天滚动位置                       |
+| `updateSelectionPopup`      | ~537        | 更新选区弹出菜单                         |
+| `updateSelectedTextPreview` | ~700+       | 更新选中文本预览                         |
+| `appendPaperChip`           | ~1162       | 创建论文上下文 chip                      |
+| `updatePaperPreview`        | ~1219       | 更新论文预览                             |
+| **`updateFilePreview`**     | **~1285**   | **★ 文件预览渲染（按类型分组+SVG图标）** |
+| `updateImagePreview`        | ~1650+      | 截图预览渲染                             |
+| `appendMessageBubble`       | ~2300+      | 渲染消息气泡                             |
+| `refreshChat`               | ~3200+      | 刷新整个聊天 UI                          |
+| `handleSend`                | ~3900+      | 处理发送逻辑                             |
 
 ---
 
@@ -305,22 +305,22 @@ onMainWindowUnload(win)
 
 ### 9.2 关键函数
 
-| 函数 | 职责 |
-|---|---|
-| `ensureConversationLoaded` | 加载历史对话 |
-| `persistConversationMessage` | 持久化消息到数据库 |
-| `toPanelMessage` | 数据库消息 → UI 消息格式 |
-| `refreshChat` | 渲染全部消息气泡（~730行） |
-| `sendQuestion` | 发送问题并处理流式响应 |
-| `retryLatestAssistantResponse` | 重试最后一条 AI 回复（可选切换模型）|
-| `editLatestUserMessageAndRetry` | 编辑最后一条用户消息并重新发送 |
-| `buildCombinedContextForRequest` | 构建完整上下文（PDF + 论文 + 记忆）|
-| `buildContextRefsSnapshot` | 构建轻量上下文快照用于持久化 |
-| `restoreContextPoolFromStoredMessages` | 从 DB 恢复上下文池 |
-| `restoreFileAttachmentsFromMessages` | 从 DB 恢复文件附件缓存 |
-| `compactConversationHistory` | Zone B/C 长对话压缩 |
-| `autoCaptureRequestMemories` | 自动提取用户记忆 |
-| `copyRenderedMarkdownToClipboard` | 复制渲染后的 Markdown（HTML + 纯文本）|
+| 函数                                   | 职责                                   |
+| -------------------------------------- | -------------------------------------- |
+| `ensureConversationLoaded`             | 加载历史对话                           |
+| `persistConversationMessage`           | 持久化消息到数据库                     |
+| `toPanelMessage`                       | 数据库消息 → UI 消息格式               |
+| `refreshChat`                          | 渲染全部消息气泡（~730行）             |
+| `sendQuestion`                         | 发送问题并处理流式响应                 |
+| `retryLatestAssistantResponse`         | 重试最后一条 AI 回复（可选切换模型）   |
+| `editLatestUserMessageAndRetry`        | 编辑最后一条用户消息并重新发送         |
+| `buildCombinedContextForRequest`       | 构建完整上下文（PDF + 论文 + 记忆）    |
+| `buildContextRefsSnapshot`             | 构建轻量上下文快照用于持久化           |
+| `restoreContextPoolFromStoredMessages` | 从 DB 恢复上下文池                     |
+| `restoreFileAttachmentsFromMessages`   | 从 DB 恢复文件附件缓存                 |
+| `compactConversationHistory`           | Zone B/C 长对话压缩                    |
+| `autoCaptureRequestMemories`           | 自动提取用户记忆                       |
+| `copyRenderedMarkdownToClipboard`      | 复制渲染后的 Markdown（HTML + 纯文本） |
 
 ### 9.3 流式增量更新：streamingUpdate.ts
 
@@ -345,15 +345,15 @@ onDelta(token) → assistantMessage.text += token
 
 **路径**: `src/modules/contextPanel/contextResolution.ts` (22KB)
 
-| 函数 | 职责 |
-|---|---|
-| `getActiveReaderForSelectedTab` | 获取当前标签页的 Reader |
+| 函数                                 | 职责                      |
+| ------------------------------------ | ------------------------- |
+| `getActiveReaderForSelectedTab`      | 获取当前标签页的 Reader   |
 | `getActiveContextAttachmentFromTabs` | 获取当前阅读器的 PDF 附件 |
-| `resolveContextSourceItem` | 解析面板 Item 的源 PDF |
-| `getActiveReaderSelectionText` | 获取 Reader 中选中的文本 |
-| `addSelectedTextContext` | 添加选中文本到面板 |
-| `applySelectedTextPreview` | 渲染选中文本预览 |
-| `includeSelectedTextFromReader` | 从阅读器导入选中文本 |
+| `resolveContextSourceItem`           | 解析面板 Item 的源 PDF    |
+| `getActiveReaderSelectionText`       | 获取 Reader 中选中的文本  |
+| `addSelectedTextContext`             | 添加选中文本到面板        |
+| `applySelectedTextPreview`           | 渲染选中文本预览          |
+| `includeSelectedTextFromReader`      | 从阅读器导入选中文本      |
 
 ---
 
@@ -361,15 +361,15 @@ onDelta(token) → assistantMessage.text += token
 
 **路径**: `src/modules/contextPanel/setupHandlers/controllers/`
 
-| 文件 | 大小 | 职责 |
-|---|---|---|
-| `composeContextController.ts` | 4KB | 组合发送上下文（文本+图片+文件+论文）|
-| `fileIntakeController.ts` | 13KB | 文件上传处理（拖拽/粘贴/选择）|
-| `sendFlowController.ts` | 11KB | 消息发送流程控制 |
-| `modelSelectionController.ts` | 6KB | 模型选择 & 持久化 |
-| `conversationHistoryController.ts` | 2KB | 会话历史管理 |
-| `menuController.ts` | 2KB | 菜单状态控制 |
-| `modelReasoningController.ts` | 0.4KB | 推理模式判断 |
+| 文件                               | 大小  | 职责                                  |
+| ---------------------------------- | ----- | ------------------------------------- |
+| `composeContextController.ts`      | 4KB   | 组合发送上下文（文本+图片+文件+论文） |
+| `fileIntakeController.ts`          | 13KB  | 文件上传处理（拖拽/粘贴/选择）        |
+| `sendFlowController.ts`            | 11KB  | 消息发送流程控制                      |
+| `modelSelectionController.ts`      | 6KB   | 模型选择 & 持久化                     |
+| `conversationHistoryController.ts` | 2KB   | 会话历史管理                          |
+| `menuController.ts`                | 2KB   | 菜单状态控制                          |
+| `modelReasoningController.ts`      | 0.4KB | 推理模式判断                          |
 
 ---
 
@@ -379,14 +379,14 @@ onDelta(token) → assistantMessage.text += token
 
 ### 12.1 关键函数
 
-| 函数 | 职责 |
-|---|---|
-| `getApiConfig()` | 读取偏好中的 API 配置 |
-| `chatWithProvider()` | 直接 API 调用（流式） |
-| `callEmbeddings()` | 调用 Embedding API |
-| `resolveSystemPrompt()` | 构建系统提示词 |
-| `buildApiPayload()` | 构建 API 请求体 |
-| `parseSSEStream()` | 解析 Server-Sent Events 流 |
+| 函数                    | 职责                       |
+| ----------------------- | -------------------------- |
+| `getApiConfig()`        | 读取偏好中的 API 配置      |
+| `chatWithProvider()`    | 直接 API 调用（流式）      |
+| `callEmbeddings()`      | 调用 Embedding API         |
+| `resolveSystemPrompt()` | 构建系统提示词             |
+| `buildApiPayload()`     | 构建 API 请求体            |
+| `parseSSEStream()`      | 解析 Server-Sent Events 流 |
 
 ### 12.2 流式处理
 
@@ -405,28 +405,28 @@ fetch(apiBase + "/chat/completions") → response.body.getReader()
 
 ### 13.1 数据表
 
-| 表名 | 用途 |
-|---|---|
-| `zotero_ai_chat_messages` | 聊天消息存储（含 `context_refs_json` 轻量级上下文持久化）|
-| `zotero_ai_global_conversations` | 全局对话元数据 |
+| 表名                             | 用途                                                      |
+| -------------------------------- | --------------------------------------------------------- |
+| `zotero_ai_chat_messages`        | 聊天消息存储（含 `context_refs_json` 轻量级上下文持久化） |
+| `zotero_ai_global_conversations` | 全局对话元数据                                            |
 
 ### 13.2 关键函数
 
-| 函数 | 职责 |
-|---|---|
-| `initChatStore()` | 初始化数据表 |
-| `loadConversation(key, limit)` | 加载对话消息 |
-| `appendMessage(key, msg)` | 追加消息 |
-| `updateLatestUserMessage()` | 更新最新用户消息 |
-| `updateLatestAssistantMessage()` | 更新最新助手消息 |
-| `clearConversation(key)` | 清除对话 |
-| `pruneConversation(key, keep)` | 裁剪对话至指定条数 |
-| `createGlobalConversation(libID)` | 创建全局对话 |
-| `listGlobalConversations(libID)` | 列出全局对话 |
-| `deleteGlobalConversation(key)` | 删除全局对话 |
+| 函数                                      | 职责                     |
+| ----------------------------------------- | ------------------------ |
+| `initChatStore()`                         | 初始化数据表             |
+| `loadConversation(key, limit)`            | 加载对话消息             |
+| `appendMessage(key, msg)`                 | 追加消息                 |
+| `updateLatestUserMessage()`               | 更新最新用户消息         |
+| `updateLatestAssistantMessage()`          | 更新最新助手消息         |
+| `clearConversation(key)`                  | 清除对话                 |
+| `pruneConversation(key, keep)`            | 裁剪对话至指定条数       |
+| `createGlobalConversation(libID)`         | 创建全局对话             |
+| `listGlobalConversations(libID)`          | 列出全局对话             |
+| `deleteGlobalConversation(key)`           | 删除全局对话             |
 | `deleteAllGlobalConversationsByLibrary()` | 批量删除某库全部全局对话 |
-| `clearAllChatHistory()` | 清除所有聊天历史 |
-| `getLatestEmptyGlobalConversation()` | 获取最新空全局对话 |
+| `clearAllChatHistory()`                   | 清除所有聊天历史         |
+| `getLatestEmptyGlobalConversation()`      | 获取最新空全局对话       |
 
 ### 13.3 对话键（Conversation Key）
 
@@ -510,27 +510,27 @@ type GlobalPortalItem = { __llmGlobalPortalItem: true; id: number; libraryID: nu
 
 **路径**: `src/modules/contextPanel/constants.ts`
 
-| 常量 | 值 | 用途 |
-|---|---|---|
-| `MAX_CONTEXT_LENGTH` | 200,000 | 上下文最大字符数 |
-| `MAX_CONTEXT_LENGTH_WITH_IMAGE` | 100,000 | 含图片时上下文限制 |
-| `FORCE_FULL_CONTEXT` | true | 强制全文上下文 |
-| `FULL_CONTEXT_CHAR_LIMIT` | 500,000 | 全文上下文上限 |
-| `MAX_HISTORY_MESSAGES` | 12 | 发送时最大历史消息数 |
-| `PERSISTED_HISTORY_LIMIT` | 200 | 持久化最大消息数 |
-| `MAX_SELECTED_IMAGES` | 50 | 最大截图数 |
-| `MAX_SELECTED_PAPER_CONTEXTS` | 20 | 最大论文引用数 |
-| `MAX_UPLOAD_PDF_SIZE_BYTES` | 50MB | PDF 上传大小限制 |
-| `CHUNK_TARGET_LENGTH` | 2,000 | PDF 分块目标长度 |
-| `MAX_CONTEXT_CHUNKS` | 60 | 最大上下文分块数 |
-| `GLOBAL_CONVERSATION_KEY_BASE` | 2×10⁹ | 全局对话键基数 |
-| `GLOBAL_HISTORY_LIMIT` | 10 | 全局历史列表条数 |
-| `FONT_SCALE_DEFAULT_PERCENT` | 120 | 默认字体缩放 |
-| `AUTO_SCROLL_BOTTOM_THRESHOLD` | 64px | 自动滚动阈值 |
-| `CONTEXT_COMPACTION_THRESHOLD` | 150,000 | Zone B 对话压缩字数阈值 |
-| `RECENT_TURNS_PROTECTED` | 5 | Zone C 近期保留交互轮数 |
-| `SELECTED_TEXT_MAX_LENGTH` | 4,000 | 选中文本最大长度 |
-| `MAX_SELECTED_TEXT_CONTEXTS` | 20 | 最大选中文本条数 |
+| 常量                                          | 值      | 用途                     |
+| --------------------------------------------- | ------- | ------------------------ |
+| `MAX_CONTEXT_LENGTH`                          | 200,000 | 上下文最大字符数         |
+| `MAX_CONTEXT_LENGTH_WITH_IMAGE`               | 100,000 | 含图片时上下文限制       |
+| `FORCE_FULL_CONTEXT`                          | true    | 强制全文上下文           |
+| `FULL_CONTEXT_CHAR_LIMIT`                     | 500,000 | 全文上下文上限           |
+| `MAX_HISTORY_MESSAGES`                        | 12      | 发送时最大历史消息数     |
+| `PERSISTED_HISTORY_LIMIT`                     | 200     | 持久化最大消息数         |
+| `MAX_SELECTED_IMAGES`                         | 50      | 最大截图数               |
+| `MAX_SELECTED_PAPER_CONTEXTS`                 | 20      | 最大论文引用数           |
+| `MAX_UPLOAD_PDF_SIZE_BYTES`                   | 50MB    | PDF 上传大小限制         |
+| `CHUNK_TARGET_LENGTH`                         | 2,000   | PDF 分块目标长度         |
+| `MAX_CONTEXT_CHUNKS`                          | 60      | 最大上下文分块数         |
+| `GLOBAL_CONVERSATION_KEY_BASE`                | 2×10⁹   | 全局对话键基数           |
+| `GLOBAL_HISTORY_LIMIT`                        | 10      | 全局历史列表条数         |
+| `FONT_SCALE_DEFAULT_PERCENT`                  | 120     | 默认字体缩放             |
+| `AUTO_SCROLL_BOTTOM_THRESHOLD`                | 64px    | 自动滚动阈值             |
+| `CONTEXT_COMPACTION_THRESHOLD`                | 150,000 | Zone B 对话压缩字数阈值  |
+| `RECENT_TURNS_PROTECTED`                      | 5       | Zone C 近期保留交互轮数  |
+| `SELECTED_TEXT_MAX_LENGTH`                    | 4,000   | 选中文本最大长度         |
+| `MAX_SELECTED_TEXT_CONTEXTS`                  | 20      | 最大选中文本条数         |
 | `SUPPLEMENTAL_PAPER_CONTEXT_TOTAL_MAX_LENGTH` | 200,000 | 补充论文上下文总长度限制 |
 
 ---
@@ -543,31 +543,31 @@ type GlobalPortalItem = { __llmGlobalPortalItem: true; id: number; libraryID: nu
 
 ```typescript
 // 上下文池
-conversationContextPool: Map<number, ConversationContextPoolEntry>
+conversationContextPool: Map<number, ConversationContextPoolEntry>;
 
 // 对话状态
-chatHistory: Map<number, Message[]>
-loadedConversationKeys: Set<number>
-loadingConversationTasks: Map<number, Promise<void>>
-selectedModelCache: Map<number, string>
+chatHistory: Map<number, Message[]>;
+loadedConversationKeys: Set<number>;
+loadingConversationTasks: Map<number, Promise<void>>;
+selectedModelCache: Map<number, string>;
 
 // PDF 缓存
-pdfTextCache: Map<number, PdfContext>
-pdfTextLoadingTasks: Map<number, Promise<void>>
+pdfTextCache: Map<number, PdfContext>;
+pdfTextLoadingTasks: Map<number, Promise<void>>;
 
 // 选择状态缓存（per Item ID）
-selectedImageCache: Map<number, string[]>
-selectedFileAttachmentCache: Map<number, ChatAttachment[]>
-selectedPaperContextCache: Map<number, PaperContextRef[]>
-selectedTextCache: Map<number, SelectedTextContext[]>
-activeGlobalConversationByLibrary: Map<number, number>
-activeConversationModeByLibrary: Map<number, "paper" | "global">
+selectedImageCache: Map<number, string[]>;
+selectedFileAttachmentCache: Map<number, ChatAttachment[]>;
+selectedPaperContextCache: Map<number, PaperContextRef[]>;
+selectedTextCache: Map<number, SelectedTextContext[]>;
+activeGlobalConversationByLibrary: Map<number, number>;
+activeConversationModeByLibrary: Map<number, "paper" | "global">;
 
 // 请求控制
-currentRequestId / cancelledRequestId / currentAbortController
+currentRequestId / cancelledRequestId / currentAbortController;
 
 // 右键菜单
-responseMenuTarget / promptMenuTarget
+responseMenuTarget / promptMenuTarget;
 ```
 
 ---
@@ -582,14 +582,14 @@ responseMenuTarget / promptMenuTarget
 
 **文件类型图标**（16×16 `currentColor`）：
 
-| 图标文件 | `data-category` | CSS 颜色 | 用途 |
-|---|---|---|---|
-| `file-type-pdf.svg` | `pdf` | `#dc2626` 红 | PDF 文档 |
-| `file-type-markdown.svg` | `markdown` | `#2563eb` 蓝 | Markdown 文件 |
-| `file-type-code.svg` | `code` | `#059669` 绿 | 代码文件 |
-| `file-type-text.svg` | `text` | `#6b7280` 灰 | 纯文本 |
-| `file-type-image.svg` | `image` | `#c026d3` 紫 | 图片文件 |
-| `file-type-generic.svg` | `file` | `#7c3aed` 紫罗兰 | 通用文件 |
+| 图标文件                 | `data-category` | CSS 颜色         | 用途          |
+| ------------------------ | --------------- | ---------------- | ------------- |
+| `file-type-pdf.svg`      | `pdf`           | `#dc2626` 红     | PDF 文档      |
+| `file-type-markdown.svg` | `markdown`      | `#2563eb` 蓝     | Markdown 文件 |
+| `file-type-code.svg`     | `code`          | `#059669` 绿     | 代码文件      |
+| `file-type-text.svg`     | `text`          | `#6b7280` 灰     | 纯文本        |
+| `file-type-image.svg`    | `image`         | `#c026d3` 紫     | 图片文件      |
+| `file-type-generic.svg`  | `file`          | `#7c3aed` 紫罗兰 | 通用文件      |
 
 **操作栏图标**（`action-*.svg`）：add-text / history-new / model-chip / new-chat / reasoning-brain / screenshot / slash / upload-file
 
@@ -597,13 +597,13 @@ responseMenuTarget / promptMenuTarget
 
 ### 17.2 动画
 
-| 动画 | 用途 |
-|---|---|
-| `llm-typing-bounce` | 打字指示器 |
-| `llm-skeleton-shimmer` | 骨架屏闪烁 |
-| `llm-file-shimmer` | 文件处理中闪烁 |
-| `llm-file-pulse` | 文件处理中脉冲 |
-| `llm-cursor-blink` | 流式输出光标闪烁 |
+| 动画                   | 用途             |
+| ---------------------- | ---------------- |
+| `llm-typing-bounce`    | 打字指示器       |
+| `llm-skeleton-shimmer` | 骨架屏闪烁       |
+| `llm-file-shimmer`     | 文件处理中闪烁   |
+| `llm-file-pulse`       | 文件处理中脉冲   |
+| `llm-cursor-blink`     | 流式输出光标闪烁 |
 
 ---
 
@@ -624,14 +624,14 @@ responseMenuTarget / promptMenuTarget
 
 **位置**: `controllers/fileIntakeController.ts`
 
-| category | 匹配条件 |
-|---|---|
-| `image` | MIME `image/*` |
-| `pdf` | MIME `application/pdf` 或 `.pdf` |
-| `markdown` | `.md` / `.markdown` |
-| `code` | `.js/.ts/.py/.java/.c/.cpp/.go/.rs` 等 |
-| `text` | 文本 MIME 或 `.txt/.csv/.log/.xml/.json/.yaml` 等 |
-| `file` | 以上都不匹配 |
+| category   | 匹配条件                                          |
+| ---------- | ------------------------------------------------- |
+| `image`    | MIME `image/*`                                    |
+| `pdf`      | MIME `application/pdf` 或 `.pdf`                  |
+| `markdown` | `.md` / `.markdown`                               |
+| `code`     | `.js/.ts/.py/.java/.c/.cpp/.go/.rs` 等            |
+| `text`     | 文本 MIME 或 `.txt/.csv/.log/.xml/.json/.yaml` 等 |
+| `file`     | 以上都不匹配                                      |
 
 ---
 
@@ -649,12 +649,12 @@ responseMenuTarget / promptMenuTarget
 
 ## 20. 论文上下文系统
 
-| 文件 | 职责 |
-|---|---|
-| `paperContext.ts` | PDF 内容提取与分块 |
-| `paperSearch.ts` | `@` 搜索论文 |
-| `paperAttribution.ts` | 论文归属解析 |
-| `pdfContext.ts` | PDF 分块 + BM25 + Embedding 检索 |
+| 文件                  | 职责                             |
+| --------------------- | -------------------------------- |
+| `paperContext.ts`     | PDF 内容提取与分块               |
+| `paperSearch.ts`      | `@` 搜索论文                     |
+| `paperAttribution.ts` | 论文归属解析                     |
+| `pdfContext.ts`       | PDF 分块 + BM25 + Embedding 检索 |
 
 ---
 
@@ -666,21 +666,21 @@ responseMenuTarget / promptMenuTarget
 
 处理文库模式下"无选中项"的场景。每个 window 共享一个 `div#llm-library-panel-host`，在 `registerSection` 的 `onAsyncRender` 中通过 `getSharedLibraryPanelHost()` 获取并挂载。
 
-| 函数 | 职责 |
-|---|---|
-| `getSharedLibraryPanelHost(win)` | 获取/创建共享 host 元素 |
-| `bootstrapSharedLibraryPanel(win, host)` | 首次初始化（buildUI → setupHandlers → refreshChat）|
-| `removeLibraryPanel(win)` | 清理 |
+| 函数                                     | 职责                                                |
+| ---------------------------------------- | --------------------------------------------------- |
+| `getSharedLibraryPanelHost(win)`         | 获取/创建共享 host 元素                             |
+| `bootstrapSharedLibraryPanel(win, host)` | 首次初始化（buildUI → setupHandlers → refreshChat） |
+| `removeLibraryPanel(win)`                | 清理                                                |
 
 ### 21.2 readerPanel.ts (3KB)
 
 处理阅读器模式。每个 `(window, itemId)` 对维护一个独立的 `ReaderPanelState`。
 
-| 函数 | 职责 |
-|---|---|
-| `getSharedReaderPanelHostForItem(win, item)` | 获取/创建 per-item host 元素 |
-| `bootstrapSharedReaderPanel(win, host, item)` | 首次初始化（含 PDF 提取延迟加载）|
-| `removeReaderPanels(win)` | 清理该窗口所有阅读器面板 |
+| 函数                                          | 职责                              |
+| --------------------------------------------- | --------------------------------- |
+| `getSharedReaderPanelHostForItem(win, item)`  | 获取/创建 per-item host 元素      |
+| `bootstrapSharedReaderPanel(win, host, item)` | 首次初始化（含 PDF 提取延迟加载） |
+| `removeReaderPanels(win)`                     | 清理该窗口所有阅读器面板          |
 
 ---
 
@@ -689,6 +689,7 @@ responseMenuTarget / promptMenuTarget
 **路径**: `src/modules/preferenceScript.ts` (26KB)
 
 管理插件设置界面，配置项包括：
+
 - API Base URL / API Key / 模型名称（支持 4 个配置文件：Primary / Secondary / Tertiary / Quaternary）
 - OAuth 认证（openai-codex / google-gemini-cli）
 - 推理模式（off / low / medium / high / default）
@@ -706,13 +707,13 @@ responseMenuTarget / promptMenuTarget
 
 **路径**: `src/utils/fileExtraction.ts` (10KB)
 
-| 函数 | 职责 |
-|---|---|
-| `readFileAsDataURL(owner, file)` | File → data URL（图片用）|
-| `readFileAsText(owner, file)` | File → 文本字符串 |
-| `readFileAsArrayBuffer(owner, file)` | File → ArrayBuffer |
-| `extractTextFromPdfPath(filePath)` | PDF 路径 → 文本（使用 Zotero PDFWorker，回退 pdf.js）|
-| `extractTextFromStoredFile(path, mime)` | 非 PDF 文件 → 文本（HTML/EPUB/TXT 等）|
+| 函数                                    | 职责                                                  |
+| --------------------------------------- | ----------------------------------------------------- |
+| `readFileAsDataURL(owner, file)`        | File → data URL（图片用）                             |
+| `readFileAsText(owner, file)`           | File → 文本字符串                                     |
+| `readFileAsArrayBuffer(owner, file)`    | File → ArrayBuffer                                    |
+| `extractTextFromPdfPath(filePath)`      | PDF 路径 → 文本（使用 Zotero PDFWorker，回退 pdf.js） |
+| `extractTextFromStoredFile(path, mime)` | 非 PDF 文件 → 文本（HTML/EPUB/TXT 等）                |
 
 常量：`PDF_TEXT_MAX_CHARS = 50000`
 
@@ -723,6 +724,7 @@ responseMenuTarget / promptMenuTarget
 **路径**: `src/utils/markdown.ts` (25KB)
 
 自研 Markdown → HTML 渲染器：
+
 - **块级隔离**：每个块独立渲染，单块错误不影响其他块
 - **LaTeX 公式**：通过 KaTeX 渲染行内 `$...$` 和块级 `$$...$$`
 - 代码块（带语言高亮类名）、表格、列表、引用、标题、水平线
@@ -735,14 +737,14 @@ responseMenuTarget / promptMenuTarget
 
 为 AI 提供跨会话的持久记忆能力。
 
-| 函数 | 职责 |
-|---|---|
-| `initMemoryStore()` | 创建数据表 `zotero_ai_memories` |
-| `storeMemory(params)` | 存储记忆（自动去重）|
-| `searchMemories(params)` | 搜索相关记忆（token Jaccard 相似度）|
-| `autoCaptureUserMemories(params)` | 自动从用户消息中提取记忆 |
-| `formatRelevantMemoriesContext(memories)` | 格式化记忆为系统提示词上下文 |
-| `looksLikePromptInjection(text)` | 防注入检测 |
+| 函数                                      | 职责                                 |
+| ----------------------------------------- | ------------------------------------ |
+| `initMemoryStore()`                       | 创建数据表 `zotero_ai_memories`      |
+| `storeMemory(params)`                     | 存储记忆（自动去重）                 |
+| `searchMemories(params)`                  | 搜索相关记忆（token Jaccard 相似度） |
+| `autoCaptureUserMemories(params)`         | 自动从用户消息中提取记忆             |
+| `formatRelevantMemoriesContext(memories)` | 格式化记忆为系统提示词上下文         |
+| `looksLikePromptInjection(text)`          | 防注入检测                           |
 
 ---
 
@@ -758,18 +760,18 @@ type OAuthProviderId = "openai-codex" | "google-gemini-cli";
 
 ### 26.2 关键函数
 
-| 函数 | 职责 |
-|---|---|
-| `readCodexOAuthCredential()` | 读取 Codex 凭证 |
-| `readGeminiOAuthCredential()` | 读取 Gemini 凭证 |
-| `runProviderOAuthLogin(provider)` | 启动 OAuth 登录流程 |
-| `fetchAvailableModels(provider)` | 获取可用模型列表 |
-| `chatWithProviderOAuth(...)` | 使用 OAuth 凭证调用 API（支持流式输出）|
-| `parseCodexSSEStream(body, onDelta)` | 增量解析 Codex SSE 流 |
-| `parseGeminiSSEStream(body, onDelta)` | 增量解析 Gemini SSE 流 |
-| `ensureZoteroProxyFromSystem()` | 自动检测 Windows 系统代理并应用到 Gecko |
-| `autoConfigureEnvironment()` | 自动配置运行环境 |
-| `getProviderAccountSummary()` | 获取 OAuth 账户状态摘要 |
+| 函数                                  | 职责                                    |
+| ------------------------------------- | --------------------------------------- |
+| `readCodexOAuthCredential()`          | 读取 Codex 凭证                         |
+| `readGeminiOAuthCredential()`         | 读取 Gemini 凭证                        |
+| `runProviderOAuthLogin(provider)`     | 启动 OAuth 登录流程                     |
+| `fetchAvailableModels(provider)`      | 获取可用模型列表                        |
+| `chatWithProviderOAuth(...)`          | 使用 OAuth 凭证调用 API（支持流式输出） |
+| `parseCodexSSEStream(body, onDelta)`  | 增量解析 Codex SSE 流                   |
+| `parseGeminiSSEStream(body, onDelta)` | 增量解析 Gemini SSE 流                  |
+| `ensureZoteroProxyFromSystem()`       | 自动检测 Windows 系统代理并应用到 Gecko |
+| `autoConfigureEnvironment()`          | 自动配置运行环境                        |
+| `getProviderAccountSummary()`         | 获取 OAuth 账户状态摘要                 |
 
 ### 26.3 OAuth 流式处理
 
@@ -784,15 +786,15 @@ type OAuthProviderId = "openai-codex" | "google-gemini-cli";
 
 基于模型名称正则匹配返回推理配置，支持的 provider：
 
-| Provider | 已配置模型 |
-|---|---|
-| OpenAI | GPT-5, o1, o1-mini, o3, o3-mini, o4-mini |
-| Anthropic | Claude 3.5 Sonnet（extended thinking）|
-| Gemini | 3.0 Pro, 2.5 Pro, 2.5 Flash, 2.5 Flash Lite |
-| Grok | xAI Grok |
-| DeepSeek | R1, V3 (chat) |
-| Qwen | QWQ, QVQ, Qwen3 |
-| Kimi | k1 (thinking) |
+| Provider  | 已配置模型                                  |
+| --------- | ------------------------------------------- |
+| OpenAI    | GPT-5, o1, o1-mini, o3, o3-mini, o4-mini    |
+| Anthropic | Claude 3.5 Sonnet（extended thinking）      |
+| Gemini    | 3.0 Pro, 2.5 Pro, 2.5 Flash, 2.5 Flash Lite |
+| Grok      | xAI Grok                                    |
+| DeepSeek  | R1, V3 (chat)                               |
+| Qwen      | QWQ, QVQ, Qwen3                             |
+| Kimi      | k1 (thinking)                               |
 
 ---
 
@@ -802,11 +804,11 @@ type OAuthProviderId = "openai-codex" | "google-gemini-cli";
 
 ### 28.1 内置指令
 
-| ID | 标签 | 模板文件 |
-|---|---|---|
-| `translate` | Translate | `translate.txt` |
-| `summarize` | Summarize | `summarize.txt` |
-| `key-points` | Key Points | `key-points.txt` |
+| ID            | 标签        | 模板文件          |
+| ------------- | ----------- | ----------------- |
+| `translate`   | Translate   | `translate.txt`   |
+| `summarize`   | Summarize   | `summarize.txt`   |
+| `key-points`  | Key Points  | `key-points.txt`  |
 | `methodology` | Methodology | `methodology.txt` |
 | `limitations` | Limitations | `limitations.txt` |
 
@@ -823,12 +825,12 @@ type OAuthProviderId = "openai-codex" | "google-gemini-cli";
 
 **路径**: `src/modules/contextPanel/notes.ts` (8.5KB)
 
-| 函数 | 职责 |
-|---|---|
-| `createNoteFromAssistantText()` | 将 AI 回复保存为 Zotero 笔记（自动追加到已有笔记）|
-| `createNoteFromChatHistory()` | 将整个对话保存为 Zotero 笔记 |
-| `createStandaloneNoteFromChatHistory()` | 全局模式下创建独立笔记 |
-| `buildChatHistoryNotePayload()` | 构建笔记 HTML/文本内容 |
+| 函数                                    | 职责                                               |
+| --------------------------------------- | -------------------------------------------------- |
+| `createNoteFromAssistantText()`         | 将 AI 回复保存为 Zotero 笔记（自动追加到已有笔记） |
+| `createNoteFromChatHistory()`           | 将整个对话保存为 Zotero 笔记                       |
+| `createStandaloneNoteFromChatHistory()` | 全局模式下创建独立笔记                             |
+| `buildChatHistoryNotePayload()`         | 构建笔记 HTML/文本内容                             |
 
 ---
 
@@ -836,7 +838,7 @@ type OAuthProviderId = "openai-codex" | "google-gemini-cli";
 
 **路径**: `src/modules/contextPanel/i18n.ts` (5KB)
 
-支持 `zh-CN`（默认）和 `en-US` 两种语言。通过偏好 `extensions.zotero.aidea.uiLanguage` 切换。
+支持 12 种 UI 语言：`en-US`、`zh-CN`、`zh-TW`、`ja-JP`、`ko-KR`、`fr-FR`、`de-DE`、`es-ES`、`ru-RU`、`pt-BR`、`ar-SA`、`hi-IN`。通过偏好 `extensions.zotero.aidea.uiLanguage` 切换。
 
 包含 ~50 个翻译键，覆盖面板标题、按钮文字、状态提示、模型选择提示等。
 
@@ -854,68 +856,68 @@ npm run test:unit
 
 ### 31.1 测试文件清单
 
-| 测试文件 | 覆盖模块 |
-|---|---|
-| `markdown.test.ts` | Markdown 渲染 |
-| `memoryStore.test.ts` | 记忆系统 |
-| `reasoningProfiles.test.ts` | 推理配置 |
-| `pdfContext.test.ts` | PDF 分块/检索 |
-| `constants.safeguards.test.ts` | 常量安全检查 |
-| `contextPanel.normalizers.test.ts` | 数据规范化 |
-| `apiHelpers.test.ts` | API 工具 |
-| `paperSearch.test.ts` | 论文搜索 |
-| `composeContextController.test.ts` | 上下文组合 |
-| `xhrStreaming.test.ts` | XHR 流式处理 |
-| `streamingUpdate.test.ts` | 流式增量 DOM 更新 |
-| `normalization.test.ts` | 字符串规范化 |
-| `pathFileUrl.test.ts` | 路径转换 |
-| `paperAttribution.test.ts` | 论文归属 |
-| `fileExtraction.test.ts` | 文件提取 |
-| `textUtils.selectedTextPrompt.test.ts` | 选中文本 |
-| **`contextPersistence.test.ts`** | **上下文持久化（36KB，最大测试文件）** |
-| **`startup.test.ts`** | **启动流程** |
+| 测试文件                               | 覆盖模块                               |
+| -------------------------------------- | -------------------------------------- |
+| `markdown.test.ts`                     | Markdown 渲染                          |
+| `memoryStore.test.ts`                  | 记忆系统                               |
+| `reasoningProfiles.test.ts`            | 推理配置                               |
+| `pdfContext.test.ts`                   | PDF 分块/检索                          |
+| `constants.safeguards.test.ts`         | 常量安全检查                           |
+| `contextPanel.normalizers.test.ts`     | 数据规范化                             |
+| `apiHelpers.test.ts`                   | API 工具                               |
+| `paperSearch.test.ts`                  | 论文搜索                               |
+| `composeContextController.test.ts`     | 上下文组合                             |
+| `xhrStreaming.test.ts`                 | XHR 流式处理                           |
+| `streamingUpdate.test.ts`              | 流式增量 DOM 更新                      |
+| `normalization.test.ts`                | 字符串规范化                           |
+| `pathFileUrl.test.ts`                  | 路径转换                               |
+| `paperAttribution.test.ts`             | 论文归属                               |
+| `fileExtraction.test.ts`               | 文件提取                               |
+| `textUtils.selectedTextPrompt.test.ts` | 选中文本                               |
+| **`contextPersistence.test.ts`**       | **上下文持久化（36KB，最大测试文件）** |
+| **`startup.test.ts`**                  | **启动流程**                           |
 
 ---
 
 ## 32. 关键修改速查表
 
-| 需要修改的功能 | 文件 | 函数/位置 |
-|---|---|---|
-| **文件预览渲染逻辑** | `setupHandlers.ts` ~L1285 | `updateFilePreview()` |
-| **文件分类（category）** | `controllers/fileIntakeController.ts` | `resolveAttachmentCategory()` |
-| **文件类型标签（PDF/MD/…）** | `textUtils.ts` | `getAttachmentTypeLabel()` |
-| **文件上传处理** | `controllers/fileIntakeController.ts` | `createFileIntakeController()` |
-| **文件内容提取** | `utils/fileExtraction.ts` | `extractTextFromPdfPath()` / `extractTextFromStoredFile()` |
-| **文件附件状态持久化** | `prefHelpers.ts` | `persistFileAttachmentState()` / `loadPersistedFileAttachmentIds()` |
-| **SVG 图标替换/新增** | `addon/content/icons/file-type-*.svg` | 16×16 `currentColor` SVG |
-| **内联 chip SVG 图标映射** | `zoteroPane.css` | `.llm-file-chip-inline[data-category]` |
-| **卡片容器 SVG 图标映射** | `zoteroPane.css` | `.llm-file-context-type[data-category]` |
-| **论文标签渲染** | `setupHandlers.ts` ~L1162 | `appendPaperChip()` |
-| **截图预览更新** | `setupHandlers.ts` ~L1650+ | `updateImagePreview()` |
-| **选中文本预览** | `contextResolution.ts` | `applySelectedTextPreview()` |
-| **消息气泡渲染** | `chat.ts` | `refreshChat()` (~730行) |
-| **消息发送流程** | `controllers/sendFlowController.ts` | 全文件 |
-| **上下文组合** | `controllers/composeContextController.ts` | 全文件 |
-| **LLM API 调用** | `utils/llmClient.ts` | `chatWithProvider()` |
-| **流式 UI 增量更新** | `contextPanel/streamingUpdate.ts` | `patchStreamingBubble()` |
-| **轻量持久化 / DB 表** | `utils/chatStore.ts` | `appendMessage()` / `loadConversation()` |
-| **上下文状态缓存与恢复** | `chat.ts` | `buildContextRefsSnapshot()` / `restoreContextPoolFromStoredMessages()` |
-| **Zone B 长对话压缩** | `chat.ts` | `compactConversationHistory()` / `buildZoneBCSplit()` |
-| **重试/编辑最后一条** | `chat.ts` | `retryLatestAssistantResponse()` / `editLatestUserMessageAndRetry()` |
-| **Markdown 渲染** | `utils/markdown.ts` | `renderMarkdown()` / `splitIntoBlocks()` |
-| **记忆系统** | `utils/memoryStore.ts` | `storeMemory()` / `searchMemories()` |
-| **OAuth 认证** | `utils/oauthCli.ts` | `runProviderOAuthLogin()` |
-| **推理配置** | `utils/reasoningProfiles.ts` | 推理级别定义 |
-| **模型选择** | `controllers/modelSelectionController.ts` | `getModelChoices()` |
-| **快捷指令** | `shortcuts.ts` | `renderShortcuts()` |
-| **笔记导出** | `notes.ts` | `createNoteFromAssistantText()` / `createNoteFromChatHistory()` |
-| **偏好面板** | `modules/preferenceScript.ts` | `registerPrefsScripts()` |
-| **面板 DOM 缓存（文库）** | `libraryPanel.ts` | `bootstrapSharedLibraryPanel()` |
-| **面板 DOM 缓存（阅读器）** | `readerPanel.ts` | `bootstrapSharedReaderPanel()` |
-| **全局状态管理** | `state.ts` | 各 Map/Set 缓存 |
-| **国际化** | `i18n.ts` | `getPanelI18n()` |
-| **启动生命周期** | `hooks.ts` | `onStartup()` / `onMainWindowLoad()` |
-| **CSS 样式** | `addon/content/zoteroPane.css` | 按类名搜索 |
+| 需要修改的功能               | 文件                                      | 函数/位置                                                               |
+| ---------------------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| **文件预览渲染逻辑**         | `setupHandlers.ts` ~L1285                 | `updateFilePreview()`                                                   |
+| **文件分类（category）**     | `controllers/fileIntakeController.ts`     | `resolveAttachmentCategory()`                                           |
+| **文件类型标签（PDF/MD/…）** | `textUtils.ts`                            | `getAttachmentTypeLabel()`                                              |
+| **文件上传处理**             | `controllers/fileIntakeController.ts`     | `createFileIntakeController()`                                          |
+| **文件内容提取**             | `utils/fileExtraction.ts`                 | `extractTextFromPdfPath()` / `extractTextFromStoredFile()`              |
+| **文件附件状态持久化**       | `prefHelpers.ts`                          | `persistFileAttachmentState()` / `loadPersistedFileAttachmentIds()`     |
+| **SVG 图标替换/新增**        | `addon/content/icons/file-type-*.svg`     | 16×16 `currentColor` SVG                                                |
+| **内联 chip SVG 图标映射**   | `zoteroPane.css`                          | `.llm-file-chip-inline[data-category]`                                  |
+| **卡片容器 SVG 图标映射**    | `zoteroPane.css`                          | `.llm-file-context-type[data-category]`                                 |
+| **论文标签渲染**             | `setupHandlers.ts` ~L1162                 | `appendPaperChip()`                                                     |
+| **截图预览更新**             | `setupHandlers.ts` ~L1650+                | `updateImagePreview()`                                                  |
+| **选中文本预览**             | `contextResolution.ts`                    | `applySelectedTextPreview()`                                            |
+| **消息气泡渲染**             | `chat.ts`                                 | `refreshChat()` (~730行)                                                |
+| **消息发送流程**             | `controllers/sendFlowController.ts`       | 全文件                                                                  |
+| **上下文组合**               | `controllers/composeContextController.ts` | 全文件                                                                  |
+| **LLM API 调用**             | `utils/llmClient.ts`                      | `chatWithProvider()`                                                    |
+| **流式 UI 增量更新**         | `contextPanel/streamingUpdate.ts`         | `patchStreamingBubble()`                                                |
+| **轻量持久化 / DB 表**       | `utils/chatStore.ts`                      | `appendMessage()` / `loadConversation()`                                |
+| **上下文状态缓存与恢复**     | `chat.ts`                                 | `buildContextRefsSnapshot()` / `restoreContextPoolFromStoredMessages()` |
+| **Zone B 长对话压缩**        | `chat.ts`                                 | `compactConversationHistory()` / `buildZoneBCSplit()`                   |
+| **重试/编辑最后一条**        | `chat.ts`                                 | `retryLatestAssistantResponse()` / `editLatestUserMessageAndRetry()`    |
+| **Markdown 渲染**            | `utils/markdown.ts`                       | `renderMarkdown()` / `splitIntoBlocks()`                                |
+| **记忆系统**                 | `utils/memoryStore.ts`                    | `storeMemory()` / `searchMemories()`                                    |
+| **OAuth 认证**               | `utils/oauthCli.ts`                       | `runProviderOAuthLogin()`                                               |
+| **推理配置**                 | `utils/reasoningProfiles.ts`              | 推理级别定义                                                            |
+| **模型选择**                 | `controllers/modelSelectionController.ts` | `getModelChoices()`                                                     |
+| **快捷指令**                 | `shortcuts.ts`                            | `renderShortcuts()`                                                     |
+| **笔记导出**                 | `notes.ts`                                | `createNoteFromAssistantText()` / `createNoteFromChatHistory()`         |
+| **偏好面板**                 | `modules/preferenceScript.ts`             | `registerPrefsScripts()`                                                |
+| **面板 DOM 缓存（文库）**    | `libraryPanel.ts`                         | `bootstrapSharedLibraryPanel()`                                         |
+| **面板 DOM 缓存（阅读器）**  | `readerPanel.ts`                          | `bootstrapSharedReaderPanel()`                                          |
+| **全局状态管理**             | `state.ts`                                | 各 Map/Set 缓存                                                         |
+| **国际化**                   | `i18n.ts`                                 | `getPanelI18n()`                                                        |
+| **启动生命周期**             | `hooks.ts`                                | `onStartup()` / `onMainWindowLoad()`                                    |
+| **CSS 样式**                 | `addon/content/zoteroPane.css`            | 按类名搜索                                                              |
 
 ---
 

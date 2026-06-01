@@ -2467,12 +2467,15 @@ export async function sendQuestion(
 
     const errMsg = (err as Error).message || "Error";
     const retryHint = resolveMultimodalRetryHint(errMsg, imageCount);
-    assistantMessage.text = `Error: ${errMsg}${retryHint}`;
+    assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
     assistantMessage.streaming = false;
     refreshChatSafely();
     await persistAssistantOnce();
 
-    setStatusSafely(`Error: ${`${errMsg}${retryHint}`.slice(0, 40)}`, "error");
+    setStatusSafely(
+      i18n.operationFailed(`${errMsg}${retryHint}`.slice(0, 40)),
+      "error",
+    );
   } finally {
     if (finishPanelRequest(body, thisRequestId)) {
       setHistoryControlsDisabled(body, false);

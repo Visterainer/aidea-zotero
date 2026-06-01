@@ -578,9 +578,7 @@ export function registerReaderSelectionTracking() {
       return "";
     };
     const resolveSelectionPageLabel = (): string => {
-      const isZh = String((Zotero as any)?.locale || "")
-        .toLowerCase()
-        .startsWith("zh");
+      const i18n = getPanelI18n();
       const params = event.params as unknown as {
         pageIndex?: unknown;
         page?: unknown;
@@ -609,11 +607,9 @@ export function registerReaderSelectionTracking() {
                 ? Number(rawPage)
                 : 0;
       if (!pageNumber || pageNumber < 1) {
-        return isZh ? "\u5f53\u524d PDF" : "Current PDF";
+        return i18n.trCurrentPdf;
       }
-      return isZh
-        ? `\u5f53\u524d PDF\uff0c\u7b2c ${Math.floor(pageNumber)} \u9875`
-        : `Current PDF, page ${Math.floor(pageNumber)}`;
+      return i18n.currentPdfPage(Math.floor(pageNumber));
     };
 
     if (selectedText || showAddTextInPopup) {
@@ -932,33 +928,18 @@ export function registerReaderSelectionTracking() {
 
       if (selectedText && isSelectionTranslateEnabled()) {
         try {
-          const isZh = String((Zotero as any)?.locale || "")
-            .toLowerCase()
-            .startsWith("zh");
-          const text = isZh
-            ? {
-                coldStart: "冷启动中...",
-                translating: "翻译中...",
-                failed: "翻译失败",
-              }
-            : {
-                coldStart: "Cold starting...",
-                translating: "Translating...",
-                failed: "Translation failed",
-              };
-          const noteText = isZh
-            ? {
-                addToNote: "\u6dfb\u52a0\u5230\u7b14\u8bb0",
-                addingToNote: "\u6b63\u5728\u6dfb\u52a0...",
-                addedToNote: "\u5df2\u6dfb\u52a0",
-                addToNoteFailed: "\u6dfb\u52a0\u5931\u8d25",
-              }
-            : {
-                addToNote: "Add to note",
-                addingToNote: "Adding...",
-                addedToNote: "Added",
-                addToNoteFailed: "Add failed",
-              };
+          const i18n = getPanelI18n();
+          const text = {
+            coldStart: i18n.selectionTranslateColdStart,
+            translating: i18n.selectionTranslateTranslating,
+            failed: i18n.selectionTranslateFailed,
+          };
+          const noteText = {
+            addToNote: i18n.addToNote,
+            addingToNote: i18n.addingToNote,
+            addedToNote: i18n.addedToNote,
+            addToNoteFailed: i18n.addToNoteFailed,
+          };
           const selectionPopup = event.doc.querySelector(
             ".selection-popup",
           ) as HTMLElement | null;

@@ -197,6 +197,36 @@ export type PanelI18n = {
   clearSelectedContext: string;
   shortcutPromptEmpty: string;
   dragToReorder: string;
+  currentPdfPage: (page: number) => string;
+  selectionTranslateColdStart: string;
+  selectionTranslateTranslating: string;
+  selectionTranslateFailed: string;
+  selectionTranslateColdStartStatus: string;
+  selectionTranslateCacheReady: string;
+  addToNote: string;
+  addingToNote: string;
+  addedToNote: string;
+  addToNoteFailed: string;
+  screenshotSelectionInstruction: string;
+  cancelEsc: string;
+  pinTextContext: string;
+  unpinTextContext: string;
+  unpinNamedContext: (name: string) => string;
+  expandPdfs: string;
+  collapsePdfs: string;
+  untitledChat: string;
+  paperChat: string;
+  standaloneChat: string;
+  deletedConversation: (title: string) => string;
+  renameConversationAria: (title: string) => string;
+  pinConversationAria: (title: string) => string;
+  unpinConversationAria: (title: string) => string;
+  deleteConversation: string;
+  deleteConversationAria: (title: string) => string;
+  conversationNamePlaceholder: string;
+  noPapersMatched: string;
+  pdfCount: (count: number) => string;
+  pdfAttachment: string;
   trLogFullPath: string;
   trLogOutputFormat: (mono: boolean, dual: boolean) => string;
   trLogResolvingCredentials: string;
@@ -210,6 +240,48 @@ export type PanelI18n = {
   trLogPausedCached: string;
   trLogLaunchingEngine: string;
   trLogStackTrace: string;
+  trLogError: (message: string) => string;
+  trLogDetails: (details: string) => string;
+  trLogEnvironmentSetupStarting: string;
+  trLogEnvironmentSetupComplete: string;
+  trLogResumed: string;
+  trLogPaused: string;
+  trLogPauseError: (message: string) => string;
+  trLogCannotClearRunning: string;
+  trLogCacheDetails: (removed: number, skipped: number) => string;
+  trLogClearDone: string;
+  trLogClearError: (message: string) => string;
+  trLogJobStarted: string;
+  trLogPdfLabel: string;
+  trLogModelLabel: string;
+  trLogLanguageLabel: string;
+  trLogOutputLabel: string;
+  trLogAdvancedOptions: (
+    skipReferences: boolean,
+    compatibility: boolean,
+    forceOcr: boolean,
+    autoOcr: boolean,
+  ) => string;
+  trLogFailedToResolveCredentials: (message: string) => string;
+  trLogAuthLabel: string;
+  trLogModelIdLabel: string;
+  trLogApiBaseLabel: string;
+  trLogEnvironmentReady: (venvDir: string) => string;
+  trLogPythonLabel: string;
+  trLogPdf2zhLabel: string;
+  trLogPageProgress: (
+    current: number | string,
+    total: number | string,
+    percent: number | string,
+    elapsed: string,
+  ) => string;
+  trLogOutputFile: (file: string) => string;
+  trLogCompletedWithErrors: (count: number) => string;
+  trLogFullLog: (path: string) => string;
+  trLogSeeDetailsAbove: string;
+  trLogUnknownError: string;
+  attachmentRemoved: (count: number) => string;
+  operationFailed: (message: string) => string;
 };
 
 declare const Zotero: any;
@@ -2469,10 +2541,891 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
   },
 };
 
+const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
+  Record<PanelLang, Partial<PanelI18n>>
+> = {
+  "zh-TW": {
+    currentPdfPage: (page) => `目前 PDF，第 ${page} 頁`,
+    selectionTranslateColdStart: "冷啟動中...",
+    selectionTranslateTranslating: "翻譯中...",
+    selectionTranslateFailed: "翻譯失敗",
+    selectionTranslateColdStartStatus: "選取翻譯冷啟動中...",
+    selectionTranslateCacheReady: "選取翻譯快取已就緒",
+    addToNote: "加入筆記",
+    addingToNote: "加入中...",
+    addedToNote: "已加入",
+    addToNoteFailed: "加入失敗",
+    screenshotSelectionInstruction: "點擊並拖曳以選擇區域，放開後完成",
+    cancelEsc: "取消 (Esc)",
+    pinTextContext: "釘選文字上下文",
+    unpinTextContext: "取消釘選文字上下文",
+    unpinNamedContext: (name) => `取消釘選 ${name}`,
+    expandPdfs: "點擊展開 PDF",
+    collapsePdfs: "點擊收合 PDF",
+    untitledChat: "未命名對話",
+    paperChat: "論文對話",
+    standaloneChat: "獨立對話",
+    deletedConversation: (title) => `已刪除「${title}」`,
+    renameConversationAria: (title) => `重新命名 ${title}`,
+    pinConversationAria: (title) => `釘選 ${title}`,
+    unpinConversationAria: (title) => `取消釘選 ${title}`,
+    deleteConversation: "刪除對話",
+    deleteConversationAria: (title) => `刪除 ${title}`,
+    conversationNamePlaceholder: "對話名稱...",
+    noPapersMatched: "沒有符合的論文。",
+    pdfCount: (count) => `${count} 個 PDF`,
+    pdfAttachment: "PDF 附件",
+  },
+  "ja-JP": {
+    currentPdfPage: (page) => `現在の PDF、${page} ページ`,
+    selectionTranslateColdStart: "コールドスタート中...",
+    selectionTranslateTranslating: "翻訳中...",
+    selectionTranslateFailed: "翻訳に失敗しました",
+    selectionTranslateColdStartStatus: "選択翻訳を準備中...",
+    selectionTranslateCacheReady: "選択翻訳のキャッシュ準備完了",
+    addToNote: "ノートに追加",
+    addingToNote: "追加中...",
+    addedToNote: "追加済み",
+    addToNoteFailed: "追加に失敗しました",
+    screenshotSelectionInstruction:
+      "クリックしてドラッグし、範囲を選択して離します",
+    cancelEsc: "キャンセル (Esc)",
+    pinTextContext: "テキストコンテキストをピン留め",
+    unpinTextContext: "テキストコンテキストのピン留めを解除",
+    unpinNamedContext: (name) => `${name} のピン留めを解除`,
+    expandPdfs: "クリックして PDF を展開",
+    collapsePdfs: "クリックして PDF を折りたたむ",
+    untitledChat: "無題のチャット",
+    paperChat: "論文チャット",
+    standaloneChat: "単独チャット",
+    deletedConversation: (title) => `「${title}」を削除しました`,
+    renameConversationAria: (title) => `${title} の名前を変更`,
+    pinConversationAria: (title) => `${title} をピン留め`,
+    unpinConversationAria: (title) => `${title} のピン留めを解除`,
+    deleteConversation: "会話を削除",
+    deleteConversationAria: (title) => `${title} を削除`,
+    conversationNamePlaceholder: "会話名...",
+    noPapersMatched: "一致する論文はありません。",
+    pdfCount: (count) => `${count} 件の PDF`,
+    pdfAttachment: "PDF 添付ファイル",
+  },
+  "ko-KR": {
+    currentPdfPage: (page) => `현재 PDF, ${page}페이지`,
+    selectionTranslateColdStart: "콜드 스타트 중...",
+    selectionTranslateTranslating: "번역 중...",
+    selectionTranslateFailed: "번역 실패",
+    selectionTranslateColdStartStatus: "선택 번역 준비 중...",
+    selectionTranslateCacheReady: "선택 번역 캐시 준비 완료",
+    addToNote: "노트에 추가",
+    addingToNote: "추가 중...",
+    addedToNote: "추가됨",
+    addToNoteFailed: "추가 실패",
+    screenshotSelectionInstruction:
+      "클릭하고 드래그해 영역을 선택한 뒤 놓으세요",
+    cancelEsc: "취소 (Esc)",
+    pinTextContext: "텍스트 컨텍스트 고정",
+    unpinTextContext: "텍스트 컨텍스트 고정 해제",
+    unpinNamedContext: (name) => `${name} 고정 해제`,
+    expandPdfs: "PDF 펼치기",
+    collapsePdfs: "PDF 접기",
+    untitledChat: "제목 없는 채팅",
+    paperChat: "논문 채팅",
+    standaloneChat: "독립 채팅",
+    deletedConversation: (title) => `"${title}" 삭제됨`,
+    renameConversationAria: (title) => `${title} 이름 변경`,
+    pinConversationAria: (title) => `${title} 고정`,
+    unpinConversationAria: (title) => `${title} 고정 해제`,
+    deleteConversation: "대화 삭제",
+    deleteConversationAria: (title) => `${title} 삭제`,
+    conversationNamePlaceholder: "대화 이름...",
+    noPapersMatched: "일치하는 논문이 없습니다.",
+    pdfCount: (count) => `PDF ${count}개`,
+    pdfAttachment: "PDF 첨부 파일",
+  },
+  "fr-FR": {
+    currentPdfPage: (page) => `PDF actuel, page ${page}`,
+    selectionTranslateColdStart: "Demarrage...",
+    selectionTranslateTranslating: "Traduction...",
+    selectionTranslateFailed: "Echec de la traduction",
+    selectionTranslateColdStartStatus:
+      "Demarrage de la traduction de selection...",
+    selectionTranslateCacheReady: "Cache de traduction de selection pret",
+    addToNote: "Ajouter a la note",
+    addingToNote: "Ajout...",
+    addedToNote: "Ajoute",
+    addToNoteFailed: "Echec de l'ajout",
+    screenshotSelectionInstruction:
+      "Cliquez et faites glisser pour selectionner une zone, puis relachez",
+    cancelEsc: "Annuler (Esc)",
+    pinTextContext: "Epingler le contexte texte",
+    unpinTextContext: "Retirer l'epingle du contexte texte",
+    unpinNamedContext: (name) => `Retirer l'epingle de ${name}`,
+    expandPdfs: "Cliquer pour developper les PDF",
+    collapsePdfs: "Cliquer pour reduire les PDF",
+    untitledChat: "Conversation sans titre",
+    paperChat: "Conversation d'article",
+    standaloneChat: "Conversation autonome",
+    deletedConversation: (title) => `"${title}" supprimee`,
+    renameConversationAria: (title) => `Renommer ${title}`,
+    pinConversationAria: (title) => `Epingler ${title}`,
+    unpinConversationAria: (title) => `Retirer l'epingle de ${title}`,
+    deleteConversation: "Supprimer la conversation",
+    deleteConversationAria: (title) => `Supprimer ${title}`,
+    conversationNamePlaceholder: "Nom de la conversation...",
+    noPapersMatched: "Aucun article correspondant.",
+    pdfCount: (count) => `${count} PDF`,
+    pdfAttachment: "Piece jointe PDF",
+  },
+  "de-DE": {
+    currentPdfPage: (page) => `Aktuelles PDF, Seite ${page}`,
+    selectionTranslateColdStart: "Start wird vorbereitet...",
+    selectionTranslateTranslating: "Uebersetzung...",
+    selectionTranslateFailed: "Uebersetzung fehlgeschlagen",
+    selectionTranslateColdStartStatus:
+      "Auswahluebersetzung wird vorbereitet...",
+    selectionTranslateCacheReady: "Cache fuer Auswahluebersetzung bereit",
+    addToNote: "Zur Notiz hinzufuegen",
+    addingToNote: "Wird hinzugefuegt...",
+    addedToNote: "Hinzugefuegt",
+    addToNoteFailed: "Hinzufuegen fehlgeschlagen",
+    screenshotSelectionInstruction:
+      "Klicken und ziehen, um einen Bereich auszuwaehlen, dann loslassen",
+    cancelEsc: "Abbrechen (Esc)",
+    pinTextContext: "Textkontext anheften",
+    unpinTextContext: "Textkontext loesen",
+    unpinNamedContext: (name) => `${name} loesen`,
+    expandPdfs: "Klicken, um PDFs auszuklappen",
+    collapsePdfs: "Klicken, um PDFs einzuklappen",
+    untitledChat: "Unbenannter Chat",
+    paperChat: "Paper-Chat",
+    standaloneChat: "Eigenstaendiger Chat",
+    deletedConversation: (title) => `"${title}" geloescht`,
+    renameConversationAria: (title) => `${title} umbenennen`,
+    pinConversationAria: (title) => `${title} anheften`,
+    unpinConversationAria: (title) => `${title} loesen`,
+    deleteConversation: "Unterhaltung loeschen",
+    deleteConversationAria: (title) => `${title} loeschen`,
+    conversationNamePlaceholder: "Name der Unterhaltung...",
+    noPapersMatched: "Keine passenden Papers gefunden.",
+    pdfCount: (count) => `${count} PDFs`,
+    pdfAttachment: "PDF-Anhang",
+  },
+  "es-ES": {
+    currentPdfPage: (page) => `PDF actual, pagina ${page}`,
+    selectionTranslateColdStart: "Iniciando...",
+    selectionTranslateTranslating: "Traduciendo...",
+    selectionTranslateFailed: "Error de traduccion",
+    selectionTranslateColdStartStatus: "Iniciando traduccion de seleccion...",
+    selectionTranslateCacheReady: "Cache de traduccion de seleccion listo",
+    addToNote: "Anadir a la nota",
+    addingToNote: "Anadiendo...",
+    addedToNote: "Anadido",
+    addToNoteFailed: "No se pudo anadir",
+    screenshotSelectionInstruction:
+      "Haz clic y arrastra para seleccionar una region, luego suelta",
+    cancelEsc: "Cancelar (Esc)",
+    pinTextContext: "Fijar contexto de texto",
+    unpinTextContext: "Desfijar contexto de texto",
+    unpinNamedContext: (name) => `Desfijar ${name}`,
+    expandPdfs: "Haz clic para expandir PDF",
+    collapsePdfs: "Haz clic para contraer PDF",
+    untitledChat: "Chat sin titulo",
+    paperChat: "Chat de articulo",
+    standaloneChat: "Chat independiente",
+    deletedConversation: (title) => `"${title}" eliminado`,
+    renameConversationAria: (title) => `Cambiar nombre de ${title}`,
+    pinConversationAria: (title) => `Fijar ${title}`,
+    unpinConversationAria: (title) => `Desfijar ${title}`,
+    deleteConversation: "Eliminar conversacion",
+    deleteConversationAria: (title) => `Eliminar ${title}`,
+    conversationNamePlaceholder: "Nombre de la conversacion...",
+    noPapersMatched: "No hay articulos coincidentes.",
+    pdfCount: (count) => `${count} PDF`,
+    pdfAttachment: "Adjunto PDF",
+  },
+  "ru-RU": {
+    currentPdfPage: (page) => `Текущий PDF, страница ${page}`,
+    selectionTranslateColdStart: "Запуск...",
+    selectionTranslateTranslating: "Перевод...",
+    selectionTranslateFailed: "Ошибка перевода",
+    selectionTranslateColdStartStatus: "Запуск перевода выделения...",
+    selectionTranslateCacheReady: "Кеш перевода выделения готов",
+    addToNote: "Добавить в заметку",
+    addingToNote: "Добавление...",
+    addedToNote: "Добавлено",
+    addToNoteFailed: "Не удалось добавить",
+    screenshotSelectionInstruction:
+      "Нажмите и перетащите, чтобы выбрать область, затем отпустите",
+    cancelEsc: "Отмена (Esc)",
+    pinTextContext: "Закрепить текстовый контекст",
+    unpinTextContext: "Открепить текстовый контекст",
+    unpinNamedContext: (name) => `Открепить ${name}`,
+    expandPdfs: "Нажмите, чтобы раскрыть PDF",
+    collapsePdfs: "Нажмите, чтобы свернуть PDF",
+    untitledChat: "Безымянный чат",
+    paperChat: "Чат по статье",
+    standaloneChat: "Отдельный чат",
+    deletedConversation: (title) => `"${title}" удален`,
+    renameConversationAria: (title) => `Переименовать ${title}`,
+    pinConversationAria: (title) => `Закрепить ${title}`,
+    unpinConversationAria: (title) => `Открепить ${title}`,
+    deleteConversation: "Удалить диалог",
+    deleteConversationAria: (title) => `Удалить ${title}`,
+    conversationNamePlaceholder: "Название диалога...",
+    noPapersMatched: "Подходящие статьи не найдены.",
+    pdfCount: (count) => `${count} PDF`,
+    pdfAttachment: "PDF-вложение",
+  },
+  "pt-BR": {
+    currentPdfPage: (page) => `PDF atual, pagina ${page}`,
+    selectionTranslateColdStart: "Iniciando...",
+    selectionTranslateTranslating: "Traduzindo...",
+    selectionTranslateFailed: "Falha na traducao",
+    selectionTranslateColdStartStatus: "Iniciando traducao da selecao...",
+    selectionTranslateCacheReady: "Cache da traducao da selecao pronto",
+    addToNote: "Adicionar a nota",
+    addingToNote: "Adicionando...",
+    addedToNote: "Adicionado",
+    addToNoteFailed: "Falha ao adicionar",
+    screenshotSelectionInstruction:
+      "Clique e arraste para selecionar uma regiao, depois solte",
+    cancelEsc: "Cancelar (Esc)",
+    pinTextContext: "Fixar contexto de texto",
+    unpinTextContext: "Desafixar contexto de texto",
+    unpinNamedContext: (name) => `Desafixar ${name}`,
+    expandPdfs: "Clique para expandir PDFs",
+    collapsePdfs: "Clique para recolher PDFs",
+    untitledChat: "Chat sem titulo",
+    paperChat: "Chat do artigo",
+    standaloneChat: "Chat independente",
+    deletedConversation: (title) => `"${title}" excluida`,
+    renameConversationAria: (title) => `Renomear ${title}`,
+    pinConversationAria: (title) => `Fixar ${title}`,
+    unpinConversationAria: (title) => `Desafixar ${title}`,
+    deleteConversation: "Excluir conversa",
+    deleteConversationAria: (title) => `Excluir ${title}`,
+    conversationNamePlaceholder: "Nome da conversa...",
+    noPapersMatched: "Nenhum artigo encontrado.",
+    pdfCount: (count) => `${count} PDFs`,
+    pdfAttachment: "Anexo PDF",
+  },
+  "ar-SA": {
+    currentPdfPage: (page) => `ملف PDF الحالي، الصفحة ${page}`,
+    selectionTranslateColdStart: "جار بدء التشغيل...",
+    selectionTranslateTranslating: "جار الترجمة...",
+    selectionTranslateFailed: "فشلت الترجمة",
+    selectionTranslateColdStartStatus: "جار تجهيز ترجمة التحديد...",
+    selectionTranslateCacheReady: "ذاكرة ترجمة التحديد جاهزة",
+    addToNote: "إضافة إلى الملاحظة",
+    addingToNote: "جار الإضافة...",
+    addedToNote: "تمت الإضافة",
+    addToNoteFailed: "فشلت الإضافة",
+    screenshotSelectionInstruction: "انقر واسحب لتحديد منطقة، ثم اترك الزر",
+    cancelEsc: "إلغاء (Esc)",
+    pinTextContext: "تثبيت سياق النص",
+    unpinTextContext: "إلغاء تثبيت سياق النص",
+    unpinNamedContext: (name) => `إلغاء تثبيت ${name}`,
+    expandPdfs: "انقر لتوسيع ملفات PDF",
+    collapsePdfs: "انقر لطي ملفات PDF",
+    untitledChat: "محادثة بلا عنوان",
+    paperChat: "محادثة الورقة",
+    standaloneChat: "محادثة مستقلة",
+    deletedConversation: (title) => `تم حذف "${title}"`,
+    renameConversationAria: (title) => `إعادة تسمية ${title}`,
+    pinConversationAria: (title) => `تثبيت ${title}`,
+    unpinConversationAria: (title) => `إلغاء تثبيت ${title}`,
+    deleteConversation: "حذف المحادثة",
+    deleteConversationAria: (title) => `حذف ${title}`,
+    conversationNamePlaceholder: "اسم المحادثة...",
+    noPapersMatched: "لا توجد أوراق مطابقة.",
+    pdfCount: (count) => `${count} ملفات PDF`,
+    pdfAttachment: "مرفق PDF",
+  },
+  "hi-IN": {
+    currentPdfPage: (page) => `वर्तमान PDF, पृष्ठ ${page}`,
+    selectionTranslateColdStart: "शुरू हो रहा है...",
+    selectionTranslateTranslating: "अनुवाद हो रहा है...",
+    selectionTranslateFailed: "अनुवाद विफल",
+    selectionTranslateColdStartStatus: "चयन अनुवाद शुरू हो रहा है...",
+    selectionTranslateCacheReady: "चयन अनुवाद कैश तैयार है",
+    addToNote: "नोट में जोड़ें",
+    addingToNote: "जोड़ा जा रहा है...",
+    addedToNote: "जोड़ा गया",
+    addToNoteFailed: "जोड़ना विफल",
+    screenshotSelectionInstruction:
+      "क्षेत्र चुनने के लिए क्लिक करके खींचें, फिर छोड़ें",
+    cancelEsc: "रद्द करें (Esc)",
+    pinTextContext: "टेक्स्ट संदर्भ पिन करें",
+    unpinTextContext: "टेक्स्ट संदर्भ अनपिन करें",
+    unpinNamedContext: (name) => `${name} अनपिन करें`,
+    expandPdfs: "PDF फैलाने के लिए क्लिक करें",
+    collapsePdfs: "PDF समेटने के लिए क्लिक करें",
+    untitledChat: "शीर्षकहीन चैट",
+    paperChat: "पेपर चैट",
+    standaloneChat: "स्वतंत्र चैट",
+    deletedConversation: (title) => `"${title}" हटाया गया`,
+    renameConversationAria: (title) => `${title} का नाम बदलें`,
+    pinConversationAria: (title) => `${title} पिन करें`,
+    unpinConversationAria: (title) => `${title} अनपिन करें`,
+    deleteConversation: "बातचीत हटाएँ",
+    deleteConversationAria: (title) => `${title} हटाएँ`,
+    conversationNamePlaceholder: "बातचीत का नाम...",
+    noPapersMatched: "कोई मेल खाता पेपर नहीं मिला।",
+    pdfCount: (count) => `${count} PDF`,
+    pdfAttachment: "PDF संलग्नक",
+  },
+};
+
+type PanelI18nLogKeys = Pick<
+  PanelI18n,
+  | "trLogError"
+  | "trLogDetails"
+  | "trLogEnvironmentSetupStarting"
+  | "trLogEnvironmentSetupComplete"
+  | "trLogResumed"
+  | "trLogPaused"
+  | "trLogPauseError"
+  | "trLogCannotClearRunning"
+  | "trLogCacheDetails"
+  | "trLogClearDone"
+  | "trLogClearError"
+  | "trLogJobStarted"
+  | "trLogPdfLabel"
+  | "trLogModelLabel"
+  | "trLogLanguageLabel"
+  | "trLogOutputLabel"
+  | "trLogAdvancedOptions"
+  | "trLogFailedToResolveCredentials"
+  | "trLogAuthLabel"
+  | "trLogModelIdLabel"
+  | "trLogApiBaseLabel"
+  | "trLogEnvironmentReady"
+  | "trLogPythonLabel"
+  | "trLogPdf2zhLabel"
+  | "trLogPageProgress"
+  | "trLogOutputFile"
+  | "trLogCompletedWithErrors"
+  | "trLogFullLog"
+  | "trLogSeeDetailsAbove"
+  | "trLogUnknownError"
+  | "attachmentRemoved"
+  | "operationFailed"
+>;
+
+type PanelI18nBaseKeys = Omit<PanelI18n, keyof PanelI18nLogKeys>;
+
+const PANEL_I18N_LOG_OVERRIDES: Record<PanelLang, PanelI18nLogKeys> = {
+  "en-US": {
+    trLogError: (message) => `Error: ${message}`,
+    trLogDetails: (details) => `Details: ${details}`,
+    trLogEnvironmentSetupStarting: "Starting environment setup...",
+    trLogEnvironmentSetupComplete: "Environment setup complete!",
+    trLogResumed: "Resumed",
+    trLogPaused: "Paused",
+    trLogPauseError: (message) => `Pause error: ${message}`,
+    trLogCannotClearRunning:
+      "Cannot clear cache while translation is running. Pause or wait for it to finish.",
+    trLogCacheDetails: (removed, skipped) =>
+      `Cache details: ${removed} item(s) removed${
+        skipped > 0 ? `, skipped active jobs: ${skipped}` : ""
+      }`,
+    trLogClearDone: "Cache cleared",
+    trLogClearError: (message) => `Clear error: ${message}`,
+    trLogJobStarted: "Translation Job Started",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "Model",
+    trLogLanguageLabel: "Language",
+    trLogOutputLabel: "Output",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `Skip references: ${skipReferences} | Compatibility: ${compatibility} | OCR: force=${forceOcr}, auto=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `Failed to resolve credentials: ${message}`,
+    trLogAuthLabel: "Auth",
+    trLogModelIdLabel: "Model ID",
+    trLogApiBaseLabel: "API Base",
+    trLogEnvironmentReady: (venvDir) => `Environment ready (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `Page ${current}/${total} (${percent}%) [${elapsed}]`,
+    trLogOutputFile: (file) => `Output: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `Translation completed with ${count} error(s); some pages may contain untranslated text`,
+    trLogFullLog: (path) => `Full log: ${path}`,
+    trLogSeeDetailsAbove: "see details above",
+    trLogUnknownError: "Unknown error",
+    attachmentRemoved: (count) => `Attachment removed (${count})`,
+    operationFailed: (message) => `Failed: ${message}`,
+  },
+  "zh-CN": {
+    trLogError: (message) => `错误：${message}`,
+    trLogDetails: (details) => `详情：${details}`,
+    trLogEnvironmentSetupStarting: "正在安装翻译环境...",
+    trLogEnvironmentSetupComplete: "翻译环境安装完成！",
+    trLogResumed: "已继续",
+    trLogPaused: "已暂停",
+    trLogPauseError: (message) => `暂停/继续失败：${message}`,
+    trLogCannotClearRunning:
+      "翻译正在运行，不能清理缓存。请先暂停或等待任务结束。",
+    trLogCacheDetails: (removed, skipped) =>
+      `缓存详情：已移除 ${removed} 项${
+        skipped > 0 ? `，跳过运行中的任务 ${skipped} 个` : ""
+      }`,
+    trLogClearDone: "缓存已清理",
+    trLogClearError: (message) => `清理失败：${message}`,
+    trLogJobStarted: "翻译任务已启动",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "模型",
+    trLogLanguageLabel: "语言",
+    trLogOutputLabel: "输出",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `跳过参考文献：${skipReferences} | 兼容模式：${compatibility} | OCR：强制=${forceOcr}，自动=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `解析模型凭证失败：${message}`,
+    trLogAuthLabel: "认证",
+    trLogModelIdLabel: "模型 ID",
+    trLogApiBaseLabel: "API 地址",
+    trLogEnvironmentReady: (venvDir) => `环境已就绪（${venvDir}）`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `第 ${current}/${total} 页（${percent}%）[${elapsed}]`,
+    trLogOutputFile: (file) => `输出：${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `翻译已完成，但有 ${count} 个错误；部分页面可能未完整翻译`,
+    trLogFullLog: (path) => `完整日志：${path}`,
+    trLogSeeDetailsAbove: "见上方详情",
+    trLogUnknownError: "未知错误",
+    attachmentRemoved: (count) => `附件已移除（剩余 ${count}）`,
+    operationFailed: (message) => `失败：${message}`,
+  },
+  "zh-TW": {
+    trLogError: (message) => `錯誤：${message}`,
+    trLogDetails: (details) => `詳情：${details}`,
+    trLogEnvironmentSetupStarting: "正在安裝翻譯環境...",
+    trLogEnvironmentSetupComplete: "翻譯環境安裝完成！",
+    trLogResumed: "已繼續",
+    trLogPaused: "已暫停",
+    trLogPauseError: (message) => `暫停/繼續失敗：${message}`,
+    trLogCannotClearRunning:
+      "翻譯正在執行，不能清理快取。請先暫停或等待任務結束。",
+    trLogCacheDetails: (removed, skipped) =>
+      `快取詳情：已移除 ${removed} 項${
+        skipped > 0 ? `，略過執行中的任務 ${skipped} 個` : ""
+      }`,
+    trLogClearDone: "快取已清理",
+    trLogClearError: (message) => `清理失敗：${message}`,
+    trLogJobStarted: "翻譯任務已啟動",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "模型",
+    trLogLanguageLabel: "語言",
+    trLogOutputLabel: "輸出",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `略過參考文獻：${skipReferences} | 相容模式：${compatibility} | OCR：強制=${forceOcr}，自動=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `解析模型憑證失敗：${message}`,
+    trLogAuthLabel: "驗證",
+    trLogModelIdLabel: "模型 ID",
+    trLogApiBaseLabel: "API 位址",
+    trLogEnvironmentReady: (venvDir) => `環境已就緒（${venvDir}）`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `第 ${current}/${total} 頁（${percent}%）[${elapsed}]`,
+    trLogOutputFile: (file) => `輸出：${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `翻譯已完成，但有 ${count} 個錯誤；部分頁面可能未完整翻譯`,
+    trLogFullLog: (path) => `完整日誌：${path}`,
+    trLogSeeDetailsAbove: "見上方詳情",
+    trLogUnknownError: "未知錯誤",
+    attachmentRemoved: (count) => `附件已移除（剩餘 ${count}）`,
+    operationFailed: (message) => `失敗：${message}`,
+  },
+  "ja-JP": {
+    trLogError: (message) => `エラー: ${message}`,
+    trLogDetails: (details) => `詳細: ${details}`,
+    trLogEnvironmentSetupStarting: "翻訳環境をセットアップ中...",
+    trLogEnvironmentSetupComplete: "翻訳環境のセットアップが完了しました！",
+    trLogResumed: "再開しました",
+    trLogPaused: "一時停止しました",
+    trLogPauseError: (message) => `一時停止/再開エラー: ${message}`,
+    trLogCannotClearRunning:
+      "翻訳の実行中はキャッシュを削除できません。一時停止するか完了を待ってください。",
+    trLogCacheDetails: (removed, skipped) =>
+      `キャッシュ詳細: ${removed} 件を削除${
+        skipped > 0 ? `、実行中のジョブ ${skipped} 件をスキップ` : ""
+      }`,
+    trLogClearDone: "キャッシュを削除しました",
+    trLogClearError: (message) => `削除エラー: ${message}`,
+    trLogJobStarted: "翻訳ジョブを開始しました",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "モデル",
+    trLogLanguageLabel: "言語",
+    trLogOutputLabel: "出力",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `参考文献スキップ: ${skipReferences} | 互換モード: ${compatibility} | OCR: 強制=${forceOcr}, 自動=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `モデル認証情報の解決に失敗しました: ${message}`,
+    trLogAuthLabel: "認証",
+    trLogModelIdLabel: "モデル ID",
+    trLogApiBaseLabel: "API ベース",
+    trLogEnvironmentReady: (venvDir) => `環境準備完了 (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `ページ ${current}/${total} (${percent}%) [${elapsed}]`,
+    trLogOutputFile: (file) => `出力: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `翻訳は完了しましたが ${count} 件のエラーがあります。一部ページに未翻訳テキストが残る可能性があります`,
+    trLogFullLog: (path) => `完全なログ: ${path}`,
+    trLogSeeDetailsAbove: "上の詳細を確認してください",
+    trLogUnknownError: "不明なエラー",
+    attachmentRemoved: (count) => `添付ファイルを削除しました (${count})`,
+    operationFailed: (message) => `失敗: ${message}`,
+  },
+  "ko-KR": {
+    trLogError: (message) => `오류: ${message}`,
+    trLogDetails: (details) => `세부 정보: ${details}`,
+    trLogEnvironmentSetupStarting: "번역 환경 설정 중...",
+    trLogEnvironmentSetupComplete: "번역 환경 설정 완료!",
+    trLogResumed: "재개됨",
+    trLogPaused: "일시 중지됨",
+    trLogPauseError: (message) => `일시 중지/재개 오류: ${message}`,
+    trLogCannotClearRunning:
+      "번역 실행 중에는 캐시를 지울 수 없습니다. 일시 중지하거나 완료될 때까지 기다리세요.",
+    trLogCacheDetails: (removed, skipped) =>
+      `캐시 세부 정보: ${removed}개 항목 삭제${
+        skipped > 0 ? `, 실행 중인 작업 ${skipped}개 건너뜀` : ""
+      }`,
+    trLogClearDone: "캐시를 지웠습니다",
+    trLogClearError: (message) => `지우기 오류: ${message}`,
+    trLogJobStarted: "번역 작업 시작됨",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "모델",
+    trLogLanguageLabel: "언어",
+    trLogOutputLabel: "출력",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `참고문헌 건너뛰기: ${skipReferences} | 호환 모드: ${compatibility} | OCR: 강제=${forceOcr}, 자동=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `모델 인증 정보 확인 실패: ${message}`,
+    trLogAuthLabel: "인증",
+    trLogModelIdLabel: "모델 ID",
+    trLogApiBaseLabel: "API Base",
+    trLogEnvironmentReady: (venvDir) => `환경 준비 완료 (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `페이지 ${current}/${total} (${percent}%) [${elapsed}]`,
+    trLogOutputFile: (file) => `출력: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `번역은 완료되었지만 ${count}개의 오류가 있습니다. 일부 페이지에 번역되지 않은 텍스트가 남을 수 있습니다`,
+    trLogFullLog: (path) => `전체 로그: ${path}`,
+    trLogSeeDetailsAbove: "위 세부 정보를 확인하세요",
+    trLogUnknownError: "알 수 없는 오류",
+    attachmentRemoved: (count) => `첨부 파일 제거됨 (${count})`,
+    operationFailed: (message) => `실패: ${message}`,
+  },
+  "fr-FR": {
+    trLogError: (message) => `Erreur : ${message}`,
+    trLogDetails: (details) => `Details : ${details}`,
+    trLogEnvironmentSetupStarting:
+      "Installation de l'environnement de traduction...",
+    trLogEnvironmentSetupComplete: "Installation de l'environnement terminee !",
+    trLogResumed: "Repris",
+    trLogPaused: "Mis en pause",
+    trLogPauseError: (message) => `Erreur de pause/reprise : ${message}`,
+    trLogCannotClearRunning:
+      "Impossible d'effacer le cache pendant la traduction. Mettez en pause ou attendez la fin.",
+    trLogCacheDetails: (removed, skipped) =>
+      `Details du cache : ${removed} element(s) supprime(s)${
+        skipped > 0 ? `, taches actives ignorees : ${skipped}` : ""
+      }`,
+    trLogClearDone: "Cache efface",
+    trLogClearError: (message) => `Erreur d'effacement : ${message}`,
+    trLogJobStarted: "Tache de traduction lancee",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "Modele",
+    trLogLanguageLabel: "Langue",
+    trLogOutputLabel: "Sortie",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `Ignorer references : ${skipReferences} | Compatibilite : ${compatibility} | OCR : force=${forceOcr}, auto=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `Echec de resolution des identifiants : ${message}`,
+    trLogAuthLabel: "Auth",
+    trLogModelIdLabel: "ID modele",
+    trLogApiBaseLabel: "Base API",
+    trLogEnvironmentReady: (venvDir) => `Environnement pret (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `Page ${current}/${total} (${percent} %) [${elapsed}]`,
+    trLogOutputFile: (file) => `Sortie : ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `Traduction terminee avec ${count} erreur(s) ; certaines pages peuvent contenir du texte non traduit`,
+    trLogFullLog: (path) => `Journal complet : ${path}`,
+    trLogSeeDetailsAbove: "voir les details ci-dessus",
+    trLogUnknownError: "Erreur inconnue",
+    attachmentRemoved: (count) => `Piece jointe supprimee (${count})`,
+    operationFailed: (message) => `Echec : ${message}`,
+  },
+  "de-DE": {
+    trLogError: (message) => `Fehler: ${message}`,
+    trLogDetails: (details) => `Details: ${details}`,
+    trLogEnvironmentSetupStarting: "Uebersetzungsumgebung wird eingerichtet...",
+    trLogEnvironmentSetupComplete: "Uebersetzungsumgebung wurde eingerichtet!",
+    trLogResumed: "Fortgesetzt",
+    trLogPaused: "Pausiert",
+    trLogPauseError: (message) => `Pause/Fortsetzen fehlgeschlagen: ${message}`,
+    trLogCannotClearRunning:
+      "Cache kann waehrend der Uebersetzung nicht geleert werden. Pausieren oder auf das Ende warten.",
+    trLogCacheDetails: (removed, skipped) =>
+      `Cache-Details: ${removed} Element(e) entfernt${
+        skipped > 0 ? `, aktive Jobs uebersprungen: ${skipped}` : ""
+      }`,
+    trLogClearDone: "Cache geleert",
+    trLogClearError: (message) => `Leeren fehlgeschlagen: ${message}`,
+    trLogJobStarted: "Uebersetzungsjob gestartet",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "Modell",
+    trLogLanguageLabel: "Sprache",
+    trLogOutputLabel: "Ausgabe",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `Referenzen ueberspringen: ${skipReferences} | Kompatibilitaet: ${compatibility} | OCR: erzwingen=${forceOcr}, auto=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `Modell-Zugangsdaten konnten nicht aufgeloest werden: ${message}`,
+    trLogAuthLabel: "Auth",
+    trLogModelIdLabel: "Modell-ID",
+    trLogApiBaseLabel: "API-Basis",
+    trLogEnvironmentReady: (venvDir) => `Umgebung bereit (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `Seite ${current}/${total} (${percent} %) [${elapsed}]`,
+    trLogOutputFile: (file) => `Ausgabe: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `Uebersetzung mit ${count} Fehler(n) abgeschlossen; einige Seiten koennen unuebersetzten Text enthalten`,
+    trLogFullLog: (path) => `Vollstaendiges Protokoll: ${path}`,
+    trLogSeeDetailsAbove: "Details siehe oben",
+    trLogUnknownError: "Unbekannter Fehler",
+    attachmentRemoved: (count) => `Anhang entfernt (${count})`,
+    operationFailed: (message) => `Fehlgeschlagen: ${message}`,
+  },
+  "es-ES": {
+    trLogError: (message) => `Error: ${message}`,
+    trLogDetails: (details) => `Detalles: ${details}`,
+    trLogEnvironmentSetupStarting: "Configurando el entorno de traduccion...",
+    trLogEnvironmentSetupComplete: "Configuracion del entorno completada!",
+    trLogResumed: "Reanudado",
+    trLogPaused: "Pausado",
+    trLogPauseError: (message) => `Error al pausar/reanudar: ${message}`,
+    trLogCannotClearRunning:
+      "No se puede borrar la cache mientras la traduccion esta en ejecucion. Pausa o espera a que termine.",
+    trLogCacheDetails: (removed, skipped) =>
+      `Detalles de cache: ${removed} elemento(s) eliminado(s)${
+        skipped > 0 ? `, trabajos activos omitidos: ${skipped}` : ""
+      }`,
+    trLogClearDone: "Cache borrada",
+    trLogClearError: (message) => `Error al borrar: ${message}`,
+    trLogJobStarted: "Tarea de traduccion iniciada",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "Modelo",
+    trLogLanguageLabel: "Idioma",
+    trLogOutputLabel: "Salida",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `Omitir referencias: ${skipReferences} | Compatibilidad: ${compatibility} | OCR: forzar=${forceOcr}, auto=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `No se pudieron resolver las credenciales: ${message}`,
+    trLogAuthLabel: "Autenticacion",
+    trLogModelIdLabel: "ID de modelo",
+    trLogApiBaseLabel: "Base API",
+    trLogEnvironmentReady: (venvDir) => `Entorno listo (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `Pagina ${current}/${total} (${percent} %) [${elapsed}]`,
+    trLogOutputFile: (file) => `Salida: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `La traduccion termino con ${count} error(es); algunas paginas pueden contener texto sin traducir`,
+    trLogFullLog: (path) => `Registro completo: ${path}`,
+    trLogSeeDetailsAbove: "vea los detalles arriba",
+    trLogUnknownError: "Error desconocido",
+    attachmentRemoved: (count) => `Adjunto eliminado (${count})`,
+    operationFailed: (message) => `Error: ${message}`,
+  },
+  "ru-RU": {
+    trLogError: (message) => `Ошибка: ${message}`,
+    trLogDetails: (details) => `Подробности: ${details}`,
+    trLogEnvironmentSetupStarting: "Настройка среды перевода...",
+    trLogEnvironmentSetupComplete: "Настройка среды завершена!",
+    trLogResumed: "Возобновлено",
+    trLogPaused: "Приостановлено",
+    trLogPauseError: (message) => `Ошибка паузы/возобновления: ${message}`,
+    trLogCannotClearRunning:
+      "Нельзя очистить кэш во время перевода. Приостановите задачу или дождитесь завершения.",
+    trLogCacheDetails: (removed, skipped) =>
+      `Детали кэша: удалено ${removed} элемент(ов)${
+        skipped > 0 ? `, пропущено активных задач: ${skipped}` : ""
+      }`,
+    trLogClearDone: "Кэш очищен",
+    trLogClearError: (message) => `Ошибка очистки: ${message}`,
+    trLogJobStarted: "Задача перевода запущена",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "Модель",
+    trLogLanguageLabel: "Язык",
+    trLogOutputLabel: "Вывод",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `Пропускать ссылки: ${skipReferences} | Совместимость: ${compatibility} | OCR: принудительно=${forceOcr}, авто=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `Не удалось получить учетные данные модели: ${message}`,
+    trLogAuthLabel: "Авторизация",
+    trLogModelIdLabel: "ID модели",
+    trLogApiBaseLabel: "API Base",
+    trLogEnvironmentReady: (venvDir) => `Среда готова (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `Страница ${current}/${total} (${percent} %) [${elapsed}]`,
+    trLogOutputFile: (file) => `Вывод: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `Перевод завершен с ${count} ошибк(ами); на некоторых страницах может остаться непереведенный текст`,
+    trLogFullLog: (path) => `Полный журнал: ${path}`,
+    trLogSeeDetailsAbove: "см. подробности выше",
+    trLogUnknownError: "Неизвестная ошибка",
+    attachmentRemoved: (count) => `Вложение удалено (${count})`,
+    operationFailed: (message) => `Ошибка: ${message}`,
+  },
+  "pt-BR": {
+    trLogError: (message) => `Erro: ${message}`,
+    trLogDetails: (details) => `Detalhes: ${details}`,
+    trLogEnvironmentSetupStarting: "Configurando ambiente de traducao...",
+    trLogEnvironmentSetupComplete: "Configuracao do ambiente concluida!",
+    trLogResumed: "Retomado",
+    trLogPaused: "Pausado",
+    trLogPauseError: (message) => `Erro ao pausar/retomar: ${message}`,
+    trLogCannotClearRunning:
+      "Nao e possivel limpar o cache enquanto a traducao esta em execucao. Pause ou aguarde terminar.",
+    trLogCacheDetails: (removed, skipped) =>
+      `Detalhes do cache: ${removed} item(ns) removido(s)${
+        skipped > 0 ? `, tarefas ativas ignoradas: ${skipped}` : ""
+      }`,
+    trLogClearDone: "Cache limpo",
+    trLogClearError: (message) => `Erro ao limpar: ${message}`,
+    trLogJobStarted: "Tarefa de traducao iniciada",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "Modelo",
+    trLogLanguageLabel: "Idioma",
+    trLogOutputLabel: "Saida",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `Ignorar referencias: ${skipReferences} | Compatibilidade: ${compatibility} | OCR: forcar=${forceOcr}, auto=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `Falha ao resolver credenciais: ${message}`,
+    trLogAuthLabel: "Autenticacao",
+    trLogModelIdLabel: "ID do modelo",
+    trLogApiBaseLabel: "Base API",
+    trLogEnvironmentReady: (venvDir) => `Ambiente pronto (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `Pagina ${current}/${total} (${percent}%) [${elapsed}]`,
+    trLogOutputFile: (file) => `Saida: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `Traducao concluida com ${count} erro(s); algumas paginas podem conter texto sem traducao`,
+    trLogFullLog: (path) => `Log completo: ${path}`,
+    trLogSeeDetailsAbove: "veja os detalhes acima",
+    trLogUnknownError: "Erro desconhecido",
+    attachmentRemoved: (count) => `Anexo removido (${count})`,
+    operationFailed: (message) => `Falha: ${message}`,
+  },
+  "ar-SA": {
+    trLogError: (message) => `خطأ: ${message}`,
+    trLogDetails: (details) => `التفاصيل: ${details}`,
+    trLogEnvironmentSetupStarting: "جار إعداد بيئة الترجمة...",
+    trLogEnvironmentSetupComplete: "اكتمل إعداد بيئة الترجمة!",
+    trLogResumed: "تم الاستئناف",
+    trLogPaused: "تم الإيقاف المؤقت",
+    trLogPauseError: (message) => `خطأ في الإيقاف/الاستئناف: ${message}`,
+    trLogCannotClearRunning:
+      "لا يمكن مسح الذاكرة المؤقتة أثناء تشغيل الترجمة. أوقف المهمة مؤقتا أو انتظر حتى تنتهي.",
+    trLogCacheDetails: (removed, skipped) =>
+      `تفاصيل الذاكرة المؤقتة: تمت إزالة ${removed} عنصر${
+        skipped > 0 ? `، وتم تخطي ${skipped} مهمة نشطة` : ""
+      }`,
+    trLogClearDone: "تم مسح الذاكرة المؤقتة",
+    trLogClearError: (message) => `خطأ في المسح: ${message}`,
+    trLogJobStarted: "بدأت مهمة الترجمة",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "النموذج",
+    trLogLanguageLabel: "اللغة",
+    trLogOutputLabel: "الإخراج",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `تخطي المراجع: ${skipReferences} | التوافق: ${compatibility} | OCR: إجباري=${forceOcr}, تلقائي=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `فشل حل بيانات اعتماد النموذج: ${message}`,
+    trLogAuthLabel: "التفويض",
+    trLogModelIdLabel: "معرف النموذج",
+    trLogApiBaseLabel: "عنوان API",
+    trLogEnvironmentReady: (venvDir) => `البيئة جاهزة (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `الصفحة ${current}/${total} (${percent}%) [${elapsed}]`,
+    trLogOutputFile: (file) => `الإخراج: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `اكتملت الترجمة مع ${count} أخطاء؛ قد تحتوي بعض الصفحات على نص غير مترجم`,
+    trLogFullLog: (path) => `السجل الكامل: ${path}`,
+    trLogSeeDetailsAbove: "راجع التفاصيل أعلاه",
+    trLogUnknownError: "خطأ غير معروف",
+    attachmentRemoved: (count) => `تمت إزالة المرفق (${count})`,
+    operationFailed: (message) => `فشل: ${message}`,
+  },
+  "hi-IN": {
+    trLogError: (message) => `त्रुटि: ${message}`,
+    trLogDetails: (details) => `विवरण: ${details}`,
+    trLogEnvironmentSetupStarting: "अनुवाद वातावरण सेट किया जा रहा है...",
+    trLogEnvironmentSetupComplete: "अनुवाद वातावरण सेट हो गया!",
+    trLogResumed: "फिर शुरू हुआ",
+    trLogPaused: "रोका गया",
+    trLogPauseError: (message) => `रोकने/फिर शुरू करने में त्रुटि: ${message}`,
+    trLogCannotClearRunning:
+      "अनुवाद चलते समय कैश साफ नहीं किया जा सकता। रोकें या पूरा होने तक प्रतीक्षा करें।",
+    trLogCacheDetails: (removed, skipped) =>
+      `कैश विवरण: ${removed} आइटम हटे${
+        skipped > 0 ? `, ${skipped} सक्रिय कार्य छोड़े गए` : ""
+      }`,
+    trLogClearDone: "कैश साफ हुआ",
+    trLogClearError: (message) => `साफ करने में त्रुटि: ${message}`,
+    trLogJobStarted: "अनुवाद कार्य शुरू हुआ",
+    trLogPdfLabel: "PDF",
+    trLogModelLabel: "मॉडल",
+    trLogLanguageLabel: "भाषा",
+    trLogOutputLabel: "आउटपुट",
+    trLogAdvancedOptions: (skipReferences, compatibility, forceOcr, autoOcr) =>
+      `संदर्भ छोड़ें: ${skipReferences} | संगतता: ${compatibility} | OCR: force=${forceOcr}, auto=${autoOcr}`,
+    trLogFailedToResolveCredentials: (message) =>
+      `मॉडल क्रेडेंशियल हल नहीं हुए: ${message}`,
+    trLogAuthLabel: "प्रमाणीकरण",
+    trLogModelIdLabel: "मॉडल ID",
+    trLogApiBaseLabel: "API Base",
+    trLogEnvironmentReady: (venvDir) => `वातावरण तैयार (${venvDir})`,
+    trLogPythonLabel: "Python",
+    trLogPdf2zhLabel: "pdf2zh",
+    trLogPageProgress: (current, total, percent, elapsed) =>
+      `पृष्ठ ${current}/${total} (${percent}%) [${elapsed}]`,
+    trLogOutputFile: (file) => `आउटपुट: ${file}`,
+    trLogCompletedWithErrors: (count) =>
+      `अनुवाद ${count} त्रुटियों के साथ पूरा हुआ; कुछ पृष्ठों में अनूदित न हुआ पाठ रह सकता है`,
+    trLogFullLog: (path) => `पूरा लॉग: ${path}`,
+    trLogSeeDetailsAbove: "ऊपर विवरण देखें",
+    trLogUnknownError: "अज्ञात त्रुटि",
+    attachmentRemoved: (count) => `अटैचमेंट हटाया गया (${count})`,
+    operationFailed: (message) => `विफल: ${message}`,
+  },
+};
+
 export function getPanelI18n(): PanelI18n {
   const lang = getPanelLang();
   if (lang !== "zh-CN") {
-    const base: PanelI18n = {
+    const base: PanelI18nBaseKeys = {
       title: "AIdea",
       clear: "Clear",
       history: "History",
@@ -2686,6 +3639,38 @@ export function getPanelI18n(): PanelI18n {
       clearSelectedContext: "Clear selected context",
       shortcutPromptEmpty: "Shortcut prompt cannot be empty",
       dragToReorder: "Drag to reorder",
+      currentPdfPage: (page) => `Current PDF, page ${page}`,
+      selectionTranslateColdStart: "Cold starting...",
+      selectionTranslateTranslating: "Translating...",
+      selectionTranslateFailed: "Translation failed",
+      selectionTranslateColdStartStatus:
+        "Selection translation cold starting...",
+      selectionTranslateCacheReady: "Selection translation cache ready",
+      addToNote: "Add to note",
+      addingToNote: "Adding...",
+      addedToNote: "Added",
+      addToNoteFailed: "Add failed",
+      screenshotSelectionInstruction:
+        "Click and drag to select a region, then release",
+      cancelEsc: "Cancel (Esc)",
+      pinTextContext: "Pin text context",
+      unpinTextContext: "Unpin text context",
+      unpinNamedContext: (name) => `Unpin ${name}`,
+      expandPdfs: "Click to expand PDFs",
+      collapsePdfs: "Click to collapse PDFs",
+      untitledChat: "Untitled chat",
+      paperChat: "Paper chat",
+      standaloneChat: "Standalone chat",
+      deletedConversation: (title) => `Deleted "${title}"`,
+      renameConversationAria: (title) => `Rename ${title}`,
+      pinConversationAria: (title) => `Pin ${title}`,
+      unpinConversationAria: (title) => `Unpin ${title}`,
+      deleteConversation: "Delete conversation",
+      deleteConversationAria: (title) => `Delete ${title}`,
+      conversationNamePlaceholder: "Conversation name...",
+      noPapersMatched: "No papers matched.",
+      pdfCount: (count) => `${count} PDFs`,
+      pdfAttachment: "PDF attachment",
       trLogFullPath: "Full path",
       trLogOutputFormat: (mono, dual) =>
         `Output format: Mono=${mono} | Dual=${dual}`,
@@ -2707,6 +3692,8 @@ export function getPanelI18n(): PanelI18n {
       ...base,
       ...(PANEL_I18N_OVERRIDES[lang] || {}),
       ...(PANEL_I18N_EXTRA_OVERRIDES[lang] || {}),
+      ...(PANEL_I18N_RUNTIME_OVERRIDES[lang] || {}),
+      ...PANEL_I18N_LOG_OVERRIDES[lang],
     };
   }
   return {
@@ -2910,6 +3897,36 @@ export function getPanelI18n(): PanelI18n {
     clearSelectedContext: "清空已选上下文",
     shortcutPromptEmpty: "快捷指令提示词不能为空",
     dragToReorder: "拖动以排序",
+    currentPdfPage: (page) => `当前 PDF，第 ${page} 页`,
+    selectionTranslateColdStart: "冷启动中...",
+    selectionTranslateTranslating: "翻译中...",
+    selectionTranslateFailed: "翻译失败",
+    selectionTranslateColdStartStatus: "划词翻译冷启动中...",
+    selectionTranslateCacheReady: "划词翻译缓存已就绪",
+    addToNote: "添加到笔记",
+    addingToNote: "正在添加...",
+    addedToNote: "已添加",
+    addToNoteFailed: "添加失败",
+    screenshotSelectionInstruction: "点击并拖动选择区域，松开后完成",
+    cancelEsc: "取消 (Esc)",
+    pinTextContext: "固定文本上下文",
+    unpinTextContext: "取消固定文本上下文",
+    unpinNamedContext: (name) => `取消固定 ${name}`,
+    expandPdfs: "点击展开 PDF",
+    collapsePdfs: "点击收起 PDF",
+    untitledChat: "未命名对话",
+    paperChat: "论文对话",
+    standaloneChat: "独立对话",
+    deletedConversation: (title) => `已删除“${title}”`,
+    renameConversationAria: (title) => `重命名 ${title}`,
+    pinConversationAria: (title) => `置顶 ${title}`,
+    unpinConversationAria: (title) => `取消置顶 ${title}`,
+    deleteConversation: "删除对话",
+    deleteConversationAria: (title) => `删除 ${title}`,
+    conversationNamePlaceholder: "对话名称...",
+    noPapersMatched: "没有匹配的论文。",
+    pdfCount: (count) => `${count} 个 PDF`,
+    pdfAttachment: "PDF 附件",
     trLogFullPath: "完整路径",
     trLogOutputFormat: (mono, dual) => `输出格式：单语=${mono} | 双语=${dual}`,
     trLogResolvingCredentials: "正在解析模型凭证...",
@@ -2923,6 +3940,7 @@ export function getPanelI18n(): PanelI18n {
     trLogPausedCached: "翻译已暂停，进度已缓存",
     trLogLaunchingEngine: "正在启动翻译引擎...",
     trLogStackTrace: "堆栈跟踪",
+    ...PANEL_I18N_LOG_OVERRIDES["zh-CN"],
   };
 }
 
@@ -2968,6 +3986,8 @@ export function refreshTranslateTabI18n(doc: Document): void {
 
   // Field labels
   setText("llm-tr-input-path-label", i18n.trInputPath);
+  const pdfName = doc.getElementById("llm-tr-pdf-name") as HTMLElement | null;
+  if (pdfName && !pdfName.title) pdfName.textContent = i18n.trNoPdfFound;
   setText("llm-tr-save-path-label", i18n.trSavePath);
   const outputDir = doc.getElementById(
     "llm-tr-output-dir",

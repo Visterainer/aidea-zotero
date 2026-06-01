@@ -5,13 +5,129 @@ import {
 } from "./processRunner";
 import { fetchWithTransientRetry } from "./transientRetry";
 import { recordOAuthEnvUpdateSuccess } from "./oauthEnvUpdateState";
+import {
+  DEFAULT_PANEL_LANG,
+  detectPanelLangFromLocale,
+  getUiLanguageOption,
+  normalizeUiLanguageCode,
+  type PanelLang,
+} from "../modules/contextPanel/languages";
 
 declare const Zotero: any;
 declare const ztoolkit: any;
 declare const Cc: any;
 declare const Ci: any;
 
-type OAuthUiLang = "zh-CN" | "en-US";
+type OAuthUiLang = PanelLang;
+
+const OAUTH_COPIED_TOAST: Record<OAuthUiLang, string> = {
+  "en-US": "\u2705 Code copied",
+  "zh-CN": "\u2705 已复制授权码",
+  "zh-TW": "\u2705 已複製授權碼",
+  "ja-JP": "\u2705 コードをコピーしました",
+  "ko-KR": "\u2705 코드가 복사되었습니다",
+  "fr-FR": "\u2705 Code copie",
+  "de-DE": "\u2705 Code kopiert",
+  "es-ES": "\u2705 Codigo copiado",
+  "ru-RU": "\u2705 Код скопирован",
+  "pt-BR": "\u2705 Codigo copiado",
+  "ar-SA": "\u2705 تم نسخ الرمز",
+  "hi-IN": "\u2705 कोड कॉपी हुआ",
+};
+
+type CopilotDeviceLoginCopy = {
+  title: string;
+  codeLabel: string;
+  instructions: string;
+  cancelled: string;
+};
+
+const COPILOT_DEVICE_LOGIN_COPY: Record<OAuthUiLang, CopilotDeviceLoginCopy> = {
+  "en-US": {
+    title: "GitHub Copilot OAuth Login",
+    codeLabel: "Your authorization code",
+    instructions:
+      "Click OK to copy the code and open the authorization page in your browser.\nPaste this code on the browser page to complete authorization.",
+    cancelled: "Authorization cancelled by user",
+  },
+  "zh-CN": {
+    title: "GitHub Copilot OAuth 登录",
+    codeLabel: "你的授权码",
+    instructions:
+      "点击“确定”会自动复制授权码并在浏览器中打开授权页面。\n请在浏览器页面中粘贴此授权码完成授权。",
+    cancelled: "用户取消了授权",
+  },
+  "zh-TW": {
+    title: "GitHub Copilot OAuth 登入",
+    codeLabel: "你的授權碼",
+    instructions:
+      "點擊「確定」會自動複製授權碼並在瀏覽器中開啟授權頁面。\n請在瀏覽器頁面中貼上此授權碼完成授權。",
+    cancelled: "使用者已取消授權",
+  },
+  "ja-JP": {
+    title: "GitHub Copilot OAuth ログイン",
+    codeLabel: "認証コード",
+    instructions:
+      "OK をクリックするとコードをコピーし、ブラウザで認証ページを開きます。\nブラウザのページにこのコードを貼り付けて認証を完了してください。",
+    cancelled: "ユーザーが認証をキャンセルしました",
+  },
+  "ko-KR": {
+    title: "GitHub Copilot OAuth 로그인",
+    codeLabel: "인증 코드",
+    instructions:
+      "확인을 클릭하면 코드를 복사하고 브라우저에서 인증 페이지를 엽니다.\n브라우저 페이지에 이 코드를 붙여 넣어 인증을 완료하세요.",
+    cancelled: "사용자가 인증을 취소했습니다",
+  },
+  "fr-FR": {
+    title: "Connexion OAuth GitHub Copilot",
+    codeLabel: "Votre code d'autorisation",
+    instructions:
+      "Cliquez sur OK pour copier le code et ouvrir la page d'autorisation dans votre navigateur.\nCollez ce code sur la page du navigateur pour terminer l'autorisation.",
+    cancelled: "Autorisation annulee par l'utilisateur",
+  },
+  "de-DE": {
+    title: "GitHub Copilot OAuth-Anmeldung",
+    codeLabel: "Ihr Autorisierungscode",
+    instructions:
+      "Klicken Sie auf OK, um den Code zu kopieren und die Autorisierungsseite im Browser zu oeffnen.\nFuegen Sie diesen Code dort ein, um die Autorisierung abzuschliessen.",
+    cancelled: "Autorisierung vom Benutzer abgebrochen",
+  },
+  "es-ES": {
+    title: "Inicio de sesion OAuth de GitHub Copilot",
+    codeLabel: "Tu codigo de autorizacion",
+    instructions:
+      "Haz clic en Aceptar para copiar el codigo y abrir la pagina de autorizacion en el navegador.\nPega este codigo en la pagina del navegador para completar la autorizacion.",
+    cancelled: "Autorizacion cancelada por el usuario",
+  },
+  "ru-RU": {
+    title: "Вход GitHub Copilot OAuth",
+    codeLabel: "Ваш код авторизации",
+    instructions:
+      "Нажмите OK, чтобы скопировать код и открыть страницу авторизации в браузере.\nВставьте этот код на странице браузера, чтобы завершить авторизацию.",
+    cancelled: "Авторизация отменена пользователем",
+  },
+  "pt-BR": {
+    title: "Login OAuth do GitHub Copilot",
+    codeLabel: "Seu codigo de autorizacao",
+    instructions:
+      "Clique em OK para copiar o codigo e abrir a pagina de autorizacao no navegador.\nCole este codigo na pagina do navegador para concluir a autorizacao.",
+    cancelled: "Autorizacao cancelada pelo usuario",
+  },
+  "ar-SA": {
+    title: "تسجيل دخول GitHub Copilot OAuth",
+    codeLabel: "رمز التفويض",
+    instructions:
+      "اضغط OK لنسخ الرمز وفتح صفحة التفويض في المتصفح.\nالصق هذا الرمز في صفحة المتصفح لإكمال التفويض.",
+    cancelled: "ألغى المستخدم التفويض",
+  },
+  "hi-IN": {
+    title: "GitHub Copilot OAuth लॉगिन",
+    codeLabel: "आपका authorization code",
+    instructions:
+      "OK पर क्लिक करने से कोड कॉपी होगा और ब्राउज़र में authorization पेज खुलेगा।\nauthorization पूरा करने के लिए ब्राउज़र पेज पर यह कोड पेस्ट करें।",
+    cancelled: "उपयोगकर्ता ने authorization रद्द किया",
+  },
+};
 
 /** Read the UI language preference (same logic as preferenceScript.getLang). */
 function getUiLang(): OAuthUiLang {
@@ -19,13 +135,11 @@ function getUiLang(): OAuthUiLang {
     const saved = String(
       Zotero.Prefs.get("extensions.zotero.aidea.uiLanguage", true) || "",
     ).trim();
-    if (saved === "en-US") return "en-US";
-    if (saved === "zh-CN") return "zh-CN";
-    return /^zh/i.test(String((Zotero as any)?.locale || ""))
-      ? "zh-CN"
-      : "en-US";
+    const savedLang = normalizeUiLanguageCode(saved);
+    if (savedLang) return savedLang;
+    return detectPanelLangFromLocale(String((Zotero as any)?.locale || ""));
   } catch {
-    return "en-US";
+    return DEFAULT_PANEL_LANG;
   }
 }
 
@@ -51,10 +165,10 @@ function showCopiedToast(lang: OAuthUiLang): void {
       "http://www.w3.org/1999/xhtml",
       "div",
     ) as HTMLDivElement;
-    toast.textContent =
-      lang === "zh-CN"
-        ? "\u2705 \u5df2\u590d\u5236\u6388\u6743\u7801"
-        : "\u2705 Code copied";
+    const language = getUiLanguageOption(lang);
+    toast.textContent = OAUTH_COPIED_TOAST[lang] || OAUTH_COPIED_TOAST["en-US"];
+    toast.lang = language.htmlLang;
+    toast.dir = language.dir;
     Object.assign(toast.style, {
       position: "fixed",
       top: "18px",
@@ -3486,18 +3600,15 @@ async function loginCopilotDeviceCode(): Promise<{
     // Show dialog to user with i18n and copy-to-clipboard
     const win = Zotero.getMainWindow?.();
     const lang = getUiLang();
-    const msg =
-      lang === "zh-CN"
-        ? `GitHub Copilot OAuth 登录\n\n您的授权码：\n${userCode}\n\n点击「确定」将自动复制授权码并在浏览器中打开授权页面。\n请在浏览器页面中粘贴此授权码完成授权。`
-        : `GitHub Copilot OAuth Login\n\nYour authorization code:\n${userCode}\n\nClick OK to copy the code and open the authorization page in your browser.\nPaste this code on the browser page to complete authorization.`;
+    const copy =
+      COPILOT_DEVICE_LOGIN_COPY[lang] ||
+      COPILOT_DEVICE_LOGIN_COPY[DEFAULT_PANEL_LANG];
+    const msg = `${copy.title}\n\n${copy.codeLabel}:\n${userCode}\n\n${copy.instructions}`;
     const accepted = win?.confirm?.(msg);
     if (!accepted)
       return {
         ok: false,
-        message:
-          lang === "zh-CN"
-            ? "用户取消了授权"
-            : "Authorization cancelled by user",
+        message: copy.cancelled,
       };
     copyToClipboard(userCode);
     showCopiedToast(lang);

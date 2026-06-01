@@ -51,7 +51,7 @@ export function registerAuthorProfileMenu(): void {
           const items = uniqueProcessableItems(context.items);
           const enabledByPref = getBoolPref(
             "authorProfiles.contextMenuEnabled",
-            true,
+            false,
           );
           const visible = enabledByPref && items.length > 0;
           context.setVisible(visible);

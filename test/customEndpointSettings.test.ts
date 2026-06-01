@@ -132,8 +132,14 @@ class MockElement {
     return this.attributes.get(name) ?? null;
   }
 
-  public append(...nodes: MockElement[]): void {
-    for (const node of nodes) this.appendChild(node);
+  public append(...nodes: Array<MockElement | string>): void {
+    for (const node of nodes) {
+      if (typeof node === "string") {
+        this.textContent += node;
+      } else {
+        this.appendChild(node);
+      }
+    }
   }
 
   public appendChild(node: MockElement): MockElement {

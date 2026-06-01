@@ -279,12 +279,30 @@ const OAUTH_ENV_UPDATE_MODE_BODY_OVERRIDES: Partial<
   },
 };
 
-const OAUTH_ENV_UPDATE_CONTROL_COPIES: Partial<
-  Record<PanelLang, { close: string; minimize: string; restore: string }>
+const OAUTH_ENV_UPDATE_CONTROL_COPIES: Record<
+  PanelLang,
+  { close: string; minimize: string; restore: string }
 > = {
   "en-US": { close: "Close", minimize: "Minimize", restore: "Restore" },
   "zh-CN": { close: "关闭", minimize: "最小化", restore: "展开" },
   "zh-TW": { close: "關閉", minimize: "最小化", restore: "展開" },
+  "ja-JP": { close: "閉じる", minimize: "最小化", restore: "展開" },
+  "ko-KR": { close: "닫기", minimize: "최소화", restore: "펼치기" },
+  "fr-FR": { close: "Fermer", minimize: "Reduire", restore: "Restaurer" },
+  "de-DE": {
+    close: "Schliessen",
+    minimize: "Minimieren",
+    restore: "Wiederherstellen",
+  },
+  "es-ES": { close: "Cerrar", minimize: "Minimizar", restore: "Restaurar" },
+  "ru-RU": {
+    close: "Закрыть",
+    minimize: "Свернуть",
+    restore: "Развернуть",
+  },
+  "pt-BR": { close: "Fechar", minimize: "Minimizar", restore: "Restaurar" },
+  "ar-SA": { close: "إغلاق", minimize: "تصغير", restore: "استعادة" },
+  "hi-IN": { close: "बंद करें", minimize: "छोटा करें", restore: "फैलाएँ" },
 };
 
 const windowStates = new Map<Window, SchedulerWindowState>();
@@ -475,28 +493,12 @@ function setButtonDisabled(button: HTMLButtonElement, disabled: boolean): void {
 }
 
 function getMinimizeText(prompt: PromptState): string {
-  const copy = getCopy();
   const controls = OAUTH_ENV_UPDATE_CONTROL_COPIES[getPanelLang()];
-  return prompt.minimized
-    ? controls?.restore ||
-        copy.restore ||
-        OAUTH_ENV_UPDATE_COPIES["en-US"].restore ||
-        "Restore"
-    : controls?.minimize ||
-        copy.minimize ||
-        OAUTH_ENV_UPDATE_COPIES["en-US"].minimize ||
-        "Minimize";
+  return prompt.minimized ? controls.restore : controls.minimize;
 }
 
 function getCloseText(): string {
-  const copy = getCopy();
-  const controls = OAUTH_ENV_UPDATE_CONTROL_COPIES[getPanelLang()];
-  return (
-    controls?.close ||
-    copy.close ||
-    OAUTH_ENV_UPDATE_COPIES["en-US"].close ||
-    "Close"
-  );
+  return OAUTH_ENV_UPDATE_CONTROL_COPIES[getPanelLang()].close;
 }
 
 function getModeBody(
@@ -620,7 +622,7 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
   minimizeButton.type = "button";
   stylePromptIconButton(minimizeButton, 36);
   minimizeButton.title =
-    copy.minimize || OAUTH_ENV_UPDATE_COPIES["en-US"].minimize || "Minimize";
+    OAUTH_ENV_UPDATE_CONTROL_COPIES[getPanelLang()].minimize;
 
   const title = makeEl(doc, "div", "", copy.title);
   Object.assign(title.style, {

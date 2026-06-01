@@ -1215,46 +1215,60 @@
 
 .llm-basic-middle-row {
   display: grid;
-  grid-template-columns: minmax(0, 0.6fr) minmax(0, 0.4fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 12px 24px;
 }
 
 .llm-basic-display-group {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 12px;
   min-width: 0;
 }
 
 .llm-basic-bottom-row {
-  display: grid;
-  grid-template-columns: minmax(0, 0.6fr) minmax(0, 0.4fr);
+  display: flex;
   align-items: center;
-  gap: 12px 24px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .llm-basic-setting-group {
   min-width: 0;
-  display: grid;
-  grid-template-columns: 96px minmax(0, max-content);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: 12px;
-  row-gap: 6px;
+  gap: 6px 12px;
 }
 
 .llm-basic-language-group {
   flex: 1 1 260px;
   min-width: min(100%, 240px);
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .llm-basic-theme-group {
-  width: 100%;
-  grid-template-columns: 96px minmax(0, 1fr);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  width: auto;
+  flex: 1 1 100%;
   justify-self: stretch;
+}
+
+.llm-basic-theme-control-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
 }
 
 .llm-basic-font-group {
@@ -1274,6 +1288,7 @@
 .llm-basic-setting-group .llm-set-dropdown {
   width: auto;
   min-width: 0;
+  max-width: 100%;
 }
 
 .llm-basic-setting-group .llm-tr-dropdown-trigger,
@@ -1283,13 +1298,16 @@
 }
 
 .llm-basic-language-group .llm-set-dropdown {
-  min-width: 100px;
+  flex: 1 1 180px;
+  min-width: min(100%, 150px);
+  max-width: 264px;
 }
 
 .llm-basic-theme-dropdown {
-  width: 100%;
+  flex: 1 1 auto;
+  width: auto;
   min-width: 0;
-  max-width: none;
+  max-width: 360px;
 }
 
 .llm-basic-tab-toggle {
@@ -1297,7 +1315,9 @@
   grid-template-columns: repeat(2, minmax(64px, 1fr));
   align-items: center;
   gap: 1px;
-  width: 144.333333px;
+  width: auto;
+  min-width: 144px;
+  max-width: 100%;
   padding: 1px;
   border-radius: 4px;
   background: #e8eaee;
@@ -1336,7 +1356,9 @@
 }
 
 .llm-basic-font-open {
-  width: 104px;
+  width: auto;
+  min-width: 104px;
+  max-width: 100%;
   min-height: 28px;
   padding: 4px 10px;
   border-color: #c7d2fe;
