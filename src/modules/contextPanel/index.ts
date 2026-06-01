@@ -64,6 +64,10 @@ import {
   translateSelectedTextForReader,
 } from "./selectionTranslate";
 import { appendSelectionTranslationToNote } from "./notes";
+import {
+  PANEL_TYPOGRAPHY_REFRESH_EVENT,
+  getPanelTypographySettings,
+} from "./prefHelpers";
 
 type ReaderSelectionPopupHandler =
   _ZoteroTypes.Reader.EventHandler<"renderTextSelectionPopup">;
@@ -366,15 +370,19 @@ function layoutSelectionTranslatePopup(params: {
   const viewport = getViewportRect(doc);
   const margin = 10;
   const gap = 8;
-  const textLength = (resultBox.textContent || "").length;
+  const typography = getPanelTypographySettings();
   const availableWidth = Math.max(180, viewport.width - margin * 2);
-  const maxWidth = Math.min(680, availableWidth);
-  const preferredWidth = textLength < 80 ? 320 : textLength < 220 ? 440 : 560;
-  const width = clamp(preferredWidth, Math.min(260, maxWidth), maxWidth);
+  const width = clamp(
+    typography.selectionPopupWidth,
+    Math.min(260, availableWidth),
+    availableWidth,
+  );
 
   wrap.style.width = `${width}px`;
-  wrap.style.maxWidth = `${maxWidth}px`;
+  wrap.style.maxWidth = `${availableWidth}px`;
   resultBox.style.width = "100%";
+  resultBox.style.fontSize = `${typography.selectionFontSize}px`;
+  resultBox.style.lineHeight = String(typography.selectionLineHeight);
   resultBox.style.maxHeight = `${Math.max(
     120,
     Math.min(320, Math.round(viewport.height * 0.42)),
@@ -960,15 +968,17 @@ export function registerReaderSelectionTracking() {
             selectionPopup.style.boxSizing = "border-box";
           }
           const selectionRect = getReaderSelectionClientRect(event.doc);
+          const typography = getPanelTypographySettings();
           const wrap = event.doc.createElementNS(
             "http://www.w3.org/1999/xhtml",
             "div",
           ) as HTMLDivElement;
+          wrap.className = "llm-selection-translate-wrap";
           wrap.style.cssText = [
             "display:flex",
             "flex-direction:column",
             "gap:6px",
-            "width:min(420px, calc(100vw - 20px))",
+            `width:min(${typography.selectionPopupWidth}px, calc(100vw - 20px))`,
             "max-width:calc(100vw - 20px)",
             "margin:0",
             "box-sizing:border-box",
@@ -979,6 +989,7 @@ export function registerReaderSelectionTracking() {
             "http://www.w3.org/1999/xhtml",
             "div",
           ) as HTMLDivElement;
+          resultBox.className = "llm-selection-translate-result";
           resultBox.textContent = text.translating;
           resultBox.style.cssText = [
             "display:block",
@@ -992,8 +1003,8 @@ export function registerReaderSelectionTracking() {
             "border-radius:6px",
             "background:rgba(127,127,127,0.08)",
             "color:inherit",
-            "font-size:12px",
-            "line-height:1.45",
+            `font-size:${typography.selectionFontSize}px`,
+            `line-height:${typography.selectionLineHeight}`,
             "white-space:pre-wrap",
           ].join(";");
           const setResultText = (value: string) => {
@@ -1008,6 +1019,7 @@ export function registerReaderSelectionTracking() {
             "http://www.w3.org/1999/xhtml",
             "button",
           ) as HTMLButtonElement;
+          addToNoteBtn.className = "llm-selection-translate-note-btn";
           addToNoteBtn.type = "button";
           addToNoteBtn.textContent = noteText.addToNote;
           addToNoteBtn.style.cssText = [
@@ -1021,7 +1033,7 @@ export function registerReaderSelectionTracking() {
             "border-radius:5px",
             "background:rgba(255,255,255,0.04)",
             "color:inherit",
-            "font-size:12px",
+            `font-size:${typography.selectionFontSize}px`,
             "line-height:1.25",
             "text-align:center",
             "cursor:pointer",
@@ -1038,6 +1050,54 @@ export function registerReaderSelectionTracking() {
               resultBox,
               selectionRect,
             });
+          const popupWin = event.doc.defaultView;
+          const refreshSelectionTypography = () => {
+            if (!wrap.isConnected) {
+              for (const target of selectionTypographyRefreshTargets) {
+                target.removeEventListener(
+                  PANEL_TYPOGRAPHY_REFRESH_EVENT,
+                  refreshSelectionTypography,
+                );
+              }
+              return;
+            }
+            const nextTypography = getPanelTypographySettings();
+            resultBox.style.fontSize = `${nextTypography.selectionFontSize}px`;
+            resultBox.style.lineHeight = String(
+              nextTypography.selectionLineHeight,
+            );
+            addToNoteBtn.style.fontSize = `${nextTypography.selectionFontSize}px`;
+            addToNoteBtn.style.lineHeight = "1.25";
+            selectionTranslateRelayout?.();
+          };
+          const selectionTypographyRefreshTargets: Window[] = [];
+          const addSelectionTypographyRefreshTarget = (
+            target: Window | null | undefined,
+          ) => {
+            if (!target || selectionTypographyRefreshTargets.includes(target))
+              return;
+            target.addEventListener(
+              PANEL_TYPOGRAPHY_REFRESH_EVENT,
+              refreshSelectionTypography,
+            );
+            selectionTypographyRefreshTargets.push(target);
+          };
+          addSelectionTypographyRefreshTarget(popupWin);
+          try {
+            addSelectionTypographyRefreshTarget(
+              Zotero.getMainWindow?.() || null,
+            );
+          } catch {
+            /* ignore */
+          }
+          try {
+            const mainWindows: Window[] = Zotero.getMainWindows?.() || [];
+            for (const mainWindow of mainWindows) {
+              addSelectionTypographyRefreshTarget(mainWindow);
+            }
+          } catch {
+            /* ignore */
+          }
           selectionTranslateRelayout();
 
           let latestSelectionTranslation: {

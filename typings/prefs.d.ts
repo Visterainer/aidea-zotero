@@ -85,6 +85,19 @@ declare namespace _ZoteroTypes {
       "translate.scrollTop": string;
       "hideTabNav": boolean;
       "composerTheme": string;
+      "font.chatSize": string;
+      "font.chatLineHeight": string;
+      "font.messageGap": string;
+      "font.bubblePaddingY": string;
+      "font.bubblePaddingX": string;
+      "font.composerSize": string;
+      "font.composerLineHeight": string;
+      "font.composerPaddingY": string;
+      "font.composerPaddingX": string;
+      "font.composerGap": string;
+      "font.selectionSize": string;
+      "font.selectionLineHeight": string;
+      "font.selectionPopupWidth": string;
     };
   }
 }

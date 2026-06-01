@@ -69,6 +69,7 @@ import {
   getApiProfiles,
   getSelectedProfileForItem,
   applyPanelFontScale,
+  applyPanelTypography,
   getAdvancedModelParamsForProfile,
   getLastUsedModelProfileKey,
   setLastUsedModelProfileKey,
@@ -214,6 +215,8 @@ import {
 import { bootstrapSettingTab } from "../preferenceScript";
 import { createHeightSync } from "./heightSync";
 
+const SETTING_TAB_RENDER_VERSION = "2026-06-01-font-theme-layout";
+
 export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const i18n = getPanelI18n();
   let item = initialItem || null;
@@ -342,6 +345,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     Boolean(ElementCtor && value instanceof ElementCtor);
   panelRoot.tabIndex = 0;
   applyPanelFontScale(panelRoot);
+  applyPanelTypography(panelRoot);
 
   const shieldInputEventFromZoteroShortcuts = (event: Event) => {
     // Library tabs share Zotero's main document, whose item-list shortcuts can
@@ -350,8 +354,12 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     event.stopPropagation();
   };
 
-  if (settingScroll && !settingScroll.dataset.rendered) {
+  if (
+    settingScroll &&
+    settingScroll.dataset.renderVersion !== SETTING_TAB_RENDER_VERSION
+  ) {
     settingScroll.dataset.rendered = "true";
+    settingScroll.dataset.renderVersion = SETTING_TAB_RENDER_VERSION;
     settingScroll.textContent = "";
     // Console is now inline in the scroll area; consoleContainer param is unused
     bootstrapSettingTab(panelDoc, settingScroll, settingScroll).catch((e) => {
@@ -4058,10 +4066,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   let layoutRetryScheduled = false;
   let lastActionLayoutSignature = "";
-  let actionLayoutMeasureContext:
-    | CanvasRenderingContext2D
-    | null
-    | undefined;
+  let actionLayoutMeasureContext: CanvasRenderingContext2D | null | undefined;
   const getActionLayoutMeasureContext = () => {
     if (actionLayoutMeasureContext !== undefined) {
       return actionLayoutMeasureContext;

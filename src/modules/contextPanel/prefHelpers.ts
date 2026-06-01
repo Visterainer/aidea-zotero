@@ -15,21 +15,210 @@ import {
   type ModelProfileKey,
 } from "./constants";
 import type { ApiProfile, CustomShortcut } from "./types";
-import { selectedModelCache, selectedModelProviderCache, panelFontScalePercent } from "./state";
 import {
-  providerToMarker,
-  type OAuthProviderId,
-} from "../../utils/oauthCli";
+  selectedModelCache,
+  selectedModelProviderCache,
+  panelFontScalePercent,
+} from "./state";
+import { providerToMarker, type OAuthProviderId } from "../../utils/oauthCli";
 
 export type PrimaryConnectionMode = "oauth" | "custom";
 
 const PRIMARY_CONNECTION_MODE_PREF_KEY = "primaryConnectionMode";
 const OAUTH_MARKER_PREFIX = "oauth://";
 const DEFAULT_PRIMARY_MODEL = "gpt-4o-mini";
+export const PANEL_TYPOGRAPHY_REFRESH_EVENT = "aidea-panel-typography-refresh";
+
+export type PanelTypographySettings = {
+  chatFontSize: number;
+  chatLineHeight: number;
+  messageGap: number;
+  bubblePaddingY: number;
+  bubblePaddingX: number;
+  composerFontSize: number;
+  composerLineHeight: number;
+  composerPaddingY: number;
+  composerPaddingX: number;
+  composerGap: number;
+  selectionFontSize: number;
+  selectionLineHeight: number;
+  selectionPopupWidth: number;
+};
+
+export type PanelTypographyPreset =
+  | "compact"
+  | "standard"
+  | "comfortable"
+  | "large";
+
+export const PANEL_TYPOGRAPHY_PRESETS: Record<
+  PanelTypographyPreset,
+  PanelTypographySettings
+> = {
+  compact: {
+    chatFontSize: 13,
+    chatLineHeight: 1.45,
+    messageGap: 8,
+    bubblePaddingY: 8,
+    bubblePaddingX: 12,
+    composerFontSize: 13,
+    composerLineHeight: 1.45,
+    composerPaddingY: 10,
+    composerPaddingX: 12,
+    composerGap: 8,
+    selectionFontSize: 12,
+    selectionLineHeight: 1.45,
+    selectionPopupWidth: 420,
+  },
+  standard: {
+    chatFontSize: 14,
+    chatLineHeight: 1.5,
+    messageGap: 12,
+    bubblePaddingY: 10,
+    bubblePaddingX: 14,
+    composerFontSize: 14,
+    composerLineHeight: 1.5,
+    composerPaddingY: 11,
+    composerPaddingX: 13,
+    composerGap: 9,
+    selectionFontSize: 13,
+    selectionLineHeight: 1.5,
+    selectionPopupWidth: 450,
+  },
+  comfortable: {
+    chatFontSize: 15,
+    chatLineHeight: 1.6,
+    messageGap: 14,
+    bubblePaddingY: 11,
+    bubblePaddingX: 15,
+    composerFontSize: 15,
+    composerLineHeight: 1.55,
+    composerPaddingY: 12,
+    composerPaddingX: 14,
+    composerGap: 10,
+    selectionFontSize: 14,
+    selectionLineHeight: 1.55,
+    selectionPopupWidth: 480,
+  },
+  large: {
+    chatFontSize: 17,
+    chatLineHeight: 1.7,
+    messageGap: 16,
+    bubblePaddingY: 12,
+    bubblePaddingX: 16,
+    composerFontSize: 17,
+    composerLineHeight: 1.65,
+    composerPaddingY: 13,
+    composerPaddingX: 16,
+    composerGap: 12,
+    selectionFontSize: 16,
+    selectionLineHeight: 1.65,
+    selectionPopupWidth: 540,
+  },
+};
+
+const PANEL_TYPOGRAPHY_DEFAULTS = PANEL_TYPOGRAPHY_PRESETS.comfortable;
+const PANEL_TYPOGRAPHY_PREF_KEYS: Record<
+  keyof PanelTypographySettings,
+  string
+> = {
+  chatFontSize: "font.chatSize",
+  chatLineHeight: "font.chatLineHeight",
+  messageGap: "font.messageGap",
+  bubblePaddingY: "font.bubblePaddingY",
+  bubblePaddingX: "font.bubblePaddingX",
+  composerFontSize: "font.composerSize",
+  composerLineHeight: "font.composerLineHeight",
+  composerPaddingY: "font.composerPaddingY",
+  composerPaddingX: "font.composerPaddingX",
+  composerGap: "font.composerGap",
+  selectionFontSize: "font.selectionSize",
+  selectionLineHeight: "font.selectionLineHeight",
+  selectionPopupWidth: "font.selectionPopupWidth",
+};
+
+const PANEL_TYPOGRAPHY_BOUNDS: Record<
+  keyof PanelTypographySettings,
+  { min: number; max: number; step: number }
+> = {
+  chatFontSize: { min: 11, max: 24, step: 1 },
+  chatLineHeight: { min: 1.25, max: 2, step: 0.05 },
+  messageGap: { min: 4, max: 28, step: 1 },
+  bubblePaddingY: { min: 6, max: 24, step: 1 },
+  bubblePaddingX: { min: 8, max: 28, step: 1 },
+  composerFontSize: { min: 11, max: 24, step: 1 },
+  composerLineHeight: { min: 1.25, max: 2, step: 0.05 },
+  composerPaddingY: { min: 6, max: 24, step: 1 },
+  composerPaddingX: { min: 8, max: 30, step: 1 },
+  composerGap: { min: 4, max: 24, step: 1 },
+  selectionFontSize: { min: 11, max: 22, step: 1 },
+  selectionLineHeight: { min: 1.25, max: 2, step: 0.05 },
+  selectionPopupWidth: { min: 360, max: 760, step: 10 },
+};
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeTypographyValue(
+  key: keyof PanelTypographySettings,
+  value: unknown,
+): number {
+  const bounds = PANEL_TYPOGRAPHY_BOUNDS[key];
+  const fallback = PANEL_TYPOGRAPHY_DEFAULTS[key];
+  const parsed =
+    typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(parsed)) return fallback;
+  const clamped = clampNumber(parsed, bounds.min, bounds.max);
+  return bounds.step < 1 ? Number(clamped.toFixed(2)) : Math.round(clamped);
+}
 
 export function getStringPref(key: string): string {
   const value = Zotero.Prefs.get(`${config.prefsPrefix}.${key}`, true);
   return typeof value === "string" ? value : "";
+}
+
+export function getPanelTypographyBounds() {
+  return PANEL_TYPOGRAPHY_BOUNDS;
+}
+
+export function getPanelTypographySettings(): PanelTypographySettings {
+  const settings = { ...PANEL_TYPOGRAPHY_DEFAULTS };
+  for (const key of Object.keys(PANEL_TYPOGRAPHY_PREF_KEYS) as Array<
+    keyof PanelTypographySettings
+  >) {
+    settings[key] = normalizeTypographyValue(
+      key,
+      Zotero.Prefs.get(
+        `${config.prefsPrefix}.${PANEL_TYPOGRAPHY_PREF_KEYS[key]}`,
+        true,
+      ),
+    );
+  }
+  return settings;
+}
+
+export function setPanelTypographySettings(
+  partial: Partial<PanelTypographySettings>,
+): PanelTypographySettings {
+  const current = getPanelTypographySettings();
+  const next = { ...current };
+  for (const key of Object.keys(partial) as Array<
+    keyof PanelTypographySettings
+  >) {
+    next[key] = normalizeTypographyValue(key, partial[key]);
+    Zotero.Prefs.set(
+      `${config.prefsPrefix}.${PANEL_TYPOGRAPHY_PREF_KEYS[key]}`,
+      String(next[key]),
+      true,
+    );
+  }
+  return next;
+}
+
+export function resetPanelTypographySettings(): PanelTypographySettings {
+  return setPanelTypographySettings(PANEL_TYPOGRAPHY_DEFAULTS);
 }
 
 const LAST_MODEL_PROFILE_PREF_KEY = "lastUsedModelProfile";
@@ -177,7 +366,10 @@ export function getSelectedProfileForItem(itemId: number): {
   const persistedModelName = getStringPref("lastUsedModelName").trim();
   if (!cachedValue && persistedModelName) {
     const persistedProvider = getStringPref("lastUsedModelProvider").trim();
-    const resolved = resolveModelCredentials(persistedModelName, persistedProvider || undefined);
+    const resolved = resolveModelCredentials(
+      persistedModelName,
+      persistedProvider || undefined,
+    );
     if (resolved) {
       return {
         key: "primary" as ModelProfileKey,
@@ -229,7 +421,10 @@ function resolveModelCredentials(
 ): { apiBase: string; apiKey: string } | null {
   const cacheRaw = getStringPref("oauthModelListCache").trim();
   if (!cacheRaw) return null;
-  let modelCache: Record<string, Array<{ id: string; apiBase?: string; apiKey?: string }>>;
+  let modelCache: Record<
+    string,
+    Array<{ id: string; apiBase?: string; apiKey?: string }>
+  >;
   try {
     modelCache = JSON.parse(cacheRaw);
     if (!modelCache || typeof modelCache !== "object") return null;
@@ -249,7 +444,10 @@ function resolveModelCredentials(
     models: Array<{ id: string; apiBase?: string; apiKey?: string }>,
   ): { apiBase: string; apiKey: string } | null => {
     const match = models.find(
-      (m) => String(m.id || "").trim().toLowerCase() === normalized,
+      (m) =>
+        String(m.id || "")
+          .trim()
+          .toLowerCase() === normalized,
     );
     if (!match) return null;
     // Custom endpoint: has explicit apiBase
@@ -259,7 +457,10 @@ function resolveModelCredentials(
     // Known OAuth provider: return the marker so the chat system resolves
     // the correct OAuth credential for this provider.
     if (KNOWN_OAUTH_PROVIDERS.has(providerKey)) {
-      return { apiBase: providerToMarker(providerKey as OAuthProviderId), apiKey: "" };
+      return {
+        apiBase: providerToMarker(providerKey as OAuthProviderId),
+        apiKey: "",
+      };
     }
     return null;
   };
@@ -299,6 +500,42 @@ export function getAdvancedModelParamsForProfile(profileKey: ModelProfileKey): {
 export function applyPanelFontScale(panel: HTMLElement | null): void {
   if (!panel) return;
   panel.style.setProperty("--llm-font-scale", `${panelFontScalePercent / 100}`);
+}
+
+export function applyPanelTypography(panel: HTMLElement | null): void {
+  if (!panel) return;
+  const settings = getPanelTypographySettings();
+  panel.style.setProperty("--llm-chat-font-size", `${settings.chatFontSize}px`);
+  panel.style.setProperty(
+    "--llm-chat-line-height",
+    String(settings.chatLineHeight),
+  );
+  panel.style.setProperty("--llm-message-gap", `${settings.messageGap}px`);
+  panel.style.setProperty(
+    "--llm-bubble-padding-y",
+    `${settings.bubblePaddingY}px`,
+  );
+  panel.style.setProperty(
+    "--llm-bubble-padding-x",
+    `${settings.bubblePaddingX}px`,
+  );
+  panel.style.setProperty(
+    "--llm-composer-font-size",
+    `${settings.composerFontSize}px`,
+  );
+  panel.style.setProperty(
+    "--llm-composer-line-height",
+    String(settings.composerLineHeight),
+  );
+  panel.style.setProperty(
+    "--llm-composer-padding-y",
+    `${settings.composerPaddingY}px`,
+  );
+  panel.style.setProperty(
+    "--llm-composer-padding-x",
+    `${settings.composerPaddingX}px`,
+  );
+  panel.style.setProperty("--llm-composer-gap", `${settings.composerGap}px`);
 }
 
 /** Get/set JSON preferences with error handling */

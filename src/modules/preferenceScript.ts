@@ -46,7 +46,18 @@ import {
   UI_LANGUAGE_OPTIONS,
   type PanelLang,
 } from "./contextPanel/languages";
-import { getPrimaryConnectionMode } from "./contextPanel/prefHelpers";
+import {
+  PANEL_TYPOGRAPHY_PRESETS,
+  PANEL_TYPOGRAPHY_REFRESH_EVENT,
+  applyPanelTypography,
+  getPanelTypographyBounds,
+  getPanelTypographySettings,
+  getPrimaryConnectionMode,
+  resetPanelTypographySettings,
+  setPanelTypographySettings,
+  type PanelTypographyPreset,
+  type PanelTypographySettings,
+} from "./contextPanel/prefHelpers";
 import {
   getModelChoices,
   pickBestDefaultModel,
@@ -81,6 +92,19 @@ type PrefKey =
   | "settingsSectionState"
   | "settingsScrollTop"
   | "composerTheme"
+  | "font.chatSize"
+  | "font.chatLineHeight"
+  | "font.messageGap"
+  | "font.bubblePaddingY"
+  | "font.bubblePaddingX"
+  | "font.composerSize"
+  | "font.composerLineHeight"
+  | "font.composerPaddingY"
+  | "font.composerPaddingX"
+  | "font.composerGap"
+  | "font.selectionSize"
+  | "font.selectionLineHeight"
+  | "font.selectionPopupWidth"
   | "selectionTranslate.model"
   | "selectionTranslate.provider"
   | "selectionTranslate.sourceLang"
@@ -1833,6 +1857,58 @@ const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     composerThemeSoftBlue: "浅蓝",
   },
 };
+const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "en-US": {
+    basicConfig: "Basic Configuration",
+    maintenance: "Maintenance",
+    fontSize: "Font Size:",
+    fontSizeOpen: "Adjust",
+    fontInspectorTitle: "Font Size",
+    fontReset: "Reset",
+    fontClose: "Close",
+    fontPresetCompact: "Compact",
+    fontPresetStandard: "Standard",
+    fontPresetComfortable: "Comfortable",
+    fontPresetLarge: "Large",
+    fontChatSection: "Conversation",
+    fontComposerSection: "Input Box",
+    fontSelectionSection: "Selection Translation",
+    fontTextSize: "Text size",
+    fontLineHeight: "Line height",
+    fontMessageGap: "Message spacing",
+    fontBubblePaddingY: "Bubble vertical padding",
+    fontBubblePaddingX: "Bubble horizontal padding",
+    fontComposerPaddingY: "Input vertical padding",
+    fontComposerPaddingX: "Input horizontal padding",
+    fontComposerGap: "Attachment spacing",
+    fontSelectionPopupWidth: "Popup width",
+  },
+  "zh-CN": {
+    basicConfig: "\u57fa\u7840\u914d\u7f6e",
+    maintenance: "\u7ef4\u62a4",
+    fontSize: "\u5b57\u4f53\u5927\u5c0f\uff1a",
+    fontSizeOpen: "\u8c03\u6574",
+    fontInspectorTitle: "\u5b57\u4f53\u5927\u5c0f",
+    fontReset: "\u91cd\u7f6e",
+    fontClose: "\u5173\u95ed",
+    fontPresetCompact: "\u7d27\u51d1",
+    fontPresetStandard: "\u6807\u51c6",
+    fontPresetComfortable: "\u8212\u9002",
+    fontPresetLarge: "\u5927\u5b57",
+    fontChatSection: "\u5bf9\u8bdd\u5185\u5bb9",
+    fontComposerSection: "\u8f93\u5165\u6846",
+    fontSelectionSection: "\u5212\u8bcd\u7ffb\u8bd1",
+    fontTextSize: "\u5b57\u53f7",
+    fontLineHeight: "\u884c\u9ad8",
+    fontMessageGap: "\u6d88\u606f\u95f4\u8ddd",
+    fontBubblePaddingY: "\u6c14\u6ce1\u4e0a\u4e0b\u7559\u767d",
+    fontBubblePaddingX: "\u6c14\u6ce1\u5de6\u53f3\u7559\u767d",
+    fontComposerPaddingY: "\u8f93\u5165\u533a\u4e0a\u4e0b\u7559\u767d",
+    fontComposerPaddingX: "\u8f93\u5165\u533a\u5de6\u53f3\u7559\u767d",
+    fontComposerGap: "\u9644\u4ef6\u95f4\u8ddd",
+    fontSelectionPopupWidth: "\u5f39\u7a97\u5bbd\u5ea6",
+  },
+};
 
 const tt = (l: Lang): Dict =>
   ({
@@ -1846,6 +1922,8 @@ const tt = (l: Lang): Dict =>
     ...(SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES["en-US"] || {}),
     ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES[l] || {}),
+    ...(SETTINGS_I18N_TYPOGRAPHY_OVERRIDES["en-US"] || {}),
+    ...(SETTINGS_I18N_TYPOGRAPHY_OVERRIDES[l] || {}),
   }) as Dict;
 
 function localizeAuthStatus(raw: string, L: Dict): string {
@@ -2232,6 +2310,99 @@ export function applyComposerThemeToAllPanels(theme: ComposerTheme): void {
   }
 }
 
+function collectOpenZoteroDocuments(): Set<Document> {
+  const allDocs = new Set<Document>();
+  const visitDoc = (doc: Document | null | undefined) => {
+    if (!doc || allDocs.has(doc)) return;
+    allDocs.add(doc);
+    const view = doc.defaultView;
+    if (!view) return;
+    try {
+      for (let i = 0; i < view.frames.length; i += 1) {
+        try {
+          visitDoc(view.frames[i]?.document || null);
+        } catch {
+          /* cross-frame access may fail */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  try {
+    const wins: Window[] = Zotero.getMainWindows?.() || [];
+    for (const w of wins) visitDoc(w?.document);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const mainWin: Window | null = Zotero.getMainWindow?.() || null;
+    visitDoc(mainWin?.document);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
+      Ci.nsIWindowMediator,
+    );
+    if (wm) {
+      const enumerator = wm.getEnumerator("navigator:browser");
+      while (enumerator.hasMoreElements()) {
+        const w = enumerator.getNext() as Window;
+        visitDoc(w?.document);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return allDocs;
+}
+
+function applySelectionTranslateTypography(doc: Document): void {
+  const settings = getPanelTypographySettings();
+  doc
+    .querySelectorAll(".llm-selection-translate-wrap")
+    .forEach((node: Element) => {
+      const wrap = node as HTMLElement;
+      wrap.style.width = `min(${settings.selectionPopupWidth}px, calc(100vw - 20px))`;
+    });
+  doc
+    .querySelectorAll(".llm-selection-translate-result")
+    .forEach((node: Element) => {
+      const result = node as HTMLElement;
+      result.style.fontSize = `${settings.selectionFontSize}px`;
+      result.style.lineHeight = String(settings.selectionLineHeight);
+    });
+  doc
+    .querySelectorAll(".llm-selection-translate-note-btn")
+    .forEach((node: Element) => {
+      const btn = node as HTMLElement;
+      btn.style.fontSize = `${settings.selectionFontSize}px`;
+      btn.style.lineHeight = "1.25";
+    });
+  try {
+    const view = doc.defaultView;
+    if (view)
+      view.dispatchEvent(new view.Event(PANEL_TYPOGRAPHY_REFRESH_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyTypographyToAllSurfaces(): void {
+  try {
+    for (const doc of collectOpenZoteroDocuments()) {
+      doc.querySelectorAll("#llm-main").forEach((root: Element) => {
+        applyPanelTypography(root as HTMLElement);
+      });
+      applySelectionTranslateTypography(doc);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function bootstrapSettingTab(
   doc: Document,
   scrollContainer: HTMLElement,
@@ -2256,6 +2427,7 @@ export async function bootstrapSettingTab(
   scrollContainer.appendChild(root);
 
   type SettingsSectionId =
+    | "basic"
     | "connectionMode"
     | "models"
     | "selectionTranslate"
@@ -2263,6 +2435,7 @@ export async function bootstrapSettingTab(
     | "console"
     | "accounts";
   const settingsSectionIds: SettingsSectionId[] = [
+    "basic",
     "connectionMode",
     "models",
     "selectionTranslate",
@@ -2272,7 +2445,7 @@ export async function bootstrapSettingTab(
   ];
   const defaultSectionState = settingsSectionIds.reduce(
     (acc, id) => {
-      acc[id] = true;
+      acc[id] = id !== "basic";
       return acc;
     },
     {} as Record<SettingsSectionId, boolean>,
@@ -2341,8 +2514,29 @@ export async function bootstrapSettingTab(
   });
 
   // ── ① Language dropdown + danger buttons toolbar ──
-  const langBox = createEl(doc, "div", "llm-set-card llm-set-toolbar");
-  const langLeft = createEl(doc, "div", "llm-set-toolbar-left");
+  const basicBox = createEl(doc, "div", "llm-set-card");
+  const basicTitle = createEl(
+    doc,
+    "div",
+    "llm-set-title llm-set-collapsible-toggle",
+  );
+  const basicBody = createEl(
+    doc,
+    "div",
+    "llm-set-collapsible-body llm-basic-settings-body",
+  );
+  applyCollapsibleState(basicTitle, basicBody, "basic");
+  basicTitle.addEventListener("click", () => {
+    toggleCollapsibleState(basicTitle, basicBody, "basic");
+  });
+
+  const langBox = createEl(doc, "div", "llm-basic-settings-grid");
+  const basicTopRow = createEl(doc, "div", "llm-basic-top-row");
+  const langLeft = createEl(
+    doc,
+    "div",
+    "llm-basic-setting-group llm-basic-language-group",
+  );
   const langLabel = createEl(
     doc,
     "label",
@@ -2424,7 +2618,7 @@ export async function bootstrapSettingTab(
   langLeft.append(langLabel, langDropdown);
 
   // ── Hide Tab Nav toggle (ON = hide, OFF = show) ──
-  const hideNavGroup = createEl(doc, "div", "llm-set-toolbar-left");
+  const hideNavGroup = createEl(doc, "div", "llm-basic-setting-group");
   const hideNavLabel = createEl(
     doc,
     "label",
@@ -2459,40 +2653,109 @@ export async function bootstrapSettingTab(
   });
   hideNavGroup.append(hideNavLabel, hideNavTabBar);
 
-  const composerThemeGroup = createEl(doc, "div", "llm-set-toolbar-left");
+  const composerThemeGroup = createEl(doc, "div", "llm-basic-setting-group");
   const composerThemeLabel = createEl(
     doc,
     "label",
     "llm-set-label llm-set-label--title",
   );
-  const composerThemeTabBar = createEl(doc, "div", "llm-set-tab-bar");
+  const composerThemeDropdown = createEl(
+    doc,
+    "div",
+    "llm-tr-dropdown llm-basic-theme-dropdown",
+  ) as HTMLDivElement;
+  const composerThemeTrigger = createEl(
+    doc,
+    "div",
+    "llm-tr-dropdown-trigger",
+  ) as HTMLDivElement;
+  const composerThemeArrow = createEl(
+    doc,
+    "span",
+    "llm-tr-dropdown-arrow",
+  ) as HTMLSpanElement;
+  composerThemeArrow.textContent = "\u25be";
+  composerThemeTrigger.appendChild(composerThemeArrow);
+  const composerThemeMenu = createEl(
+    doc,
+    "div",
+    "llm-tr-dropdown-menu",
+  ) as HTMLDivElement;
+  composerThemeMenu.style.display = "none";
+  composerThemeDropdown.append(composerThemeTrigger, composerThemeMenu);
   let composerThemeValue = normalizeComposerTheme(getPref("composerTheme"));
-  let composerThemeBtns: Array<{
-    button: HTMLButtonElement;
+  let composerThemeItems: Array<{
+    item: HTMLDivElement;
     option: (typeof COMPOSER_THEME_OPTIONS)[number];
   }> = [];
+  const setComposerThemeTriggerText = (label: string) => {
+    const arrow = composerThemeTrigger.querySelector(".llm-tr-dropdown-arrow");
+    composerThemeTrigger.textContent = label;
+    if (arrow) composerThemeTrigger.appendChild(arrow);
+  };
+  const closeComposerThemeDropdown = () => {
+    composerThemeMenu.style.display = "none";
+    composerThemeDropdown.classList.remove("open");
+  };
   const updateComposerThemeUi = () => {
-    composerThemeBtns.forEach(({ button, option }) => {
-      button.textContent = L[option.labelKey] || option.value;
-      button.classList.toggle("active", option.value === composerThemeValue);
+    const selected =
+      COMPOSER_THEME_OPTIONS.find(
+        (option) => option.value === composerThemeValue,
+      ) || COMPOSER_THEME_OPTIONS[0];
+    setComposerThemeTriggerText(L[selected.labelKey] || selected.value);
+    composerThemeDropdown.dataset.value = composerThemeValue;
+    composerThemeItems.forEach(({ item, option }) => {
+      item.textContent = L[option.labelKey] || option.value;
+      item.classList.toggle("selected", option.value === composerThemeValue);
     });
   };
-  composerThemeBtns = COMPOSER_THEME_OPTIONS.map((option) => {
-    const btn = createEl(doc, "button", "llm-set-tab-btn") as HTMLButtonElement;
-    btn.type = "button";
-    btn.addEventListener("click", () => {
+  composerThemeTrigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = composerThemeMenu.style.display !== "none";
+    if (open) {
+      closeComposerThemeDropdown();
+      return;
+    }
+    composerThemeMenu.style.display = "block";
+    composerThemeDropdown.classList.add("open");
+  });
+  doc.addEventListener("click", (event: Event) => {
+    if (!composerThemeDropdown.contains(event.target as Node)) {
+      closeComposerThemeDropdown();
+    }
+  });
+  composerThemeItems = COMPOSER_THEME_OPTIONS.map((option) => {
+    const item = createEl(doc, "div", "llm-tr-dropdown-item") as HTMLDivElement;
+    item.dataset.value = option.value;
+    item.addEventListener("click", (event) => {
+      event.stopPropagation();
       composerThemeValue = option.value;
       setPref("composerTheme", composerThemeValue);
       updateComposerThemeUi();
+      closeComposerThemeDropdown();
       applyComposerThemeToAllPanels(composerThemeValue);
     });
-    composerThemeTabBar.appendChild(btn);
-    return { button: btn, option };
+    composerThemeMenu.appendChild(item);
+    return { item, option };
   });
-  composerThemeGroup.append(composerThemeLabel, composerThemeTabBar);
+  composerThemeGroup.append(composerThemeLabel, composerThemeDropdown);
+
+  const fontGroup = createEl(doc, "div", "llm-basic-setting-group");
+  const fontLabel = createEl(
+    doc,
+    "label",
+    "llm-set-label llm-set-label--title",
+  );
+  const fontOpenBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+  ) as HTMLButtonElement;
+  fontOpenBtn.type = "button";
+  fontGroup.append(fontLabel, fontOpenBtn);
 
   // Danger buttons (moved from bottom dangerZone)
-  const langRight = createEl(doc, "div", "llm-set-toolbar-right");
+  const langRight = createEl(doc, "div", "llm-basic-top-actions");
   const restoreDefaultsBtn = createEl(
     doc,
     "button",
@@ -2505,7 +2768,7 @@ export async function bootstrapSettingTab(
     "llm-set-btn llm-set-btn--pill llm-set-btn--danger",
   ) as HTMLButtonElement;
   clearAllHistoryBtn.type = "button";
-  const dangerStatus = createEl(doc, "span", "llm-set-status");
+  const dangerStatus = createEl(doc, "span", "llm-set-status llm-basic-status");
   langRight.append(restoreDefaultsBtn, clearAllHistoryBtn);
 
   const switchLang = (next: Lang) => {
@@ -2538,13 +2801,353 @@ export async function bootstrapSettingTab(
     }
   };
 
+  basicTopRow.append(langLeft, langRight);
   langBox.append(
-    langLeft,
-    composerThemeGroup,
+    basicTopRow,
     hideNavGroup,
-    langRight,
+    fontGroup,
+    composerThemeGroup,
     dangerStatus,
   );
+
+  const typographyBounds = getPanelTypographyBounds();
+  type TypographyKey = keyof PanelTypographySettings;
+  type FontControlRef = {
+    key: TypographyKey;
+    input: HTMLInputElement;
+    value: HTMLElement;
+  };
+  const fontControlRefs: FontControlRef[] = [];
+  let fontInspector: HTMLDivElement | null = null;
+  let disposeFontInspectorDrag: (() => void) | null = null;
+  let fontPresetButtons: Array<{
+    preset: PanelTypographyPreset;
+    button: HTMLButtonElement;
+  }> = [];
+
+  const fontPresetOrder: PanelTypographyPreset[] = [
+    "compact",
+    "standard",
+    "comfortable",
+    "large",
+  ];
+  const fontPresetLabelKey: Record<PanelTypographyPreset, string> = {
+    compact: "fontPresetCompact",
+    standard: "fontPresetStandard",
+    comfortable: "fontPresetComfortable",
+    large: "fontPresetLarge",
+  };
+
+  const formatFontControlValue = (
+    key: TypographyKey,
+    value: number,
+  ): string => {
+    if (
+      key === "chatLineHeight" ||
+      key === "composerLineHeight" ||
+      key === "selectionLineHeight"
+    ) {
+      return value.toFixed(2);
+    }
+    return `${Math.round(value)}px`;
+  };
+
+  const findMatchingPreset = (
+    settings: PanelTypographySettings,
+  ): PanelTypographyPreset | null => {
+    for (const preset of fontPresetOrder) {
+      const values = PANEL_TYPOGRAPHY_PRESETS[preset];
+      const same = (Object.keys(values) as TypographyKey[]).every(
+        (key) => Math.abs(settings[key] - values[key]) < 0.001,
+      );
+      if (same) return preset;
+    }
+    return null;
+  };
+
+  const syncFontInspectorControls = (
+    settings = getPanelTypographySettings(),
+  ) => {
+    for (const ref of fontControlRefs) {
+      const next = settings[ref.key];
+      ref.input.value = String(next);
+      ref.value.textContent = formatFontControlValue(ref.key, next);
+    }
+    const matchedPreset = findMatchingPreset(settings);
+    fontPresetButtons.forEach(({ preset, button }) => {
+      button.classList.toggle("active", preset === matchedPreset);
+    });
+  };
+
+  const createFontControl = (
+    parent: HTMLElement,
+    label: string,
+    key: TypographyKey,
+  ) => {
+    const bounds = typographyBounds[key];
+    const row = createEl(doc, "label", "llm-font-control");
+    const labelEl = createEl(doc, "span", "llm-font-control-label", label);
+    const input = createEl(
+      doc,
+      "input",
+      "llm-font-control-range",
+    ) as HTMLInputElement;
+    input.type = "range";
+    input.min = String(bounds.min);
+    input.max = String(bounds.max);
+    input.step = String(bounds.step);
+    const valueEl = createEl(doc, "span", "llm-font-control-value");
+    input.addEventListener("input", () => {
+      const next = setPanelTypographySettings({
+        [key]: Number(input.value),
+      } as Partial<PanelTypographySettings>);
+      syncFontInspectorControls(next);
+      applyTypographyToAllSurfaces();
+    });
+    row.append(labelEl, input, valueEl);
+    parent.appendChild(row);
+    fontControlRefs.push({ key, input, value: valueEl });
+  };
+
+  const createFontSection = (
+    parent: HTMLElement,
+    title: string,
+    controls: Array<{ label: string; key: TypographyKey }>,
+  ) => {
+    const section = createEl(doc, "div", "llm-font-section");
+    const sectionTitle = createEl(doc, "div", "llm-font-section-title", title);
+    section.appendChild(sectionTitle);
+    for (const control of controls) {
+      createFontControl(section, control.label, control.key);
+    }
+    parent.appendChild(section);
+  };
+
+  const switchToDiscussionTab = () => {
+    const discussionBtn = doc.querySelector(
+      "#llm-tab-btn-discussion",
+    ) as HTMLButtonElement | null;
+    discussionBtn?.click();
+  };
+
+  const clampFontInspectorPosition = (
+    inspector: HTMLElement,
+    left: number,
+    top: number,
+  ) => {
+    const margin = 12;
+    const viewportWidth =
+      win.innerWidth || doc.documentElement?.clientWidth || margin * 2;
+    const viewportHeight =
+      win.innerHeight || doc.documentElement?.clientHeight || margin * 2;
+    const rect = inspector.getBoundingClientRect();
+    const maxLeft = Math.max(margin, viewportWidth - rect.width - margin);
+    const maxTop = Math.max(margin, viewportHeight - rect.height - margin);
+    return {
+      left: Math.min(maxLeft, Math.max(margin, left)),
+      top: Math.min(maxTop, Math.max(margin, top)),
+    };
+  };
+
+  const positionFontInspectorAtCenter = (
+    inspector: HTMLElement,
+    panelRoot: HTMLElement | null,
+  ) => {
+    win.requestAnimationFrame(() => {
+      const viewportWidth =
+        win.innerWidth || doc.documentElement?.clientWidth || 0;
+      const viewportHeight =
+        win.innerHeight || doc.documentElement?.clientHeight || 0;
+      const hostRect =
+        panelRoot?.getBoundingClientRect() ||
+        ({
+          left: 0,
+          top: 0,
+          width: viewportWidth,
+          height: viewportHeight,
+        } as DOMRect);
+      const rect = inspector.getBoundingClientRect();
+      const next = clampFontInspectorPosition(
+        inspector,
+        hostRect.left + hostRect.width / 2 - rect.width / 2,
+        hostRect.top + hostRect.height / 2 - rect.height / 2,
+      );
+      inspector.style.left = `${next.left}px`;
+      inspector.style.top = `${next.top}px`;
+      inspector.style.right = "auto";
+      inspector.style.transform = "none";
+    });
+  };
+
+  const makeFontInspectorDraggable = (
+    inspector: HTMLElement,
+    handle: HTMLElement,
+  ): (() => void) => {
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    let dragging = false;
+
+    const stopDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      inspector.classList.remove("is-dragging");
+      win.removeEventListener("mousemove", onMove);
+      win.removeEventListener("mouseup", onUp);
+    };
+
+    const onMove = (event: MouseEvent) => {
+      if (!dragging) return;
+      event.preventDefault();
+      const next = clampFontInspectorPosition(
+        inspector,
+        event.clientX - dragOffsetX,
+        event.clientY - dragOffsetY,
+      );
+      inspector.style.left = `${next.left}px`;
+      inspector.style.top = `${next.top}px`;
+      inspector.style.right = "auto";
+      inspector.style.transform = "none";
+    };
+
+    const onUp = () => {
+      stopDrag();
+    };
+
+    const onDown = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target as Element | null;
+      if (target?.closest?.("button,input,select,textarea,a")) return;
+      const rect = inspector.getBoundingClientRect();
+      dragOffsetX = event.clientX - rect.left;
+      dragOffsetY = event.clientY - rect.top;
+      inspector.style.left = `${rect.left}px`;
+      inspector.style.top = `${rect.top}px`;
+      inspector.style.right = "auto";
+      inspector.style.transform = "none";
+      dragging = true;
+      inspector.classList.add("is-dragging");
+      event.preventDefault();
+      win.addEventListener("mousemove", onMove);
+      win.addEventListener("mouseup", onUp);
+    };
+
+    handle.addEventListener("mousedown", onDown);
+    return () => {
+      handle.removeEventListener("mousedown", onDown);
+      stopDrag();
+    };
+  };
+
+  const showFontInspector = () => {
+    disposeFontInspectorDrag?.();
+    disposeFontInspectorDrag = null;
+    fontInspector?.remove();
+    fontInspector = null;
+    fontControlRefs.length = 0;
+    fontPresetButtons = [];
+
+    const panelRoot = doc.querySelector("#llm-main") as HTMLElement | null;
+    const host = panelRoot || doc.body;
+    if (!host) return;
+
+    const inspector = createEl(
+      doc,
+      "div",
+      "llm-font-inspector",
+    ) as HTMLDivElement;
+    inspector.setAttribute("role", "dialog");
+    inspector.setAttribute("aria-label", L.fontInspectorTitle);
+
+    const header = createEl(doc, "div", "llm-font-inspector-header");
+    const title = createEl(
+      doc,
+      "div",
+      "llm-font-inspector-title",
+      L.fontInspectorTitle,
+    );
+    const headerActions = createEl(doc, "div", "llm-font-inspector-actions");
+    const resetBtn = createEl(
+      doc,
+      "button",
+      "llm-set-btn llm-set-btn--pill llm-set-btn--secondary",
+      L.fontReset,
+    ) as HTMLButtonElement;
+    resetBtn.type = "button";
+    const closeBtn = createEl(
+      doc,
+      "button",
+      "llm-font-inspector-close",
+      L.fontClose,
+    ) as HTMLButtonElement;
+    closeBtn.type = "button";
+    headerActions.append(resetBtn, closeBtn);
+    header.append(title, headerActions);
+
+    const presets = createEl(doc, "div", "llm-font-presets");
+    for (const preset of fontPresetOrder) {
+      const btn = createEl(
+        doc,
+        "button",
+        "llm-set-tab-btn",
+        L[fontPresetLabelKey[preset]],
+      ) as HTMLButtonElement;
+      btn.type = "button";
+      btn.addEventListener("click", () => {
+        const next = setPanelTypographySettings(
+          PANEL_TYPOGRAPHY_PRESETS[preset],
+        );
+        syncFontInspectorControls(next);
+        applyTypographyToAllSurfaces();
+      });
+      presets.appendChild(btn);
+      fontPresetButtons.push({ preset, button: btn });
+    }
+
+    const bodyEl = createEl(doc, "div", "llm-font-inspector-body");
+    createFontSection(bodyEl, L.fontChatSection, [
+      { label: L.fontTextSize, key: "chatFontSize" },
+      { label: L.fontLineHeight, key: "chatLineHeight" },
+      { label: L.fontMessageGap, key: "messageGap" },
+      { label: L.fontBubblePaddingY, key: "bubblePaddingY" },
+      { label: L.fontBubblePaddingX, key: "bubblePaddingX" },
+    ]);
+    createFontSection(bodyEl, L.fontComposerSection, [
+      { label: L.fontTextSize, key: "composerFontSize" },
+      { label: L.fontLineHeight, key: "composerLineHeight" },
+      { label: L.fontComposerPaddingY, key: "composerPaddingY" },
+      { label: L.fontComposerPaddingX, key: "composerPaddingX" },
+      { label: L.fontComposerGap, key: "composerGap" },
+    ]);
+    createFontSection(bodyEl, L.fontSelectionSection, [
+      { label: L.fontTextSize, key: "selectionFontSize" },
+      { label: L.fontLineHeight, key: "selectionLineHeight" },
+      { label: L.fontSelectionPopupWidth, key: "selectionPopupWidth" },
+    ]);
+
+    resetBtn.addEventListener("click", () => {
+      const next = resetPanelTypographySettings();
+      syncFontInspectorControls(next);
+      applyTypographyToAllSurfaces();
+    });
+    closeBtn.addEventListener("click", () => {
+      disposeFontInspectorDrag?.();
+      disposeFontInspectorDrag = null;
+      inspector.remove();
+      fontInspector = null;
+    });
+
+    inspector.append(header, presets, bodyEl);
+    host.appendChild(inspector);
+    fontInspector = inspector;
+    disposeFontInspectorDrag = makeFontInspectorDraggable(inspector, header);
+    positionFontInspectorAtCenter(inspector, panelRoot);
+    syncFontInspectorControls();
+  };
+
+  fontOpenBtn.addEventListener("click", () => {
+    switchToDiscussionTab();
+    showFontInspector();
+  });
 
   const refreshAllBtn = createEl(
     doc,
@@ -3149,6 +3752,7 @@ export async function bootstrapSettingTab(
 
   const renderStaticText = () => {
     L = tt(lang);
+    basicTitle.textContent = L.basicConfig;
     // "Language" label stays English regardless of selected language
     langLabel.textContent = "Language:";
     composerThemeLabel.textContent = L.composerTheme;
@@ -3158,6 +3762,9 @@ export async function bootstrapSettingTab(
       if (hideNavBtns[i])
         hideNavBtns[i].textContent = tt(lang)[opt.labelKey] as string;
     });
+    fontLabel.textContent = L.fontSize;
+    fontOpenBtn.textContent = L.fontSizeOpen;
+    if (fontInspector?.isConnected) showFontInspector();
     consoleTitle.textContent = L.console;
     consoleIssueBtn.title = L.consoleIssueOpen;
     consoleIssueBtn.setAttribute("aria-label", L.consoleIssueOpen);
@@ -4502,6 +5109,19 @@ export async function bootstrapSettingTab(
       settingsSectionState: JSON.stringify(defaultSectionState),
       settingsScrollTop: "0",
       composerTheme: "default",
+      "font.chatSize": "15",
+      "font.chatLineHeight": "1.6",
+      "font.messageGap": "14",
+      "font.bubblePaddingY": "11",
+      "font.bubblePaddingX": "15",
+      "font.composerSize": "15",
+      "font.composerLineHeight": "1.55",
+      "font.composerPaddingY": "12",
+      "font.composerPaddingX": "14",
+      "font.composerGap": "10",
+      "font.selectionSize": "14",
+      "font.selectionLineHeight": "1.55",
+      "font.selectionPopupWidth": "480",
       "selectionTranslate.model": "",
       "selectionTranslate.provider": "",
       "selectionTranslate.sourceLang": "auto",
@@ -4607,7 +5227,8 @@ export async function bootstrapSettingTab(
     if (selectionTranslateTargetInput) {
       selectionTranslateTargetInput.dataset.value = "zh-CN";
     }
-    for (const id of settingsSectionIds) sectionState[id] = true;
+    for (const id of settingsSectionIds) sectionState[id] = id !== "basic";
+    setCollapsibleState(basicTitle, basicBody, "basic", false);
     setCollapsibleState(
       connectionModeTitle,
       connectionModeBody,
@@ -4634,8 +5255,11 @@ export async function bootstrapSettingTab(
     scrollContainer.scrollTop = 0;
     setPref("settingsScrollTop", "0");
     composerThemeValue = "default";
+    setPref("composerTheme", composerThemeValue);
     updateComposerThemeUi();
     applyComposerThemeToAllPanels(composerThemeValue);
+    syncFontInspectorControls(resetPanelTypographySettings());
+    applyTypographyToAllSurfaces();
     renderSelectionTranslateLanguageOptions();
     renderAuthorProfileLanguageOptions();
     renderSelectionTranslateModelOptions();
@@ -5346,7 +5970,9 @@ export async function bootstrapSettingTab(
   oauthPanel.append(oauthEnvUpdateModeField, authCards, accountsBox);
 
   // ── Final assembly — optimized section order ──
-  root.appendChild(langBox);
+  basicBody.appendChild(langBox);
+  basicBox.append(basicTitle, basicBody);
+  root.appendChild(basicBox);
   root.appendChild(connectionModeBox);
   root.appendChild(modelsBox);
   root.appendChild(selectionTranslateGroup);
