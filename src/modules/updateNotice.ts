@@ -11,6 +11,8 @@ type UpdateNoticeCopy = {
   title: string;
   lead: string;
   note: string;
+  alsoLabel?: string;
+  alsoItems?: Array<{ label: string; text: string }>;
   exampleLabel: string;
   examplePrompt: string;
   modeItems?: Array<{ label: string; text: string }>;
@@ -157,6 +159,21 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
     title: "OAuth environment updates can now run in the background",
     lead: "AIdea now supports background updates for OAuth configuration environments. The update frequency depends on the OAuth provider.",
     note: "Note: the plugin has been updated. Please restart Zotero to make sure the new plugin code is active.",
+    alsoLabel: "This update also includes",
+    alsoItems: [
+      {
+        label: "Theme update",
+        text: "Improved input theme settings. Switch themes in Basic Settings -> Input theme.",
+      },
+      {
+        label: "Font adjustment update",
+        text: "Added a Display and Font entry for adjusting interface display and font size.",
+      },
+      {
+        label: "Beta test feature",
+        text: "Added Advanced -> Beta test feature -> right-click online author information search. After enabling it, use the context menu to fetch corresponding author information.",
+      },
+    ],
     exampleLabel: "OAuth configuration environment update modes",
     examplePrompt: "",
     modeItems: [
@@ -181,6 +198,21 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
     title: "支持后台自动更新 OAuth 配置环境",
     lead: "支持后台自动更新 OAuth 配置环境，更新频率取决于 OAuth 提供商。",
     note: "注意：插件已更新，请重启 Zotero 确保插件生效。",
+    alsoLabel: "本次更新还包括",
+    alsoItems: [
+      {
+        label: "主题更新",
+        text: "优化输入框主题设置，可在“基本设置 -> 输入框主题”中切换。",
+      },
+      {
+        label: "字体调整更新",
+        text: "新增“显示与字体”入口，可调整界面显示与字体大小。",
+      },
+      {
+        label: "Beta 测试功能",
+        text: "在“高级 -> Beta 测试功能”中新增“右键联网搜索作者信息”。开启后，可通过右键菜单抓取通信作者信息。",
+      },
+    ],
     exampleLabel: "OAuth 配置环境更新模式",
     examplePrompt: "",
     modeItems: [
@@ -446,7 +478,7 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
 
 let noticeShowingOrSeen = false;
 const NOTICE_DIALOG_WIDTH = 760;
-const NOTICE_DIALOG_HEIGHT = 420;
+const NOTICE_DIALOG_HEIGHT = 520;
 const NOTICE_BODY_WIDTH = NOTICE_DIALOG_WIDTH - 40;
 const NOTICE_CONFIRM_BUTTON_ID = "confirm-update-notice";
 
@@ -467,13 +499,69 @@ function markNoticeSeen(): void {
   }
 }
 
+function getNoticeLabelSeparator(
+  label: string,
+  language: { htmlLang: string },
+): string {
+  const htmlLang = language.htmlLang.toLowerCase();
+  if (
+    htmlLang.startsWith("zh") ||
+    htmlLang.startsWith("ja") ||
+    htmlLang.startsWith("ko")
+  ) {
+    return "：";
+  }
+  return /[A-Za-z]/.test(label) ? ": " : "：";
+}
+
 function createNoticeBody(
   copy: UpdateNoticeCopy,
   language: { dir: string; htmlLang: string },
 ) {
+  const alsoChildren = copy.alsoItems?.length
+    ? [
+        {
+          tag: "div",
+          namespace: "html",
+          styles: {
+            marginBottom: "7px",
+            color: "#0f766e",
+            fontSize: "12px",
+            fontWeight: "750",
+          },
+          properties: { innerText: copy.alsoLabel || "" },
+        },
+        ...copy.alsoItems.map((item) => {
+          const separator = getNoticeLabelSeparator(item.label, language);
+          return {
+            tag: "div",
+            namespace: "html",
+            styles: {
+              marginBottom: "9px",
+              color: "#1f2328",
+              fontSize: "13px",
+              lineHeight: "1.58",
+            },
+            children: [
+              {
+                tag: "span",
+                namespace: "html",
+                properties: { innerText: `${item.label}${separator}` },
+                styles: { fontWeight: "750" },
+              },
+              {
+                tag: "span",
+                namespace: "html",
+                properties: { innerText: item.text },
+              },
+            ],
+          };
+        }),
+      ]
+    : [];
   const detailChildren = copy.modeItems?.length
     ? copy.modeItems.map((item) => {
-        const separator = /[A-Za-z]/.test(item.label) ? ": " : "：";
+        const separator = getNoticeLabelSeparator(item.label, language);
         return {
           tag: "div",
           namespace: "html",
@@ -580,6 +668,22 @@ function createNoticeBody(
           lineHeight: "1.5",
         },
       },
+      ...(alsoChildren.length
+        ? [
+            {
+              tag: "div",
+              namespace: "html",
+              styles: {
+                marginBottom: "16px",
+                padding: "12px 14px",
+                border: "1px solid rgba(99, 102, 241, 0.18)",
+                borderRadius: "8px",
+                background: "rgba(99, 102, 241, 0.055)",
+              },
+              children: alsoChildren,
+            },
+          ]
+        : []),
       {
         tag: "div",
         namespace: "html",
@@ -628,10 +732,16 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
   if (noticeShowingOrSeen || wasNoticeSeen()) return;
 
   const lang = getPanelLang();
-  const copy =
+  const baseCopy = OAUTH_ENV_UPDATE_COPIES["en-US"] || COPIES["en-US"];
+  const localizedCopy =
     OAUTH_ENV_UPDATE_COPIES[lang] ||
     OAUTH_ENV_UPDATE_COPIES["en-US"] ||
     COPIES["en-US"];
+  const copy = {
+    ...localizedCopy,
+    alsoLabel: localizedCopy.alsoLabel || baseCopy.alsoLabel,
+    alsoItems: localizedCopy.alsoItems || baseCopy.alsoItems,
+  };
   const language = getUiLanguageOption(lang);
   noticeShowingOrSeen = true;
 
