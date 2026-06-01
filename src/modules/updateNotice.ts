@@ -3,7 +3,7 @@ import { config } from "../../package.json";
 import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 
-const NOTICE_ID = "v2.3.4-oauth-env-update-modes-v1";
+const NOTICE_ID = "v3.1.2-settings-author-profile-beta-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
