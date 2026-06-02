@@ -207,12 +207,18 @@ function bytesToHex(bytes: Uint8Array): string {
     .join("");
 }
 
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 async function computeSHA256Hex(bytes: Uint8Array): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle?.digest) {
     throw new Error("WebCrypto subtle.digest unavailable");
   }
-  const hashBuffer = await subtle.digest("SHA-256", bytes);
+  const hashBuffer = await subtle.digest("SHA-256", bytesToArrayBuffer(bytes));
   return bytesToHex(new Uint8Array(hashBuffer));
 }
 
