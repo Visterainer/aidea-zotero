@@ -1,5 +1,6 @@
 ## What's Changed
 
+- **Library item pane hotfix**: fixed #38 where AIdea could take over the Zotero Library item pane after selecting an item, preventing Zotero's native Info, Tags, Related, and other sections from being selected or scrolled. AIdea now uses Zotero's managed item-pane section for single selected items, while preserving the Library global panel for no-item and multi-item selection workflows. Thanks @N3xed for the detailed report.
 - **Interface language coverage**: expanded localization coverage across the AIdea context panel, settings, selection translation, PDF translation, update prompts, and author-profile workflows.
 - **Display and font controls**: added the Display and Font entry and improved typography controls for the context panel and selection translation popup. This addresses the font-size request in #33. Thanks @gonigoni17 for the feedback.
 - **Settings UI refresh**: reorganized the basic settings layout, added the input theme selector, improved narrow-panel wrapping, and refined the first-run/update notice.
@@ -11,6 +12,7 @@
 
 ## 更新内容
 
+- **文库条目详情热修**：修复 #38：在文库中选中条目后，AIdea 可能抢占 Zotero 条目详情侧栏，导致原生“信息 / 标签 / 相关”等小节无法选择或滚动。现在单条目选中时，AIdea 会作为 Zotero 官方条目详情 section 显示，同时保留无选中和多选时的文库全局面板流程。感谢 @N3xed 提供详细反馈。
 - **界面多语言覆盖**：扩展 AIdea 对话面板、设置页、划词翻译、PDF 翻译、更新提示和作者信息抓取流程的多语言适配。
 - **显示与字体控制**：新增“显示与字体”入口，并改进对话面板和划词翻译弹窗的字体控制。该项回应 #33 中的字号调整需求，感谢 @gonigoni17 的反馈。
 - **设置界面刷新**：重组基础设置布局，新增输入框主题选择，优化窄面板换行，并完善首次安装/更新提示。
