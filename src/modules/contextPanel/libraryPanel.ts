@@ -167,6 +167,7 @@ function getItemPaneElement(doc: Document) {
         collapsed?: boolean;
         editable?: boolean;
         collectionTreeRow?: unknown;
+        render?: () => boolean | Promise<boolean>;
       })
     | null;
 }
@@ -227,6 +228,20 @@ function getStandaloneLibrarySidenavButton(doc: Document): HTMLElement | null {
   return doc.getElementById(STANDALONE_SIDENAV_BUTTON_ID) as HTMLElement | null;
 }
 
+function syncStandaloneLibrarySidenavButtonState(win: Window): void {
+  const doc = win.document;
+  const button = getStandaloneLibrarySidenavButton(doc);
+  if (!button) return;
+
+  const itemPane = getItemPaneElement(doc);
+  const messagePane = getItemMessagePaneElement(doc);
+  const state = panelStateByWindow.get(win);
+  const active =
+    itemPane?.mode === "message" &&
+    Boolean(messagePane && state?.host && messagePane.contains(state.host));
+  button.setAttribute("aria-selected", active ? "true" : "false");
+}
+
 function removeStandaloneLibrarySidenavButton(doc: Document): void {
   const button = getStandaloneLibrarySidenavButton(doc);
   button?.parentElement?.remove();
@@ -248,7 +263,7 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
   button.setAttribute("custom", "true");
   button.setAttribute("tabindex", "0");
   button.setAttribute("role", "tab");
-  button.setAttribute("aria-selected", "true");
+  button.setAttribute("aria-selected", "false");
   button.title = "AIdea";
   button.style.cssText = [
     `--custom-sidenav-icon-light: url('chrome://${config.addonRef}/content/icons/icon-20.png')`,
@@ -281,6 +296,7 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
 
   wrapper.appendChild(button);
   container.appendChild(wrapper);
+  syncStandaloneLibrarySidenavButtonState(win);
 }
 
 async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
@@ -317,16 +333,39 @@ async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   host.style.display = "flex";
 
   ensureStandaloneLibrarySidenavButton(win);
+  syncStandaloneLibrarySidenavButtonState(win);
   await bootstrapSharedLibraryPanel(win, host);
 }
 
 async function runLibraryPanelVisibilityUpdate(win: Window): Promise<void> {
   const doc = win.document;
+  const state = panelStateByWindow.get(win);
   const itemPane = getItemPaneElement(doc);
   if (!itemPane) return;
 
   if (!isLibraryTab(win)) {
     removeStandaloneLibrarySidenavButton(doc);
+    return;
+  }
+
+  const selectedItemIds = getSelectedItemIds(win);
+  if (selectedItemIds.length === 1) {
+    removeStandaloneLibrarySidenavButton(doc);
+    if (itemPane.mode === "message") {
+      itemPane.mode = "item";
+      await itemPane.render?.();
+    }
+    const messagePane = getItemMessagePaneElement(doc);
+    if (state?.host && messagePane?.contains(state.host)) {
+      state.applyingVisibility = true;
+      try {
+        state.host.remove();
+      } finally {
+        win.setTimeout(() => {
+          state.applyingVisibility = false;
+        }, 0);
+      }
+    }
     return;
   }
 

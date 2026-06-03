@@ -58,6 +58,10 @@ import {
   bootstrapSharedReaderPanel,
   getSharedReaderPanelHostForItem,
 } from "./readerPanel";
+import {
+  bootstrapSharedLibraryPanel,
+  getSharedLibraryPanelHost,
+} from "./libraryPanel";
 import { getPanelI18n } from "./i18n";
 import {
   isSelectionTranslateEnabled,
@@ -125,21 +129,18 @@ export function registerReaderContextPanel() {
       icon: `chrome://${config.addonRef}/content/icons/icon-20.png`,
     },
     onInit: ({ body, setEnabled, tabType }) => {
-      // Reader tabs use Zotero's managed section. Library tabs are handled
-      // by libraryPanel.ts so no/single/multi selection share one host.
-      const enabled = tabType === "reader";
+      // Reader tabs and selected Library items use Zotero's managed
+      // section so native item-pane sections remain selectable.
+      const enabled = tabType === "reader" || tabType === "library";
       setEnabled(enabled);
       ztoolkit.log(`LLM: panel init tabType=${tabType} enabled=${enabled}`);
     },
     onItemChange: ({ body, setEnabled, tabType }) => {
-      const enabled = tabType === "reader";
+      const enabled = tabType === "reader" || tabType === "library";
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel itemChange tabType=${tabType} enabled=${enabled}`,
       );
-      if (tabType === "library") {
-        return false;
-      }
     },
     onRender: ({ body, item, tabType }) => {
       ztoolkit.log(
@@ -148,8 +149,21 @@ export function registerReaderContextPanel() {
       if (typeof tabType === "string") {
         (body as HTMLElement).dataset.tabType = tabType;
       }
-      // Library mode is fully owned by libraryPanel.ts.
       if (tabType === "library") {
+        try {
+          const doc = body.ownerDocument;
+          const win = doc?.defaultView;
+          if (win) {
+            const host = getSharedLibraryPanelHost(win);
+            if (!body.contains(host)) {
+              body.textContent = "";
+              body.appendChild(host);
+            }
+            host.style.display = "flex";
+          }
+        } catch (err) {
+          ztoolkit.log("LLM: library sync reparent failed", err);
+        }
         return;
       }
       // ── Reader mode: synchronously reparent the cached host ──
@@ -190,7 +204,7 @@ export function registerReaderContextPanel() {
       }
     },
     onAsyncRender: async ({ body, item, setEnabled, tabType }) => {
-      const enabled = tabType === "reader";
+      const enabled = tabType === "reader" || tabType === "library";
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel asyncRender tabType=${tabType} enabled=${enabled} hasItem=${Boolean(item)}`,
@@ -200,8 +214,18 @@ export function registerReaderContextPanel() {
         (body as HTMLElement).dataset.tabType = tabType;
       }
 
-      // Library mode is fully owned by libraryPanel.ts.
       if (tabType === "library") {
+        const doc = body.ownerDocument;
+        if (!doc) return;
+        const win = doc.defaultView;
+        if (!win) return;
+        const host = getSharedLibraryPanelHost(win);
+        if (!body.contains(host)) {
+          body.textContent = "";
+          body.appendChild(host);
+          host.style.display = "flex";
+        }
+        await bootstrapSharedLibraryPanel(win, host);
         return;
       }
 
