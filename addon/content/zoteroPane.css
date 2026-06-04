@@ -5996,6 +5996,63 @@
   background: var(--material-background, #fff);
 }
 
+#llm-library-panel-host > .llm-panel {
+  /* Match Zotero-managed section body rhythm without changing global panel chrome. */
+  padding-top: 9px;
+}
+
+#llm-library-panel-host[data-library-placement="append"] {
+  align-self: stretch;
+  flex: 1 1 auto;
+  height: auto;
+  margin-top: 12px;
+}
+
+#zotero-view-item-sidenav .llm-library-standalone-pin-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+#zotero-view-item-sidenav
+  .llm-library-standalone-pin-wrapper
+  > #llm-library-standalone-sidenav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 20px 20px;
+}
+
+#zotero-view-item-sidenav
+  .llm-library-standalone-pin-wrapper
+  > #llm-library-standalone-sidenav-btn[aria-selected="false"] {
+  background-color: transparent;
+}
+
+#zotero-view-item-sidenav
+  .llm-library-standalone-pin-wrapper
+  > #llm-library-standalone-sidenav-btn[aria-selected="true"],
+#zotero-view-item-sidenav
+  .llm-library-standalone-pin-wrapper
+  > #llm-library-standalone-sidenav-btn.active {
+  background-position: center;
+}
+
 /* ═══════════════════════════════════════════════════════════
    Translate Panel — Premium Teal Theme
    ═══════════════════════════════════════════════════════════ */

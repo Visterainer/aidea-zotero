@@ -24,6 +24,14 @@ import {
   activeConversationModeByLibrary,
   activeGlobalConversationByLibrary,
 } from "./state";
+import {
+  getLibrarySelectedItemIdsFromWindow,
+  getLibrarySelectionState,
+  getLibrarySelectionStateFromWindow,
+  resolveLibraryPanelDisplayState,
+  type LibraryPanelNativeMode,
+  type LibrarySelectionState,
+} from "./librarySelection";
 
 // ---------------------------------------------------------------------------
 // Shared State for DOM Reparenting
@@ -37,11 +45,15 @@ interface LibraryPanelState {
   selectionListener: (() => void) | null;
   selectionPollTimer: number | null;
   lastSelectionSignature: string;
+  lastSelectionState: LibrarySelectionState;
+  lastNativeMessageSignature: string;
+  manualStandaloneActive: boolean;
   updateTimer: number | null;
   applyingVisibility: boolean;
 }
 
 const panelStateByWindow = new WeakMap<Window, LibraryPanelState>();
+const LIBRARY_VISIBILITY_UPDATE_DELAY_MS = 50;
 
 export function getSharedLibraryPanelHost(win: Window): HTMLElement {
   let state = panelStateByWindow.get(win);
@@ -61,6 +73,9 @@ export function getSharedLibraryPanelHost(win: Window): HTMLElement {
       selectionListener: null,
       selectionPollTimer: null,
       lastSelectionSignature: "",
+      lastSelectionState: "empty",
+      lastNativeMessageSignature: "",
+      manualStandaloneActive: false,
       updateTimer: null,
       applyingVisibility: false,
     };
@@ -138,27 +153,13 @@ function isLibraryTab(win: any): boolean {
   return false;
 }
 
-function getSelectedItemIds(win: any): number[] {
-  try {
-    const zp = win?.ZoteroPane;
-    if (zp?.getSelectedItems) {
-      const items = zp.getSelectedItems();
-      return (items || [])
-        .map((item: Zotero.Item) => Number(item?.id || 0))
-        .filter((id: number) => Number.isFinite(id) && id > 0)
-        .sort((a: number, b: number) => a - b);
-    }
-  } catch (_err) {
-    void _err;
-  }
-  return [];
-}
-
 function findItemMessagePane(doc: Document): Element | null {
   return doc.getElementById("zotero-item-message");
 }
 
 const STANDALONE_SIDENAV_BUTTON_ID = "llm-library-standalone-sidenav-btn";
+const STANDALONE_SIDENAV_WRAPPER_CLASS = "llm-library-standalone-pin-wrapper";
+const STANDALONE_SIDENAV_BUTTON_CLASS = "llm-library-standalone-sidenav-btn";
 
 function getItemPaneElement(doc: Document) {
   return doc.getElementById("zotero-item-pane") as
@@ -184,6 +185,12 @@ function getItemMessagePaneElement(doc: Document) {
         renderCustomHead?: (callback?: unknown) => void;
       })
     | null;
+}
+
+function getItemMessageBoxElement(doc: Document): HTMLElement | null {
+  return doc.getElementById(
+    "zotero-item-pane-message-box",
+  ) as HTMLElement | null;
 }
 
 function prepareStandaloneMessagePaneLayout(messagePane: HTMLElement): void {
@@ -240,6 +247,7 @@ function syncStandaloneLibrarySidenavButtonState(win: Window): void {
     itemPane?.mode === "message" &&
     Boolean(messagePane && state?.host && messagePane.contains(state.host));
   button.setAttribute("aria-selected", active ? "true" : "false");
+  button.classList.toggle("active", active);
 }
 
 function removeStandaloneLibrarySidenavButton(doc: Document): void {
@@ -255,11 +263,11 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
   if (!container) return;
 
   const wrapper = doc.createElement("div");
-  wrapper.className = "pin-wrapper";
+  wrapper.className = `pin-wrapper ${STANDALONE_SIDENAV_WRAPPER_CLASS}`;
 
   const button = doc.createElement("div");
   button.id = STANDALONE_SIDENAV_BUTTON_ID;
-  button.className = "btn";
+  button.className = `btn ${STANDALONE_SIDENAV_BUTTON_CLASS}`;
   button.setAttribute("custom", "true");
   button.setAttribute("tabindex", "0");
   button.setAttribute("role", "tab");
@@ -278,6 +286,10 @@ function ensureStandaloneLibrarySidenavButton(win: Window): void {
         itemPane.collapsed = false;
       }
       if (itemPane && isLibraryTab(win)) {
+        const state = panelStateByWindow.get(win);
+        if (state) {
+          state.manualStandaloneActive = true;
+        }
         await ensureStandaloneLibraryPanelVisible(win);
       }
       const input = doc.querySelector(
@@ -306,6 +318,9 @@ async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   const messagePane = getItemMessagePaneElement(doc);
   if (!messagePane) return;
 
+  if (state) {
+    state.manualStandaloneActive = true;
+  }
   if (itemPane?.collapsed) {
     itemPane.collapsed = false;
   }
@@ -315,7 +330,15 @@ async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   prepareStandaloneMessagePaneLayout(messagePane);
 
   const host = getSharedLibraryPanelHost(win);
-  if (!messagePane.contains(host)) {
+  const messageBox = getItemMessageBoxElement(doc);
+  const needsReplaceRender =
+    !messagePane.contains(host) ||
+    host.dataset.libraryPlacement !== "replace" ||
+    !messageBox ||
+    messageBox.firstElementChild !== host ||
+    messageBox.children.length !== 1;
+  host.dataset.libraryPlacement = "replace";
+  if (needsReplaceRender) {
     if (state) {
       state.applyingVisibility = true;
     }
@@ -337,6 +360,106 @@ async function ensureStandaloneLibraryPanelVisible(win: Window): Promise<void> {
   await bootstrapSharedLibraryPanel(win, host);
 }
 
+async function ensureStandaloneLibraryPanelAppended(
+  win: Window,
+  selectionSignature: string,
+): Promise<void> {
+  const doc = win.document;
+  const state = panelStateByWindow.get(win);
+  const itemPane = getItemPaneElement(doc);
+  const messagePane = getItemMessagePaneElement(doc);
+  if (!itemPane || !messagePane) return;
+
+  if (itemPane.collapsed) {
+    itemPane.collapsed = false;
+  }
+
+  const host = getSharedLibraryPanelHost(win);
+  const messageBox = getItemMessageBoxElement(doc);
+  const needsNativeRender =
+    itemPane.mode !== "message" ||
+    host.dataset.libraryPlacement !== "append" ||
+    state?.lastNativeMessageSignature !== selectionSignature ||
+    !messageBox?.querySelector("description");
+
+  if (state) {
+    state.applyingVisibility = true;
+  }
+  try {
+    if (needsNativeRender) {
+      if (itemPane.mode !== "message") {
+        itemPane.mode = "message";
+      }
+      await itemPane.render?.();
+    }
+
+    prepareStandaloneMessagePaneLayout(messagePane);
+    const latestMessageBox = getItemMessageBoxElement(doc);
+    if (latestMessageBox && !latestMessageBox.contains(host)) {
+      latestMessageBox.appendChild(host);
+    }
+    host.dataset.libraryPlacement = "append";
+    host.style.display = "flex";
+    if (state) {
+      state.lastNativeMessageSignature = selectionSignature;
+    }
+  } finally {
+    if (state) {
+      win.setTimeout(() => {
+        state.applyingVisibility = false;
+      }, 0);
+    }
+  }
+
+  ensureStandaloneLibrarySidenavButton(win);
+  syncStandaloneLibrarySidenavButtonState(win);
+  await bootstrapSharedLibraryPanel(win, host);
+}
+
+async function restoreNativeLibraryPane(
+  win: Window,
+  mode: LibraryPanelNativeMode,
+  options: { removeStandaloneButton?: boolean } = {},
+): Promise<void> {
+  const doc = win.document;
+  const state = panelStateByWindow.get(win);
+  const itemPane = getItemPaneElement(doc);
+  const messagePane = getItemMessagePaneElement(doc);
+
+  if (options.removeStandaloneButton !== false) {
+    removeStandaloneLibrarySidenavButton(doc);
+  }
+
+  if (state) {
+    state.applyingVisibility = true;
+  }
+  try {
+    const hadStandaloneHost = Boolean(
+      state?.host && messagePane?.contains(state.host),
+    );
+    if (state?.host && messagePane?.contains(state.host)) {
+      state.host.remove();
+      state.host.dataset.libraryPlacement = "";
+    }
+    if (state) {
+      state.lastNativeMessageSignature = "";
+    }
+    const needsModeChange = Boolean(itemPane && itemPane.mode !== mode);
+    if (itemPane && needsModeChange) {
+      itemPane.mode = mode;
+    }
+    if (hadStandaloneHost || needsModeChange) {
+      await itemPane?.render?.();
+    }
+  } finally {
+    if (state) {
+      win.setTimeout(() => {
+        state.applyingVisibility = false;
+      }, 0);
+    }
+  }
+}
+
 async function runLibraryPanelVisibilityUpdate(win: Window): Promise<void> {
   const doc = win.document;
   const state = panelStateByWindow.get(win);
@@ -348,28 +471,50 @@ async function runLibraryPanelVisibilityUpdate(win: Window): Promise<void> {
     return;
   }
 
-  const selectedItemIds = getSelectedItemIds(win);
-  if (selectedItemIds.length === 1) {
-    removeStandaloneLibrarySidenavButton(doc);
-    if (itemPane.mode === "message") {
-      itemPane.mode = "item";
-      await itemPane.render?.();
-    }
-    const messagePane = getItemMessagePaneElement(doc);
-    if (state?.host && messagePane?.contains(state.host)) {
-      state.applyingVisibility = true;
-      try {
-        state.host.remove();
-      } finally {
-        win.setTimeout(() => {
-          state.applyingVisibility = false;
-        }, 0);
-      }
+  const selectedItemIds = getLibrarySelectedItemIdsFromWindow(win);
+  const selectionSignature = selectedItemIds.join(",");
+  const nativeMessageSignature = `${selectedItemIds.length}`;
+  const selectionState = getLibrarySelectionState(
+    selectedItemIds.map((id) => ({ id })),
+  );
+  const resolvedDisplayState = resolveLibraryPanelDisplayState({
+    selectionState,
+    selectionSignature,
+    previousSelectionState: state?.lastSelectionState,
+    previousSelectionSignature: state?.lastSelectionSignature,
+    manualStandaloneActive: state?.manualStandaloneActive,
+  });
+  if (state && resolvedDisplayState.selectionChanged) {
+    state.lastSelectionSignature = selectionSignature;
+    state.lastSelectionState = selectionState;
+  }
+  if (state) {
+    state.manualStandaloneActive = resolvedDisplayState.manualStandaloneActive;
+  }
+
+  if (resolvedDisplayState.displayState.standalonePanelVisible) {
+    if (
+      resolvedDisplayState.displayState.standalonePanelPlacement === "append"
+    ) {
+      await ensureStandaloneLibraryPanelAppended(win, nativeMessageSignature);
+    } else {
+      await ensureStandaloneLibraryPanelVisible(win);
     }
     return;
   }
 
-  await ensureStandaloneLibraryPanelVisible(win);
+  await restoreNativeLibraryPane(
+    win,
+    resolvedDisplayState.displayState.nativeMode,
+    {
+      removeStandaloneButton:
+        !resolvedDisplayState.displayState.standaloneButtonVisible,
+    },
+  );
+  if (resolvedDisplayState.displayState.standaloneButtonVisible) {
+    ensureStandaloneLibrarySidenavButton(win);
+  }
+  syncStandaloneLibrarySidenavButtonState(win);
 }
 
 function scheduleLibraryPanelVisibilityUpdate(win: Window): void {
@@ -389,7 +534,7 @@ function scheduleLibraryPanelVisibilityUpdate(win: Window): void {
     void runLibraryPanelVisibilityUpdate(win).catch((err) => {
       ztoolkit.log("LLM: updateLibraryPanelVisibility failed", err);
     });
-  }, 0);
+  }, LIBRARY_VISIBILITY_UPDATE_DELAY_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +575,14 @@ export async function injectLibraryPanel(
   if (!state.mutationObserver) {
     const observer = new win.MutationObserver((mutations: MutationRecord[]) => {
       if (state.applyingVisibility) return;
+      const selectionState = getLibrarySelectionStateFromWindow(win);
+      if (selectionState === "single") {
+        const messagePane = findItemMessagePane(win.document);
+        const hasStandaloneHost = Boolean(
+          state.host && messagePane?.contains(state.host),
+        );
+        if (!hasStandaloneHost) return;
+      }
       const onlyPluginInternalChanges = mutations.every((mutation) => {
         const target = mutation.target;
         if (target === state.host || state.host.contains(target)) {
@@ -482,12 +635,15 @@ export async function injectLibraryPanel(
   }
 
   if (state.selectionPollTimer === null) {
-    state.lastSelectionSignature = getSelectedItemIds(win).join(",");
+    const selectedItemIds = getLibrarySelectedItemIdsFromWindow(win);
+    state.lastSelectionSignature = selectedItemIds.join(",");
+    state.lastSelectionState = getLibrarySelectionState(
+      selectedItemIds.map((id) => ({ id })),
+    );
     state.selectionPollTimer = win.setInterval(() => {
       if (!isLibraryTab(win)) return;
-      const nextSignature = getSelectedItemIds(win).join(",");
+      const nextSignature = getLibrarySelectedItemIdsFromWindow(win).join(",");
       if (nextSignature === state.lastSelectionSignature) return;
-      state.lastSelectionSignature = nextSignature;
       scheduleLibraryPanelVisibilityUpdate(win);
     }, 350);
   }

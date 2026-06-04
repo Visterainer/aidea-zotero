@@ -62,6 +62,10 @@ import {
   bootstrapSharedLibraryPanel,
   getSharedLibraryPanelHost,
 } from "./libraryPanel";
+import {
+  getLibrarySelectionStateFromWindow,
+  isManagedLibraryPanelSectionEnabled,
+} from "./librarySelection";
 import { getPanelI18n } from "./i18n";
 import {
   isSelectionTranslateEnabled,
@@ -78,6 +82,39 @@ type ReaderSelectionPopupHandler =
 
 let readerContextPanelSectionKey: string | null = null;
 let readerSelectionPopupHandler: ReaderSelectionPopupHandler | null = null;
+
+function shouldEnablePanelSection(
+  body: Element,
+  tabType: unknown,
+  item?: unknown,
+): boolean {
+  if (tabType === "reader") return true;
+  if (tabType !== "library") return false;
+  if (item) return true;
+  const win = body.ownerDocument?.defaultView;
+  return isManagedLibraryPanelSectionEnabled(
+    getLibrarySelectionStateFromWindow(win),
+  );
+}
+
+function attachLibraryManagedPanelHost(
+  body: Element,
+  tabType: unknown,
+  item?: unknown,
+): { win: Window; host: HTMLElement } | null {
+  if (tabType !== "library") return null;
+  const doc = body.ownerDocument;
+  const win = doc?.defaultView;
+  if (!win || !shouldEnablePanelSection(body, tabType, item)) return null;
+
+  const host = getSharedLibraryPanelHost(win);
+  if (!body.contains(host)) {
+    body.textContent = "";
+    body.appendChild(host);
+  }
+  host.style.display = "flex";
+  return { win, host };
+}
 
 // =============================================================================
 // Public API
@@ -131,12 +168,12 @@ export function registerReaderContextPanel() {
     onInit: ({ body, setEnabled, tabType }) => {
       // Reader tabs and selected Library items use Zotero's managed
       // section so native item-pane sections remain selectable.
-      const enabled = tabType === "reader" || tabType === "library";
+      const enabled = shouldEnablePanelSection(body, tabType);
       setEnabled(enabled);
       ztoolkit.log(`LLM: panel init tabType=${tabType} enabled=${enabled}`);
     },
     onItemChange: ({ body, setEnabled, tabType }) => {
-      const enabled = tabType === "reader" || tabType === "library";
+      const enabled = shouldEnablePanelSection(body, tabType);
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel itemChange tabType=${tabType} enabled=${enabled}`,
@@ -151,16 +188,7 @@ export function registerReaderContextPanel() {
       }
       if (tabType === "library") {
         try {
-          const doc = body.ownerDocument;
-          const win = doc?.defaultView;
-          if (win) {
-            const host = getSharedLibraryPanelHost(win);
-            if (!body.contains(host)) {
-              body.textContent = "";
-              body.appendChild(host);
-            }
-            host.style.display = "flex";
-          }
+          attachLibraryManagedPanelHost(body, tabType, item);
         } catch (err) {
           ztoolkit.log("LLM: library sync reparent failed", err);
         }
@@ -204,7 +232,7 @@ export function registerReaderContextPanel() {
       }
     },
     onAsyncRender: async ({ body, item, setEnabled, tabType }) => {
-      const enabled = tabType === "reader" || tabType === "library";
+      const enabled = shouldEnablePanelSection(body, tabType, item);
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel asyncRender tabType=${tabType} enabled=${enabled} hasItem=${Boolean(item)}`,
@@ -215,17 +243,9 @@ export function registerReaderContextPanel() {
       }
 
       if (tabType === "library") {
-        const doc = body.ownerDocument;
-        if (!doc) return;
-        const win = doc.defaultView;
-        if (!win) return;
-        const host = getSharedLibraryPanelHost(win);
-        if (!body.contains(host)) {
-          body.textContent = "";
-          body.appendChild(host);
-          host.style.display = "flex";
-        }
-        await bootstrapSharedLibraryPanel(win, host);
+        const attached = attachLibraryManagedPanelHost(body, tabType, item);
+        if (!attached) return;
+        await bootstrapSharedLibraryPanel(attached.win, attached.host);
         return;
       }
 
@@ -265,6 +285,23 @@ export function registerReaderContextPanel() {
 
       const { bootstrapSharedReaderPanel } = await import("./readerPanel");
       await bootstrapSharedReaderPanel(win, host, readerItem);
+    },
+    onToggle: ({ body, event, item, tabType }) => {
+      if (tabType !== "library") return;
+      const target = event?.target as { open?: boolean } | null | undefined;
+      if (target?.open === false) return;
+
+      try {
+        const attached = attachLibraryManagedPanelHost(body, tabType, item);
+        if (!attached) return;
+        void bootstrapSharedLibraryPanel(attached.win, attached.host).catch(
+          (err) => {
+            ztoolkit.log("LLM: library toggle bootstrap failed", err);
+          },
+        );
+      } catch (err) {
+        ztoolkit.log("LLM: library toggle reparent failed", err);
+      }
     },
   });
   if (sectionKey === false) {
