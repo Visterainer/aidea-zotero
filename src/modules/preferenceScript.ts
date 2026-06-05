@@ -5921,7 +5921,11 @@ export async function bootstrapSettingTab(
   systemPromptInput.addEventListener("input", () =>
     setPref("systemPrompt", systemPromptInput.value),
   );
-  const popupAddTextWrap = createEl(doc, "div", "llm-set-field");
+  const popupAddTextWrap = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-subsection",
+  );
   const popupAddTextLabel = createEl(doc, "label", "llm-set-radio-label");
   const popupInput = createEl(
     doc,
@@ -5954,7 +5958,7 @@ export async function bootstrapSettingTab(
   const authorProfilesWrap = createEl(
     doc,
     "div",
-    "llm-set-field llm-set-author-profiles-section",
+    "llm-set-field llm-set-subsection llm-set-author-profiles-section",
   );
   const authorProfilesTitleRow = createEl(doc, "div", "llm-set-row");
   Object.assign(authorProfilesTitleRow.style, {
