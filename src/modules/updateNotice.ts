@@ -3,7 +3,7 @@ import { config } from "../../package.json";
 import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 
-const NOTICE_ID = "v3.1.2-settings-author-profile-beta-v1";
+const NOTICE_ID = "v3.1.4-library-selection-translate-cold-start-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -156,38 +156,42 @@ const COPIES: Record<PanelLang, UpdateNoticeCopy> = {
 const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   "en-US": {
     eyebrow: "Update",
-    title: "OAuth environment updates can now run in the background",
-    lead: "AIdea now supports background updates for OAuth configuration environments. The update frequency depends on the OAuth provider.",
-    note: "Note: the plugin has been updated. Please restart Zotero to make sure the new plugin code is active.",
-    alsoLabel: "This update also includes",
+    title: "Library sidebar and selection translation improvements",
+    lead: "This update improves how AIdea appears in the Zotero Library and PDF reader sidebars, and makes first-use context preparation for selection translation more reliable.",
+    note: "The plugin has been updated. Restart Zotero to make sure the new behavior is active.",
+    alsoLabel: "This update includes",
     alsoItems: [
       {
-        label: "Theme update",
-        text: "Improved input theme settings. Switch themes in Basic Settings -> Input theme.",
+        label: "Library multi-select",
+        text: 'When multiple items are selected in the Library, Zotero\'s native "N items selected" message remains visible, and AIdea no longer covers it.',
       },
       {
-        label: "Font adjustment update",
-        text: "Added a Display and Font entry for adjusting interface display and font size.",
+        label: "Library single-item view",
+        text: "When one item is selected, AIdea stays inside Zotero's native item pane. Info, Attachments, Notes, Tags, Related, and AIdea sections can be switched and scrolled normally.",
       },
       {
-        label: "Beta test feature",
-        text: "Added Advanced -> Beta test feature -> right-click online author information search. After enabling it, use the context menu to fetch corresponding author information.",
+        label: "Empty selection",
+        text: "When no item is selected, AIdea remains available in the Library sidebar for general chat.",
+      },
+      {
+        label: "More stable selection translation",
+        text: "When selection translation is first used for a paper, AIdea prepares local context automatically, reduces interference from reference lists, and adjusts the context if the paper is too long.",
       },
     ],
-    exampleLabel: "OAuth configuration environment update modes",
+    exampleLabel: "Selection translation context preparation",
     examplePrompt: "",
     modeItems: [
       {
-        label: "Auto update",
-        text: "When an OAuth environment update is detected, AIdea shows a prompt. If there is no action within 60 seconds, it updates automatically. Later, close, or minimize pauses the prompt for 24 hours.",
+        label: "Per paper",
+        text: "Each paper is prepared independently the first time selection translation is used.",
       },
       {
-        label: "Notify update",
-        text: "When an OAuth environment update is detected, AIdea only shows a prompt and does not update automatically. It updates only after you click Update now. This is the default.",
+        label: "Local cache",
+        text: "Later selections reuse the local context cache, so translation starts faster.",
       },
       {
-        label: "Silent",
-        text: "AIdea does not check OAuth environment updates and does not show prompts.",
+        label: "Regenerate when needed",
+        text: "Use Clear cold-start cache in Settings when you want AIdea to prepare the context again.",
       },
     ],
     confirm: "OK",
@@ -195,38 +199,42 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   },
   "zh-CN": {
     eyebrow: "更新提示",
-    title: "支持后台自动更新 OAuth 配置环境",
-    lead: "支持后台自动更新 OAuth 配置环境，更新频率取决于 OAuth 提供商。",
-    note: "注意：插件已更新，请重启 Zotero 确保插件生效。",
-    alsoLabel: "本次更新还包括",
+    title: "Library 侧边栏与划词翻译体验优化",
+    lead: "本次更新优化了 AIdea 在 Zotero Library 和 PDF 阅读器中的侧边栏显示，并改进了划词翻译首次准备上下文的稳定性。",
+    note: "插件已更新，请重启 Zotero 确保新功能生效。",
+    alsoLabel: "本次更新包括",
     alsoItems: [
       {
-        label: "主题更新",
-        text: "优化输入框主题设置，可在“基本设置 -> 输入框主题”中切换。",
+        label: "Library 多选体验优化",
+        text: "在 Library 中选择多个条目时，Zotero 原生的“已选择 N 个条目”提示会正常保留，AIdea 不再覆盖该提示。",
       },
       {
-        label: "字体调整更新",
-        text: "新增“显示与字体”入口，可调整界面显示与字体大小。",
+        label: "Library 单选体验优化",
+        text: "选择单个条目时，AIdea 会作为 Zotero 原生条目面板的一部分显示，Info、Attachments、Notes、Tags、Related 和 AIdea 区域可以正常切换和滚动。",
       },
       {
-        label: "Beta 测试功能",
-        text: "在“高级 -> Beta 测试功能”中新增“右键联网搜索作者信息”。开启后，可通过右键菜单抓取通信作者信息。",
+        label: "空选状态继续可用",
+        text: "未选择条目时，AIdea 仍会显示在 Library 侧边栏中，方便直接使用全局对话。",
+      },
+      {
+        label: "划词翻译更稳定",
+        text: "首次使用某篇文献的划词翻译时，AIdea 会自动准备本地上下文，并尽量减少参考文献部分对翻译理解的干扰。如果文章过长，AIdea 会自动调整上下文范围后重试，无需手动选择复杂度。",
       },
     ],
-    exampleLabel: "OAuth 配置环境更新模式",
+    exampleLabel: "划词翻译上下文准备",
     examplePrompt: "",
     modeItems: [
       {
-        label: "自动更新",
-        text: "检查到 OAuth 环境更新后弹出提示，60 秒内未操作则自动更新；稍后、关闭或最小化会暂停 24 小时。",
+        label: "每篇文献独立处理",
+        text: "每篇文献首次使用划词翻译时，都会自动准备上下文。",
       },
       {
-        label: "提示更新",
-        text: "检查到 OAuth 环境更新后只弹出提示，不会自动更新；只有点击“立即更新”才会更新。默认设置。",
+        label: "后续速度更快",
+        text: "后续划词翻译会复用本地缓存，减少重复准备时间。",
       },
       {
-        label: "静默",
-        text: "不检查 OAuth 环境更新，也不显示弹窗。请定期手动更新。",
+        label: "需要时可重新生成",
+        text: "如需重新生成上下文，可在设置中清理冷启动缓存。",
       },
     ],
     confirm: "确认",
@@ -475,6 +483,12 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
     close: "अपडेट सूचना बंद करें",
   },
 };
+
+for (const lang of Object.keys(OAUTH_ENV_UPDATE_COPIES) as PanelLang[]) {
+  if (lang !== "en-US" && lang !== "zh-CN") {
+    OAUTH_ENV_UPDATE_COPIES[lang] = OAUTH_ENV_UPDATE_COPIES["en-US"];
+  }
+}
 
 let noticeShowingOrSeen = false;
 const NOTICE_DIALOG_WIDTH = 760;

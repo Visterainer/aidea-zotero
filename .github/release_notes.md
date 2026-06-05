@@ -1,23 +1,17 @@
 ## What's Changed
 
-- **Library item pane hotfix**: fixed #38 where AIdea could take over the Zotero Library item pane after selecting an item, preventing Zotero's native Info, Tags, Related, and other sections from being selected or scrolled. AIdea now uses Zotero's managed item-pane section for single selected items, while preserving the Library global panel for no-item and multi-item selection workflows. Thanks @N3xed for the detailed report.
-- **Interface language coverage**: expanded localization coverage across the AIdea context panel, settings, selection translation, PDF translation, update prompts, and author-profile workflows.
-- **Display and font controls**: added the Display and Font entry and improved typography controls for the context panel and selection translation popup. This addresses the font-size request in #33. Thanks @gonigoni17 for the feedback.
-- **Settings UI refresh**: reorganized the basic settings layout, added the input theme selector, improved narrow-panel wrapping, and refined the first-run/update notice.
-- **Model refresh and network/proxy handling**: improved OAuth environment refresh and proxy/path handling for cases where model refresh returns 0 models even after updating the environment. This addresses the network/model-refresh investigation in #34. Thanks @zp946 for the detailed logs and proxy diagnosis.
-- **Author profile beta**: added a beta right-click action for online corresponding-author information lookup, available from Settings -> Advanced -> Beta test features. This feature is disabled by default and must be enabled explicitly. Thanks @siyuanj for proposing and prototyping this workflow in #36.
-- **Context panel stability and persistence**: improved panel hot reload behavior, library panel selection handling, multi-item drag behavior, and persistence for panel, translation, and settings state.
-- **PDF translation and file picker refinements**: improved translation settings persistence and native file picker behavior.
-- **Diagnostics and tests**: expanded tests around custom endpoint settings, context persistence, PDF translation picker behavior, and OAuth environment handling.
+- **Library sidebar selection fix**: completed the follow-up fix for #38. When multiple items are selected in the Zotero Library, Zotero's native "N items selected" message is now preserved instead of being covered by AIdea. Single-item selection continues to use Zotero's native item pane sections, so Info, Attachments, Notes, Tags, Related, and AIdea can be switched and scrolled normally. Thanks @N3xed for the original report and @informalgit for identifying and verifying the multi-select regression.
+- **Library panel alignment and stability**: improved the standalone AIdea panel placement for empty and multi-item Library selections, fixed sidebar icon alignment, and reduced unnecessary pane refreshes to avoid flicker.
+- **Selection translation cold-start improvements**: improved first-use context preparation for long papers in #39. AIdea now reduces interference from reference lists, prepares context independently for each paper, and automatically retries with a smaller context when the model reports an input-length limit. Thanks @Buhaoran0307 for the detailed report and example papers.
+- **Simpler selection translation settings**: removed the manual cold-start complexity selector. Context sizing is now handled automatically per paper, so users do not need to choose between complexity modes.
+- **Update notice refresh**: updated the one-time update notice to explain the Library sidebar and selection translation improvements in user-facing language.
+- **Diagnostics and tests**: added focused tests for selection-translation cold-start context building and fallback behavior, and verified the Library/sidebar package build.
 
 ## 更新内容
 
-- **文库条目详情热修**：修复 #38：在文库中选中条目后，AIdea 可能抢占 Zotero 条目详情侧栏，导致原生“信息 / 标签 / 相关”等小节无法选择或滚动。现在单条目选中时，AIdea 会作为 Zotero 官方条目详情 section 显示，同时保留无选中和多选时的文库全局面板流程。感谢 @N3xed 提供详细反馈。
-- **界面多语言覆盖**：扩展 AIdea 对话面板、设置页、划词翻译、PDF 翻译、更新提示和作者信息抓取流程的多语言适配。
-- **显示与字体控制**：新增“显示与字体”入口，并改进对话面板和划词翻译弹窗的字体控制。该项回应 #33 中的字号调整需求，感谢 @gonigoni17 的反馈。
-- **设置界面刷新**：重组基础设置布局，新增输入框主题选择，优化窄面板换行，并完善首次安装/更新提示。
-- **模型刷新与网络/代理处理**：改进 OAuth 环境刷新以及代理/路径处理，减少环境更新后模型列表仍为 0 的情况。该项回应 #34 中的网络与模型刷新问题排查，感谢 @zp946 提供详细日志和代理诊断。
-- **作者信息 Beta 功能**：新增“右键联网搜索通信作者信息”Beta 功能，可在“设置 -> 高级 -> Beta 测试功能”中开启。该功能默认关闭，需要用户显式启用。感谢 @siyuanj 在 #36 中提出并原型实现这个方向。
-- **面板稳定性与状态持久化**：改进面板热重载、文库面板选择、多条目拖拽，以及面板、翻译和设置状态持久化。
-- **PDF 翻译与文件选择优化**：改进翻译设置持久化和原生文件选择器行为。
-- **诊断与测试**：扩展自定义端点设置、上下文状态、PDF 翻译文件选择器和 OAuth 环境处理相关测试。
+- **文库侧栏选择修复**：完成 #38 的后续修复。在 Zotero Library 中多选条目时，现在会保留 Zotero 原生的“已选择 N 个条目”提示，不再被 AIdea 覆盖。单选条目时仍使用 Zotero 原生条目详情面板，信息、附件、笔记、标签、相关和 AIdea 区域可以正常切换和滚动。感谢 @N3xed 提供最初的问题报告，也感谢 @informalgit 发现并验证多选回归问题。
+- **文库面板对齐与稳定性优化**：优化空选和多选状态下 AIdea 独立面板的显示位置，修复侧栏图标对齐问题，并减少不必要的面板刷新，降低页面闪动。
+- **划词翻译冷启动优化**：改进 #39 中长论文首次划词翻译可能失败的问题。AIdea 会减少参考文献部分对上下文的干扰，并按每篇文献独立准备上下文；当模型返回输入过长错误时，会自动缩小上下文范围后重试。感谢 @Buhaoran0307 提供详细反馈和示例论文。
+- **划词翻译设置简化**：移除手动冷启动复杂度选择。上下文范围现在会按每篇文献自动处理，用户无需再手动选择复杂度档位。
+- **更新提示刷新**：更新插件升级后的一次性提示面板，用更面向用户的语言说明文库侧栏和划词翻译体验改进。
+- **诊断与测试**：新增划词翻译冷启动上下文构建和自动回退相关测试，并完成文库侧栏相关构建验证。

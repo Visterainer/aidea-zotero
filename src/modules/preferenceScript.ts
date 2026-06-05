@@ -422,7 +422,7 @@ const I18N = {
       "Cold start runs once per paper when selection translation is enabled: AIdea reads the paper text, creates a compact overview and terminology summary, and stores it locally. Later selections reuse that local cache as context; clear the cold-start cache to regenerate it.",
     selectionTranslateClearCache: "Clear cold-start cache",
     selectionTranslateClearCacheRunning: "Clearing...",
-    selectionTranslateClearCacheDone: "Cold-start cache cleared ({n})",
+    selectionTranslateClearCacheDone: "Cold-start cache cleared",
     showAllModels: "Show all models in dropdown",
     showAllModelsHint:
       "When enabled, shows all available models. When disabled, only the best models per provider are shown.",
@@ -507,7 +507,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "冷启动会在某篇文献首次启用划词翻译时执行一次：AIdea 读取全文，生成精简概述和专业术语摘要并保存在本地。之后划词翻译会复用这份本地缓存作为上下文；需要重建时可清理冷启动缓存。",
     selectionTranslateClearCache: "清理冷启动缓存",
     selectionTranslateClearCacheRunning: "正在清理...",
-    selectionTranslateClearCacheDone: "已清理冷启动缓存（{n}）",
+    selectionTranslateClearCacheDone: "冷启动缓存已清理",
   },
   "zh-TW": {
     primaryConnectionMode: "主要連線模式",
@@ -2087,7 +2087,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "顯示與字體",
     selectionTranslateClearCache: "清理冷啟動快取",
     selectionTranslateClearCacheRunning: "清理中...",
-    selectionTranslateClearCacheDone: "已清理冷啟動快取（{n}）",
+    selectionTranslateClearCacheDone: "冷啟動快取已清理",
   },
   "ja-JP": {
     language: "UI 言語",
@@ -2103,7 +2103,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     selectionTranslateClearCache: "コールドスタートキャッシュを削除",
     selectionTranslateClearCacheRunning: "削除中...",
     selectionTranslateClearCacheDone:
-      "コールドスタートキャッシュを削除しました（{n}）",
+      "コールドスタートキャッシュを削除しました",
   },
   "ko-KR": {
     language: "UI 언어",
@@ -2118,7 +2118,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "표시 및 글꼴",
     selectionTranslateClearCache: "콜드 스타트 캐시 지우기",
     selectionTranslateClearCacheRunning: "지우는 중...",
-    selectionTranslateClearCacheDone: "콜드 스타트 캐시 지움 ({n})",
+    selectionTranslateClearCacheDone: "콜드 스타트 캐시 지움",
   },
   "fr-FR": {
     language: "Langue de l'interface",
@@ -2133,7 +2133,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "Affichage et texte",
     selectionTranslateClearCache: "Effacer le cache de demarrage",
     selectionTranslateClearCacheRunning: "Effacement...",
-    selectionTranslateClearCacheDone: "Cache de demarrage efface ({n})",
+    selectionTranslateClearCacheDone: "Cache de demarrage efface",
   },
   "de-DE": {
     language: "Oberflaechensprache",
@@ -2148,7 +2148,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "Anzeige und Schrift",
     selectionTranslateClearCache: "Startcache leeren",
     selectionTranslateClearCacheRunning: "Wird geleert...",
-    selectionTranslateClearCacheDone: "Startcache geleert ({n})",
+    selectionTranslateClearCacheDone: "Startcache geleert",
   },
   "es-ES": {
     language: "Idioma de la interfaz",
@@ -2163,7 +2163,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "Visualizacion y texto",
     selectionTranslateClearCache: "Borrar cache de arranque",
     selectionTranslateClearCacheRunning: "Borrando...",
-    selectionTranslateClearCacheDone: "Cache de arranque borrada ({n})",
+    selectionTranslateClearCacheDone: "Cache de arranque borrada",
   },
   "ru-RU": {
     language: "Язык интерфейса",
@@ -2178,7 +2178,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "Отображение и шрифт",
     selectionTranslateClearCache: "Очистить кеш запуска",
     selectionTranslateClearCacheRunning: "Очистка...",
-    selectionTranslateClearCacheDone: "Кеш запуска очищен ({n})",
+    selectionTranslateClearCacheDone: "Кеш запуска очищен",
   },
   "pt-BR": {
     language: "Idioma da interface",
@@ -2193,7 +2193,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "Exibicao e texto",
     selectionTranslateClearCache: "Limpar cache de inicializacao",
     selectionTranslateClearCacheRunning: "Limpando...",
-    selectionTranslateClearCacheDone: "Cache de inicializacao limpo ({n})",
+    selectionTranslateClearCacheDone: "Cache de inicializacao limpo",
   },
   "ar-SA": {
     language: "لغة الواجهة",
@@ -2208,7 +2208,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "العرض والنص",
     selectionTranslateClearCache: "مسح ذاكرة البدء البارد",
     selectionTranslateClearCacheRunning: "جار المسح...",
-    selectionTranslateClearCacheDone: "تم مسح ذاكرة البدء البارد ({n})",
+    selectionTranslateClearCacheDone: "تم مسح ذاكرة البدء البارد",
   },
   "hi-IN": {
     language: "इंटरफ़ेस भाषा",
@@ -2223,7 +2223,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fontInspectorTitle: "डिस्प्ले और टेक्स्ट",
     selectionTranslateClearCache: "कोल्ड-स्टार्ट कैश साफ़ करें",
     selectionTranslateClearCacheRunning: "साफ़ हो रहा है...",
-    selectionTranslateClearCacheDone: "कोल्ड-स्टार्ट कैश साफ़ हुआ ({n})",
+    selectionTranslateClearCacheDone: "कोल्ड-स्टार्ट कैश साफ़ हुआ",
   },
 };
 
@@ -6300,9 +6300,9 @@ export async function bootstrapSettingTab(
       L.selectionTranslateClearCacheRunning;
     selectionTranslateClearStatus.style.color = "#374151";
     try {
-      const count = await clearSelectionTranslateColdStartCache();
+      await clearSelectionTranslateColdStartCache();
       selectionTranslateClearStatus.textContent =
-        L.selectionTranslateClearCacheDone.replace("{n}", String(count));
+        L.selectionTranslateClearCacheDone;
       selectionTranslateClearStatus.style.color = "#065f46";
     } catch (err) {
       selectionTranslateClearStatus.textContent =
