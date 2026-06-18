@@ -279,6 +279,18 @@ export async function renderShortcuts(
     await renderShortcuts(body, item);
   };
 
+  // 将快捷气泡（摘要 / 翻译 / 关键要点 / 研究方法 / 局限性）右键菜单
+  // 定位到鼠标位置。
+  //
+  // [团队备注 / 图层遮挡问题] 右键气泡后菜单内容可能被其它图层遮挡，原因：
+  //   - 这里把 position 由 CSS 的 absolute 改写成 fixed（脱离原 stacking
+  //     context），但并未同步设置 z-index；
+  //   - 菜单的 z-index 仍沿用 zoteroPane.css 中 .llm-shortcut-menu 的值 12，
+  //     而面板里存在更高层级的浮层（z-index 45 / 120 / 180 / 200 等），
+  //     于是菜单会被这些浮层盖住，表现为“显示异常 / 内容被遮挡”。
+  // [修改建议] 修复遮挡时，可在下方设置 position 后追加一行足够高的
+  //   menu.style.zIndex（例如 "1000"），并与 zoteroPane.css 中的 z-index
+  //   保持一致，避免后续再次出现遮挡。
   const positionShortcutMenu = (x: number, y: number) => {
     if (!menu) return;
     const win = body.ownerDocument?.defaultView;
@@ -286,6 +298,7 @@ export async function renderShortcuts(
 
     const viewportMargin = 8;
     menu.style.position = "fixed";
+    // 注意：此处仅改写了 position，未提升 z-index，详见上方“图层遮挡问题”说明。
     menu.style.display = "grid";
     menu.style.visibility = "hidden";
     menu.style.maxHeight = `${Math.max(120, win.innerHeight - viewportMargin * 2)}px`;

@@ -2275,6 +2275,18 @@
   border-color: var(--color-accent);
 }
 
+/*
+ * 快捷气泡（摘要 / 翻译 / 关键要点 / 研究方法 / 局限性）的右键弹出菜单样式。
+ *
+ * [团队备注 / 图层遮挡问题] 右键气泡后菜单内容可能被其它图层遮挡，根因在此：
+ *   - 这里声明 z-index: 12，但同一栈上下文中存在更高层级的覆盖元素
+ *     （本文件中可见 z-index: 45 / 120 / 180 / 200 等浮层）。
+ *   - 运行时 shortcuts.ts 的 positionShortcutMenu() 会把 position 改写为 fixed，
+ *     而 z-index 仍保持 12，于是菜单会被上述高层级浮层盖住，导致“显示异常”。
+ * [修改建议] 若需修复遮挡，应将此处 z-index 提升到高于所有同级浮层
+ *   （例如 >= 1000），或在 positionShortcutMenu() 中同步设置一个足够高的
+ *   menu.style.zIndex；两处需保持一致，避免再次出现遮挡。
+ */
 .llm-shortcut-menu,
 .llm-response-menu {
   position: absolute;
