@@ -2282,11 +2282,12 @@ function generateCodeVerifier(): string {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
   const arr = new Uint8Array(64);
-  (globalThis as any).crypto?.getRandomValues?.(arr) ??
-    (() => {
-      for (let i = 0; i < arr.length; i++)
-        arr[i] = Math.floor(Math.random() * 256);
-    })();
+  if ((globalThis as any).crypto?.getRandomValues) {
+    (globalThis as any).crypto.getRandomValues(arr);
+  } else {
+    for (let i = 0; i < arr.length; i++)
+      arr[i] = Math.floor(Math.random() * 256);
+  }
   return Array.from(arr, (v) => chars[v % chars.length]).join("");
 }
 
@@ -3876,11 +3877,13 @@ export async function runProviderOAuthLogin(
     };
   }
 
-  let last = "";
   try {
     const command = buildExecutableCommand(cliPath, ["login"]);
     const result = await runShellCommand(command, { hidden: true });
-    last = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+    const last = [result.stdout, result.stderr]
+      .filter(Boolean)
+      .join("\n")
+      .trim();
     const cred = await readProviderOAuthCredential(provider);
     if (cred) {
       return { ok: true, message: `${getProviderLabel(provider)} OAuth ready` };
@@ -3893,13 +3896,16 @@ export async function runProviderOAuthLogin(
           `${spec.executableName} login executed. Complete browser authorization, then refresh model list/status.`,
       };
     }
+    return {
+      ok: false,
+      message: last || `Failed to execute ${spec.executableName} login`,
+    };
   } catch (err) {
-    last = String(err);
+    return {
+      ok: false,
+      message: String(err) || `Failed to execute ${spec.executableName} login`,
+    };
   }
-  return {
-    ok: false,
-    message: last || `Failed to execute ${spec.executableName} login`,
-  };
 }
 
 export async function removeProviderOAuthCredential(
@@ -4138,7 +4144,7 @@ export async function autoConfigureEnvironment(params?: {
     npmState.npmPath &&
     npmState.prefix !== preferredUserPrefix
   ) {
-    npmState = await switchNpmPrefixToPreferred(
+    await switchNpmPrefixToPreferred(
       npmState,
       "npm global directories were missing or not writable",
     );
@@ -4307,7 +4313,7 @@ export async function autoConfigureEnvironment(params?: {
       phase: "start",
       step: `Verify ${spec.executableName}`,
     });
-    let verification = await verifyExecutable(
+    const verification = await verifyExecutable(
       spec.executableName,
       spec.versionArg,
       [npmState.globalBinDir, ...getCommonExecutableDirs(npmState.platform)],
