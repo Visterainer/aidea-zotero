@@ -1,3 +1,5 @@
+const CONTEXT_MENU_Z_INDEX = "var(--llm-z-context-menu, 190)";
+
 export function positionMenuAtPointer(
   body: Element,
   menu: HTMLDivElement,
@@ -12,6 +14,7 @@ export function positionMenuAtPointer(
   const minLeftBound = Math.max(viewportMargin, Math.round(panelRect.left) + 2);
   const minTopBound = Math.max(viewportMargin, Math.round(panelRect.top) + 2);
   menu.style.position = "fixed";
+  menu.style.zIndex = CONTEXT_MENU_Z_INDEX;
   menu.style.display = "grid";
   menu.style.visibility = "hidden";
   menu.style.maxHeight = `${Math.max(120, Math.floor(panelRect.height) - viewportMargin * 2)}px`;
@@ -55,6 +58,7 @@ export function positionMenuBelowButton(
   const maxBottomBound = Math.round(panelRect.bottom) - 2;
   const buttonRect = button.getBoundingClientRect();
   menu.style.position = "fixed";
+  menu.style.zIndex = CONTEXT_MENU_Z_INDEX;
   menu.style.display = "grid";
   menu.style.visibility = "hidden";
   menu.style.maxHeight = `${Math.max(120, Math.floor(panelRect.height) - viewportMargin * 2)}px`;

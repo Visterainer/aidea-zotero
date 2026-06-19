@@ -28,6 +28,8 @@ import {
 } from "./prefHelpers";
 import { setStatus } from "./textUtils";
 
+const SHORTCUT_MENU_Z_INDEX = "var(--llm-z-context-menu, 190)";
+
 export async function loadShortcutText(file: string): Promise<string> {
   const lang = getPanelLang();
   const cacheKey = `${lang}/${file}`;
@@ -126,11 +128,11 @@ export async function renderShortcuts(
     }
     const i18n = getPanelI18n();
     const i18nLabelMap: Record<string, string> = {
-      "translate": i18n.translate,
-      "summarize": i18n.summarize,
+      translate: i18n.translate,
+      summarize: i18n.summarize,
       "key-points": i18n.keyPoints,
-      "methodology": i18n.methodology,
-      "limitations": i18n.limitations,
+      methodology: i18n.methodology,
+      limitations: i18n.limitations,
     };
     const i18nDefaultLabel = i18nLabelMap[shortcut.id] || shortcut.label;
     const labelText = (labelOverrides[shortcut.id] || i18nDefaultLabel).trim();
@@ -241,7 +243,8 @@ export async function renderShortcuts(
     const prompt = updated.prompt.trim();
     if (!prompt) {
       const status = body.querySelector("#llm-status") as HTMLElement | null;
-      if (status) setStatus(status, getPanelI18n().shortcutPromptEmpty, "error");
+      if (status)
+        setStatus(status, getPanelI18n().shortcutPromptEmpty, "error");
       return;
     }
 
@@ -286,6 +289,7 @@ export async function renderShortcuts(
 
     const viewportMargin = 8;
     menu.style.position = "fixed";
+    menu.style.zIndex = SHORTCUT_MENU_Z_INDEX;
     menu.style.display = "grid";
     menu.style.visibility = "hidden";
     menu.style.maxHeight = `${Math.max(120, win.innerHeight - viewportMargin * 2)}px`;

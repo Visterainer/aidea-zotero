@@ -249,6 +249,8 @@ type ProviderCliSpec = {
   packageName: string;
   executableName: string;
   versionArg: string;
+  minNodeVersion?: [number, number, number];
+  minNodeVersionLabel?: string;
 };
 
 type NpmEnvironmentState = {
@@ -275,6 +277,8 @@ const PROVIDER_CLI_SPECS: Partial<Record<OAuthProviderId, ProviderCliSpec>> = {
     packageName: "@google/gemini-cli",
     executableName: "gemini",
     versionArg: "--version",
+    minNodeVersion: [20, 0, 0],
+    minNodeVersionLabel: "Node.js >= 20",
   },
 };
 
@@ -327,6 +331,25 @@ function isNodeVersionSupportedByLatestNpm(
   if (major === 20) return isVersionAtLeast(nodeVersion, 20, 17, 0);
   if (major === 22) return isVersionAtLeast(nodeVersion, 22, 9, 0);
   return major > 22;
+}
+
+function isNodeVersionSupportedByCliSpec(
+  nodeVersion: string | null | undefined,
+  spec: ProviderCliSpec | null | undefined,
+): boolean {
+  if (!spec?.minNodeVersion) return true;
+  const [major, minor, patch] = spec.minNodeVersion;
+  return isVersionAtLeast(nodeVersion, major, minor, patch);
+}
+
+export function isNodeVersionSupportedByProviderCli(
+  provider: OAuthProviderId,
+  nodeVersion: string | null | undefined,
+): boolean {
+  return isNodeVersionSupportedByCliSpec(
+    nodeVersion,
+    getProviderCliSpec(provider),
+  );
 }
 
 function looksLikeMissingOptionalDependency(output: string): boolean {
@@ -2745,6 +2768,15 @@ export async function checkOAuthCliEnvironmentUpdates(
       continue;
     }
 
+    if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: `${spec.packageName} requires ${spec.minNodeVersionLabel || "a newer Node.js"}`,
+      });
+      continue;
+    }
+
     const installedVersion = npmState.globalRoot
       ? await readGlobalPackageVersion(npmState.globalRoot, spec.packageName)
       : "";
@@ -4233,12 +4265,59 @@ export async function autoConfigureEnvironment(params?: {
     const spec = getProviderCliSpec(provider);
     if (!spec) continue;
     let providerOk = true;
-    const npmExecutablePath = npmState.npmPath;
+    let npmExecutablePath = npmState.npmPath;
     if (!npmExecutablePath) {
       allOk = false;
       append(
         `Install ${spec.packageName}`,
         "npm executable path is unavailable after environment preparation.",
+      );
+      continue;
+    }
+
+    if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
+      const requiredNode = spec.minNodeVersionLabel || "a newer Node.js";
+      const currentNode = npmState.nodeVersion || "unknown";
+      const checkMessage =
+        `${spec.packageName} requires ${requiredNode}. ` +
+        `Current Node.js is ${currentNode}. Trying to install/update Node.js.`;
+      append("Node.js version check", checkMessage);
+      report?.({
+        phase: "info",
+        step: "Node.js version check",
+        output: checkMessage,
+      });
+      await tryInstallNodeRuntime(report, append);
+      npmState = await inspectNpmEnvironment(false);
+      append(
+        "npm environment after Node.js update attempt",
+        formatNpmState(npmState),
+      );
+      await ensureNpmDirectories(npmState);
+      npmExecutablePath = npmState.npmPath;
+
+      if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
+        const output =
+          `${spec.packageName} requires ${requiredNode}. ` +
+          `Current Node.js is ${npmState.nodeVersion || "unknown"}. ` +
+          "Install Node.js 20 or newer, restart Zotero, then run Install/Update Env again.";
+        append("Node.js version check", output);
+        report?.({
+          phase: "done",
+          step: "Node.js version check",
+          ok: false,
+          output,
+        });
+        allOk = false;
+        continue;
+      }
+    }
+
+    if (!npmExecutablePath) {
+      allOk = false;
+      append(
+        `Install ${spec.packageName}`,
+        "npm executable path is unavailable after Node.js version preparation.",
       );
       continue;
     }

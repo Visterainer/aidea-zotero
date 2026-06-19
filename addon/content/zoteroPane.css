@@ -90,7 +90,7 @@
   overflow: hidden;
   resize: vertical;
   position: relative;
-  z-index: 1;
+  z-index: var(--llm-z-content-wrapper, 1);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -108,7 +108,7 @@
   overflow: hidden;
   resize: vertical;
   position: relative;
-  z-index: 20;
+  z-index: var(--llm-z-composer-wrapper, 20);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1406,7 +1406,7 @@
   left: 50%;
   right: auto;
   transform: translate(-50%, -50%);
-  z-index: 200;
+  z-index: var(--llm-z-modal, 200);
   width: min(640px, calc(100vw - 44px));
   max-height: min(84vh, 760px);
   display: flex;
@@ -1771,6 +1771,18 @@
   --llm-chat-image-max-height: 70vh;
   --llm-screenshot-thumb-size: 56px;
   --llm-file-card-min-width: 184px;
+  /*
+   * Discussion-tab stacking order:
+   * 1 content wrapper < 20 composer < 60 pickers < 120 previews
+   * < 180 model menus < 190 context menus < 200 modal inspectors.
+   */
+  --llm-z-content-wrapper: 1;
+  --llm-z-composer-wrapper: 20;
+  --llm-z-picker: 60;
+  --llm-z-preview-popover: 120;
+  --llm-z-model-menu: 180;
+  --llm-z-context-menu: 190;
+  --llm-z-modal: 200;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -2278,7 +2290,7 @@
 .llm-shortcut-menu,
 .llm-response-menu {
   position: absolute;
-  z-index: 12;
+  z-index: var(--llm-z-context-menu, 190);
   background: var(--material-background);
   border: 1px solid var(--stroke-secondary);
   border-radius: calc(6px * var(--llm-font-scale, 1));
@@ -2290,7 +2302,7 @@
 
 .llm-history-menu {
   position: absolute;
-  z-index: 13;
+  z-index: var(--llm-z-context-menu, 190);
   display: none;
   flex-direction: column;
   min-width: 240px;
@@ -4177,7 +4189,7 @@
 .llm-paper-picker {
   display: none;
   position: absolute;
-  z-index: 45;
+  z-index: var(--llm-z-picker, 60);
   box-sizing: border-box;
   max-height: min(72vh, 420px);
   overflow-y: auto;
@@ -4384,7 +4396,7 @@
   right: auto;
   top: 0;
   bottom: auto;
-  z-index: 120;
+  z-index: var(--llm-z-preview-popover, 120);
   width: auto;
   max-height: min(68vh, 560px);
   overflow: auto;
@@ -5021,7 +5033,7 @@
 .llm-model-menu,
 .llm-reasoning-menu {
   position: absolute;
-  z-index: 180;
+  z-index: var(--llm-z-model-menu, 180);
   display: none;
   gap: 2px;
   min-width: calc(140px * var(--llm-font-scale, 1));
@@ -5316,7 +5328,7 @@
   right: auto;
   top: 0;
   bottom: auto;
-  z-index: 120;
+  z-index: var(--llm-z-preview-popover, 120);
   width: auto;
   max-height: min(68vh, 560px);
   overflow: auto;

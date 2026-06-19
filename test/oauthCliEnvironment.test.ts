@@ -14,6 +14,7 @@ import {
   getCodexStandaloneInstallCommand,
   getProviderCliSpec,
   getSystemProxySignature,
+  isNodeVersionSupportedByProviderCli,
   normalizeVersionText,
   parseMacSystemProxy,
   parseProxyUrl,
@@ -287,6 +288,18 @@ describe("oauthCli environment helpers", function () {
     });
     assert.isNull(getProviderCliSpec("qwen"));
     assert.isNull(getProviderCliSpec("github-copilot"));
+  });
+
+  it("should require Node.js 20 or newer for current Gemini CLI", function () {
+    assert.isFalse(
+      isNodeVersionSupportedByProviderCli("google-gemini-cli", "18.19.1"),
+    );
+    assert.isTrue(
+      isNodeVersionSupportedByProviderCli("google-gemini-cli", "20.0.0"),
+    );
+    assert.isTrue(
+      isNodeVersionSupportedByProviderCli("google-gemini-cli", "22.9.0"),
+    );
   });
 
   it("should parse macOS system proxy settings from scutil output", function () {
