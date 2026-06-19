@@ -1,10 +1,17 @@
 import { assert } from "chai";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   buildWindowsUserPathPersistenceScript,
+  checkOAuthCliEnvironmentUpdates,
+  deriveCodexStandaloneBinDirs,
   deriveNpmGlobalBinDirFromPrefix,
   deriveNpmGlobalRootFromPrefix,
   derivePreferredUserNpmPrefix,
   decideSystemProxySync,
+  getCodexStandaloneInstallCommand,
   getProviderCliSpec,
   getSystemProxySignature,
   normalizeVersionText,
@@ -14,6 +21,111 @@ import {
 } from "../src/utils/oauthCli";
 
 describe("oauthCli environment helpers", function () {
+  function writeCmd(filePath: string, body: string): void {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, `@echo off\r\n${body}\r\n`, "utf8");
+  }
+
+  function installWindowsZoteroRuntimeMock(env: Record<string, string>) {
+    const previous = {
+      Cc: (globalThis as any).Cc,
+      Ci: (globalThis as any).Ci,
+      Zotero: (globalThis as any).Zotero,
+      ztoolkit: (globalThis as any).ztoolkit,
+    };
+
+    class LocalFileMock {
+      path = "";
+      initWithPath(filePath: string) {
+        this.path = filePath;
+      }
+      exists() {
+        return fs.existsSync(this.path);
+      }
+      isDirectory() {
+        try {
+          return fs.statSync(this.path).isDirectory();
+        } catch {
+          return false;
+        }
+      }
+      remove() {
+        fs.rmSync(this.path, { force: true, recursive: false });
+      }
+      create() {
+        fs.mkdirSync(this.path, { recursive: true });
+      }
+      get parent() {
+        const parentPath = path.dirname(this.path);
+        return { path: parentPath };
+      }
+    }
+
+    class ProcessMock {
+      exitValue = 0;
+      private filePath = "";
+      init(file: { path?: string }) {
+        this.filePath = String(file.path || "");
+      }
+      runAsync(args: string[], len: number, observer: any) {
+        const child = spawn(this.filePath, args.slice(0, len), {
+          windowsHide: true,
+        });
+        child.on("close", (code) => {
+          this.exitValue = typeof code === "number" ? code : 1;
+          observer.observe(null, "process-finished");
+        });
+        child.on("error", () => {
+          this.exitValue = 1;
+          observer.observe(null, "process-failed");
+        });
+      }
+    }
+
+    (globalThis as any).Ci = {
+      nsIEnvironment: "nsIEnvironment",
+      nsIFile: { DIRECTORY_TYPE: 1 },
+      nsIProcess: "nsIProcess",
+    };
+    (globalThis as any).Cc = {
+      "@mozilla.org/file/local;1": {
+        createInstance: () => new LocalFileMock(),
+      },
+      "@mozilla.org/process/environment;1": {
+        getService: () => ({
+          get: (name: string) => env[name] ?? process.env[name] ?? "",
+          set: (name: string, value: string) => {
+            env[name] = value;
+          },
+        }),
+      },
+      "@mozilla.org/process/util;1": {
+        createInstance: () => new ProcessMock(),
+      },
+    };
+    (globalThis as any).Zotero = {
+      isWin: true,
+      isMac: false,
+      DataDirectory: { dir: os.tmpdir() },
+      File: {
+        getContents: (filePath: string) => {
+          const bytes = fs.readFileSync(filePath);
+          const utf8 = bytes.toString("utf8");
+          return utf8.includes("\u0000") ? bytes.toString("utf16le") : utf8;
+        },
+      },
+      getTempDirectory: () => ({ path: os.tmpdir() }),
+    };
+    (globalThis as any).ztoolkit = { log: () => undefined };
+
+    return () => {
+      (globalThis as any).Cc = previous.Cc;
+      (globalThis as any).Ci = previous.Ci;
+      (globalThis as any).Zotero = previous.Zotero;
+      (globalThis as any).ztoolkit = previous.ztoolkit;
+    };
+  }
+
   it("should normalize version text from noisy command output", function () {
     assert.equal(normalizeVersionText("npm 11.6.2"), "11.6.2");
     assert.equal(normalizeVersionText("v22.15.1"), "22.15.1");
@@ -62,6 +174,86 @@ describe("oauthCli environment helpers", function () {
       derivePreferredUserNpmPrefix("linux", "/home/alice"),
       "/home/alice/.npm-global",
     );
+  });
+
+  it("should use official Codex standalone installer commands", function () {
+    assert.equal(
+      getCodexStandaloneInstallCommand("macos"),
+      "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+    );
+    assert.equal(
+      getCodexStandaloneInstallCommand("linux"),
+      "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+    );
+    assert.include(
+      getCodexStandaloneInstallCommand("windows"),
+      "https://chatgpt.com/codex/install.ps1",
+    );
+    assert.include(
+      getCodexStandaloneInstallCommand("windows"),
+      "CODEX_NON_INTERACTIVE=1",
+    );
+    assert.include(getCodexStandaloneInstallCommand("windows"), "System32");
+  });
+
+  it("should derive Codex standalone binary directories per platform", function () {
+    assert.deepEqual(
+      deriveCodexStandaloneBinDirs(
+        "windows",
+        "C:\\Users\\alice",
+        "C:\\Users\\alice\\AppData\\Local",
+      ),
+      ["C:\\Users\\alice\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin"],
+    );
+    assert.deepEqual(deriveCodexStandaloneBinDirs("macos", "/Users/alice"), [
+      "/Users/alice/.local/bin",
+    ]);
+    assert.deepEqual(
+      deriveCodexStandaloneBinDirs(
+        "linux",
+        "/home/alice",
+        "",
+        "/opt/codex/bin",
+      ),
+      ["/opt/codex/bin", "/home/alice/.local/bin"],
+    );
+  });
+
+  it("should check Codex updates against standalone install before old npm PATH entries", async function () {
+    if (process.platform !== "win32") this.skip();
+
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidea-codex-check-"));
+    const home = path.join(root, "home");
+    const localAppData = path.join(home, "AppData", "Local");
+    const standaloneBin = path.join(
+      localAppData,
+      "Programs",
+      "OpenAI",
+      "Codex",
+      "bin",
+    );
+    const oldNpmBin = path.join(home, "AppData", "Roaming", "npm");
+    writeCmd(path.join(standaloneBin, "codex.cmd"), "echo codex-cli 99");
+    writeCmd(path.join(oldNpmBin, "codex.cmd"), "echo codex-cli 1");
+
+    const restore = installWindowsZoteroRuntimeMock({
+      USERPROFILE: home,
+      LOCALAPPDATA: localAppData,
+      PATH: `${oldNpmBin};${process.env.PATH || ""}`,
+    });
+    try {
+      const results = await checkOAuthCliEnvironmentUpdates(["openai-codex"]);
+      assert.lengthOf(results, 1);
+      assert.deepInclude(results[0], {
+        provider: "openai-codex",
+        needsUpdate: false,
+        reason: "current",
+        installedVersion: "99",
+      });
+    } finally {
+      restore();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("should build Windows PATH persistence PowerShell without breaking else", function () {
