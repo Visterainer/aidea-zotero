@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import {
   buildWindowsUserPathPersistenceScript,
+  buildNodeSourceAptInstallCommand,
+  buildNodeSourceAptManualInstructions,
   checkOAuthCliEnvironmentUpdates,
   deriveCodexStandaloneBinDirs,
   deriveNpmGlobalBinDirFromPrefix,
@@ -195,6 +197,25 @@ describe("oauthCli environment helpers", function () {
       "CODEX_NON_INTERACTIVE=1",
     );
     assert.include(getCodexStandaloneInstallCommand("windows"), "System32");
+  });
+
+  it("should build NodeSource apt command for Node.js 22 upgrades", function () {
+    const command = buildNodeSourceAptInstallCommand();
+
+    assert.include(command, "https://deb.nodesource.com/setup_22.x");
+    assert.include(command, "/tmp/aidea-nodesource-setup_22.x.sh");
+    assert.include(command, "sudo -n -E bash");
+    assert.include(command, "apt-get install -y nodejs");
+  });
+
+  it("should build interactive terminal instructions for manual NodeSource install", function () {
+    const instructions = buildNodeSourceAptManualInstructions();
+
+    assert.include(instructions, "https://deb.nodesource.com/setup_22.x");
+    assert.include(instructions, "sudo -E bash");
+    assert.include(instructions, "sudo apt-get install -y nodejs");
+    assert.include(instructions, "node --version");
+    assert.notInclude(instructions, "sudo -n");
   });
 
   it("should derive Codex standalone binary directories per platform", function () {

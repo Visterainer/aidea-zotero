@@ -1617,6 +1617,8 @@ type ReportFn =
   | undefined;
 type AppendFn = (title: string, text: string) => void;
 
+const DEFAULT_NODE_RUNTIME_MAJOR = 22;
+
 /**
  * Windows: locate or install winget (App Installer).
  * First checks %LOCALAPPDATA%\Microsoft\WindowsApps (winget is often there
@@ -1751,19 +1753,48 @@ async function tryInstallCodexStandalone(
   return result.code === 0 && verification.ok;
 }
 
+export function buildNodeSourceAptInstallCommand(
+  major = DEFAULT_NODE_RUNTIME_MAJOR,
+): string {
+  const setupPath = `/tmp/aidea-nodesource-setup_${major}.x.sh`;
+  const setupUrl = `https://deb.nodesource.com/setup_${major}.x`;
+  const rootCommand =
+    "apt-get update && " +
+    "apt-get install -y ca-certificates curl gnupg && " +
+    `curl -fsSL ${setupUrl} -o ${setupPath} && ` +
+    `bash ${setupPath} && ` +
+    "apt-get install -y nodejs";
+  const sudoCommand =
+    "sudo -n apt-get update && " +
+    "sudo -n apt-get install -y ca-certificates curl gnupg && " +
+    `curl -fsSL ${setupUrl} -o ${setupPath} && ` +
+    `sudo -n -E bash ${setupPath} && ` +
+    "sudo -n apt-get install -y nodejs";
+  return `if [ "$(id -u)" -eq 0 ]; then ${rootCommand}; else ${sudoCommand}; fi`;
+}
+
+export function buildNodeSourceAptManualInstructions(
+  major = DEFAULT_NODE_RUNTIME_MAJOR,
+): string {
+  const setupPath = `/tmp/aidea-nodesource-setup_${major}.x.sh`;
+  const setupUrl = `https://deb.nodesource.com/setup_${major}.x`;
+  return [
+    `curl -fsSL ${setupUrl} -o ${setupPath}`,
+    `sudo -E bash ${setupPath}`,
+    "sudo apt-get install -y nodejs",
+    "node --version",
+    "npm --version",
+  ].join("\n");
+}
+
 async function tryInstallNodeRuntime(
-  report:
-    | ((event: {
-        phase: "start" | "done" | "info";
-        step: string;
-        ok?: boolean;
-        output?: string;
-      }) => void)
-    | undefined,
-  append: (title: string, text: string) => void,
+  report: ReportFn,
+  append: AppendFn,
+  options: { preferredMajor?: number } = {},
 ): Promise<boolean> {
   const platform = currentPlatform();
   const plans: Array<{ step: string; command: string }> = [];
+  const preferredMajor = options.preferredMajor || 0;
 
   if (platform === "windows") {
     const wingetPath =
@@ -1815,6 +1846,12 @@ async function tryInstallNodeRuntime(
     const pacmanPath =
       (await locateExecutableViaShell("pacman")) ||
       resolveExecutablePath("pacman");
+    if (aptPath && preferredMajor > 0) {
+      plans.push({
+        step: `Install Node.js ${preferredMajor} via NodeSource`,
+        command: buildNodeSourceAptInstallCommand(preferredMajor),
+      });
+    }
     if (aptPath) {
       plans.push({
         step: "Install Node.js/npm via apt-get",
@@ -4287,7 +4324,9 @@ export async function autoConfigureEnvironment(params?: {
         step: "Node.js version check",
         output: checkMessage,
       });
-      await tryInstallNodeRuntime(report, append);
+      await tryInstallNodeRuntime(report, append, {
+        preferredMajor: DEFAULT_NODE_RUNTIME_MAJOR,
+      });
       npmState = await inspectNpmEnvironment(false);
       append(
         "npm environment after Node.js update attempt",
@@ -4297,10 +4336,17 @@ export async function autoConfigureEnvironment(params?: {
       npmExecutablePath = npmState.npmPath;
 
       if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
+        const manualInstructions =
+          npmState.platform === "linux"
+            ? `\n\nAutomatic install may require an interactive sudo password. ` +
+              `Open a terminal and run:\n\n${buildNodeSourceAptManualInstructions()}\n\n` +
+              "After it finishes, restart Zotero and run Install/Update Env again."
+            : "";
         const output =
           `${spec.packageName} requires ${requiredNode}. ` +
           `Current Node.js is ${npmState.nodeVersion || "unknown"}. ` +
-          "Install Node.js 20 or newer, restart Zotero, then run Install/Update Env again.";
+          "Install Node.js 20 or newer, restart Zotero, then run Install/Update Env again." +
+          manualInstructions;
         append("Node.js version check", output);
         report?.({
           phase: "done",
