@@ -2,6 +2,9 @@ export const MODEL_MENU_OPEN_CLASS = "llm-model-menu-open";
 export const RETRY_MODEL_MENU_OPEN_CLASS = "llm-model-menu-open";
 export const SLASH_MENU_OPEN_CLASS = "llm-slash-menu-open";
 
+const CONTEXT_MENU_Z_INDEX = "var(--llm-z-context-menu, 190)";
+const MODEL_MENU_Z_INDEX = "var(--llm-z-model-menu, 180)";
+
 export function setFloatingMenuOpen(
   menu: HTMLDivElement | null,
   openClass: string,
@@ -36,7 +39,9 @@ export function positionFloatingMenu(
   menu.style.position = "fixed";
   menu.style.display = "grid";
   menu.style.visibility = "hidden";
-  menu.style.zIndex = "180";
+  menu.style.zIndex = menu.classList.contains("llm-response-menu")
+    ? CONTEXT_MENU_Z_INDEX
+    : MODEL_MENU_Z_INDEX;
   menu.style.maxHeight = `${Math.max(
     minUsableHeight,
     win.innerHeight - viewportMargin * 2,

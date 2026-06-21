@@ -86,6 +86,9 @@ declare namespace _ZoteroTypes {
       "translate.scrollTop": string;
       "hideTabNav": boolean;
       "composerTheme": string;
+      "composerThemeCustom": string;
+      "composerThemeCustomList": string;
+      "composerThemeBuiltinOverrides": string;
       "font.chatSize": string;
       "font.chatLineHeight": string;
       "font.messageGap": string;

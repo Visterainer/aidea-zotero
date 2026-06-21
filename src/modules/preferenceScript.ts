@@ -59,6 +59,32 @@ import {
   type PanelTypographySettings,
 } from "./contextPanel/prefHelpers";
 import {
+  BUILTIN_COMPOSER_THEME_OPTIONS,
+  BUILTIN_COMPOSER_THEME_PALETTES,
+  COMPOSER_THEME_COLOR_CONTROLS,
+  applyComposerThemeToRoot,
+  applyComposerThemePaletteToRoot,
+  createCustomComposerThemeId,
+  getBuiltinComposerThemePalette,
+  getEffectiveComposerThemePalette,
+  isBuiltinComposerTheme,
+  normalizeComposerThemeSelection,
+  normalizePalette,
+  normalizeThemeColorValue,
+  palettesEqual,
+  parseCustomComposerThemes,
+  serializeBuiltinComposerThemeOverrides,
+  serializeCustomComposerThemes,
+  type BuiltinComposerThemeId,
+  type BuiltinComposerThemeOverrides,
+  type ComposerThemePalette,
+  type ComposerThemeSelection,
+  type CustomComposerTheme,
+  type ThemeColorKey,
+  type ThemeColorMode,
+  type ThemeColorValue,
+} from "./contextPanel/theme";
+import {
   getModelChoices,
   pickBestDefaultModel,
 } from "./contextPanel/setupHandlers/controllers/modelSelectionController";
@@ -92,6 +118,9 @@ type PrefKey =
   | "settingsSectionState"
   | "settingsScrollTop"
   | "composerTheme"
+  | "composerThemeCustom"
+  | "composerThemeCustomList"
+  | "composerThemeBuiltinOverrides"
   | "font.chatSize"
   | "font.chatLineHeight"
   | "font.messageGap"
@@ -157,17 +186,6 @@ const OAUTH_ENV_UPDATE_MODE_OPTIONS: Array<{
     hintKey: "oauthEnvUpdateSilentHint",
   },
 ];
-type ComposerTheme = "default" | "soft-blue";
-const COMPOSER_THEME_OPTIONS: Array<{
-  value: ComposerTheme;
-  labelKey: "composerThemeDefault" | "composerThemeSoftBlue";
-}> = [
-  { value: "default", labelKey: "composerThemeDefault" },
-  { value: "soft-blue", labelKey: "composerThemeSoftBlue" },
-];
-const normalizeComposerTheme = (value: unknown): ComposerTheme =>
-  value === "soft-blue" ? "soft-blue" : "default";
-
 const pref = (key: PrefKey) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: PrefKey): string => {
   const value = Zotero.Prefs.get(pref(key), true);
@@ -2006,14 +2024,94 @@ const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
 };
 const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "en-US": {
-    composerTheme: "Input Theme",
+    composerTheme: "Conversation Theme",
     composerThemeDefault: "Default",
-    composerThemeSoftBlue: "Soft Blue",
+    composerThemeBluePorcelain: "Blue Porcelain",
+    composerThemeEyeGreen: "Eye Green",
+    composerThemeWarmCream: "Warm Cream",
+    composerThemePremiumGray: "Premium Gray",
+    composerThemeMidnightBlack: "Midnight Black",
+    composerThemeSakuraPink: "Sakura Pink",
+    composerThemeEditorTitle: "Theme colors",
+    composerThemeModeColor: "Color",
+    composerThemeModeSystem: "System",
+    composerThemeModeTransparent: "Transparent",
+    composerThemeReset: "Reset",
+    composerThemeSave: "Save",
+    composerThemeSaveAs: "Save As",
+    composerThemeDelete: "Delete",
+    composerThemeSaveAsPrompt: "Name this custom theme:",
+    composerThemeNameRequired: "Theme name cannot be empty.",
+    composerThemeNameDuplicate: "A theme with this name already exists.",
+    composerThemeDeleteConfirm: "Delete this custom theme?",
+    composerThemeSaved: "Theme saved",
+    composerThemeCustomChatBg: "Chat background",
+    composerThemeCustomText: "Main text",
+    composerThemeCustomMutedText: "Muted text",
+    composerThemeCustomBorder: "Border",
+    composerThemeCustomShadow: "Shadow",
+    composerThemeCustomAccent: "Accent",
+    composerThemeCustomKeyword: "Keyword",
+    composerThemeCustomLink: "Link",
+    composerThemeCustomUserBubbleBg: "User bubble",
+    composerThemeCustomUserBubbleText: "User text",
+    composerThemeCustomUserBubbleBorder: "User border",
+    composerThemeCustomAssistantBubbleBg: "Assistant bubble",
+    composerThemeCustomAssistantBubbleText: "Assistant text",
+    composerThemeCustomAssistantBubbleBorder: "Assistant border",
+    composerThemeCustomComposerBg: "Composer background",
+    composerThemeCustomInputBg: "Input background",
+    composerThemeCustomInputText: "Input text",
+    composerThemeCustomInputPlaceholder: "Placeholder",
+    composerThemeCustomCodeBg: "Code background",
+    composerThemeCustomCodeText: "Code text",
+    composerThemeCustomMenuBg: "Menu background",
+    composerThemeCustomChipBg: "Chip background",
   },
   "zh-CN": {
-    composerTheme: "输入框主题",
+    composerTheme: "对话主题",
     composerThemeDefault: "默认",
-    composerThemeSoftBlue: "浅蓝",
+    composerThemeBluePorcelain: "青花瓷",
+    composerThemeEyeGreen: "护眼绿",
+    composerThemeWarmCream: "米白色",
+    composerThemePremiumGray: "高级灰",
+    composerThemeMidnightBlack: "暗夜黑",
+    composerThemeSakuraPink: "樱花粉",
+    composerThemeEditorTitle: "主题色域",
+    composerThemeModeColor: "颜色",
+    composerThemeModeSystem: "系统",
+    composerThemeModeTransparent: "透明",
+    composerThemeReset: "重置",
+    composerThemeSave: "保存",
+    composerThemeSaveAs: "另存为",
+    composerThemeDelete: "删除",
+    composerThemeSaveAsPrompt: "请输入自定义主题名称：",
+    composerThemeNameRequired: "主题名称不能为空。",
+    composerThemeNameDuplicate: "已经存在同名主题。",
+    composerThemeDeleteConfirm: "删除这个自定义主题？",
+    composerThemeSaved: "主题已保存",
+    composerThemeCustomChatBg: "聊天背景",
+    composerThemeCustomText: "主文字",
+    composerThemeCustomMutedText: "弱文字",
+    composerThemeCustomBorder: "边框",
+    composerThemeCustomShadow: "阴影",
+    composerThemeCustomAccent: "强调色",
+    composerThemeCustomKeyword: "关键字",
+    composerThemeCustomLink: "链接",
+    composerThemeCustomUserBubbleBg: "用户气泡",
+    composerThemeCustomUserBubbleText: "用户文字",
+    composerThemeCustomUserBubbleBorder: "用户边框",
+    composerThemeCustomAssistantBubbleBg: "模型气泡",
+    composerThemeCustomAssistantBubbleText: "模型文字",
+    composerThemeCustomAssistantBubbleBorder: "模型边框",
+    composerThemeCustomComposerBg: "输入区背景",
+    composerThemeCustomInputBg: "输入框背景",
+    composerThemeCustomInputText: "输入框文字",
+    composerThemeCustomInputPlaceholder: "占位文字",
+    composerThemeCustomCodeBg: "代码背景",
+    composerThemeCustomCodeText: "代码文字",
+    composerThemeCustomMenuBg: "浮层背景",
+    composerThemeCustomChipBg: "标签背景",
   },
 };
 const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
@@ -2586,7 +2684,58 @@ export function applyHideTabNavToAllPanels(hide: boolean): void {
   }
 }
 
-export function applyComposerThemeToAllPanels(theme: ComposerTheme): void {
+export function applyComposerThemeToAllPanels(
+  theme: ComposerThemeSelection | string,
+  customThemesRaw = getPref("composerThemeCustomList"),
+  builtinOverridesRaw = getPref("composerThemeBuiltinOverrides"),
+): void {
+  try {
+    void customThemesRaw;
+    void builtinOverridesRaw;
+    const allDocs = new Set<Document>();
+    try {
+      const wins: Window[] = Zotero.getMainWindows?.() || [];
+      for (const w of wins) {
+        if (w?.document) allDocs.add(w.document);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const mainWin: Window | null = Zotero.getMainWindow?.() || null;
+      if (mainWin?.document) allDocs.add(mainWin.document);
+    } catch {
+      /* ignore */
+    }
+    try {
+      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
+        Ci.nsIWindowMediator,
+      );
+      if (wm) {
+        const enumerator = wm.getEnumerator("navigator:browser");
+        while (enumerator.hasMoreElements()) {
+          const w = enumerator.getNext() as Window;
+          if (w?.document) allDocs.add(w.document);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    for (const doc of allDocs) {
+      doc.querySelectorAll("#llm-main").forEach((root: Element) => {
+        applyComposerThemeToRoot(root as HTMLElement, theme, "", "");
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function applyComposerThemePaletteToAllPanels(
+  theme: ComposerThemeSelection,
+  paletteValue: ComposerThemePalette,
+): void {
   try {
     const allDocs = new Set<Document>();
     try {
@@ -2620,7 +2769,11 @@ export function applyComposerThemeToAllPanels(theme: ComposerTheme): void {
 
     for (const doc of allDocs) {
       doc.querySelectorAll("#llm-main").forEach((root: Element) => {
-        (root as HTMLElement).dataset.composerTheme = theme;
+        applyComposerThemePaletteToRoot(
+          root as HTMLElement,
+          theme,
+          paletteValue,
+        );
       });
     }
   } catch {
@@ -3013,11 +3166,382 @@ export async function bootstrapSettingTab(
   ) as HTMLDivElement;
   composerThemeMenu.style.display = "none";
   composerThemeDropdown.append(composerThemeTrigger, composerThemeMenu);
-  let composerThemeValue = normalizeComposerTheme(getPref("composerTheme"));
+  let customComposerThemes = parseCustomComposerThemes(
+    getPref("composerThemeCustomList"),
+  );
+  let builtinThemeOverrides: BuiltinComposerThemeOverrides = {};
+  const migrateLegacyCustomTheme = () => {
+    if (getPref("composerTheme") !== "custom" || customComposerThemes.length) {
+      return;
+    }
+    const legacyRaw = getPref("composerThemeCustom").trim();
+    if (!legacyRaw) return;
+    let legacyParsed: unknown;
+    try {
+      legacyParsed = JSON.parse(legacyRaw) as unknown;
+    } catch {
+      legacyParsed = {};
+    }
+    const now = Date.now();
+    const migratedTheme: CustomComposerTheme = {
+      id: createCustomComposerThemeId(),
+      name: "自定义主题",
+      palette: normalizePalette(
+        legacyParsed,
+        BUILTIN_COMPOSER_THEME_PALETTES["blue-porcelain"],
+      ),
+      createdAt: now,
+      updatedAt: now,
+    };
+    customComposerThemes = [migratedTheme];
+    setPref(
+      "composerThemeCustomList",
+      serializeCustomComposerThemes(customComposerThemes),
+    );
+    setPref("composerTheme", migratedTheme.id);
+  };
+  migrateLegacyCustomTheme();
+  let composerThemeValue = normalizeComposerThemeSelection(
+    getPref("composerTheme"),
+    [],
+  );
+  if (composerThemeValue !== getPref("composerTheme")) {
+    setPref("composerTheme", composerThemeValue);
+  }
+  let themeEditorPalette = getEffectiveComposerThemePalette(
+    composerThemeValue,
+    [],
+    {},
+  );
   let composerThemeItems: Array<{
     item: HTMLDivElement;
-    option: (typeof COMPOSER_THEME_OPTIONS)[number];
+    option: {
+      value: ComposerThemeSelection;
+      label: string;
+      removable: boolean;
+    };
   }> = [];
+  const customThemePanel = createEl(
+    doc,
+    "div",
+    "llm-basic-theme-custom-panel",
+  ) as HTMLDivElement;
+  const customThemeHeader = createEl(
+    doc,
+    "div",
+    "llm-basic-theme-custom-header",
+  );
+  const customThemeTitle = createEl(doc, "div", "llm-basic-theme-custom-title");
+  const customThemeActions = createEl(
+    doc,
+    "div",
+    "llm-basic-theme-custom-actions",
+  );
+  const customThemeResetBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--secondary llm-basic-theme-custom-reset",
+  ) as HTMLButtonElement;
+  customThemeResetBtn.type = "button";
+  const customThemeSaveBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--accent llm-basic-theme-custom-save",
+  ) as HTMLButtonElement;
+  customThemeSaveBtn.type = "button";
+  const customThemeSaveAsBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--secondary llm-basic-theme-custom-save-as",
+  ) as HTMLButtonElement;
+  customThemeSaveAsBtn.type = "button";
+  const customThemeDeleteBtn = createEl(
+    doc,
+    "button",
+    "llm-set-btn llm-set-btn--danger llm-basic-theme-custom-delete",
+  ) as HTMLButtonElement;
+  customThemeDeleteBtn.type = "button";
+  const customThemeStatus = createEl(
+    doc,
+    "span",
+    "llm-set-status llm-basic-theme-custom-status",
+  );
+  customThemeActions.append(
+    customThemeResetBtn,
+    customThemeSaveBtn,
+    customThemeSaveAsBtn,
+    customThemeDeleteBtn,
+    customThemeStatus,
+  );
+  const customThemeGrid = createEl(doc, "div", "llm-basic-theme-custom-grid");
+  customThemeHeader.append(customThemeTitle, customThemeActions);
+  customThemePanel.append(customThemeHeader, customThemeGrid);
+  const customThemeControls = new Map<
+    ThemeColorKey,
+    {
+      mode: HTMLSelectElement;
+      color: HTMLInputElement;
+      label: HTMLSpanElement;
+    }
+  >();
+  const customThemeLabels: Array<{
+    key: ThemeColorKey;
+    label: HTMLSpanElement;
+  }> = [];
+  const HEX_COLOR_RE_LOCAL = /^#[0-9a-f]{6}$/i;
+  const isHexThemeColor = (value: ThemeColorValue): value is `#${string}` =>
+    typeof value === "string" && HEX_COLOR_RE_LOCAL.test(value);
+  const getBuiltinThemeLabel = (id: BuiltinComposerThemeId) => {
+    const option =
+      BUILTIN_COMPOSER_THEME_OPTIONS.find((item) => item.value === id) ||
+      BUILTIN_COMPOSER_THEME_OPTIONS[0];
+    return L[option.labelKey] || option.fallbackName;
+  };
+  const getThemeDisplayName = (selection: ComposerThemeSelection): string => {
+    if (isBuiltinComposerTheme(selection))
+      return getBuiltinThemeLabel(selection);
+    return (
+      customComposerThemes.find((theme) => theme.id === selection)?.name ||
+      getBuiltinThemeLabel("default")
+    );
+  };
+  const getThemeDropdownOptions = () => [
+    ...BUILTIN_COMPOSER_THEME_OPTIONS.map((option) => ({
+      value: option.value,
+      label: L[option.labelKey] || option.fallbackName,
+      removable: false,
+    })),
+  ];
+  const normalizeThemeName = (name: string) =>
+    name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const themeNameExists = (name: string) => {
+    const normalized = normalizeThemeName(name);
+    if (!normalized) return false;
+    const builtinNames = BUILTIN_COMPOSER_THEME_OPTIONS.flatMap((option) => [
+      normalizeThemeName(L[option.labelKey] || option.fallbackName),
+      normalizeThemeName(option.fallbackName),
+    ]);
+    return (
+      builtinNames.includes(normalized) ||
+      customComposerThemes.some(
+        (theme) => normalizeThemeName(theme.name) === normalized,
+      )
+    );
+  };
+  const getColorFallback = (key: ThemeColorKey): `#${string}` => {
+    const candidates: ThemeColorValue[] = [
+      themeEditorPalette[key],
+      getEffectiveComposerThemePalette(
+        composerThemeValue,
+        customComposerThemes,
+        builtinThemeOverrides,
+      )[key],
+      BUILTIN_COMPOSER_THEME_PALETTES["blue-porcelain"][key],
+      "#ffffff",
+    ];
+    for (const candidate of candidates) {
+      if (isHexThemeColor(candidate)) return candidate;
+    }
+    return "#ffffff";
+  };
+  const persistThemeCollections = () => {
+    setPref(
+      "composerThemeCustomList",
+      serializeCustomComposerThemes(customComposerThemes),
+    );
+    setPref(
+      "composerThemeBuiltinOverrides",
+      serializeBuiltinComposerThemeOverrides(builtinThemeOverrides),
+    );
+  };
+  const previewCurrentTheme = () => {
+    applyComposerThemePaletteToAllPanels(
+      composerThemeValue,
+      themeEditorPalette,
+    );
+  };
+  const refreshCustomThemeInputs = () => {
+    customThemeControls.forEach((control, key) => {
+      const value = themeEditorPalette[key];
+      const mode: ThemeColorMode =
+        value === "system" || value === "transparent" ? value : "color";
+      control.mode.value = mode;
+      control.color.disabled = mode !== "color";
+      control.color.value = mode === "color" ? value : getColorFallback(key);
+    });
+  };
+  for (const control of COMPOSER_THEME_COLOR_CONTROLS) {
+    const field = createEl(
+      doc,
+      "label",
+      "llm-basic-theme-custom-field",
+    ) as HTMLLabelElement;
+    const label = createEl(
+      doc,
+      "span",
+      "llm-basic-theme-custom-label",
+    ) as HTMLSpanElement;
+    const mode = createEl(
+      doc,
+      "select",
+      "llm-basic-theme-custom-mode",
+    ) as HTMLSelectElement;
+    for (const optionValue of ["color", "system", "transparent"] as const) {
+      const opt = createEl(doc, "option") as HTMLOptionElement;
+      opt.value = optionValue;
+      mode.appendChild(opt);
+    }
+    const swatch = createEl(
+      doc,
+      "input",
+      "llm-basic-theme-custom-color",
+    ) as HTMLInputElement;
+    swatch.type = "color";
+    swatch.value = getColorFallback(control.key);
+    mode.addEventListener("change", () => {
+      const modeValue = mode.value as ThemeColorMode;
+      const nextValue =
+        modeValue === "color"
+          ? normalizeThemeColorValue(
+              swatch.value,
+              getColorFallback(control.key),
+            )
+          : modeValue;
+      themeEditorPalette = {
+        ...themeEditorPalette,
+        [control.key]: nextValue,
+      };
+      refreshCustomThemeInputs();
+      previewCurrentTheme();
+      customThemeStatus.textContent = "";
+    });
+    swatch.addEventListener("input", () => {
+      themeEditorPalette = {
+        ...themeEditorPalette,
+        [control.key]: normalizeThemeColorValue(
+          swatch.value,
+          getColorFallback(control.key),
+        ),
+      };
+      mode.value = "color";
+      swatch.disabled = false;
+      previewCurrentTheme();
+      customThemeStatus.textContent = "";
+    });
+    field.append(label, mode, swatch);
+    customThemeGrid.appendChild(field);
+    customThemeControls.set(control.key, { mode, color: swatch, label });
+    customThemeLabels.push({ key: control.key, label });
+  }
+  const saveCurrentTheme = () => {
+    if (isBuiltinComposerTheme(composerThemeValue)) {
+      const base = BUILTIN_COMPOSER_THEME_PALETTES[composerThemeValue];
+      const normalized = normalizePalette(themeEditorPalette, base);
+      if (palettesEqual(normalized, base)) {
+        delete builtinThemeOverrides[composerThemeValue];
+      } else {
+        builtinThemeOverrides = {
+          ...builtinThemeOverrides,
+          [composerThemeValue]: normalized,
+        };
+      }
+      themeEditorPalette = getBuiltinComposerThemePalette(
+        composerThemeValue,
+        builtinThemeOverrides,
+      );
+    } else {
+      customComposerThemes = customComposerThemes.map((theme) =>
+        theme.id === composerThemeValue
+          ? {
+              ...theme,
+              palette: normalizePalette(themeEditorPalette, theme.palette),
+              updatedAt: Date.now(),
+            }
+          : theme,
+      );
+    }
+    persistThemeCollections();
+    refreshCustomThemeInputs();
+    applyComposerThemeToAllPanels(
+      composerThemeValue,
+      getPref("composerThemeCustomList"),
+      getPref("composerThemeBuiltinOverrides"),
+    );
+    customThemeStatus.textContent = L.composerThemeSaved;
+  };
+  customThemeResetBtn.addEventListener("click", () => {
+    if (isBuiltinComposerTheme(composerThemeValue)) {
+      delete builtinThemeOverrides[composerThemeValue];
+      persistThemeCollections();
+      themeEditorPalette = {
+        ...BUILTIN_COMPOSER_THEME_PALETTES[composerThemeValue],
+      };
+    } else {
+      themeEditorPalette = getEffectiveComposerThemePalette(
+        composerThemeValue,
+        customComposerThemes,
+        builtinThemeOverrides,
+      );
+    }
+    refreshCustomThemeInputs();
+    previewCurrentTheme();
+    customThemeStatus.textContent = "";
+  });
+  customThemeSaveBtn.addEventListener("click", saveCurrentTheme);
+  customThemeSaveAsBtn.addEventListener("click", () => {
+    const rawName = win.prompt(
+      L.composerThemeSaveAsPrompt,
+      getThemeDisplayName(composerThemeValue),
+    );
+    if (rawName === null) return;
+    const name = rawName.trim().replace(/\s+/g, " ");
+    if (!name) {
+      win.alert(L.composerThemeNameRequired);
+      return;
+    }
+    if (themeNameExists(name)) {
+      win.alert(L.composerThemeNameDuplicate);
+      return;
+    }
+    const now = Date.now();
+    const theme: CustomComposerTheme = {
+      id: createCustomComposerThemeId(),
+      name,
+      palette: normalizePalette(themeEditorPalette, themeEditorPalette),
+      createdAt: now,
+      updatedAt: now,
+    };
+    customComposerThemes = [...customComposerThemes, theme];
+    composerThemeValue = theme.id;
+    setPref("composerTheme", composerThemeValue);
+    persistThemeCollections();
+    renderComposerThemeItems();
+    updateComposerThemeUi();
+    applyComposerThemeToAllPanels(
+      composerThemeValue,
+      getPref("composerThemeCustomList"),
+      getPref("composerThemeBuiltinOverrides"),
+    );
+    customThemeStatus.textContent = L.composerThemeSaved;
+  });
+  customThemeDeleteBtn.addEventListener("click", () => {
+    if (isBuiltinComposerTheme(composerThemeValue)) return;
+    if (!win.confirm(L.composerThemeDeleteConfirm)) return;
+    customComposerThemes = customComposerThemes.filter(
+      (theme) => theme.id !== composerThemeValue,
+    );
+    composerThemeValue = "default";
+    themeEditorPalette = getBuiltinComposerThemePalette(
+      composerThemeValue,
+      builtinThemeOverrides,
+    );
+    setPref("composerTheme", composerThemeValue);
+    persistThemeCollections();
+    renderComposerThemeItems();
+    updateComposerThemeUi();
+    previewCurrentTheme();
+    customThemeStatus.textContent = "";
+  });
   const setComposerThemeTriggerText = (label: string) => {
     const arrow = composerThemeTrigger.querySelector(".llm-tr-dropdown-arrow");
     composerThemeTrigger.textContent = label;
@@ -3027,17 +3551,75 @@ export async function bootstrapSettingTab(
     composerThemeMenu.style.display = "none";
     composerThemeDropdown.classList.remove("open");
   };
+  function renderComposerThemeItems() {
+    composerThemeMenu.textContent = "";
+    composerThemeItems = getThemeDropdownOptions().map((option) => {
+      const item = createEl(
+        doc,
+        "div",
+        "llm-tr-dropdown-item",
+      ) as HTMLDivElement;
+      item.dataset.value = option.value;
+      item.addEventListener("click", (event) => {
+        event.stopPropagation();
+        composerThemeValue = normalizeComposerThemeSelection(option.value, []);
+        setPref("composerTheme", composerThemeValue);
+        themeEditorPalette = getEffectiveComposerThemePalette(
+          composerThemeValue,
+          customComposerThemes,
+          builtinThemeOverrides,
+        );
+        updateComposerThemeUi();
+        closeComposerThemeDropdown();
+        previewCurrentTheme();
+      });
+      composerThemeMenu.appendChild(item);
+      return { item, option };
+    });
+  }
   const updateComposerThemeUi = () => {
     const selected =
-      COMPOSER_THEME_OPTIONS.find(
+      getThemeDropdownOptions().find(
         (option) => option.value === composerThemeValue,
-      ) || COMPOSER_THEME_OPTIONS[0];
-    setComposerThemeTriggerText(L[selected.labelKey] || selected.value);
+      ) || getThemeDropdownOptions()[0];
+    setComposerThemeTriggerText(selected.label);
     composerThemeDropdown.dataset.value = composerThemeValue;
+    const latestOptions = getThemeDropdownOptions();
     composerThemeItems.forEach(({ item, option }) => {
-      item.textContent = L[option.labelKey] || option.value;
+      item.textContent =
+        latestOptions.find((latest) => latest.value === option.value)?.label ||
+        option.label;
       item.classList.toggle("selected", option.value === composerThemeValue);
     });
+    customThemeTitle.textContent = L.composerThemeEditorTitle;
+    customThemeResetBtn.textContent = L.composerThemeReset;
+    customThemeSaveBtn.textContent = L.composerThemeSave;
+    customThemeSaveAsBtn.textContent = L.composerThemeSaveAs;
+    customThemeDeleteBtn.textContent = L.composerThemeDelete;
+    const isBuiltInTheme = isBuiltinComposerTheme(composerThemeValue);
+    customThemeDeleteBtn.disabled = isBuiltInTheme;
+    customThemeDeleteBtn.hidden = isBuiltInTheme;
+    customThemeDeleteBtn.style.display = isBuiltInTheme ? "none" : "";
+    for (const { key, label } of customThemeLabels) {
+      const control = COMPOSER_THEME_COLOR_CONTROLS.find(
+        (item) => item.key === key,
+      );
+      label.textContent = control ? L[control.labelKey] || control.key : key;
+    }
+    customThemeControls.forEach((control) => {
+      const options = Array.from(
+        control.mode.querySelectorAll("option"),
+      ) as HTMLOptionElement[];
+      const labels: Record<string, string> = {
+        color: L.composerThemeModeColor,
+        system: L.composerThemeModeSystem,
+        transparent: L.composerThemeModeTransparent,
+      };
+      for (const option of options) {
+        option.textContent = labels[option.value] || option.value;
+      }
+    });
+    refreshCustomThemeInputs();
   };
   composerThemeTrigger.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -3054,20 +3636,7 @@ export async function bootstrapSettingTab(
       closeComposerThemeDropdown();
     }
   });
-  composerThemeItems = COMPOSER_THEME_OPTIONS.map((option) => {
-    const item = createEl(doc, "div", "llm-tr-dropdown-item") as HTMLDivElement;
-    item.dataset.value = option.value;
-    item.addEventListener("click", (event) => {
-      event.stopPropagation();
-      composerThemeValue = option.value;
-      setPref("composerTheme", composerThemeValue);
-      updateComposerThemeUi();
-      closeComposerThemeDropdown();
-      applyComposerThemeToAllPanels(composerThemeValue);
-    });
-    composerThemeMenu.appendChild(item);
-    return { item, option };
-  });
+  renderComposerThemeItems();
   const fontGroup = createEl(
     doc,
     "div",
@@ -3524,7 +4093,6 @@ export async function bootstrapSettingTab(
   progressCopyBtn.addEventListener("click", () => {
     const text = progressList.innerText || progressList.textContent || "";
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const helper = (Components.classes as any)[
         "@mozilla.org/widget/clipboardhelper;1"
       ]?.getService(Components.interfaces.nsIClipboardHelper);
@@ -3559,7 +4127,6 @@ export async function bootstrapSettingTab(
   logsCopyBtn.addEventListener("click", () => {
     const text = logsBox.value || "";
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const helper = (Components.classes as any)[
         "@mozilla.org/widget/clipboardhelper;1"
       ]?.getService(Components.interfaces.nsIClipboardHelper);
@@ -5472,6 +6039,9 @@ export async function bootstrapSettingTab(
       settingsSectionState: JSON.stringify(defaultSectionState),
       settingsScrollTop: "0",
       composerTheme: "default",
+      composerThemeCustom: "",
+      composerThemeCustomList: "",
+      composerThemeBuiltinOverrides: "",
       "font.chatSize": "15",
       "font.chatLineHeight": "1.6",
       "font.messageGap": "14",
@@ -5619,9 +6189,20 @@ export async function bootstrapSettingTab(
     scrollContainer.scrollTop = 0;
     setPref("settingsScrollTop", "0");
     composerThemeValue = "default";
+    customComposerThemes = [];
+    builtinThemeOverrides = {};
+    themeEditorPalette = { ...BUILTIN_COMPOSER_THEME_PALETTES.default };
     setPref("composerTheme", composerThemeValue);
+    setPref("composerThemeCustom", "");
+    setPref("composerThemeCustomList", "");
+    setPref("composerThemeBuiltinOverrides", "");
+    renderComposerThemeItems();
     updateComposerThemeUi();
-    applyComposerThemeToAllPanels(composerThemeValue);
+    applyComposerThemeToAllPanels(
+      composerThemeValue,
+      getPref("composerThemeCustomList"),
+      getPref("composerThemeBuiltinOverrides"),
+    );
     syncFontInspectorControls(resetPanelTypographySettings());
     applyTypographyToAllSurfaces();
     renderSelectionTranslateLanguageOptions();
@@ -5921,7 +6502,11 @@ export async function bootstrapSettingTab(
   systemPromptInput.addEventListener("input", () =>
     setPref("systemPrompt", systemPromptInput.value),
   );
-  const popupAddTextWrap = createEl(doc, "div", "llm-set-field");
+  const popupAddTextWrap = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-subsection",
+  );
   const popupAddTextLabel = createEl(doc, "label", "llm-set-radio-label");
   const popupInput = createEl(
     doc,
@@ -5954,7 +6539,7 @@ export async function bootstrapSettingTab(
   const authorProfilesWrap = createEl(
     doc,
     "div",
-    "llm-set-field llm-set-author-profiles-section",
+    "llm-set-field llm-set-subsection llm-set-author-profiles-section",
   );
   const authorProfilesTitleRow = createEl(doc, "div", "llm-set-row");
   Object.assign(authorProfilesTitleRow.style, {
