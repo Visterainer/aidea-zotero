@@ -2625,7 +2625,11 @@ function refreshAllSidebarShortcuts(
 
         // Update send button
         const sendBtn = body.querySelector("#llm-send") as HTMLElement | null;
-        if (sendBtn) sendBtn.textContent = panelI18n.send;
+        if (sendBtn) {
+          sendBtn.textContent = "";
+          sendBtn.title = panelI18n.send;
+          sendBtn.setAttribute("aria-label", panelI18n.send);
+        }
 
         refreshed++;
       }

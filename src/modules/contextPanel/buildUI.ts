@@ -1546,11 +1546,12 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     "llm-shortcut-btn llm-action-btn llm-action-btn-primary llm-send-btn",
     {
       id: "llm-send",
-      textContent: i18n.send,
+      textContent: "",
       title: i18n.send,
       disabled: !hasItem,
     },
   );
+  sendBtn.setAttribute("aria-label", i18n.send);
   const cancelBtn = createElement(
     doc,
     "button",

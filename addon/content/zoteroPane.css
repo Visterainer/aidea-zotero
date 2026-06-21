@@ -1469,13 +1469,18 @@
 }
 
 .llm-provider-setup-btn {
-  width: 104px;
-  min-height: 24px;
-  padding: 4px 10px;
+  box-sizing: border-box;
+  flex: 0 0 max-content;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  min-height: 26px;
+  padding: 4px 12px;
   border-radius: 3px;
   font-size: var(--llm-fs-10, 10px);
   font-weight: 500;
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .llm-basic-font-open {
@@ -4895,15 +4900,39 @@
 }
 
 .llm-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: auto;
   min-width: 78px;
   height: var(--llm-action-height);
   min-height: var(--llm-action-height);
   padding: var(--llm-action-pill-padding);
   border-radius: 999px;
-  font-size: var(--llm-action-font-size);
+  font-size: 0;
   font-weight: 600;
-  line-height: 1;
+  line-height: 0;
+}
+
+#llm-send::before {
+  content: "";
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  mask-image: url("icons/action-send.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: url("icons/action-send.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  pointer-events: none;
+}
+
+.llm-action-slot > #llm-send:not(.llm-action-icon-only) {
+  min-width: 78px;
 }
 
 .llm-send-btn.llm-action-icon-only {
@@ -4922,6 +4951,7 @@
   min-height: var(--llm-action-height);
   padding: var(--llm-action-pill-padding);
   font-size: var(--llm-action-font-size);
+  line-height: 1;
 }
 
 .llm-send-icon {
@@ -7115,7 +7145,7 @@
       transparent
     );
   border-radius: 16px;
-  background: var(--llm-theme-chat-bg, transparent);
+  background: transparent;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
@@ -7228,9 +7258,11 @@
 
 .llm-panel[data-composer-theme-surface="true"] .llm-input-section {
   background: var(--llm-theme-composer-bg, var(--material-background));
-  border-color: var(--llm-theme-border, var(--stroke-secondary));
-  box-shadow: 0 10px 28px
-    color-mix(in srgb, var(--llm-theme-shadow-color, #000000) 18%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--llm-theme-border, var(--stroke-secondary)) 72%,
+    transparent
+  );
 }
 
 .llm-panel[data-composer-theme-surface="true"] .llm-input {
@@ -7238,60 +7270,17 @@
   background: var(--llm-theme-input-bg, var(--fill-quaternary));
   border-color: color-mix(
     in srgb,
-    var(--llm-theme-border, var(--stroke-secondary)) 82%,
+    var(--llm-theme-border, var(--stroke-secondary)) 66%,
     transparent
-  );
-}
-
-.llm-panel[data-composer-theme-surface="true"] .llm-input::placeholder {
-  color: var(
-    --llm-theme-input-placeholder,
-    var(--llm-theme-chat-muted, var(--fill-tertiary))
   );
 }
 
 .llm-panel[data-composer-theme-surface="true"] .llm-input:focus {
   border-color: var(--llm-theme-accent, var(--color-accent));
-  box-shadow: 0 0 0 2px
-    color-mix(
-      in srgb,
-      var(--llm-theme-accent, var(--color-accent)) 18%,
-      transparent
-    );
 }
 
-.llm-panel[data-composer-theme-surface="true"]
-  :is(
-    .llm-shortcut-btn,
-    .llm-image-preview-meta,
-    .llm-paper-context-chip-label,
-    .llm-user-selected-text
-  ) {
-  color: var(--llm-theme-chat-muted, var(--fill-tertiary));
-  background: color-mix(
-    in srgb,
-    var(--llm-theme-chip-bg, var(--fill-quinary)) 76%,
-    transparent
-  );
-  border-color: var(--llm-theme-border, var(--stroke-secondary));
-}
-
-.llm-panel[data-composer-theme-surface="true"]
-  :is(.llm-shortcut-btn:hover:not(:disabled), .llm-image-preview-meta:hover),
-.llm-panel[data-composer-theme-surface="true"]
-  .llm-paper-context-chip:hover
-  .llm-paper-context-chip-label {
-  color: var(--llm-theme-chat-fg, var(--fill-primary));
-  background: color-mix(
-    in srgb,
-    var(--llm-theme-accent, var(--color-accent)) 12%,
-    var(--llm-theme-chip-bg, var(--fill-quinary))
-  );
-  border-color: color-mix(
-    in srgb,
-    var(--llm-theme-accent, var(--color-accent)) 42%,
-    transparent
-  );
+.llm-panel[data-composer-theme-surface="true"] .llm-input::placeholder {
+  color: var(--llm-theme-input-placeholder, var(--fill-tertiary));
 }
 
 .llm-panel[data-composer-theme-surface="true"] .llm-action-btn-primary {
@@ -7311,29 +7300,6 @@
     in srgb,
     var(--llm-theme-accent, var(--color-accent)) 86%,
     black
-  );
-}
-
-.llm-panel[data-composer-theme-surface="true"]
-  :is(
-    .llm-select-text-btn:hover:not(:disabled),
-    .llm-screenshot-btn:hover:not(:disabled),
-    .llm-upload-file-btn:hover:not(:disabled),
-    .llm-new-chat-btn:hover:not(:disabled),
-    .llm-model-btn:hover:not(:disabled),
-    .llm-reasoning-btn:hover:not(:disabled),
-    .llm-select-text-btn:focus-visible,
-    .llm-screenshot-btn:focus-visible,
-    .llm-upload-file-btn:focus-visible,
-    .llm-new-chat-btn:focus-visible,
-    .llm-model-btn:focus-visible,
-    .llm-reasoning-btn:focus-visible
-  ) {
-  color: var(--llm-theme-chat-fg, var(--fill-primary));
-  background: color-mix(
-    in srgb,
-    var(--llm-theme-accent, var(--color-accent)) 10%,
-    transparent
   );
 }
 

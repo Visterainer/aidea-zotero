@@ -1,17 +1,19 @@
 ## What's Changed
 
-- **Library sidebar selection fix**: completed the follow-up fix for #38. When multiple items are selected in the Zotero Library, Zotero's native "N items selected" message is now preserved instead of being covered by AIdea. Single-item selection continues to use Zotero's native item pane sections, so Info, Attachments, Notes, Tags, Related, and AIdea can be switched and scrolled normally. Thanks @N3xed for the original report and @informalgit for identifying and verifying the multi-select regression.
-- **Library panel alignment and stability**: improved the standalone AIdea panel placement for empty and multi-item Library selections, fixed sidebar icon alignment, and reduced unnecessary pane refreshes to avoid flicker.
-- **Selection translation cold-start improvements**: improved first-use context preparation for long papers in #39. AIdea now reduces interference from reference lists, prepares context independently for each paper, and automatically retries with a smaller context when the model reports an input-length limit. Thanks @Buhaoran0307 for the detailed report and example papers.
-- **Simpler selection translation settings**: removed the manual cold-start complexity selector. Context sizing is now handled automatically per paper, so users do not need to choose between complexity modes.
-- **Update notice refresh**: updated the one-time update notice to explain the Library sidebar and selection translation improvements in user-facing language.
-- **Diagnostics and tests**: added focused tests for selection-translation cold-start context building and fallback behavior, and verified the Library/sidebar package build.
+- **Conversation themes**: added built-in conversation themes for the chat tab, including Blue Porcelain, Eye Green, Warm Cream, Premium Gray, Midnight Black, and Sakura Pink. The Default theme keeps the existing system-style appearance.
+- **Composer and reply visual polish**: refined the input area with theme-aware surfaces, clearer center editor contrast, theme-colored Send button, and theme-aware bold emphasis in model replies.
+- **Send button refinement**: replaced the visible Send text with a paper-plane icon while keeping localized tooltips and accessibility labels.
+- **Shortcut menu layering fix**: fixed the shortcut bubble menu layering problem described in #43, so right-click shortcut menus are no longer covered by higher overlay layers. Thanks @zh-hongda for the PR and root-cause notes.
+- **OAuth environment updates**: improved OAuth authorization environment checks, installs, and updates across Windows, macOS, and Ubuntu. AIdea now runs available automatic steps and gives clearer terminal guidance when manual action is required.
+- **Provider settings layout**: improved OAuth provider setup button sizing so Install/Update Env labels are not clipped in narrow settings panels.
+- **Update notice refresh**: updated the one-time update notice to explain the conversation theme, Send button, and OAuth environment changes in user-facing language.
 
 ## 更新内容
 
-- **文库侧栏选择修复**：完成 #38 的后续修复。在 Zotero Library 中多选条目时，现在会保留 Zotero 原生的“已选择 N 个条目”提示，不再被 AIdea 覆盖。单选条目时仍使用 Zotero 原生条目详情面板，信息、附件、笔记、标签、相关和 AIdea 区域可以正常切换和滚动。感谢 @N3xed 提供最初的问题报告，也感谢 @informalgit 发现并验证多选回归问题。
-- **文库面板对齐与稳定性优化**：优化空选和多选状态下 AIdea 独立面板的显示位置，修复侧栏图标对齐问题，并减少不必要的面板刷新，降低页面闪动。
-- **划词翻译冷启动优化**：改进 #39 中长论文首次划词翻译可能失败的问题。AIdea 会减少参考文献部分对上下文的干扰，并按每篇文献独立准备上下文；当模型返回输入过长错误时，会自动缩小上下文范围后重试。感谢 @Buhaoran0307 提供详细反馈和示例论文。
-- **划词翻译设置简化**：移除手动冷启动复杂度选择。上下文范围现在会按每篇文献自动处理，用户无需再手动选择复杂度档位。
-- **更新提示刷新**：更新插件升级后的一次性提示面板，用更面向用户的语言说明文库侧栏和划词翻译体验改进。
-- **诊断与测试**：新增划词翻译冷启动上下文构建和自动回退相关测试，并完成文库侧栏相关构建验证。
+- **对话主题**：新增多套对话标签页内置主题，包括青花瓷、护眼绿、米白色、高级灰、暗夜黑和樱花粉。默认主题继续保持原有系统样式。
+- **输入区与回复视觉优化**：输入区域现在会跟随主题呈现柔和背景，中心输入框层次更清晰，发送按钮跟随主题色，模型回复中的加粗重点内容也会使用主题强调色。
+- **发送按钮优化**：将可见的 Send / 发送文字改为纸飞机图标，同时保留跟随界面语言的悬停提示和无障碍标签。
+- **快捷气泡菜单浮层修复**：修复 #43 中描述的快捷气泡右键菜单被更高浮层遮挡的问题。感谢 @zh-hongda 提交 PR 并说明根因。
+- **OAuth 授权环境更新**：改进 Windows、macOS 和 Ubuntu 下 OAuth 授权环境的检查、安装与更新流程。AIdea 会自动执行可完成的步骤；需要用户手动处理时，会给出更明确的终端提示。
+- **Provider 设置布局优化**：优化 OAuth Provider 区域按钮宽度，避免 Install/Update Env 在窄设置面板中被裁切。
+- **更新提示刷新**：更新插件升级后的一次性提示面板，用面向用户的语言说明对话主题、发送按钮和 OAuth 环境更新。

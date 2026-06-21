@@ -220,10 +220,14 @@ const SETTING_TAB_RENDER_VERSION = "2026-06-01-font-theme-layout";
 
 export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   let i18n = getPanelI18n();
+  let refreshActionLayoutForLanguage = () => {
+    /* assigned after action layout helpers are initialized */
+  };
   body.ownerDocument?.addEventListener(
     `${config.addonRef}-ui-language-change`,
     () => {
       i18n = getPanelI18n();
+      refreshActionLayoutForLanguage();
     },
   );
   let item = initialItem || null;
@@ -4069,11 +4073,18 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   };
 
   const setSendButtonLabel = (mode: ActionLabelMode) => {
-    setActionButtonLabel(sendBtn, "Send", "↑", mode);
-    sendBtn.title = getPanelI18n().send;
-    setActionButtonLabel(cancelBtn, "Cancel", "X", mode);
+    const labels = getPanelI18n();
+    if (sendBtn) {
+      if (sendBtn.textContent !== "") {
+        sendBtn.textContent = "";
+      }
+      sendBtn.classList.toggle("llm-action-icon-only", mode === "icon");
+      sendBtn.title = labels.send;
+      sendBtn.setAttribute("aria-label", labels.send);
+    }
+    setActionButtonLabel(cancelBtn, labels.cancel, "X", mode);
     if (cancelBtn) {
-      cancelBtn.title = getPanelI18n().cancel;
+      cancelBtn.title = labels.cancel;
     }
   };
 
@@ -4302,13 +4313,18 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       if (mode === "icon") {
         return ACTION_LAYOUT_CONTEXT_ICON_WIDTH_PX;
       }
-      const sendWidth = getFullSlotRequiredWidth(sendSlot, sendBtn, "Send");
+      const labels = getPanelI18n();
+      const sendWidth = getFullSlotRequiredWidth(
+        sendSlot,
+        sendBtn,
+        labels.send,
+      );
       const cancelWidth = getFullSlotRequiredWidth(
         sendSlot,
         cancelBtn,
-        "Cancel",
+        labels.cancel,
       );
-      return Math.max(sendWidth, cancelWidth, 72);
+      return Math.max(sendWidth, cancelWidth, 78);
     };
 
     const newChatSlotEl = newChatBtn?.parentElement as HTMLElement | null;
@@ -4485,6 +4501,11 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         { ...modelState, model: "full-wrap2" },
       );
     }
+
+    refreshActionLayoutForLanguage = () => {
+      lastActionLayoutSignature = "";
+      applyResponsiveActionButtonsLayout();
+    };
 
     applyMeasurementBaseline();
     for (const state of candidateStates) {

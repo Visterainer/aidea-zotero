@@ -3,7 +3,7 @@ import { config } from "../../package.json";
 import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 
-const NOTICE_ID = "v3.1.4-library-selection-translate-cold-start-v1";
+const NOTICE_ID = "v3.2.1-conversation-theme-oauth-env-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -490,6 +490,105 @@ for (const lang of Object.keys(OAUTH_ENV_UPDATE_COPIES) as PanelLang[]) {
   }
 }
 
+const CURRENT_UPDATE_NOTICE_COPIES: Partial<
+  Record<PanelLang, UpdateNoticeCopy>
+> = {
+  "en-US": {
+    eyebrow: "Update",
+    title: "Conversation experience update",
+    lead: "This update refines the visual themes in the conversation tab and improves OAuth authorization environment installation and update flows. The interface is more consistent, and environment maintenance is more automatic.",
+    note: "The plugin has been updated. Restart Zotero to make sure the new interface styles and background environment update logic are fully active.",
+    alsoLabel: "This update includes",
+    alsoItems: [
+      {
+        label: "Conversation themes",
+        text: "New built-in themes are available for the conversation tab: Blue Porcelain, Eye Green, Warm Cream, Premium Gray, Midnight Black, and Sakura Pink. The Default theme keeps the existing system style.",
+      },
+      {
+        label: "Input area polish",
+        text: "The input area now uses a soft theme background, the central editor keeps a clearer reading layer, and the Send button follows the current theme color.",
+      },
+      {
+        label: "Clearer emphasis",
+        text: "Bold content in model replies now uses the current theme's emphasis color, making summaries, conclusions, keywords, and structured points easier to scan.",
+      },
+      {
+        label: "Send button",
+        text: "The Send button now uses a paper-plane icon for a more stable layout. Its tooltip and accessibility label still follow the current interface language.",
+      },
+      {
+        label: "OAuth environment updates",
+        text: "OAuth authorization environment checks, installs, and updates have been improved. On Windows, macOS, and Ubuntu, AIdea will complete the available automatic steps and provide clearer terminal guidance when manual action is needed.",
+      },
+    ],
+    exampleLabel: "Usage",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "Choose a theme",
+        text: "Switch themes from the conversation theme option in Settings.",
+      },
+      {
+        label: "Default theme",
+        text: "Use the Default theme if you prefer an interface closer to Zotero's native style.",
+      },
+      {
+        label: "Environment update",
+        text: "If the OAuth authorization environment needs an update, click Install/Update Env in Settings. AIdea will run the steps it can complete automatically.",
+      },
+    ],
+    confirm: "OK",
+    close: "Close update notice",
+  },
+  "zh-CN": {
+    eyebrow: "更新提示",
+    title: "对话体验更新",
+    lead: "这次更新优化了对话标签页的主题视觉，并改进了 OAuth 授权环境的安装与更新流程。界面更统一，环境维护也更自动。",
+    note: "插件已更新。建议重启 Zotero，以确保新的界面样式和后台环境更新逻辑完整生效。",
+    alsoLabel: "本次更新包括",
+    alsoItems: [
+      {
+        label: "对话主题",
+        text: "新增多套内置对话主题：青花瓷、护眼绿、米白色、高级灰、暗夜黑、樱花粉。默认主题继续保持原有系统样式。",
+      },
+      {
+        label: "输入区视觉优化",
+        text: "输入区域现在会跟随主题呈现柔和背景，中心输入框保持更清晰的阅读层次，发送按钮也会同步使用当前主题色。",
+      },
+      {
+        label: "重点文字更清晰",
+        text: "模型回复中的加粗内容会使用当前主题的强调色显示，便于快速识别摘要、结论、关键词和结构化要点。",
+      },
+      {
+        label: "发送按钮优化",
+        text: "发送按钮改为纸飞机图标，视觉更稳定；鼠标悬停提示和无障碍标签仍会跟随当前界面语言。",
+      },
+      {
+        label: "OAuth 授权环境更新",
+        text: "优化了 OAuth 授权环境的检查、安装和更新流程。在 Windows、macOS 和 Ubuntu 上会尽量自动完成环境准备；需要用户手动处理时，会给出更明确的终端提示。",
+      },
+    ],
+    exampleLabel: "使用说明",
+    examplePrompt: "",
+    modeItems: [
+      {
+        label: "选择主题",
+        text: "可在设置中的对话主题选项里切换主题。",
+      },
+      {
+        label: "默认主题",
+        text: "如果希望界面尽量接近 Zotero 原生样式，可以继续使用默认主题。",
+      },
+      {
+        label: "环境更新",
+        text: "如果 OAuth 授权环境提示需要更新，可在设置中点击安装/更新环境，AIdea 会自动执行可完成的步骤。",
+      },
+    ],
+    confirm: "我知道了",
+    close: "关闭更新提示",
+  },
+};
+
 let noticeShowingOrSeen = false;
 const NOTICE_DIALOG_WIDTH = 760;
 const NOTICE_DIALOG_HEIGHT = 520;
@@ -746,8 +845,13 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
   if (noticeShowingOrSeen || wasNoticeSeen()) return;
 
   const lang = getPanelLang();
-  const baseCopy = OAUTH_ENV_UPDATE_COPIES["en-US"] || COPIES["en-US"];
+  const baseCopy =
+    CURRENT_UPDATE_NOTICE_COPIES["en-US"] ||
+    OAUTH_ENV_UPDATE_COPIES["en-US"] ||
+    COPIES["en-US"];
   const localizedCopy =
+    CURRENT_UPDATE_NOTICE_COPIES[lang] ||
+    CURRENT_UPDATE_NOTICE_COPIES["en-US"] ||
     OAUTH_ENV_UPDATE_COPIES[lang] ||
     OAUTH_ENV_UPDATE_COPIES["en-US"] ||
     COPIES["en-US"];
