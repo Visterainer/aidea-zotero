@@ -30,10 +30,32 @@ describe("oauthCli Gemini Code Assist helpers", function () {
       temperature: 0.2,
       maxOutputTokens: 256,
     });
-    assert.include(payload.request.contents[0].parts[0].text, "System:\nBe precise");
-    assert.include(payload.request.contents[0].parts[0].text, "Document Context:\nPaper context");
-    assert.include(payload.request.contents[0].parts[0].text, "Assistant:\nPrevious answer");
-    assert.include(payload.request.contents[0].parts[0].text, "User:\nCurrent question");
+    assert.include(
+      payload.request.contents[0].parts[0].text,
+      "System:\nBe precise",
+    );
+    assert.include(
+      payload.request.contents[0].parts[0].text,
+      "Document Context:\nPaper context",
+    );
+    assert.include(
+      payload.request.contents[0].parts[0].text,
+      "Assistant:\nPrevious answer",
+    );
+    assert.include(
+      payload.request.contents[0].parts[0].text,
+      "User:\nCurrent question",
+    );
+  });
+
+  it("should omit generationConfig when optional generation params are absent", function () {
+    const payload = buildGeminiCodeAssistRequestPayload({
+      model: "models/gemini-2.5-flash",
+      prompt: "Current question",
+      projectId: "test-project",
+    }) as any;
+
+    assert.notProperty(payload.request, "generationConfig");
   });
 
   it("should extract text from raw Code Assist responses", function () {

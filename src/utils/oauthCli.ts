@@ -2440,6 +2440,66 @@ const COPILOT_SUPPRESSED_MODEL_IDS = new Set([
   "gpt-41-copilot",
 ]);
 
+type OAuthParameterSource =
+  | "explicit-task"
+  | "omitted-provider-default"
+  | "provider-required-fallback";
+
+function getPayloadTokenParam(payload: Record<string, unknown>):
+  | {
+      field: string;
+      value: unknown;
+    }
+  | undefined {
+  for (const field of [
+    "max_tokens",
+    "max_completion_tokens",
+    "max_output_tokens",
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      return { field, value: payload[field] };
+    }
+  }
+  return undefined;
+}
+
+function logOAuthRequestParameterPolicy(params: {
+  provider: OAuthProviderId;
+  model: string;
+  endpointType: string;
+  payload: Record<string, unknown>;
+  parameterSource: OAuthParameterSource;
+  temperatureSent?: boolean;
+  tokenParam?: { field: string; value: unknown };
+}) {
+  const tokenParam = params.tokenParam || getPayloadTokenParam(params.payload);
+  ztoolkit?.log?.("AIdea: LLM request parameters", {
+    provider: params.provider,
+    model: params.model,
+    endpointType: params.endpointType,
+    temperatureSent:
+      params.temperatureSent ??
+      Object.prototype.hasOwnProperty.call(params.payload, "temperature"),
+    tokenField: tokenParam?.field || null,
+    tokenValue: tokenParam?.value ?? null,
+    parameterSource: params.parameterSource,
+  });
+}
+
+function hasFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function getOAuthOptionalParameterSource(params: {
+  temperature?: number;
+  maxTokens?: number;
+}): OAuthParameterSource {
+  return hasFiniteNumber(params.temperature) ||
+    hasFiniteNumber(params.maxTokens)
+    ? "explicit-task"
+    : "omitted-provider-default";
+}
+
 async function postCopilotRequest(params: {
   url: string;
   headers: Record<string, string>;
@@ -5506,6 +5566,13 @@ export async function chatWithProviderOAuth(params: {
       stream: true,
     };
     payload.tools = [{ type: "image_generation" }];
+    logOAuthRequestParameterPolicy({
+      provider: params.provider,
+      model: params.model,
+      endpointType: "codex-responses",
+      payload,
+      parameterSource: "omitted-provider-default",
+    });
     const codexHeaders: Record<string, string> = {
       ...ensureProviderAuthHeaderInit(cred),
       "Content-Type": "application/json",
@@ -5593,6 +5660,15 @@ export async function chatWithProviderOAuth(params: {
       if (params.systemPrompt?.trim()) {
         anthropicPayload.system = params.systemPrompt.trim();
       }
+      logOAuthRequestParameterPolicy({
+        provider: params.provider,
+        model: params.model,
+        endpointType: "copilot-anthropic-messages",
+        payload: anthropicPayload,
+        parameterSource: hasFiniteNumber(params.maxTokens)
+          ? "explicit-task"
+          : "provider-required-fallback",
+      });
       const anthropicUrl = `${copilotResult.baseUrl}/v1/messages`;
       const anthropicHeaders: Record<string, string> = {
         ...copilotBaseHeaders,
@@ -5641,6 +5717,15 @@ export async function chatWithProviderOAuth(params: {
         params.model,
         params.temperature,
       );
+      logOAuthRequestParameterPolicy({
+        provider: params.provider,
+        model: params.model,
+        endpointType: "copilot-chat-completions",
+        payload: chatPayload,
+        parameterSource: hasFiniteNumber(params.maxTokens)
+          ? "explicit-task"
+          : "omitted-provider-default",
+      });
       const chatUrl = `${copilotResult.baseUrl}/chat/completions`;
       const chatHeaders: Record<string, string> = {
         ...copilotBaseHeaders,
@@ -5684,6 +5769,15 @@ export async function chatWithProviderOAuth(params: {
     if (params.systemPrompt?.trim()) {
       responsesPayload.instructions = params.systemPrompt.trim();
     }
+    logOAuthRequestParameterPolicy({
+      provider: params.provider,
+      model: params.model,
+      endpointType: "copilot-responses",
+      payload: responsesPayload,
+      parameterSource: hasFiniteNumber(params.maxTokens)
+        ? "explicit-task"
+        : "omitted-provider-default",
+    });
     const copilotUrl = `${copilotResult.baseUrl}/responses`;
     const copilotHeaders: Record<string, string> = {
       ...copilotBaseHeaders,
@@ -5739,6 +5833,38 @@ export async function chatWithProviderOAuth(params: {
     systemPrompt: params.systemPrompt,
     temperature: params.temperature,
     maxTokens: params.maxTokens,
+  });
+  const geminiRequest =
+    typeof geminiPayload.request === "object" && geminiPayload.request
+      ? (geminiPayload.request as Record<string, unknown>)
+      : {};
+  const geminiGenerationConfig =
+    typeof geminiRequest.generationConfig === "object" &&
+    geminiRequest.generationConfig
+      ? (geminiRequest.generationConfig as Record<string, unknown>)
+      : {};
+  logOAuthRequestParameterPolicy({
+    provider: params.provider,
+    model: params.model,
+    endpointType: "gemini-code-assist",
+    payload: geminiPayload,
+    parameterSource: getOAuthOptionalParameterSource({
+      temperature: params.temperature,
+      maxTokens: params.maxTokens,
+    }),
+    temperatureSent: Object.prototype.hasOwnProperty.call(
+      geminiGenerationConfig,
+      "temperature",
+    ),
+    tokenParam: Object.prototype.hasOwnProperty.call(
+      geminiGenerationConfig,
+      "maxOutputTokens",
+    )
+      ? {
+          field: "generationConfig.maxOutputTokens",
+          value: geminiGenerationConfig.maxOutputTokens,
+        }
+      : undefined,
   });
 
   // Helper to execute the Gemini streaming request with a given credential

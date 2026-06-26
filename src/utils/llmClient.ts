@@ -9,7 +9,6 @@ import {
   getPrimaryConnectionMode,
   getApiProfiles,
 } from "../modules/contextPanel/prefHelpers";
-// llmDefaults values are used via ./normalization
 import {
   getAnthropicReasoningProfileForModel,
   getGeminiReasoningProfileForModel,
@@ -46,7 +45,10 @@ import {
   isResponsesBase,
 } from "./apiHelpers";
 import { pathToFileUrl } from "./pathFileUrl";
-import { normalizeTemperature, normalizeMaxTokens } from "./normalization";
+import {
+  normalizeOptionalTemperature,
+  normalizeOptionalMaxTokens,
+} from "./normalization";
 import {
   fetchWithTransientRetry,
   isRetryableTransientError,
@@ -114,9 +116,9 @@ export type ChatParams = {
   apiKey?: string;
   /** Optional reasoning control from UI */
   reasoning?: ReasoningConfig;
-  /** Optional custom sampling temperature */
+  /** Optional custom sampling temperature. Omitted values are not sent. */
   temperature?: number;
-  /** Optional custom token budget for completion/output */
+  /** Optional custom token budget for completion/output. Omitted values are not sent. */
   maxTokens?: number;
   /** Local files to upload and attach when using Responses API */
   attachments?: ChatFileAttachment[];
@@ -972,14 +974,71 @@ function splitThoughtTaggedText(
   return { answer, thought };
 }
 
-function buildTokenParam(model: string, maxTokens: number) {
+type ParameterSource =
+  | "explicit-task"
+  | "omitted-provider-default"
+  | "provider-required-fallback";
+
+function buildTokenParam(model: string, maxTokens: number | undefined) {
+  if (maxTokens === undefined) return {};
   return usesMaxCompletionTokens(model)
     ? { max_completion_tokens: maxTokens }
     : { max_tokens: maxTokens };
 }
 
-function buildResponsesTokenParam(maxTokens: number) {
+function buildResponsesTokenParam(maxTokens: number | undefined) {
+  if (maxTokens === undefined) return {};
   return { max_output_tokens: maxTokens };
+}
+
+function getPayloadTokenParam(payload: Record<string, unknown>):
+  | {
+      field: "max_tokens" | "max_completion_tokens" | "max_output_tokens";
+      value: unknown;
+    }
+  | undefined {
+  for (const field of [
+    "max_tokens",
+    "max_completion_tokens",
+    "max_output_tokens",
+  ] as const) {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      return { field, value: payload[field] };
+    }
+  }
+  return undefined;
+}
+
+function logLlmParameterPolicy(params: {
+  provider: string;
+  model: string;
+  endpointType: string;
+  payload: Record<string, unknown>;
+  parameterSource: ParameterSource;
+}) {
+  const tokenParam = getPayloadTokenParam(params.payload);
+  ztoolkit?.log?.("AIdea: LLM request parameters", {
+    provider: params.provider,
+    model: params.model,
+    endpointType: params.endpointType,
+    temperatureSent: Object.prototype.hasOwnProperty.call(
+      params.payload,
+      "temperature",
+    ),
+    tokenField: tokenParam?.field || null,
+    tokenValue: tokenParam?.value ?? null,
+    parameterSource: params.parameterSource,
+  });
+}
+
+function getOptionalParameterSource(params: {
+  effectiveTemperature?: number;
+  effectiveMaxTokens?: number;
+}): ParameterSource {
+  return params.effectiveTemperature !== undefined ||
+    params.effectiveMaxTokens !== undefined
+    ? "explicit-task"
+    : "omitted-provider-default";
 }
 
 const OPENAI_EFFORT_ORDER: OpenAIReasoningEffort[] = [
@@ -1416,8 +1475,8 @@ function createChatPayloadBuilder(params: {
   useResponses: boolean;
   responseFileIds?: string[];
   apiBase: string;
-  effectiveTemperature: number;
-  effectiveMaxTokens: number;
+  effectiveTemperature?: number;
+  effectiveMaxTokens?: number;
   stream: boolean;
 }) {
   const {
@@ -1437,9 +1496,10 @@ function createChatPayloadBuilder(params: {
       model,
       apiBase,
     );
-    const temperatureParam = reasoningPayload.omitTemperature
-      ? {}
-      : { temperature: effectiveTemperature };
+    const temperatureParam =
+      reasoningPayload.omitTemperature || effectiveTemperature === undefined
+        ? {}
+        : { temperature: effectiveTemperature };
 
     const payload = useResponses
       ? {
@@ -1556,6 +1616,7 @@ async function postWithTemperatureFallback(params: {
   url: string;
   apiKey: string;
   payload: Record<string, unknown>;
+  logPayload?: (payload: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }) {
   const policyKey = getTemperaturePolicyKey(params.url, params.payload);
@@ -1563,13 +1624,15 @@ async function postWithTemperatureFallback(params: {
     params.payload,
     "temperature",
   );
-  const send = (bodyPayload: Record<string, unknown>) =>
-    fetchWithTransientRetry(getFetch(), params.url, {
+  const send = (bodyPayload: Record<string, unknown>) => {
+    params.logPayload?.(bodyPayload);
+    return fetchWithTransientRetry(getFetch(), params.url, {
       method: "POST",
       headers: buildHeaders(params.apiKey),
       body: JSON.stringify(bodyPayload),
       signal: params.signal,
     });
+  };
 
   let requestPayload = params.payload;
   const cachedPolicy = temperaturePolicyCache.get(policyKey);
@@ -1643,6 +1706,7 @@ async function postWithReasoningFallback(params: {
   buildPayload: (
     reasoningOverride: ReasoningConfig | undefined,
   ) => Record<string, unknown>;
+  logPayload?: (payload: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }) {
   let reasoningSelection = params.initialReasoning;
@@ -1662,6 +1726,7 @@ async function postWithReasoningFallback(params: {
         url: params.url,
         apiKey: params.apiKey,
         payload,
+        logPayload: params.logPayload,
         signal: params.signal,
       });
     } catch (err) {
@@ -1972,8 +2037,12 @@ export async function callLLM(params: ChatParams): Promise<string> {
         signal: params.signal,
       })
     : [];
-  const effectiveTemperature = normalizeTemperature(params.temperature);
-  const effectiveMaxTokens = normalizeMaxTokens(params.maxTokens);
+  const effectiveTemperature = normalizeOptionalTemperature(params.temperature);
+  const effectiveMaxTokens = normalizeOptionalMaxTokens(params.maxTokens);
+  const parameterSource = getOptionalParameterSource({
+    effectiveTemperature,
+    effectiveMaxTokens,
+  });
 
   const url = resolveEndpoint(
     apiBase,
@@ -1995,6 +2064,14 @@ export async function callLLM(params: ChatParams): Promise<string> {
     modelName: model,
     initialReasoning: params.reasoning,
     buildPayload,
+    logPayload: (payload) =>
+      logLlmParameterPolicy({
+        provider: "openai-compatible",
+        model,
+        endpointType: useResponses ? "responses" : "chat-completions",
+        payload,
+        parameterSource,
+      }),
     signal: params.signal,
   });
 
@@ -2184,8 +2261,12 @@ export async function callLLMStream(
         signal: params.signal,
       })
     : [];
-  const effectiveTemperature = normalizeTemperature(params.temperature);
-  const effectiveMaxTokens = normalizeMaxTokens(params.maxTokens);
+  const effectiveTemperature = normalizeOptionalTemperature(params.temperature);
+  const effectiveMaxTokens = normalizeOptionalMaxTokens(params.maxTokens);
+  const parameterSource = getOptionalParameterSource({
+    effectiveTemperature,
+    effectiveMaxTokens,
+  });
 
   const url = resolveEndpoint(
     apiBase,
@@ -2242,6 +2323,13 @@ export async function callLLMStream(
 
     while (retries <= maxRetries) {
       try {
+        logLlmParameterPolicy({
+          provider: "openai-compatible",
+          model,
+          endpointType: "chat-completions",
+          payload,
+          parameterSource,
+        });
         return await withTransientRetry(
           async () =>
             xhrStream({
@@ -2325,6 +2413,14 @@ export async function callLLMStream(
     modelName: model,
     initialReasoning: params.reasoning,
     buildPayload,
+    logPayload: (payload) =>
+      logLlmParameterPolicy({
+        provider: "openai-compatible",
+        model,
+        endpointType: useResponses ? "responses" : "chat-completions",
+        payload,
+        parameterSource,
+      }),
     signal: params.signal,
   });
 

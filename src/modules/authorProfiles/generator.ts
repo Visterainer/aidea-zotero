@@ -1,8 +1,5 @@
 import { callLLM } from "../../utils/llmClient";
-import {
-  getAdvancedModelParamsForProfile,
-  getSelectedProfileForItem,
-} from "../contextPanel/prefHelpers";
+import { getSelectedProfileForItem } from "../contextPanel/prefHelpers";
 import {
   getModelChoices,
   type ModelChoice,
@@ -282,15 +279,14 @@ export async function generateAuthorProfileMarkdown(
     fraction: 0.78,
   });
   const profile = resolveAuthorProfileModel(item);
-  const advanced = getAdvancedModelParamsForProfile(profile.key);
   const markdown = sanitizeMarkdown(
     await callLLM({
       prompt: buildPrompt(input, targetLanguage),
       model: profile.model,
       apiBase: profile.apiBase,
       apiKey: profile.apiKey,
-      temperature: Math.min(0.3, advanced.temperature),
-      maxTokens: Math.max(900, Math.min(advanced.maxTokens, 1800)),
+      temperature: 0.3,
+      maxTokens: 1800,
       signal,
     }),
     targetLanguage,

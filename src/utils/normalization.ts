@@ -20,6 +20,17 @@ export function normalizeTemperature(value?: number | string): number {
   return Math.min(2, Math.max(0, parsed));
 }
 
+/** Clamp a temperature value to [0, 2], preserving omitted/invalid values. */
+export function normalizeOptionalTemperature(
+  value?: number | string | null,
+): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed =
+    typeof value === "string" ? Number.parseFloat(value) : Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.min(2, Math.max(0, parsed));
+}
+
 /** Clamp a max-tokens value to [1, MAX_ALLOWED_TOKENS], falling back to DEFAULT_MAX_TOKENS. */
 export function normalizeMaxTokens(value?: number | string): number {
   const parsed =
@@ -27,5 +38,18 @@ export function normalizeMaxTokens(value?: number | string): number {
       ? Number.parseInt(value, 10)
       : Math.floor(Number(value));
   if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_MAX_TOKENS;
+  return Math.min(parsed, MAX_ALLOWED_TOKENS);
+}
+
+/** Clamp a max-tokens value to [1, MAX_ALLOWED_TOKENS], preserving omitted/invalid values. */
+export function normalizeOptionalMaxTokens(
+  value?: number | string | null,
+): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed =
+    typeof value === "string"
+      ? Number.parseInt(value, 10)
+      : Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 1) return undefined;
   return Math.min(parsed, MAX_ALLOWED_TOKENS);
 }

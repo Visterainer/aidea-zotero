@@ -22,7 +22,6 @@ import {
   PAPER_CONVERSATION_KEY_BASE,
   PAPER_HISTORY_LIMIT,
   config,
-  type ModelProfileKey,
 } from "./constants";
 import {
   selectedModelCache,
@@ -71,7 +70,6 @@ import {
   getSelectedProfileForItem,
   applyPanelFontScale,
   applyPanelTypography,
-  getAdvancedModelParamsForProfile,
   getLastUsedModelProfileKey,
   setLastUsedModelProfileKey,
   getStringPref,
@@ -152,7 +150,6 @@ import {
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
 import type {
-  AdvancedModelParams,
   ChatAttachment,
   PaperContextRef,
   SelectedTextContext,
@@ -4706,14 +4703,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         updateModelButton();
         // Get resolved profile for the now-selected model
         const resolvedProfile = getSelectedProfileForItem(item.id);
-        const retryAdvanced = getAdvancedModelParams(entry.key);
         await retryLatestAssistantResponse(
           body,
           item,
           entry.model,
           resolvedProfile.apiBase,
           resolvedProfile.apiKey,
-          retryAdvanced,
+          undefined,
         );
       };
       option.addEventListener("click", (e: Event) => {
@@ -5076,13 +5072,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const getSelectedProfile = () => {
     if (!item) return null;
     return getSelectedProfileForItem(item.id);
-  };
-
-  const getAdvancedModelParams = (
-    profileKey: ModelProfileKey | undefined,
-  ): AdvancedModelParams | undefined => {
-    if (!profileKey) return undefined;
-    return getAdvancedModelParamsForProfile(profileKey);
   };
 
   const { processIncomingFiles } = createFileIntakeController({
@@ -5864,7 +5853,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     getSelectedProfile,
     getCurrentModelName: () => getSelectedModelInfo().currentModel,
     isScreenshotUnsupportedModel,
-    getAdvancedModelParams,
     getActiveEditSession: () => activeEditSession,
     setActiveEditSession: (nextEditSession) => {
       activeEditSession = nextEditSession;

@@ -74,9 +74,6 @@ type SendFlowControllerDeps = {
   getSelectedProfile: () => SelectedProfile | null;
   getCurrentModelName: () => string;
   isScreenshotUnsupportedModel: (modelName: string) => boolean;
-  getAdvancedModelParams: (
-    profileKey: ModelProfileKey | undefined,
-  ) => AdvancedModelParams | undefined;
   getActiveEditSession: () => EditLatestTurnMarker | null;
   setActiveEditSession: (value: EditLatestTurnMarker | null) => void;
   getLatestEditablePair: () => Promise<LatestEditablePair | null>;
@@ -242,7 +239,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
     const images = deps.isScreenshotUnsupportedModel(activeModelName)
       ? []
       : selectedImages;
-    const advancedParams = deps.getAdvancedModelParams(selectedProfile?.key);
 
     const activeEditSession = deps.getActiveEditSession();
     if (activeEditSession) {
@@ -278,7 +274,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         activeModelName,
         selectedProfile?.apiBase,
         selectedProfile?.apiKey,
-        advancedParams,
+        undefined,
       );
       if (editResult !== "ok") {
         if (editResult === "stale") {
@@ -328,7 +324,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       activeModelName,
       selectedProfile?.apiBase,
       selectedProfile?.apiKey,
-      advancedParams,
+      undefined,
       displayQuestion,
       selectedTexts.length ? selectedTexts : undefined,
       selectedTexts.length ? selectedTextSources : undefined,

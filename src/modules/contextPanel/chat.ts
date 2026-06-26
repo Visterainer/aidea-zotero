@@ -100,7 +100,6 @@ import {
   getSelectedProfileForItem,
   getApiProfiles,
   getPrimaryConnectionMode,
-  getAdvancedModelParamsForProfile,
   getStringPref,
   loadPersistedFileAttachmentIds,
 } from "./prefHelpers";
@@ -718,7 +717,7 @@ type EffectiveRequestConfig = {
   model: string;
   apiBase: string;
   apiKey: string;
-  advanced: AdvancedModelParams;
+  advanced?: AdvancedModelParams;
 };
 
 function shouldRewriteApiBaseForDetectedProvider(apiBase: string): boolean {
@@ -780,9 +779,7 @@ export function resolveEffectiveRequestConfig(params: {
     }
   }
 
-  const advanced =
-    params.advanced || getAdvancedModelParamsForProfile(fallbackProfile.key);
-  return { model, apiBase, apiKey, advanced };
+  return { model, apiBase, apiKey, advanced: params.advanced };
 }
 
 /**
@@ -1459,6 +1456,8 @@ async function compactConversationHistory(params: {
         model: params.model,
         apiBase: params.apiBase,
         apiKey: params.apiKey,
+        temperature: 0.2,
+        maxTokens: 1200,
       });
       if (summary && summary.trim().length > 20) {
         zoneBSummary = summary.trim();

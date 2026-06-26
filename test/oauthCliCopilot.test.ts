@@ -50,6 +50,18 @@ function buildOpenAICompatSseResponse(text: string): Response {
   });
 }
 
+function buildAnthropicSseResponse(text: string): Response {
+  const body =
+    `data: ${JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text } })}\n\n` +
+    "data: [DONE]\n\n";
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+    },
+  });
+}
+
 describe("oauthCli Copilot model parsing", function () {
   it("should parse the OpenAI-style data array returned by Copilot", function () {
     const models = parseCopilotModelsResponse({
@@ -356,6 +368,51 @@ describe("oauthCli Copilot temperature handling", function () {
     ]);
   });
 
+  it("omits max_tokens for Copilot chat-completions calls without explicit budgets", async function () {
+    setOAuthPref("oauthCopilotGithubToken", "github-token");
+    setOAuthPref(
+      "oauthCopilotApiToken",
+      JSON.stringify({
+        token: "copilot-token;proxy-ep=proxy.chat-no-limit.test;",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      }),
+    );
+    setOAuthPref(
+      "oauthModelListCache",
+      JSON.stringify({
+        "github-copilot": [
+          {
+            id: "gpt-4.1",
+            label: "GPT-4.1",
+            supportedEndpoints: ["/chat/completions"],
+            policyState: "enabled",
+          },
+        ],
+      }),
+    );
+
+    let seenPayload: Record<string, unknown> | null = null;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      seenPayload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+      return buildOpenAICompatSseResponse("Chat path");
+    }) as typeof globalThis.fetch;
+
+    await chatWithProviderOAuth({
+      provider: "github-copilot",
+      model: "gpt-4.1",
+      prompt: "Hello",
+    });
+
+    assert.notProperty(seenPayload, "max_tokens");
+    assert.notProperty(seenPayload, "temperature");
+  });
+
   it("routes Copilot responses-only models to /responses", async function () {
     setOAuthPref("oauthCopilotGithubToken", "github-token");
     setOAuthPref(
@@ -394,6 +451,71 @@ describe("oauthCli Copilot temperature handling", function () {
 
     assert.equal(result, "Responses path");
     assert.deepEqual(seenUrls, ["https://api.responses-route.test/responses"]);
+  });
+
+  it("omits max_output_tokens for Copilot Responses calls without explicit budgets", async function () {
+    setOAuthPref("oauthCopilotGithubToken", "github-token");
+    setOAuthPref(
+      "oauthCopilotApiToken",
+      JSON.stringify({
+        token: "copilot-token;proxy-ep=proxy.responses-no-limit.test;",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      }),
+    );
+
+    let seenPayload: Record<string, unknown> | null = null;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      seenPayload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+      return buildCopilotSseResponse("Responses path");
+    }) as typeof globalThis.fetch;
+
+    await chatWithProviderOAuth({
+      provider: "github-copilot",
+      model: "gpt-5.3-codex",
+      prompt: "Hello",
+    });
+
+    assert.notProperty(seenPayload, "max_output_tokens");
+    assert.notProperty(seenPayload, "temperature");
+  });
+
+  it("keeps the required 8192 max_tokens fallback for Copilot Claude calls", async function () {
+    setOAuthPref("oauthCopilotGithubToken", "github-token");
+    setOAuthPref(
+      "oauthCopilotApiToken",
+      JSON.stringify({
+        token: "copilot-token;proxy-ep=proxy.claude-fallback.test;",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      }),
+    );
+
+    let seenPayload: Record<string, unknown> | null = null;
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      seenPayload = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+      return buildAnthropicSseResponse("Claude path");
+    }) as typeof globalThis.fetch;
+
+    const result = await chatWithProviderOAuth({
+      provider: "github-copilot",
+      model: "claude-sonnet-4.6",
+      prompt: "Hello",
+    });
+
+    assert.equal(result, "Claude path");
+    assert.equal(seenPayload?.max_tokens, 8192);
+    assert.notProperty(seenPayload, "temperature");
   });
 
   it("converts Copilot Responses image outputs into markdown images", async function () {
@@ -499,6 +621,8 @@ describe("oauthCli Copilot temperature handling", function () {
 
     assert.equal(result, "Normal answer");
     assert.deepEqual(seenPayload?.tools, [{ type: "image_generation" }]);
+    assert.notProperty(seenPayload, "temperature");
+    assert.notProperty(seenPayload, "max_output_tokens");
     assert.include(
       String(seenPayload?.instructions || ""),
       "Use it only when the user clearly asks",

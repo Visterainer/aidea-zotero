@@ -14,6 +14,7 @@ describe("sendFlowController selected text conversation key", function () {
     const queriedKeys: number[] = [];
     const clearedKeys: number[] = [];
     const sentPayloads: Array<{
+      advanced?: unknown;
       displayQuestion?: string;
       selectedTexts?: string[];
       selectedTextSources?: string[];
@@ -54,7 +55,6 @@ describe("sendFlowController selected text conversation key", function () {
       }),
       getCurrentModelName: () => "gpt-test",
       isScreenshotUnsupportedModel: () => false,
-      getAdvancedModelParams: () => undefined,
       getActiveEditSession: () => null,
       setActiveEditSession: () => {},
       getLatestEditablePair: async () => null,
@@ -67,12 +67,13 @@ describe("sendFlowController selected text conversation key", function () {
         _model,
         _apiBase,
         _apiKey,
-        _advanced,
+        advanced,
         displayQuestion,
         selectedTexts,
         selectedTextSources,
       ) => {
         sentPayloads.push({
+          advanced,
           displayQuestion,
           selectedTexts,
           selectedTextSources,
@@ -99,6 +100,7 @@ describe("sendFlowController selected text conversation key", function () {
     assert.deepEqual(queriedKeys, [conversationKey]);
     assert.deepEqual(clearedKeys, [conversationKey]);
     assert.lengthOf(sentPayloads, 1);
+    assert.isUndefined(sentPayloads[0]?.advanced);
     assert.deepEqual(sentPayloads[0]?.selectedTexts, [selectedContext.text]);
     assert.deepEqual(sentPayloads[0]?.selectedTextSources, [
       selectedContext.source,
