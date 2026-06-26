@@ -7388,3 +7388,149 @@
     transparent
   );
 }
+
+/* Plugin-wide theme surfaces. Default keeps Zotero/system styling. */
+.llm-panel[data-composer-theme-surface="true"] {
+  color: var(--llm-theme-chat-fg, var(--fill-primary));
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-tab-content-wrapper,
+    .llm-tab-bottom-wrapper,
+    .llm-setting-scroll,
+    .llm-setting-console,
+    .llm-settings-root,
+    .llm-translate-scroll,
+    .llm-tr-root
+  ) {
+  color: var(--llm-theme-chat-fg, var(--fill-primary));
+}
+
+.llm-panel[data-composer-theme-surface="true"] .llm-setting-scroll,
+.llm-panel[data-composer-theme-surface="true"] .llm-translate-scroll {
+  background: color-mix(
+    in srgb,
+    var(--llm-theme-composer-bg, var(--material-background)) 78%,
+    var(--llm-theme-menu-bg, var(--material-background))
+  );
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-basic-theme-custom-panel,
+    .llm-set-provider-section,
+    .llm-set-card,
+    .llm-tr-section-body,
+    .llm-tr-path-block,
+    .llm-tr-console,
+    .llm-tr-dropdown-menu,
+    .llm-set-dropdown-menu,
+    .llm-font-inspector
+  ) {
+  color: var(--llm-theme-chat-fg, var(--fill-primary));
+  background: var(--llm-theme-menu-bg, var(--material-background));
+  border-color: var(--llm-theme-border, var(--stroke-secondary));
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-set-label,
+    .llm-set-hint,
+    .llm-basic-theme-custom-label,
+    .llm-tr-field-label,
+    .llm-tr-subtitle,
+    .llm-tr-console-time,
+    .llm-tr-console-line
+  ) {
+  color: var(--llm-theme-chat-muted, var(--fill-tertiary));
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-tr-dropdown-trigger,
+    .llm-set-dropdown-trigger,
+    .llm-tr-input,
+    .llm-tr-select,
+    .llm-basic-theme-custom-mode,
+    .llm-basic-theme-custom-color,
+    .llm-tr-stepper-value
+  ) {
+  color: var(--llm-theme-input-fg, var(--fill-primary));
+  background: var(--llm-theme-input-bg, var(--fill-quaternary));
+  border-color: var(--llm-theme-border, var(--stroke-secondary));
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-tr-dropdown-item:hover,
+    .llm-set-dropdown-item:hover,
+    .llm-set-tab-btn:hover,
+    .llm-tr-btn:hover:not(:disabled),
+    .llm-tr-stepper-btn:hover,
+    .llm-tr-console-icon-btn:hover
+  ) {
+  background: color-mix(
+    in srgb,
+    var(--llm-theme-accent, var(--color-accent)) 10%,
+    transparent
+  );
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-tr-dropdown-item.selected,
+    .llm-set-dropdown-item.selected,
+    .llm-set-tab-btn.active
+  ) {
+  color: var(--llm-theme-accent, var(--color-accent));
+  background: color-mix(
+    in srgb,
+    var(--llm-theme-accent, var(--color-accent)) 13%,
+    transparent
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--llm-theme-accent, var(--color-accent)) 54%,
+    transparent
+  );
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  :is(
+    .llm-set-btn--accent,
+    .llm-tr-btn-primary,
+    .llm-tr-stepper-confirm.confirmed
+  ) {
+  color: #ffffff;
+  background: var(--llm-theme-accent, var(--color-accent));
+  border-color: var(--llm-theme-accent, var(--color-accent));
+}
+
+.llm-panel[data-composer-theme-surface="true"] .llm-tr-progress-fill {
+  background: var(--llm-theme-accent, var(--color-accent));
+}
+
+.llm-panel[data-composer-theme-surface="true"]
+  .llm-tr-console-line.success
+  .llm-tr-console-msg {
+  color: var(--llm-theme-accent, var(--color-accent));
+}
+
+.llm-selection-translate-wrap[data-composer-theme-surface="true"] {
+  color: var(--llm-theme-chat-fg, var(--fill-primary));
+}
+
+.llm-selection-translate-wrap[data-composer-theme-surface="true"]
+  .llm-selection-translate-result {
+  color: var(--llm-theme-chat-fg, var(--fill-primary));
+  background: var(--llm-theme-chip-bg, var(--fill-quinary));
+  border-color: var(--llm-theme-border, var(--stroke-secondary));
+}
+
+.llm-selection-translate-wrap[data-composer-theme-surface="true"]
+  .llm-selection-translate-note-btn {
+  color: #ffffff;
+  background: var(--llm-theme-accent, var(--color-accent));
+  border-color: var(--llm-theme-accent, var(--color-accent));
+}

@@ -9,6 +9,7 @@ const ADDON_REF = "aidea";
 
 let preferenceScript: PreferenceScriptModule;
 let prefStore: PrefStore;
+let mockMainWindows: Array<{ document: MockDocument }>;
 
 function pluginPrefKey(key: string): string {
   return `${PREF_PREFIX}.${key}`;
@@ -35,9 +36,23 @@ function parseStyleText(style: Record<string, string>, cssText: string): void {
   }
 }
 
+class MockStyle {
+  [key: string]: string | ((name: string, value?: string) => string | void);
+
+  public setProperty(name: string, value: string): void {
+    this[name] = value;
+  }
+
+  public removeProperty(name: string): string {
+    const previous = String(this[name] || "");
+    delete this[name];
+    return previous;
+  }
+}
+
 class MockElement {
   public readonly children: MockElement[] = [];
-  public readonly style: Record<string, string> = {};
+  public readonly style = new MockStyle() as Record<string, string> & MockStyle;
   public readonly dataset: Record<string, string> = {};
   public readonly attributes = new Map<string, string>();
   public readonly listeners = new Map<string, Array<(event: any) => void>>();
@@ -183,6 +198,18 @@ class MockElement {
   }
 
   public querySelectorAll(selector: string): MockElement[] {
+    if (selector.includes(",")) {
+      const results: MockElement[] = [];
+      const seen = new Set<MockElement>();
+      for (const part of selector.split(",")) {
+        for (const match of this.querySelectorAll(part.trim())) {
+          if (seen.has(match)) continue;
+          seen.add(match);
+          results.push(match);
+        }
+      }
+      return results;
+    }
     const results: MockElement[] = [];
     const matcher = (node: MockElement) => {
       if (selector.startsWith("#")) {
@@ -266,6 +293,18 @@ class MockDocument {
   }
 
   public querySelectorAll(selector: string): MockElement[] {
+    if (selector.includes(",")) {
+      const results: MockElement[] = [];
+      const seen = new Set<MockElement>();
+      for (const part of selector.split(",")) {
+        for (const match of this.querySelectorAll(part.trim())) {
+          if (seen.has(match)) continue;
+          seen.add(match);
+          results.push(match);
+        }
+      }
+      return results;
+    }
     if (selector.startsWith("#")) {
       const match = this.querySelector(selector);
       return match ? [match] : [];
@@ -406,6 +445,14 @@ function createMockWindow(): {
   return win;
 }
 
+function createPanelRoot(doc: MockDocument): MockElement {
+  const root = doc.createElementNS("http://www.w3.org/1999/xhtml", "div");
+  root.id = "llm-main";
+  root.className = "llm-panel";
+  doc.body.appendChild(root);
+  return root;
+}
+
 function findTextCount(root: MockElement, text: string): number {
   let count = root.textContent === text ? 1 : 0;
   for (const child of root.children) {
@@ -417,6 +464,7 @@ function findTextCount(root: MockElement, text: string): number {
 describe("custom endpoint settings UI", function () {
   before(async function () {
     prefStore = new Map<string, unknown>();
+    mockMainWindows = [];
     (globalThis as any).Zotero = {
       Prefs: {
         get(key: string) {
@@ -427,7 +475,7 @@ describe("custom endpoint settings UI", function () {
         },
       },
       locale: "en-US",
-      getMainWindows: () => [],
+      getMainWindows: () => mockMainWindows,
       getMainWindow: () => null,
     };
     (globalThis as any).ztoolkit = {
@@ -442,6 +490,7 @@ describe("custom endpoint settings UI", function () {
 
   beforeEach(function () {
     prefStore.clear();
+    mockMainWindows = [];
     setPluginPref("uiLanguage", "en-US");
   });
 
@@ -649,5 +698,83 @@ describe("custom endpoint settings UI", function () {
       JSON.parse(String(getPluginPref("providerModelSectionState") || "{}")),
       { "openai-codex": false },
     );
+  });
+
+  it("selects builtin theme overrides and applies them to open panels", async function () {
+    setPluginPref("composerTheme", "default");
+    setPluginPref(
+      "composerThemeBuiltinOverrides",
+      JSON.stringify({
+        "blue-porcelain": { accent: "#112233", text: "#445566" },
+      }),
+    );
+    const panelDoc = new MockDocument();
+    panelDoc.defaultView = { frames: [] };
+    const panelRoot = createPanelRoot(panelDoc);
+    mockMainWindows = [{ document: panelDoc }];
+
+    const win = createMockWindow();
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
+
+    const themeItem = (
+      win.document.querySelectorAll(
+        ".llm-tr-dropdown-item",
+      ) as unknown as MockElement[]
+    ).find((item) => item.dataset.value === "blue-porcelain") as MockElement;
+
+    assert.exists(themeItem);
+
+    themeItem.emit("click");
+
+    assert.equal(panelRoot.dataset.composerTheme, "blue-porcelain");
+    assert.equal(panelRoot.dataset.composerThemeSurface, "true");
+    assert.equal(panelRoot.style["--llm-theme-accent"], "#112233");
+    assert.equal(panelRoot.style["--llm-theme-chat-fg"], "#445566");
+  });
+
+  it("lists custom themes and previews the selected custom palette globally", async function () {
+    setPluginPref("composerTheme", "default");
+    setPluginPref(
+      "composerThemeCustomList",
+      JSON.stringify([
+        {
+          id: "custom:test",
+          name: "Research Dark",
+          palette: { accent: "#654321", text: "#123456" },
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]),
+    );
+    const panelDoc = new MockDocument();
+    panelDoc.defaultView = { frames: [] };
+    const panelRoot = createPanelRoot(panelDoc);
+    mockMainWindows = [{ document: panelDoc }];
+
+    const win = createMockWindow();
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
+
+    const themeItem = (
+      win.document.querySelectorAll(
+        ".llm-tr-dropdown-item",
+      ) as unknown as MockElement[]
+    ).find((item) => item.dataset.value === "custom:test") as MockElement;
+
+    assert.exists(themeItem);
+
+    themeItem.emit("click");
+
+    assert.equal(getPluginPref("composerTheme"), "custom:test");
+    assert.equal(panelRoot.dataset.composerTheme, "custom:test");
+    assert.equal(panelRoot.style["--llm-theme-accent"], "#654321");
+    assert.equal(panelRoot.style["--llm-theme-chat-fg"], "#123456");
   });
 });

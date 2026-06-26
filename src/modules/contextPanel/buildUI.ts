@@ -9,7 +9,7 @@ import type { ActionDropdownSpec } from "./types";
 import { isGlobalPortalItem } from "./portalScope";
 import { getPanelI18n, getPanelLang } from "./i18n";
 import { getUiLanguageOption, TRANSLATION_LANGUAGE_OPTIONS } from "./languages";
-import { applyComposerThemeToRoot } from "./theme";
+import { applyCurrentThemeToRoot } from "./theme";
 
 type PanelTab = "discussion" | "translate" | "setting";
 
@@ -46,16 +46,6 @@ function persistActiveTab(body: Element, tab: PanelTab): void {
   } catch {
     /* ignore pref write failures */
   }
-}
-
-function getPersistedComposerTheme(): string {
-  try {
-    const value = Zotero.Prefs.get(`${config.prefsPrefix}.composerTheme`, true);
-    return typeof value === "string" ? value : "default";
-  } catch {
-    /* pref may not be registered during early startup */
-  }
-  return "default";
 }
 
 function createActionDropdown(doc: Document, spec: ActionDropdownSpec) {
@@ -117,7 +107,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";
   container.dataset.activeTab = initialActiveTab;
-  applyComposerThemeToRoot(container, getPersistedComposerTheme(), "", "");
+  applyCurrentThemeToRoot(container);
 
   // ═══════════════════════════════════════════════════════════
   // Tab Navigation

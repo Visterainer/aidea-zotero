@@ -76,6 +76,7 @@ import {
   PANEL_TYPOGRAPHY_REFRESH_EVENT,
   getPanelTypographySettings,
 } from "./prefHelpers";
+import { applyCurrentThemeToRoot } from "./theme";
 
 type ReaderSelectionPopupHandler =
   _ZoteroTypes.Reader.EventHandler<"renderTextSelectionPopup">;
@@ -1026,6 +1027,7 @@ export function registerReaderSelectionTracking() {
             "box-sizing:border-box",
             "color:inherit",
           ].join(";");
+          applyCurrentThemeToRoot(wrap);
 
           const resultBox = event.doc.createElementNS(
             "http://www.w3.org/1999/xhtml",

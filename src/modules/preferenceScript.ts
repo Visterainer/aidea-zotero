@@ -62,8 +62,8 @@ import {
   BUILTIN_COMPOSER_THEME_OPTIONS,
   BUILTIN_COMPOSER_THEME_PALETTES,
   COMPOSER_THEME_COLOR_CONTROLS,
-  applyComposerThemeToRoot,
-  applyComposerThemePaletteToRoot,
+  applyPluginThemePaletteToAllSurfaces,
+  applyPluginThemeStateToAllSurfaces,
   createCustomComposerThemeId,
   getBuiltinComposerThemePalette,
   getEffectiveComposerThemePalette,
@@ -73,6 +73,8 @@ import {
   normalizeThemeColorValue,
   palettesEqual,
   parseCustomComposerThemes,
+  parseBuiltinComposerThemeOverrides,
+  resolvePluginThemeState,
   serializeBuiltinComposerThemeOverrides,
   serializeCustomComposerThemes,
   type BuiltinComposerThemeId,
@@ -2024,7 +2026,7 @@ const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
 };
 const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "en-US": {
-    composerTheme: "Conversation Theme",
+    composerTheme: "Plugin Theme",
     composerThemeDefault: "Default",
     composerThemeBluePorcelain: "Blue Porcelain",
     composerThemeEyeGreen: "Eye Green",
@@ -2069,7 +2071,7 @@ const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     composerThemeCustomChipBg: "Chip background",
   },
   "zh-CN": {
-    composerTheme: "对话主题",
+    composerTheme: "插件主题",
     composerThemeDefault: "默认",
     composerThemeBluePorcelain: "青花瓷",
     composerThemeEyeGreen: "护眼绿",
@@ -2175,7 +2177,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "zh-TW": {
     language: "介面語言",
     basicConfig: "基本設定",
-    composerTheme: "輸入框主題",
+    composerTheme: "插件主題",
     composerThemeDefault: "預設",
     composerThemeSoftBlue: "柔和藍",
     hideTabNav: "標籤列：",
@@ -2190,7 +2192,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "ja-JP": {
     language: "UI 言語",
     basicConfig: "基本設定",
-    composerTheme: "入力テーマ",
+    composerTheme: "プラグインテーマ",
     composerThemeDefault: "既定",
     composerThemeSoftBlue: "ソフトブルー",
     hideTabNav: "タブバー:",
@@ -2206,7 +2208,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "ko-KR": {
     language: "UI 언어",
     basicConfig: "기본 설정",
-    composerTheme: "입력 테마",
+    composerTheme: "플러그인 테마",
     composerThemeDefault: "기본값",
     composerThemeSoftBlue: "소프트 블루",
     hideTabNav: "탭 표시줄:",
@@ -2221,7 +2223,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "fr-FR": {
     language: "Langue de l'interface",
     basicConfig: "Configuration de base",
-    composerTheme: "Theme de saisie",
+    composerTheme: "Theme du plugin",
     composerThemeDefault: "Par defaut",
     composerThemeSoftBlue: "Bleu doux",
     hideTabNav: "Barre d'onglets :",
@@ -2236,7 +2238,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "de-DE": {
     language: "Oberflaechensprache",
     basicConfig: "Grundeinstellungen",
-    composerTheme: "Eingabethema",
+    composerTheme: "Plugin-Theme",
     composerThemeDefault: "Standard",
     composerThemeSoftBlue: "Sanftes Blau",
     hideTabNav: "Tableiste:",
@@ -2251,7 +2253,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "es-ES": {
     language: "Idioma de la interfaz",
     basicConfig: "Configuracion basica",
-    composerTheme: "Tema de entrada",
+    composerTheme: "Tema del plugin",
     composerThemeDefault: "Predeterminado",
     composerThemeSoftBlue: "Azul suave",
     hideTabNav: "Barra de pestanas:",
@@ -2266,7 +2268,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "ru-RU": {
     language: "Язык интерфейса",
     basicConfig: "Основные настройки",
-    composerTheme: "Тема поля ввода",
+    composerTheme: "Тема плагина",
     composerThemeDefault: "По умолчанию",
     composerThemeSoftBlue: "Мягкий синий",
     hideTabNav: "Панель вкладок:",
@@ -2281,7 +2283,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "pt-BR": {
     language: "Idioma da interface",
     basicConfig: "Configuracao basica",
-    composerTheme: "Tema de entrada",
+    composerTheme: "Tema do plugin",
     composerThemeDefault: "Padrao",
     composerThemeSoftBlue: "Azul suave",
     hideTabNav: "Barra de abas:",
@@ -2296,7 +2298,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "ar-SA": {
     language: "لغة الواجهة",
     basicConfig: "الإعدادات الأساسية",
-    composerTheme: "سمة الإدخال",
+    composerTheme: "سمة الإضافة",
     composerThemeDefault: "افتراضي",
     composerThemeSoftBlue: "أزرق هادئ",
     hideTabNav: "شريط التبويب:",
@@ -2311,7 +2313,7 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "hi-IN": {
     language: "इंटरफ़ेस भाषा",
     basicConfig: "मूल सेटिंग",
-    composerTheme: "इनपुट थीम",
+    composerTheme: "प्लगइन थीम",
     composerThemeDefault: "डिफ़ॉल्ट",
     composerThemeSoftBlue: "हल्का नीला",
     hideTabNav: "टैब बार:",
@@ -2693,96 +2695,16 @@ export function applyComposerThemeToAllPanels(
   customThemesRaw = getPref("composerThemeCustomList"),
   builtinOverridesRaw = getPref("composerThemeBuiltinOverrides"),
 ): void {
-  try {
-    void customThemesRaw;
-    void builtinOverridesRaw;
-    const allDocs = new Set<Document>();
-    try {
-      const wins: Window[] = Zotero.getMainWindows?.() || [];
-      for (const w of wins) {
-        if (w?.document) allDocs.add(w.document);
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      const mainWin: Window | null = Zotero.getMainWindow?.() || null;
-      if (mainWin?.document) allDocs.add(mainWin.document);
-    } catch {
-      /* ignore */
-    }
-    try {
-      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
-        Ci.nsIWindowMediator,
-      );
-      if (wm) {
-        const enumerator = wm.getEnumerator("navigator:browser");
-        while (enumerator.hasMoreElements()) {
-          const w = enumerator.getNext() as Window;
-          if (w?.document) allDocs.add(w.document);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-
-    for (const doc of allDocs) {
-      doc.querySelectorAll("#llm-main").forEach((root: Element) => {
-        applyComposerThemeToRoot(root as HTMLElement, theme, "", "");
-      });
-    }
-  } catch {
-    /* ignore */
-  }
+  applyPluginThemeStateToAllSurfaces(
+    resolvePluginThemeState(theme, customThemesRaw, builtinOverridesRaw),
+  );
 }
 
 export function applyComposerThemePaletteToAllPanels(
   theme: ComposerThemeSelection,
   paletteValue: ComposerThemePalette,
 ): void {
-  try {
-    const allDocs = new Set<Document>();
-    try {
-      const wins: Window[] = Zotero.getMainWindows?.() || [];
-      for (const w of wins) {
-        if (w?.document) allDocs.add(w.document);
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      const mainWin: Window | null = Zotero.getMainWindow?.() || null;
-      if (mainWin?.document) allDocs.add(mainWin.document);
-    } catch {
-      /* ignore */
-    }
-    try {
-      const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
-        Ci.nsIWindowMediator,
-      );
-      if (wm) {
-        const enumerator = wm.getEnumerator("navigator:browser");
-        while (enumerator.hasMoreElements()) {
-          const w = enumerator.getNext() as Window;
-          if (w?.document) allDocs.add(w.document);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-
-    for (const doc of allDocs) {
-      doc.querySelectorAll("#llm-main").forEach((root: Element) => {
-        applyComposerThemePaletteToRoot(
-          root as HTMLElement,
-          theme,
-          paletteValue,
-        );
-      });
-    }
-  } catch {
-    /* ignore */
-  }
+  applyPluginThemePaletteToAllSurfaces(theme, paletteValue);
 }
 
 function collectOpenZoteroDocuments(): Set<Document> {
@@ -3173,7 +3095,8 @@ export async function bootstrapSettingTab(
   let customComposerThemes = parseCustomComposerThemes(
     getPref("composerThemeCustomList"),
   );
-  let builtinThemeOverrides: BuiltinComposerThemeOverrides = {};
+  let builtinThemeOverrides: BuiltinComposerThemeOverrides =
+    parseBuiltinComposerThemeOverrides(getPref("composerThemeBuiltinOverrides"));
   const migrateLegacyCustomTheme = () => {
     if (getPref("composerTheme") !== "custom" || customComposerThemes.length) {
       return;
@@ -3207,15 +3130,15 @@ export async function bootstrapSettingTab(
   migrateLegacyCustomTheme();
   let composerThemeValue = normalizeComposerThemeSelection(
     getPref("composerTheme"),
-    [],
+    customComposerThemes,
   );
   if (composerThemeValue !== getPref("composerTheme")) {
     setPref("composerTheme", composerThemeValue);
   }
   let themeEditorPalette = getEffectiveComposerThemePalette(
     composerThemeValue,
-    [],
-    {},
+    customComposerThemes,
+    builtinThemeOverrides,
   );
   let composerThemeItems: Array<{
     item: HTMLDivElement;
@@ -3314,6 +3237,11 @@ export async function bootstrapSettingTab(
       value: option.value,
       label: L[option.labelKey] || option.fallbackName,
       removable: false,
+    })),
+    ...customComposerThemes.map((theme) => ({
+      value: theme.id,
+      label: theme.name,
+      removable: true,
     })),
   ];
   const normalizeThemeName = (name: string) =>
@@ -3566,7 +3494,10 @@ export async function bootstrapSettingTab(
       item.dataset.value = option.value;
       item.addEventListener("click", (event) => {
         event.stopPropagation();
-        composerThemeValue = normalizeComposerThemeSelection(option.value, []);
+        composerThemeValue = normalizeComposerThemeSelection(
+          option.value,
+          customComposerThemes,
+        );
         setPref("composerTheme", composerThemeValue);
         themeEditorPalette = getEffectiveComposerThemePalette(
           composerThemeValue,

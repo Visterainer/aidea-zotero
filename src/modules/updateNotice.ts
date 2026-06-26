@@ -2,6 +2,7 @@ import { DialogHelper } from "zotero-plugin-toolkit";
 import { config } from "../../package.json";
 import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
+import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
 const NOTICE_ID = "v3.2.1-conversation-theme-oauth-env-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
@@ -496,13 +497,13 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
   "en-US": {
     eyebrow: "Update",
     title: "Conversation experience update",
-    lead: "This update refines the visual themes in the conversation tab and improves OAuth authorization environment installation and update flows. The interface is more consistent, and environment maintenance is more automatic.",
+    lead: "This update refines AIdea's plugin-wide visual themes and improves OAuth authorization environment installation and update flows. The interface is more consistent, and environment maintenance is more automatic.",
     note: "The plugin has been updated. Restart Zotero to make sure the new interface styles and background environment update logic are fully active.",
     alsoLabel: "This update includes",
     alsoItems: [
       {
-        label: "Conversation themes",
-        text: "New built-in themes are available for the conversation tab: Blue Porcelain, Eye Green, Warm Cream, Premium Gray, Midnight Black, and Sakura Pink. The Default theme keeps the existing system style.",
+        label: "Plugin themes",
+        text: "New built-in themes are available across AIdea's own interface: Blue Porcelain, Eye Green, Warm Cream, Premium Gray, Midnight Black, and Sakura Pink. The Default theme keeps the existing system style.",
       },
       {
         label: "Input area polish",
@@ -526,7 +527,7 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
     modeItems: [
       {
         label: "Choose a theme",
-        text: "Switch themes from the conversation theme option in Settings.",
+        text: "Switch themes from the plugin theme option in Settings.",
       },
       {
         label: "Default theme",
@@ -548,8 +549,8 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
     alsoLabel: "本次更新包括",
     alsoItems: [
       {
-        label: "对话主题",
-        text: "新增多套内置对话主题：青花瓷、护眼绿、米白色、高级灰、暗夜黑、樱花粉。默认主题继续保持原有系统样式。",
+        label: "插件主题",
+        text: "新增多套内置插件主题：青花瓷、护眼绿、米白色、高级灰、暗夜黑、樱花粉。默认主题继续保持原有系统样式。",
       },
       {
         label: "输入区视觉优化",
@@ -573,7 +574,7 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
     modeItems: [
       {
         label: "选择主题",
-        text: "可在设置中的对话主题选项里切换主题。",
+        text: "可在设置中的插件主题选项里切换主题。",
       },
       {
         label: "默认主题",
@@ -638,7 +639,7 @@ function createNoticeBody(
           namespace: "html",
           styles: {
             marginBottom: "7px",
-            color: "#0f766e",
+            color: "var(--llm-theme-accent, #0f766e)",
             fontSize: "12px",
             fontWeight: "750",
           },
@@ -651,7 +652,7 @@ function createNoticeBody(
             namespace: "html",
             styles: {
               marginBottom: "9px",
-              color: "#1f2328",
+              color: "var(--llm-theme-chat-fg, #1f2328)",
               fontSize: "13px",
               lineHeight: "1.58",
             },
@@ -680,7 +681,7 @@ function createNoticeBody(
           namespace: "html",
           styles: {
             marginBottom: "9px",
-            color: "#1f2328",
+            color: "var(--llm-theme-chat-fg, #1f2328)",
             fontSize: "13px",
             lineHeight: "1.58",
           },
@@ -707,7 +708,7 @@ function createNoticeBody(
           namespace: "html",
           properties: { innerText: copy.examplePrompt },
           styles: {
-            color: "#1f2328",
+            color: "var(--llm-theme-chat-fg, #1f2328)",
             fontSize: "13px",
             lineHeight: "1.58",
             userSelect: "text",
@@ -718,14 +719,18 @@ function createNoticeBody(
   return {
     tag: "div",
     namespace: "html",
-    attributes: { dir: language.dir, lang: language.htmlLang },
+    attributes: {
+      class: "llm-update-notice-body",
+      dir: language.dir,
+      lang: language.htmlLang,
+    },
     styles: {
       width: `${NOTICE_BODY_WIDTH}px`,
       padding: "22px 24px 8px",
       boxSizing: "border-box",
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      color: "#1f2328",
-      background: "#fff",
+      color: "var(--llm-theme-chat-fg, #1f2328)",
+      background: "var(--llm-theme-menu-bg, #fff)",
     },
     children: [
       {
@@ -734,7 +739,7 @@ function createNoticeBody(
         properties: { innerText: copy.eyebrow },
         styles: {
           marginBottom: "8px",
-          color: "#0d9488",
+          color: "var(--llm-theme-accent, #0d9488)",
           fontSize: "12px",
           fontWeight: "700",
           letterSpacing: "0",
@@ -747,7 +752,7 @@ function createNoticeBody(
         properties: { innerText: copy.title },
         styles: {
           marginBottom: "14px",
-          color: "#111827",
+          color: "var(--llm-theme-chat-fg, #111827)",
           fontSize: "19px",
           fontWeight: "750",
           lineHeight: "1.3",
@@ -759,7 +764,7 @@ function createNoticeBody(
         properties: { innerText: copy.lead },
         styles: {
           marginBottom: "12px",
-          color: "#374151",
+          color: "var(--llm-theme-chat-muted, #374151)",
           fontSize: "13px",
           fontWeight: "650",
           lineHeight: "1.55",
@@ -789,9 +794,10 @@ function createNoticeBody(
               styles: {
                 marginBottom: "16px",
                 padding: "12px 14px",
-                border: "1px solid rgba(99, 102, 241, 0.18)",
+                border:
+                  "1px solid var(--llm-theme-border, rgba(99, 102, 241, 0.18))",
                 borderRadius: "8px",
-                background: "rgba(99, 102, 241, 0.055)",
+                background: "var(--llm-theme-chip-bg, rgba(99, 102, 241, 0.055))",
               },
               children: alsoChildren,
             },
@@ -802,9 +808,10 @@ function createNoticeBody(
         namespace: "html",
         styles: {
           padding: "13px 14px",
-          border: "1px solid rgba(13, 148, 136, 0.22)",
+          border:
+            "1px solid var(--llm-theme-border, rgba(13, 148, 136, 0.22))",
           borderRadius: "8px",
-          background: "rgba(13, 148, 136, 0.06)",
+          background: "var(--llm-theme-chip-bg, rgba(13, 148, 136, 0.06))",
         },
         children: [
           {
@@ -813,7 +820,7 @@ function createNoticeBody(
             properties: { innerText: copy.exampleLabel },
             styles: {
               marginBottom: "7px",
-              color: "#0f766e",
+              color: "var(--llm-theme-accent, #0f766e)",
               fontSize: "12px",
               fontWeight: "750",
             },
@@ -830,11 +837,15 @@ function styleConfirmButton(dialog: DialogHelper): void {
     NOTICE_CONFIRM_BUTTON_ID,
   ) as HTMLElement | null;
   if (!button) return;
+  applyCurrentThemeToRoot(button);
   Object.assign(button.style, {
     minWidth: "86px",
     minHeight: "40px",
     padding: "6px 18px",
     borderRadius: "6px",
+    color: "#ffffff",
+    background: "var(--llm-theme-accent, #0d9488)",
+    borderColor: "var(--llm-theme-accent, #0d9488)",
     fontSize: "14px",
     fontWeight: "650",
     lineHeight: "1.35",
@@ -888,6 +899,10 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
         alwaysRaised: true,
       });
     styleConfirmButton(dialog);
+    const noticeBody = dialog.window?.document?.querySelector(
+      ".llm-update-notice-body",
+    ) as HTMLElement | null;
+    if (noticeBody) applyCurrentThemeToRoot(noticeBody);
     (globalThis as any).addon.data.dialog = dialog;
   } catch (err) {
     ztoolkit.log("AIdea: DialogHelper update notice failed", err);

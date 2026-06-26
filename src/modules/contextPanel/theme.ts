@@ -1,3 +1,5 @@
+import { config } from "../../../package.json";
+
 export type BuiltinComposerThemeId =
   | "default"
   | "blue-porcelain"
@@ -170,6 +172,21 @@ const CSS_VARIABLE_BY_COLOR_KEY: Record<ThemeColorKey, string> = {
 
 const THEME_CSS_VARIABLES = Object.values(CSS_VARIABLE_BY_COLOR_KEY);
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+export const PLUGIN_THEME_PREF_KEYS = {
+  selection: "composerTheme",
+  legacyCustom: "composerThemeCustom",
+  customList: "composerThemeCustomList",
+  builtinOverrides: "composerThemeBuiltinOverrides",
+} as const;
+
+export type PluginThemeState = {
+  selection: ComposerThemeSelection;
+  customThemes: CustomComposerTheme[];
+  builtinOverrides: BuiltinComposerThemeOverrides;
+  palette: ComposerThemePalette;
+  surface: boolean;
+};
 
 const palette = (
   values: Record<ThemeColorKey, ThemeColorValue>,
@@ -572,6 +589,49 @@ export function shouldApplyComposerThemeSurface(
   return !palettesEqual(paletteValue, BUILTIN_COMPOSER_THEME_PALETTES.default);
 }
 
+export function resolvePluginThemeState(
+  rawSelection: unknown,
+  rawCustomThemes?: unknown,
+  rawBuiltinOverrides?: unknown,
+): PluginThemeState {
+  const customThemes = parseCustomComposerThemes(rawCustomThemes);
+  const builtinOverrides = parseBuiltinComposerThemeOverrides(
+    rawBuiltinOverrides,
+  );
+  const selection = normalizeComposerThemeSelection(
+    rawSelection,
+    customThemes,
+  );
+  const paletteValue = getEffectiveComposerThemePalette(
+    selection,
+    customThemes,
+    builtinOverrides,
+  );
+  return {
+    selection,
+    customThemes,
+    builtinOverrides,
+    palette: paletteValue,
+    surface: shouldApplyComposerThemeSurface(selection, paletteValue),
+  };
+}
+
+function getPluginThemePref(key: string): unknown {
+  try {
+    return Zotero.Prefs.get(`${config.prefsPrefix}.${key}`, true);
+  } catch {
+    return "";
+  }
+}
+
+export function readCurrentPluginThemeState(): PluginThemeState {
+  return resolvePluginThemeState(
+    getPluginThemePref(PLUGIN_THEME_PREF_KEYS.selection) || "default",
+    getPluginThemePref(PLUGIN_THEME_PREF_KEYS.customList),
+    getPluginThemePref(PLUGIN_THEME_PREF_KEYS.builtinOverrides),
+  );
+}
+
 export function applyComposerThemePaletteToRoot(
   root: HTMLElement,
   selection: ComposerThemeSelection,
@@ -599,12 +659,113 @@ export function applyComposerThemeToRoot(
   rawCustomThemes?: unknown,
   rawBuiltinOverrides?: unknown,
 ): void {
-  const customThemes = parseCustomComposerThemes(rawCustomThemes);
-  const overrides = parseBuiltinComposerThemeOverrides(rawBuiltinOverrides);
-  const selection = normalizeComposerThemeSelection(rawSelection, customThemes);
-  applyComposerThemePaletteToRoot(
+  applyPluginThemeStateToRoot(
     root,
-    selection,
-    getEffectiveComposerThemePalette(selection, customThemes, overrides),
+    resolvePluginThemeState(rawSelection, rawCustomThemes, rawBuiltinOverrides),
   );
+}
+
+export function applyPluginThemeStateToRoot(
+  root: HTMLElement,
+  state: PluginThemeState,
+): void {
+  applyComposerThemePaletteToRoot(root, state.selection, state.palette);
+}
+
+export function applyCurrentThemeToRoot(
+  root: HTMLElement,
+  state = readCurrentPluginThemeState(),
+): void {
+  applyPluginThemeStateToRoot(root, state);
+}
+
+export function collectOpenPluginThemeDocuments(): Set<Document> {
+  const allDocs = new Set<Document>();
+  const visitDoc = (doc: Document | null | undefined) => {
+    if (!doc || allDocs.has(doc)) return;
+    allDocs.add(doc);
+    const view = doc.defaultView;
+    if (!view) return;
+    try {
+      for (let i = 0; i < view.frames.length; i += 1) {
+        try {
+          visitDoc(view.frames[i]?.document || null);
+        } catch {
+          /* ignore inaccessible frames */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  try {
+    const wins: Window[] = Zotero.getMainWindows?.() || [];
+    for (const win of wins) visitDoc(win?.document);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const mainWin: Window | null = Zotero.getMainWindow?.() || null;
+    visitDoc(mainWin?.document);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const wm = Cc["@mozilla.org/appshell/window-mediator;1"]?.getService(
+      Ci.nsIWindowMediator,
+    );
+    if (wm) {
+      const enumerator = wm.getEnumerator("navigator:browser");
+      while (enumerator.hasMoreElements()) {
+        const win = enumerator.getNext() as Window;
+        visitDoc(win?.document);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return allDocs;
+}
+
+export function applyPluginThemeStateToDocument(
+  doc: Document,
+  state: PluginThemeState,
+): void {
+  doc
+    .querySelectorAll(
+      "#llm-main, .llm-selection-translate-wrap, .llm-update-notice-body",
+    )
+    .forEach((root: Element) => {
+      applyPluginThemeStateToRoot(root as HTMLElement, state);
+    });
+}
+
+export function applyPluginThemeStateToAllSurfaces(
+  state: PluginThemeState,
+): void {
+  try {
+    for (const doc of collectOpenPluginThemeDocuments()) {
+      applyPluginThemeStateToDocument(doc, state);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function applyPluginThemePaletteToAllSurfaces(
+  selection: ComposerThemeSelection,
+  paletteValue: ComposerThemePalette,
+): void {
+  applyPluginThemeStateToAllSurfaces({
+    selection,
+    customThemes: [],
+    builtinOverrides: {},
+    palette: paletteValue,
+    surface: shouldApplyComposerThemeSurface(selection, paletteValue),
+  });
+}
+
+export function applyCurrentThemeToAllSurfaces(): void {
+  applyPluginThemeStateToAllSurfaces(readCurrentPluginThemeState());
 }
