@@ -9,6 +9,7 @@ import type { ActionDropdownSpec } from "./types";
 import { isGlobalPortalItem } from "./portalScope";
 import { getPanelI18n, getPanelLang } from "./i18n";
 import { getUiLanguageOption, TRANSLATION_LANGUAGE_OPTIONS } from "./languages";
+import { pickChatInputPlaceholder } from "./placeholderTips";
 import { applyCurrentThemeToRoot } from "./theme";
 
 type PanelTab = "discussion" | "translate" | "setting";
@@ -66,6 +67,39 @@ function createActionDropdown(doc: Document, spec: ActionDropdownSpec) {
   menu.style.display = "none";
   slot.append(button, menu);
   return { slot, button, menu };
+}
+
+function createChatReadinessPrompt(
+  doc: Document,
+  id: string,
+  className: string,
+  i18n: ReturnType<typeof getPanelI18n>,
+) {
+  const prompt = createElement(doc, "div", `llm-chat-readiness ${className}`, {
+    id,
+  });
+  prompt.hidden = true;
+  prompt.setAttribute("role", "status");
+  prompt.setAttribute("aria-live", "polite");
+
+  const text = createElement(doc, "div", "llm-chat-readiness-text");
+  const title = createElement(doc, "div", "llm-chat-readiness-title", {
+    id: `${id}-title`,
+    textContent: i18n.chatReadinessTitle,
+  });
+  const message = createElement(doc, "div", "llm-chat-readiness-message", {
+    id: `${id}-message`,
+    textContent: i18n.chatReadinessNoModels,
+  });
+  text.append(title, message);
+
+  const action = createElement(doc, "button", "llm-chat-readiness-action", {
+    id: `${id}-action`,
+    type: "button",
+    textContent: i18n.chatReadinessOpenSettings,
+  });
+  prompt.append(text, action);
+  return prompt;
 }
 
 function buildUI(body: Element, item?: Zotero.Item | null) {
@@ -298,6 +332,12 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const chatBox = createElement(doc, "div", "llm-messages", {
     id: "llm-chat-box",
   });
+  const chatReadinessEmpty = createChatReadinessPrompt(
+    doc,
+    "llm-chat-readiness-empty",
+    "llm-chat-readiness-empty",
+    i18n,
+  );
   const scrollBottomBtn = createElement(
     doc,
     "button",
@@ -308,7 +348,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       title: i18n.scrollToBottom,
     },
   );
-  chatShell.append(chatBox, scrollBottomBtn);
+  chatShell.append(chatBox, chatReadinessEmpty, scrollBottomBtn);
   discussionPanel.appendChild(chatShell);
 
   contentWrapper.appendChild(discussionPanel);
@@ -1432,6 +1472,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   filePreview.append(filePreviewHeader, filePreviewExpanded);
   contextPreviews.appendChild(filePreview);
   inputSection.appendChild(contextPreviews);
+  const chatReadinessBar = createChatReadinessPrompt(
+    doc,
+    "llm-chat-readiness-bar",
+    "llm-chat-readiness-bar",
+    i18n,
+  );
+  inputSection.appendChild(chatReadinessBar);
 
   const paperPicker = createElement(doc, "div", "llm-paper-picker", {
     id: "llm-paper-picker",
@@ -1446,9 +1493,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const inputBox = createElement(doc, "textarea", "llm-input", {
     id: "llm-input",
     placeholder: hasItem
-      ? isGlobalMode
-        ? i18n.placeholderGlobal
-        : i18n.placeholderPaper
+      ? pickChatInputPlaceholder(i18n, isGlobalMode ? "global" : "paper")
       : i18n.openPdfFirst,
     disabled: !hasItem,
   });

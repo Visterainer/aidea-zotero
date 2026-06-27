@@ -67,6 +67,7 @@ import {
 } from "./menuPositioning";
 import {
   getApiProfiles,
+  getPrimaryConnectionMode,
   getSelectedProfileForItem,
   applyPanelFontScale,
   applyPanelTypography,
@@ -166,6 +167,7 @@ import {
 } from "./portalScope";
 import { getPanelDomRefs } from "./setupHandlers/domRefs";
 import { getPanelI18n } from "./i18n";
+import { pickChatInputPlaceholder } from "./placeholderTips";
 import {
   MODEL_MENU_OPEN_CLASS,
   RETRY_MODEL_MENU_OPEN_CLASS,
@@ -211,6 +213,7 @@ import {
   pickBestDefaultModel,
 } from "./setupHandlers/controllers/modelSelectionController";
 import { bootstrapSettingTab } from "../preferenceScript";
+import { initTranslateTab } from "../pdfTranslator/translateTabController";
 import { createHeightSync } from "./heightSync";
 
 const SETTING_TAB_RENDER_VERSION = "2026-06-01-font-theme-layout";
@@ -220,11 +223,19 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   let refreshActionLayoutForLanguage = () => {
     /* assigned after action layout helpers are initialized */
   };
+  let refreshChatReadinessForLanguage = () => {
+    /* assigned after chat readiness helpers are initialized */
+  };
+  let refreshChatPlaceholderForLanguage = () => {
+    /* assigned after placeholder helpers are initialized */
+  };
   body.ownerDocument?.addEventListener(
     `${config.addonRef}-ui-language-change`,
     () => {
       i18n = getPanelI18n();
       refreshActionLayoutForLanguage();
+      refreshChatReadinessForLanguage();
+      refreshChatPlaceholderForLanguage();
     },
   );
   let item = initialItem || null;
@@ -316,6 +327,14 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     exportMenuCopyBtn,
     exportMenuNoteBtn,
     retryModelMenu,
+    chatReadinessEmpty,
+    chatReadinessEmptyTitle,
+    chatReadinessEmptyMessage,
+    chatReadinessEmptyAction,
+    chatReadinessBar,
+    chatReadinessBarTitle,
+    chatReadinessBarMessage,
+    chatReadinessBarAction,
     status,
     chatBox,
     scrollBottomBtn,
@@ -377,9 +396,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   // ── Translate tab controller ──
   try {
-    const {
-      initTranslateTab,
-    } = require("../pdfTranslator/translateTabController");
     initTranslateTab(body);
   } catch (e) {
     ztoolkit.log("LLM: Failed to init translate tab", e);
@@ -442,9 +458,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     settingTabBtn?.addEventListener("click", () =>
       heightSync.switchToSetting(),
     );
-    discussionTabBtn?.addEventListener("click", () =>
-      heightSync.switchToDiscussion(),
-    );
+    discussionTabBtn?.addEventListener("click", () => {
+      heightSync.switchToDiscussion();
+      refreshChatReadinessForLanguage();
+    });
     // Translate tab uses setting layout (single pane, no bottom wrapper)
     translateTabBtn?.addEventListener("click", () =>
       heightSync.switchToSetting(),
@@ -1510,6 +1527,35 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     return ref;
   };
 
+  const hasPaperPlaceholderContext = (): boolean => {
+    if (!item) return false;
+    if (!isGlobalMode()) return true;
+    const selectedPapers = normalizePaperContextEntries(
+      selectedPaperContextCache.get(item.id) || [],
+    );
+    if (selectedPapers.length > 0) return true;
+    if (resolveAutoLoadedPaperContext()) return true;
+    const poolKey = conversationKey ?? getConversationKey(item);
+    const pool = conversationContextPool.get(poolKey);
+    return Boolean(pool?.basePdfItemId && !pool.basePdfRemoved);
+  };
+
+  const refreshInputPlaceholder = () => {
+    if (inputBox.value.length > 0) return;
+    const labels = getPanelI18n();
+    if (!item) {
+      inputBox.placeholder = labels.openPdfFirst;
+      return;
+    }
+    inputBox.placeholder = pickChatInputPlaceholder(
+      labels,
+      hasPaperPlaceholderContext() ? "paper" : "global",
+    );
+  };
+
+  refreshChatPlaceholderForLanguage = refreshInputPlaceholder;
+  refreshInputPlaceholder();
+
   const appendPaperChip = (
     ownerDoc: Document,
     list: HTMLDivElement,
@@ -1629,6 +1675,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         paperPreviewExpandedList.innerHTML = "";
       }
       clearSelectedPaperState(item.id);
+      refreshInputPlaceholder();
       return;
     }
     if (selectedPapers.length) {
@@ -1819,6 +1866,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
     }
     positionExpandedContextPanels();
+    refreshInputPlaceholder();
     if (composeHook.save) composeHook.save();
   };
 
@@ -2441,6 +2489,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const refreshChatPreservingScroll = () => {
     runWithChatScrollGuard(() => {
       refreshChat(body, item);
+      refreshChatReadinessForLanguage();
+      refreshInputPlaceholder();
     });
   };
 
@@ -4045,6 +4095,141 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const getSelectedModelInfo = () =>
     getSelectedModelInfoFromController(item?.id ?? null);
 
+  type LiveSettingsReadinessState = {
+    primaryConnectionMode?: "oauth" | "custom";
+    customMissingApiBase?: boolean;
+    customMissingModel?: boolean;
+  };
+  let liveSettingsReadinessState: LiveSettingsReadinessState | null = null;
+
+  const updateLiveSettingsReadinessState = (event: Event) => {
+    const detail = (event as CustomEvent<LiveSettingsReadinessState>).detail;
+    if (!detail || typeof detail !== "object") return;
+    const primaryConnectionMode =
+      detail.primaryConnectionMode === "custom" ? "custom" : "oauth";
+    liveSettingsReadinessState = {
+      primaryConnectionMode,
+      customMissingApiBase: Boolean(detail.customMissingApiBase),
+      customMissingModel: Boolean(detail.customMissingModel),
+    };
+  };
+
+  const readSettingsDraftReadinessState =
+    (): LiveSettingsReadinessState | null => {
+      const customModeRadio = panelRoot.querySelector(
+        `#${config.addonRef}-primary-connection-mode-custom`,
+      ) as HTMLInputElement | null;
+      if (!customModeRadio) return null;
+      if (!customModeRadio.checked) {
+        return { primaryConnectionMode: "oauth" };
+      }
+      const customApiBaseInput = panelRoot.querySelector(
+        `#${config.addonRef}-custom-api-base`,
+      ) as HTMLInputElement | null;
+      const customModelInput = panelRoot.querySelector(
+        `#${config.addonRef}-custom-model`,
+      ) as HTMLInputElement | null;
+      if (!customApiBaseInput || !customModelInput) return null;
+      return {
+        primaryConnectionMode: "custom",
+        customMissingApiBase: !customApiBaseInput.value.trim(),
+        customMissingModel: !customModelInput.value.trim(),
+      };
+    };
+
+  const setReadinessPrompt = (
+    prompt: HTMLDivElement | null,
+    title: HTMLDivElement | null,
+    message: HTMLDivElement | null,
+    action: HTMLButtonElement | null,
+    detail: string,
+    visible: boolean,
+  ) => {
+    if (!prompt) return;
+    const labels = getPanelI18n();
+    if (title) title.textContent = labels.chatReadinessTitle;
+    if (message) message.textContent = detail;
+    if (action) action.textContent = labels.chatReadinessOpenSettings;
+    prompt.hidden = !visible;
+  };
+
+  const getChatReadinessDetail = (): string => {
+    if (!item) return "";
+    const labels = getPanelI18n();
+    const currentSettingsState =
+      readSettingsDraftReadinessState() || liveSettingsReadinessState;
+    const liveMode = currentSettingsState?.primaryConnectionMode;
+    const connectionMode =
+      liveMode === "custom" || liveMode === "oauth"
+        ? liveMode
+        : getPrimaryConnectionMode();
+    if (connectionMode === "custom") {
+      if (currentSettingsState?.primaryConnectionMode === "custom") {
+        if (
+          currentSettingsState.customMissingApiBase ||
+          currentSettingsState.customMissingModel
+        ) {
+          return labels.chatReadinessCustomConfig;
+        }
+        return "";
+      }
+      const primaryProfile = getApiProfiles().primary;
+      if (!primaryProfile.apiBase.trim() || !primaryProfile.model.trim()) {
+        return labels.chatReadinessCustomConfig;
+      }
+    }
+    const { choices, currentModel } = getSelectedModelInfo();
+    if (!choices.length) return labels.chatReadinessNoModels;
+    if (!currentModel.trim()) return labels.chatReadinessSelectModel;
+    return "";
+  };
+
+  const updateChatReadinessPrompt = () => {
+    const detail = getChatReadinessDetail();
+    const conversationHistory =
+      item && detail ? chatHistory.get(getConversationKey(item)) || [] : [];
+    const hasHistory = conversationHistory.length > 0;
+    const showEmptyPrompt = Boolean(detail && !hasHistory);
+    const showBarPrompt = Boolean(detail && hasHistory);
+    setReadinessPrompt(
+      chatReadinessEmpty,
+      chatReadinessEmptyTitle,
+      chatReadinessEmptyMessage,
+      chatReadinessEmptyAction,
+      detail,
+      showEmptyPrompt,
+    );
+    setReadinessPrompt(
+      chatReadinessBar,
+      chatReadinessBarTitle,
+      chatReadinessBarMessage,
+      chatReadinessBarAction,
+      detail,
+      showBarPrompt,
+    );
+    panelRoot.dataset.chatReadiness = showEmptyPrompt
+      ? "empty"
+      : showBarPrompt
+        ? "bar"
+        : "ready";
+  };
+
+  refreshChatReadinessForLanguage = updateChatReadinessPrompt;
+
+  const openSettingsFromReadiness = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const settingTabBtn = panelRoot.querySelector(
+      "#llm-tab-btn-setting",
+    ) as HTMLButtonElement | null;
+    settingTabBtn?.click();
+  };
+  chatReadinessEmptyAction?.addEventListener(
+    "click",
+    openSettingsFromReadiness,
+  );
+  chatReadinessBarAction?.addEventListener("click", openSettingsFromReadiness);
+
   type ActionLabelMode = "icon" | "full";
   type ModelLabelMode = "icon" | "full-single" | "full-wrap2";
   type ActionLayoutMode = "icon" | "half" | "full";
@@ -4515,7 +4700,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   };
 
   const updateModelButton = () => {
-    if (!item || !modelBtn) return;
+    if (!item || !modelBtn) {
+      updateChatReadinessPrompt();
+      return;
+    }
     withScrollGuard(chatBox, conversationKey, () => {
       const { choices, currentModel } = getSelectedModelInfo();
       const hasSecondary = choices.length > 1;
@@ -4529,6 +4717,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       modelBtn.disabled = !item || !hasModels;
       applyResponsiveActionButtonsLayout();
       updateImagePreview();
+      updateChatReadinessPrompt();
     });
   };
 
@@ -4788,6 +4977,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   // Save draft on input changes
   inputBox.addEventListener("input", scheduleDraftSave);
+  inputBox.addEventListener("input", () => {
+    if (inputBox.value.length === 0) refreshInputPlaceholder();
+  });
 
   // ── Compose state persistence (files, screenshots, papers) ──
   const COMPOSE_PREF_PREFIX = "extensions.AIdea.composeState.";
@@ -5887,6 +6079,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     doSend();
     clearDraftInput();
     clearComposeState();
+    refreshInputPlaceholder();
   });
 
   const insertInputNewlineAtCursor = () => {
@@ -5965,6 +6158,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       doSend();
       clearDraftInput();
       clearComposeState();
+      refreshInputPlaceholder();
     }
   });
 
@@ -6178,10 +6372,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
       // Get the main Zotero window
       // Try multiple methods to find the correct window
-      let mainWindow: Window | null = null;
-
       // Method 1: Try Zotero.getMainWindow()
-      mainWindow = Zotero.getMainWindow();
+      let mainWindow: Window | null = Zotero.getMainWindow();
       ztoolkit.log("Screenshot: Zotero.getMainWindow() =", mainWindow);
 
       // Method 2: If that doesn't work, try getting top window from our document
@@ -7159,7 +7351,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   // Listen for model config changes from the Setting tab
   // so the Discussion tab model menu refreshes immediately.
   if (panelDoc) {
-    panelDoc.addEventListener("llm-models-changed", () => {
+    panelDoc.addEventListener("llm-models-changed", (event: Event) => {
+      updateLiveSettingsReadinessState(event);
       updateModelButton();
     });
   }

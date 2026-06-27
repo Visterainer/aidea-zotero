@@ -57,6 +57,14 @@ export type PanelDomRefs = {
   exportMenuCopyBtn: HTMLButtonElement | null;
   exportMenuNoteBtn: HTMLButtonElement | null;
   retryModelMenu: HTMLDivElement | null;
+  chatReadinessEmpty: HTMLDivElement | null;
+  chatReadinessEmptyTitle: HTMLDivElement | null;
+  chatReadinessEmptyMessage: HTMLDivElement | null;
+  chatReadinessEmptyAction: HTMLButtonElement | null;
+  chatReadinessBar: HTMLDivElement | null;
+  chatReadinessBarTitle: HTMLDivElement | null;
+  chatReadinessBarMessage: HTMLDivElement | null;
+  chatReadinessBarAction: HTMLButtonElement | null;
   status: HTMLElement | null;
   chatBox: HTMLDivElement | null;
   scrollBottomBtn: HTMLButtonElement | null;
@@ -219,6 +227,30 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     retryModelMenu: body.querySelector(
       "#llm-retry-model-menu",
     ) as HTMLDivElement | null,
+    chatReadinessEmpty: body.querySelector(
+      "#llm-chat-readiness-empty",
+    ) as HTMLDivElement | null,
+    chatReadinessEmptyTitle: body.querySelector(
+      "#llm-chat-readiness-empty-title",
+    ) as HTMLDivElement | null,
+    chatReadinessEmptyMessage: body.querySelector(
+      "#llm-chat-readiness-empty-message",
+    ) as HTMLDivElement | null,
+    chatReadinessEmptyAction: body.querySelector(
+      "#llm-chat-readiness-empty-action",
+    ) as HTMLButtonElement | null,
+    chatReadinessBar: body.querySelector(
+      "#llm-chat-readiness-bar",
+    ) as HTMLDivElement | null,
+    chatReadinessBarTitle: body.querySelector(
+      "#llm-chat-readiness-bar-title",
+    ) as HTMLDivElement | null,
+    chatReadinessBarMessage: body.querySelector(
+      "#llm-chat-readiness-bar-message",
+    ) as HTMLDivElement | null,
+    chatReadinessBarAction: body.querySelector(
+      "#llm-chat-readiness-bar-action",
+    ) as HTMLButtonElement | null,
     status: body.querySelector("#llm-status") as HTMLElement | null,
     chatBox: body.querySelector("#llm-chat-box") as HTMLDivElement | null,
     scrollBottomBtn: body.querySelector(

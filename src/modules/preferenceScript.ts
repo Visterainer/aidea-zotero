@@ -3096,7 +3096,9 @@ export async function bootstrapSettingTab(
     getPref("composerThemeCustomList"),
   );
   let builtinThemeOverrides: BuiltinComposerThemeOverrides =
-    parseBuiltinComposerThemeOverrides(getPref("composerThemeBuiltinOverrides"));
+    parseBuiltinComposerThemeOverrides(
+      getPref("composerThemeBuiltinOverrides"),
+    );
   const migrateLegacyCustomTheme = () => {
     if (getPref("composerTheme") !== "custom" || customComposerThemes.length) {
       return;
@@ -4544,6 +4546,37 @@ export async function bootstrapSettingTab(
     customModeStatus.style.color = "#065f46";
   };
 
+  const getDiscussionModelStateDetail = () => {
+    const missing = getCustomEndpointMissingFields(
+      customApiBaseInput.value,
+      customModelInput.value,
+    );
+    return {
+      primaryConnectionMode: customModeRadio.checked ? "custom" : "oauth",
+      customMissingApiBase: missing.includes("apiBase"),
+      customMissingModel: missing.includes("model"),
+    };
+  };
+
+  const notifyDiscussionModelStateChanged = () => {
+    try {
+      const CustomEventCtor =
+        win.CustomEvent ||
+        (typeof CustomEvent !== "undefined" ? CustomEvent : null);
+      if (CustomEventCtor) {
+        doc.dispatchEvent(
+          new CustomEventCtor("llm-models-changed", {
+            detail: getDiscussionModelStateDetail(),
+          }),
+        );
+        return;
+      }
+      doc.dispatchEvent(new Event("llm-models-changed"));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const persistCustomPref = (
     input: HTMLInputElement,
     key: "apiBase" | "apiKey" | "model",
@@ -4553,6 +4586,7 @@ export async function bootstrapSettingTab(
     input.value = nextValue;
     setPref(key, nextValue);
     updateCustomModeUi();
+    notifyDiscussionModelStateChanged();
   };
 
   customApiBaseInput.value = getPref("apiBase") || "";
@@ -4821,11 +4855,7 @@ export async function bootstrapSettingTab(
     saveModelSelectionState(selectionCache);
     syncSidebarModelPrefsFromSelection(cache, selectionCache);
     // Notify all open Discussion tabs to refresh their model menus
-    try {
-      doc.dispatchEvent(new Event("llm-models-changed"));
-    } catch {
-      /* ignore */
-    }
+    notifyDiscussionModelStateChanged();
   };
 
   const setProviderSelection = (
@@ -6189,6 +6219,7 @@ export async function bootstrapSettingTab(
     oauthModeRadio.checked = mode === "oauth";
     customModeRadio.checked = mode === "custom";
     updateCustomModeUi();
+    notifyDiscussionModelStateChanged();
   };
 
   oauthTabBtn.addEventListener("click", () => handleModeChange("oauth"));
@@ -6274,6 +6305,8 @@ export async function bootstrapSettingTab(
       );
     }
     loadExistingProviderModels();
+    updateCustomModeUi();
+    notifyDiscussionModelStateChanged();
   };
   const persistCustomApiBase = () => {
     persistCustomPref(
@@ -6296,6 +6329,10 @@ export async function bootstrapSettingTab(
   customApiBaseInput.addEventListener("blur", persistCustomApiBase);
   customApiKeyInput.addEventListener("change", persistCustomApiKey);
   customApiKeyInput.addEventListener("blur", persistCustomApiKey);
+  customModelInput.addEventListener("input", () => {
+    updateCustomModeUi();
+    notifyDiscussionModelStateChanged();
+  });
   customModelInput.addEventListener("change", persistCustomModel);
   customModelInput.addEventListener("blur", persistCustomModel);
   // Manual label edit — re-check for existing models under the new label

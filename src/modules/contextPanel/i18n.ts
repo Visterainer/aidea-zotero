@@ -32,10 +32,17 @@ export type PanelI18n = {
   statusSelectItem: string;
   placeholderGlobal: string;
   placeholderPaper: string;
+  placeholderGlobalTips: readonly string[];
+  placeholderPaperTips: readonly string[];
   modelSelectHint: string;
   modelNoModels: string;
   modelClickChoose: string;
   modelOnlyOne: string;
+  chatReadinessTitle: string;
+  chatReadinessNoModels: string;
+  chatReadinessSelectModel: string;
+  chatReadinessCustomConfig: string;
+  chatReadinessOpenSettings: string;
   uploadFiles: string;
   selectReferences: string;
   conversationLoaded: string;
@@ -284,6 +291,20 @@ export type PanelI18n = {
   operationFailed: (message: string) => string;
 };
 
+type PanelI18nReadinessKeys = Pick<
+  PanelI18n,
+  | "chatReadinessTitle"
+  | "chatReadinessNoModels"
+  | "chatReadinessSelectModel"
+  | "chatReadinessCustomConfig"
+  | "chatReadinessOpenSettings"
+>;
+
+type PanelI18nPlaceholderTips = Pick<
+  PanelI18n,
+  "placeholderGlobalTips" | "placeholderPaperTips"
+>;
+
 declare const Zotero: any;
 
 export function getPanelLang(): PanelLang {
@@ -299,6 +320,281 @@ export function getPanelLang(): PanelLang {
     return DEFAULT_PANEL_LANG;
   }
 }
+
+const PANEL_I18N_PLACEHOLDER_TIPS: Record<PanelLang, PanelI18nPlaceholderTips> =
+  {
+    "en-US": {
+      placeholderGlobalTips: [
+        "Ask a research question",
+        "Paste text for AIdea to explain or summarize",
+        "Compare two methods or concepts",
+        "Ask for a reading plan on a topic",
+      ],
+      placeholderPaperTips: [
+        "Summarize this paper's core contribution",
+        "What are this paper's method limitations?",
+        "Explain the key terms in this paper",
+        "Turn this paper's method into steps",
+      ],
+    },
+    "zh-CN": {
+      placeholderGlobalTips: [
+        "提出一个研究问题",
+        "粘贴一段文字，让 AIdea 解释或总结",
+        "比较两个方法或概念",
+        "让 AIdea 帮你整理阅读思路",
+      ],
+      placeholderPaperTips: [
+        "总结这篇论文的核心贡献",
+        "这篇论文的方法有什么局限？",
+        "解释这篇论文中的关键术语",
+        "把这篇论文的研究方法整理成步骤",
+      ],
+    },
+    "zh-TW": {
+      placeholderGlobalTips: [
+        "提出一個研究問題",
+        "貼上一段文字，讓 AIdea 解釋或摘要",
+        "比較兩個方法或概念",
+        "讓 AIdea 幫你整理閱讀思路",
+      ],
+      placeholderPaperTips: [
+        "摘要這篇論文的核心貢獻",
+        "這篇論文的方法有什麼侷限？",
+        "解釋這篇論文中的關鍵術語",
+        "把這篇論文的研究方法整理成步驟",
+      ],
+    },
+    "ja-JP": {
+      placeholderGlobalTips: [
+        "研究上の質問を入力",
+        "文章を貼り付けて説明や要約を依頼",
+        "2つの手法や概念を比較",
+        "トピックの読み方を相談",
+      ],
+      placeholderPaperTips: [
+        "この論文の核心的な貢献を要約",
+        "この論文の手法の限界は？",
+        "この論文の重要用語を説明",
+        "この論文の手法を手順に整理",
+      ],
+    },
+    "ko-KR": {
+      placeholderGlobalTips: [
+        "연구 질문을 입력하세요",
+        "텍스트를 붙여넣어 설명이나 요약 요청",
+        "두 방법이나 개념을 비교",
+        "주제별 읽기 흐름을 정리",
+      ],
+      placeholderPaperTips: [
+        "이 논문의 핵심 기여를 요약",
+        "이 논문 방법의 한계는 무엇인가요?",
+        "이 논문의 핵심 용어를 설명",
+        "이 논문의 연구 방법을 단계로 정리",
+      ],
+    },
+    "fr-FR": {
+      placeholderGlobalTips: [
+        "Posez une question de recherche",
+        "Collez un texte à expliquer ou résumer",
+        "Comparez deux méthodes ou concepts",
+        "Demandez un plan de lecture sur un sujet",
+      ],
+      placeholderPaperTips: [
+        "Résumez la contribution principale de cet article",
+        "Quelles sont les limites de la méthode ?",
+        "Expliquez les termes clés de cet article",
+        "Transformez la méthode en étapes",
+      ],
+    },
+    "de-DE": {
+      placeholderGlobalTips: [
+        "Stellen Sie eine Forschungsfrage",
+        "Fügen Sie Text zum Erklären oder Zusammenfassen ein",
+        "Vergleichen Sie zwei Methoden oder Konzepte",
+        "Fragen Sie nach einem Leseplan zu einem Thema",
+      ],
+      placeholderPaperTips: [
+        "Fassen Sie den Kernbeitrag dieses Papers zusammen",
+        "Welche Grenzen hat die Methode dieses Papers?",
+        "Erklären Sie die Schlüsselbegriffe dieses Papers",
+        "Gliedern Sie die Methode dieses Papers in Schritte",
+      ],
+    },
+    "es-ES": {
+      placeholderGlobalTips: [
+        "Plantea una pregunta de investigación",
+        "Pega texto para explicarlo o resumirlo",
+        "Compara dos métodos o conceptos",
+        "Pide un plan de lectura sobre un tema",
+      ],
+      placeholderPaperTips: [
+        "Resume la contribución principal de este artículo",
+        "¿Qué limitaciones tiene el método?",
+        "Explica los términos clave de este artículo",
+        "Convierte el método en pasos",
+      ],
+    },
+    "ru-RU": {
+      placeholderGlobalTips: [
+        "Задайте исследовательский вопрос",
+        "Вставьте текст для объяснения или краткого вывода",
+        "Сравните два метода или понятия",
+        "Попросите план чтения по теме",
+      ],
+      placeholderPaperTips: [
+        "Кратко изложите главный вклад этой статьи",
+        "Какие ограничения есть у метода статьи?",
+        "Объясните ключевые термины этой статьи",
+        "Разбейте метод статьи на шаги",
+      ],
+    },
+    "pt-BR": {
+      placeholderGlobalTips: [
+        "Faça uma pergunta de pesquisa",
+        "Cole um texto para explicar ou resumir",
+        "Compare dois métodos ou conceitos",
+        "Peça um plano de leitura sobre um tema",
+      ],
+      placeholderPaperTips: [
+        "Resuma a contribuição principal deste artigo",
+        "Quais são as limitações do método?",
+        "Explique os termos-chave deste artigo",
+        "Organize o método deste artigo em etapas",
+      ],
+    },
+    "ar-SA": {
+      placeholderGlobalTips: [
+        "اطرح سؤالًا بحثيًا",
+        "الصق نصًا ليشرحه AIdea أو يلخصه",
+        "قارن بين طريقتين أو مفهومين",
+        "اطلب خطة قراءة حول موضوع",
+      ],
+      placeholderPaperTips: [
+        "لخص المساهمة الأساسية لهذه الورقة",
+        "ما حدود المنهج في هذه الورقة؟",
+        "اشرح المصطلحات الأساسية في هذه الورقة",
+        "حوّل منهج هذه الورقة إلى خطوات",
+      ],
+    },
+    "hi-IN": {
+      placeholderGlobalTips: [
+        "एक शोध प्रश्न पूछें",
+        "समझाने या सारांश के लिए पाठ चिपकाएं",
+        "दो तरीकों या अवधारणाओं की तुलना करें",
+        "किसी विषय के लिए पढ़ने की योजना पूछें",
+      ],
+      placeholderPaperTips: [
+        "इस पेपर के मुख्य योगदान का सारांश दें",
+        "इस पेपर की विधि की सीमाएं क्या हैं?",
+        "इस पेपर के मुख्य शब्द समझाएं",
+        "इस पेपर की विधि को चरणों में बदलें",
+      ],
+    },
+  };
+
+const PANEL_I18N_READINESS_OVERRIDES: Partial<
+  Record<PanelLang, PanelI18nReadinessKeys>
+> = {
+  "zh-TW": {
+    chatReadinessTitle: "AIdea 尚未準備好",
+    chatReadinessNoModels:
+      "目前沒有可用模型。請在 AIdea 設定中登入或重新整理模型清單。",
+    chatReadinessSelectModel: "請先在 AIdea 設定中選擇模型，再開始對話。",
+    chatReadinessCustomConfig:
+      "請先在 AIdea 設定中補齊自訂 API Base URL 和模型，再開始對話。",
+    chatReadinessOpenSettings: "開啟 AIdea 設定",
+  },
+  "ja-JP": {
+    chatReadinessTitle: "AIdea はまだ準備できていません",
+    chatReadinessNoModels:
+      "利用可能なモデルがありません。AIdea 設定でログインするか、モデル一覧を更新してください。",
+    chatReadinessSelectModel:
+      "チャットを始める前に AIdea 設定でモデルを選択してください。",
+    chatReadinessCustomConfig:
+      "チャットを始める前に、AIdea 設定でカスタム API Base URL とモデルを入力してください。",
+    chatReadinessOpenSettings: "AIdea 設定を開く",
+  },
+  "ko-KR": {
+    chatReadinessTitle: "AIdea가 아직 준비되지 않았습니다",
+    chatReadinessNoModels:
+      "사용 가능한 모델이 없습니다. AIdea 설정에서 로그인하거나 모델 목록을 새로 고치세요.",
+    chatReadinessSelectModel:
+      "채팅을 시작하기 전에 AIdea 설정에서 모델을 선택하세요.",
+    chatReadinessCustomConfig:
+      "채팅을 시작하기 전에 AIdea 설정에서 사용자 지정 API Base URL과 모델을 입력하세요.",
+    chatReadinessOpenSettings: "AIdea 설정 열기",
+  },
+  "fr-FR": {
+    chatReadinessTitle: "AIdea n'est pas encore prêt",
+    chatReadinessNoModels:
+      "Aucun modèle disponible. Connectez-vous ou actualisez la liste des modèles dans les paramètres AIdea.",
+    chatReadinessSelectModel:
+      "Sélectionnez un modèle dans les paramètres AIdea avant de discuter.",
+    chatReadinessCustomConfig:
+      "Complétez l'API Base URL personnalisée et le modèle dans les paramètres AIdea avant de discuter.",
+    chatReadinessOpenSettings: "Ouvrir les paramètres AIdea",
+  },
+  "de-DE": {
+    chatReadinessTitle: "AIdea ist noch nicht bereit",
+    chatReadinessNoModels:
+      "Kein Modell verfügbar. Melden Sie sich in den AIdea-Einstellungen an oder aktualisieren Sie die Modellliste.",
+    chatReadinessSelectModel:
+      "Wählen Sie in den AIdea-Einstellungen ein Modell aus, bevor Sie den Chat starten.",
+    chatReadinessCustomConfig:
+      "Ergänzen Sie in den AIdea-Einstellungen die benutzerdefinierte API Base URL und das Modell, bevor Sie den Chat starten.",
+    chatReadinessOpenSettings: "AIdea-Einstellungen öffnen",
+  },
+  "es-ES": {
+    chatReadinessTitle: "AIdea aún no está listo",
+    chatReadinessNoModels:
+      "No hay modelos disponibles. Inicia sesión o actualiza la lista de modelos en la configuración de AIdea.",
+    chatReadinessSelectModel:
+      "Selecciona un modelo en la configuración de AIdea antes de iniciar el chat.",
+    chatReadinessCustomConfig:
+      "Completa la API Base URL personalizada y el modelo en la configuración de AIdea antes de iniciar el chat.",
+    chatReadinessOpenSettings: "Abrir configuración de AIdea",
+  },
+  "ru-RU": {
+    chatReadinessTitle: "AIdea ещё не готов",
+    chatReadinessNoModels:
+      "Нет доступных моделей. Войдите или обновите список моделей в настройках AIdea.",
+    chatReadinessSelectModel:
+      "Выберите модель в настройках AIdea, прежде чем начинать чат.",
+    chatReadinessCustomConfig:
+      "Укажите пользовательский API Base URL и модель в настройках AIdea, прежде чем начинать чат.",
+    chatReadinessOpenSettings: "Открыть настройки AIdea",
+  },
+  "pt-BR": {
+    chatReadinessTitle: "AIdea ainda não está pronto",
+    chatReadinessNoModels:
+      "Nenhum modelo disponível. Faça login ou atualize a lista de modelos nas configurações do AIdea.",
+    chatReadinessSelectModel:
+      "Selecione um modelo nas configurações do AIdea antes de iniciar o chat.",
+    chatReadinessCustomConfig:
+      "Preencha a API Base URL personalizada e o modelo nas configurações do AIdea antes de iniciar o chat.",
+    chatReadinessOpenSettings: "Abrir configurações do AIdea",
+  },
+  "ar-SA": {
+    chatReadinessTitle: "AIdea ليس جاهزًا بعد",
+    chatReadinessNoModels:
+      "لا توجد نماذج متاحة. افتح إعدادات AIdea لتسجيل الدخول أو تحديث قائمة النماذج.",
+    chatReadinessSelectModel: "اختر نموذجًا في إعدادات AIdea قبل بدء المحادثة.",
+    chatReadinessCustomConfig:
+      "أكمل API Base URL المخصص والنموذج في إعدادات AIdea قبل بدء المحادثة.",
+    chatReadinessOpenSettings: "فتح إعدادات AIdea",
+  },
+  "hi-IN": {
+    chatReadinessTitle: "AIdea अभी तैयार नहीं है",
+    chatReadinessNoModels:
+      "कोई उपलब्ध मॉडल नहीं है। लॉग इन करने या मॉडल सूची रीफ़्रेश करने के लिए AIdea सेटिंग्स खोलें।",
+    chatReadinessSelectModel:
+      "चैट शुरू करने से पहले AIdea सेटिंग्स में मॉडल चुनें।",
+    chatReadinessCustomConfig:
+      "चैट शुरू करने से पहले AIdea सेटिंग्स में custom API Base URL और मॉडल पूरा करें।",
+    chatReadinessOpenSettings: "AIdea सेटिंग्स खोलें",
+  },
+};
 
 const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
   "zh-TW": {
@@ -3451,10 +3747,19 @@ export function getPanelI18n(): PanelI18n {
       placeholderGlobal: "Ask anything... Type @ to add papers",
       placeholderPaper:
         "Ask about this paper... Type @ for adding other papers as context",
+      ...PANEL_I18N_PLACEHOLDER_TIPS["en-US"],
       modelSelectHint: "Select model",
       modelNoModels: "No models available. Login and refresh in Settings.",
       modelClickChoose: "Click to choose a model",
       modelOnlyOne: "Only one model is configured",
+      chatReadinessTitle: "AIdea is not ready yet",
+      chatReadinessNoModels:
+        "No available model. Open AIdea Settings to log in or refresh models.",
+      chatReadinessSelectModel:
+        "Select a model in AIdea Settings before chatting.",
+      chatReadinessCustomConfig:
+        "Complete the custom API base URL and model in AIdea Settings before chatting.",
+      chatReadinessOpenSettings: "Open AIdea Settings",
       uploadFiles: "Upload files",
       selectReferences: "Select references",
       conversationLoaded: "Conversation loaded",
@@ -3691,6 +3996,8 @@ export function getPanelI18n(): PanelI18n {
     return {
       ...base,
       ...(PANEL_I18N_OVERRIDES[lang] || {}),
+      ...(PANEL_I18N_READINESS_OVERRIDES[lang] || {}),
+      ...PANEL_I18N_PLACEHOLDER_TIPS[lang],
       ...(PANEL_I18N_EXTRA_OVERRIDES[lang] || {}),
       ...(PANEL_I18N_RUNTIME_OVERRIDES[lang] || {}),
       ...PANEL_I18N_LOG_OVERRIDES[lang],
@@ -3722,10 +4029,17 @@ export function getPanelI18n(): PanelI18n {
     statusSelectItem: "请选择条目或打开 PDF",
     placeholderGlobal: "开始提问... 输入 @ 添加论文",
     placeholderPaper: "对当前论文提问... 输入 @ 添加其他论文上下文",
+    ...PANEL_I18N_PLACEHOLDER_TIPS["zh-CN"],
     modelSelectHint: "选择模型",
     modelNoModels: "暂无模型，请在设置中登录 OAuth 并刷新模型列表。",
     modelClickChoose: "点击选择模型",
     modelOnlyOne: "当前仅配置了一个模型",
+    chatReadinessTitle: "AIdea 尚未准备好",
+    chatReadinessNoModels: "当前没有可用模型。请在设置中登录或刷新模型列表。",
+    chatReadinessSelectModel: "请选择一个模型后再开始对话。",
+    chatReadinessCustomConfig:
+      "请在设置中补全自定义 API 地址和模型后再开始对话。",
+    chatReadinessOpenSettings: "打开 AIdea 设置",
     uploadFiles: "上传文件",
     selectReferences: "选择参考论文",
     conversationLoaded: "对话已加载",

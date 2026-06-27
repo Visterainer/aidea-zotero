@@ -609,6 +609,69 @@ describe("custom endpoint settings UI", function () {
     assert.equal(getPluginPref("model"), "llama3.1:8b");
   });
 
+  it("notifies discussion panels about live custom-mode missing fields", async function () {
+    setPluginPref("primaryConnectionMode", "oauth");
+    setPluginPref("apiBase", "http://localhost:11434/v1/");
+    setPluginPref("apiKey", "");
+    setPluginPref("model", "llama3.1:8b");
+
+    const win = createMockWindow();
+    const modelEvents: Array<{
+      primaryConnectionMode?: string;
+      customMissingApiBase?: boolean;
+      customMissingModel?: boolean;
+    }> = [];
+    win.document.addEventListener("llm-models-changed", (event: any) => {
+      if (event?.detail) modelEvents.push(event.detail);
+    });
+
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
+    modelEvents.length = 0;
+    const latestModelEvent = () => modelEvents[modelEvents.length - 1] || {};
+
+    const tabButtons = win.document.querySelectorAll(
+      ".llm-set-tab-btn",
+    ) as unknown as MockElement[];
+    const oauthTabBtn = tabButtons.find(
+      (button) => button.textContent === "OAuth Providers",
+    ) as MockElement;
+    const customTabBtn = tabButtons.find(
+      (button) => button.textContent === "API Mode",
+    ) as MockElement;
+    const apiBaseInput = win.document.querySelector(
+      `#${ADDON_REF}-custom-api-base`,
+    ) as unknown as MockElement;
+    const modelInput = win.document.querySelector(
+      `#${ADDON_REF}-custom-model`,
+    ) as unknown as MockElement;
+    const status = win.document.querySelector(
+      `#${ADDON_REF}-custom-openai-status`,
+    ) as unknown as MockElement;
+
+    customTabBtn.emit("click");
+    assert.equal(latestModelEvent().primaryConnectionMode, "custom");
+
+    apiBaseInput.value = "";
+    apiBaseInput.emit("input");
+    assert.equal(latestModelEvent().primaryConnectionMode, "custom");
+    assert.equal(latestModelEvent().customMissingApiBase, true);
+    assert.include(status.textContent, "requires API Base URL");
+
+    apiBaseInput.value = "http://localhost:11434/v1/";
+    modelInput.value = "";
+    modelInput.emit("input");
+    assert.equal(latestModelEvent().primaryConnectionMode, "custom");
+    assert.equal(latestModelEvent().customMissingApiBase, false);
+    assert.equal(latestModelEvent().customMissingModel, true);
+
+    oauthTabBtn.emit("click");
+    assert.equal(latestModelEvent().primaryConnectionMode, "oauth");
+  });
+
   it("renders OAuth environment update mode buttons with tooltips and saves selection", async function () {
     setPluginPref("primaryConnectionMode", "oauth");
     setPluginPref("oauthEnvUpdateMode", "notify");
