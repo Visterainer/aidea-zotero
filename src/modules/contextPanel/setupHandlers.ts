@@ -1831,13 +1831,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         ? `📝 ${basePdfTitle} [Summary]`
         : `📝 ${basePdfTitle}`;
       const isCurrentBasePaper = isBasePaperCurrent(pool.basePdfItemId);
-      paperDetailEntries.push({
-        label: basePdfTitle,
-        meta: "",
-        index: -2,
-        removeLabel: i18n.unpinNamedContext(basePdfTitle),
-        isCurrent: isCurrentBasePaper,
-      });
       const chip = createElement(
         ownerDoc,
         "div",
@@ -1926,10 +1919,19 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       });
     }
     const paperChips = Array.from(paperPreviewList.children) as HTMLElement[];
+    const basePdfChip =
+      paperChips.find((chip) => chip.classList.contains("llm-base-pdf-chip")) ||
+      null;
+    const collapsiblePaperChips = paperChips.filter(
+      (chip) => !chip.classList.contains("llm-base-pdf-chip"),
+    );
+    const shouldCollapsePaperChips = basePdfChip
+      ? collapsiblePaperChips.length >= INLINE_CONTEXT_COLLAPSE_THRESHOLD
+      : collapsiblePaperChips.length > INLINE_CONTEXT_COLLAPSE_THRESHOLD;
     if (
       paperPreviewExpanded &&
       paperPreviewExpandedList &&
-      paperChips.length > INLINE_CONTEXT_COLLAPSE_THRESHOLD
+      shouldCollapsePaperChips
     ) {
       const paperExpanded = paperPanelWasExpanded;
       selectedPaperPreviewExpandedCache.set(item.id, paperExpanded);
@@ -1974,7 +1976,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         "span",
         "llm-paper-context-chip-label",
         {
-          textContent: `PDF (${paperChips.length})`,
+          textContent: `PDF (${collapsiblePaperChips.length})`,
         },
       );
       summaryTrigger.append(summaryIcon, summaryLabel);
@@ -1990,6 +1992,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         },
       ) as HTMLButtonElement;
       summaryClear.setAttribute("aria-label", i18n.clearSelectedContext);
+      summaryClear.dataset.includesBasePdf = basePdfChip ? "false" : "true";
       summaryHeader.append(summaryClear);
       summaryChip.append(summaryHeader);
       summaryChip.addEventListener("click", (e: Event) => {
@@ -2016,6 +2019,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       });
 
       paperPreviewList.innerHTML = "";
+      if (basePdfChip) {
+        paperPreviewList.appendChild(basePdfChip);
+      }
       paperPreviewList.appendChild(summaryChip);
       if (paperExpanded) {
         paperDetailEntries.forEach((entry, index) =>
@@ -7385,7 +7391,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           conversationKey ?? (item ? getConversationKey(item) : null);
         const pool =
           poolKey !== null ? conversationContextPool.get(poolKey) : undefined;
-        if (pool) {
+        if (pool && clearAllBtn.dataset.includesBasePdf !== "false") {
           pool.basePdfRemoved = true;
         }
         const autoRef = resolveAutoLoadedPaperContext();

@@ -243,6 +243,19 @@ function normalizePaperContexts(paperContexts: unknown): PaperContextRef[] {
   return normalizePaperContextRefs(paperContexts, { sanitizeText });
 }
 
+function getVisibleHistoryPaperContexts(msg: Message): PaperContextRef[] {
+  const paperContexts = normalizePaperContexts(msg.paperContexts);
+  const basePdf = msg.contextRefs?.basePdf;
+  if (!basePdf || basePdf.removed) return paperContexts;
+  return paperContexts.filter(
+    (ref) =>
+      ref.contextItemId !== basePdf.contextItemId &&
+      ref.itemId !== basePdf.contextItemId &&
+      ref.contextItemId !== basePdf.itemId &&
+      ref.itemId !== basePdf.itemId,
+  );
+}
+
 function collectAttachmentHashesFromStoredMessages(
   messages: StoredChatMessage[],
 ): string[] {
@@ -3480,7 +3493,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         hasContextBadge = true;
       }
 
-      const paperContexts = normalizePaperContexts(msg.paperContexts);
+      const paperContexts = getVisibleHistoryPaperContexts(msg);
       hasUserContext = hasUserContext || paperContexts.length > 0;
       if (paperContexts.length) {
         const papersChip = doc.createElement("div") as HTMLDivElement;
