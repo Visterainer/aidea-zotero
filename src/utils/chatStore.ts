@@ -3,7 +3,10 @@ import type {
   PaperContextRef,
   GlobalConversationSummary,
 } from "../modules/contextPanel/types";
-import { GLOBAL_CONVERSATION_KEY_BASE, PAPER_CONVERSATION_KEY_BASE } from "../modules/contextPanel/constants";
+import {
+  GLOBAL_CONVERSATION_KEY_BASE,
+  PAPER_CONVERSATION_KEY_BASE,
+} from "../modules/contextPanel/constants";
 import {
   normalizeSelectedTextPaperContexts,
   normalizeSelectedTextSource,
@@ -23,6 +26,13 @@ export type ContextRefsJson = {
 };
 
 export type StoredChatMessage = {
+  messageId?: number;
+  parentMessageId?: number | null;
+  activeChildMessageId?: number | null;
+  branchIndex?: number;
+  siblingIndex?: number;
+  siblingCount?: number;
+  siblingMessageIds?: number[];
   role: "user" | "assistant";
   text: string;
   timestamp: number;
@@ -51,12 +61,12 @@ export type StoredChatMessage = {
 
 const CHAT_MESSAGES_TABLE = "zotero_ai_chat_messages";
 const CHAT_MESSAGES_INDEX = "zotero_ai_chat_messages_conversation_idx";
+const CHAT_TREE_STATE_TABLE = "zotero_ai_chat_tree_state";
 const GLOBAL_CONVERSATIONS_TABLE = "zotero_ai_global_conversations";
 const GLOBAL_CONVERSATIONS_LIBRARY_INDEX =
   "zotero_ai_global_conversations_library_idx";
 const PAPER_CONVERSATIONS_TABLE = "zotero_ai_paper_conversations";
-const PAPER_CONVERSATIONS_ITEM_INDEX =
-  "zotero_ai_paper_conversations_item_idx";
+const PAPER_CONVERSATIONS_ITEM_INDEX = "zotero_ai_paper_conversations_item_idx";
 
 function normalizeConversationKey(conversationKey: number): number | null {
   if (!Number.isFinite(conversationKey)) return null;
@@ -73,6 +83,7 @@ function normalizeLibraryID(libraryID: number): number | null {
 function normalizeConversationTitleSeed(value: string): string {
   if (typeof value !== "string") return "";
   const normalized = value
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -193,11 +204,39 @@ export async function initChatStore(): Promise<void> {
          ADD COLUMN context_refs_json TEXT`,
       );
     }
+    if (!columns?.some((column) => column?.name === "parent_id")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
+         ADD COLUMN parent_id INTEGER`,
+      );
+    }
+    if (!columns?.some((column) => column?.name === "active_child_id")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
+         ADD COLUMN active_child_id INTEGER`,
+      );
+    }
+    if (!columns?.some((column) => column?.name === "branch_index")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
+         ADD COLUMN branch_index INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
 
     await Zotero.DB.queryAsync(
       `CREATE INDEX IF NOT EXISTS ${CHAT_MESSAGES_INDEX}
        ON ${CHAT_MESSAGES_TABLE} (conversation_key, timestamp, id)`,
     );
+
+    await Zotero.DB.queryAsync(
+      `CREATE TABLE IF NOT EXISTS ${CHAT_TREE_STATE_TABLE} (
+        conversation_key INTEGER PRIMARY KEY,
+        active_root_id INTEGER,
+        active_leaf_id INTEGER
+      )`,
+    );
+
+    await migrateLinearConversationsToTree();
 
     await Zotero.DB.queryAsync(
       `CREATE TABLE IF NOT EXISTS ${GLOBAL_CONVERSATIONS_TABLE} (
@@ -247,282 +286,59 @@ export async function initChatStore(): Promise<void> {
   });
 }
 
+type StoredChatMessageRow = {
+  messageId?: unknown;
+  parentMessageId?: unknown;
+  activeChildMessageId?: unknown;
+  branchIndex?: unknown;
+  role: unknown;
+  text: unknown;
+  timestamp: unknown;
+  selectedText?: unknown;
+  selectedTextsJson?: unknown;
+  selectedTextSourcesJson?: unknown;
+  selectedTextPaperContextsJson?: unknown;
+  paperContextsJson?: unknown;
+  screenshotImages?: unknown;
+  attachmentsJson?: unknown;
+  modelName?: unknown;
+  reasoningSummary?: unknown;
+  reasoningDetails?: unknown;
+  contextRefsJson?: unknown;
+};
 
-export async function loadConversation(
-  conversationKey: number,
-  limit: number,
-): Promise<StoredChatMessage[]> {
-  const normalizedKey = normalizeConversationKey(conversationKey);
-  if (!normalizedKey) return [];
+type ChatTreeNodeRow = {
+  messageId?: unknown;
+  parentMessageId?: unknown;
+  activeChildMessageId?: unknown;
+  branchIndex?: unknown;
+};
 
-  const normalizedLimit = normalizeLimit(limit, 200);
-  const rows = (await Zotero.DB.queryAsync(
-    `SELECT role,
-            text,
-            timestamp,
-            selected_text AS selectedText,
-            selected_texts_json AS selectedTextsJson,
-            selected_text_sources_json AS selectedTextSourcesJson,
-            selected_text_paper_contexts_json AS selectedTextPaperContextsJson,
-            paper_contexts_json AS paperContextsJson,
-            screenshot_images AS screenshotImages,
-            attachments_json AS attachmentsJson,
-            model_name AS modelName,
-            reasoning_summary AS reasoningSummary,
-            reasoning_details AS reasoningDetails,
-            context_refs_json AS contextRefsJson
-     FROM ${CHAT_MESSAGES_TABLE}
-     WHERE conversation_key = ?
-     ORDER BY timestamp ASC, id ASC
-     LIMIT ?`,
-    [normalizedKey, normalizedLimit],
-  )) as
-    | Array<{
-        role: unknown;
-        text: unknown;
-        timestamp: unknown;
-        selectedText?: unknown;
-        selectedTextsJson?: unknown;
-        selectedTextSourcesJson?: unknown;
-        selectedTextPaperContextsJson?: unknown;
-        paperContextsJson?: unknown;
-        screenshotImages?: unknown;
-        attachmentsJson?: unknown;
-        modelName?: unknown;
-        reasoningSummary?: unknown;
-        reasoningDetails?: unknown;
-        contextRefsJson?: unknown;
-      }>
-    | undefined;
+type SerializedMessageFields = {
+  timestamp: number;
+  selectedTexts: string[];
+  selectedTextSources: SelectedTextSource[];
+  selectedTextPaperContexts: (PaperContextRef | undefined)[];
+  paperContexts: PaperContextRef[];
+  screenshotImages: string[];
+  attachments: NonNullable<StoredChatMessage["attachments"]>;
+};
 
-  if (!rows?.length) return [];
-
-  const messages: StoredChatMessage[] = [];
-  for (const row of rows) {
-    const role =
-      row.role === "assistant"
-        ? "assistant"
-        : row.role === "user"
-          ? "user"
-          : null;
-    if (!role) continue;
-
-    const timestamp = Number(row.timestamp);
-    let selectedTexts: string[] | undefined;
-    if (typeof row.selectedTextsJson === "string" && row.selectedTextsJson) {
-      try {
-        const parsed = JSON.parse(row.selectedTextsJson) as unknown;
-        if (Array.isArray(parsed)) {
-          const normalized = parsed.filter(
-            (entry): entry is string =>
-              typeof entry === "string" && Boolean(entry.trim()),
-          );
-          if (normalized.length) {
-            selectedTexts = normalized;
-          }
-        }
-      } catch (_err) {
-        selectedTexts = undefined;
-      }
-    }
-    let selectedTextSources: SelectedTextSource[] | undefined;
-    if (
-      typeof row.selectedTextSourcesJson === "string" &&
-      row.selectedTextSourcesJson
-    ) {
-      try {
-        const parsed = JSON.parse(row.selectedTextSourcesJson) as unknown;
-        if (Array.isArray(parsed)) {
-          selectedTextSources = parsed.map((entry) =>
-            normalizeSelectedTextSource(entry),
-          );
-        }
-      } catch (_err) {
-        selectedTextSources = undefined;
-      }
-    }
-    const normalizedTexts = selectedTexts?.length
-      ? selectedTexts
-      : typeof row.selectedText === "string" && row.selectedText.trim()
-        ? [row.selectedText]
-        : [];
-    let selectedTextPaperContexts: (PaperContextRef | undefined)[] | undefined;
-    if (
-      typeof row.selectedTextPaperContextsJson === "string" &&
-      row.selectedTextPaperContextsJson
-    ) {
-      try {
-        const parsed = JSON.parse(row.selectedTextPaperContextsJson) as unknown;
-        const normalized = normalizeSelectedTextPaperContexts(
-          parsed,
-          normalizedTexts.length,
-        );
-        if (normalized.some((entry) => Boolean(entry))) {
-          selectedTextPaperContexts = normalized;
-        }
-      } catch (_err) {
-        selectedTextPaperContexts = undefined;
-      }
-    }
-    let paperContexts: PaperContextRef[] | undefined;
-    if (typeof row.paperContextsJson === "string" && row.paperContextsJson) {
-      try {
-        const parsed = JSON.parse(row.paperContextsJson) as unknown;
-        const normalized = normalizePaperContextRefs(parsed);
-        if (normalized.length) {
-          paperContexts = normalized;
-        }
-      } catch (_err) {
-        paperContexts = undefined;
-      }
-    }
-    let screenshotImages: string[] | undefined;
-    if (typeof row.screenshotImages === "string" && row.screenshotImages) {
-      try {
-        const parsed = JSON.parse(row.screenshotImages) as unknown;
-        if (Array.isArray(parsed)) {
-          const normalized = parsed.filter(
-            (entry): entry is string =>
-              typeof entry === "string" && Boolean(entry.trim()),
-          );
-          if (normalized.length) {
-            screenshotImages = normalized;
-          }
-        }
-      } catch (_err) {
-        screenshotImages = undefined;
-      }
-    }
-    let attachments: StoredChatMessage["attachments"] | undefined;
-    if (typeof row.attachmentsJson === "string" && row.attachmentsJson) {
-      try {
-        const parsed = JSON.parse(row.attachmentsJson) as unknown;
-        if (Array.isArray(parsed)) {
-          const normalized = parsed.reduce<
-            NonNullable<StoredChatMessage["attachments"]>
-          >((out, entry) => {
-            if (!entry || typeof entry !== "object") return out;
-            const typed = entry as Record<string, unknown>;
-            const id =
-              typeof typed.id === "string" && typed.id.trim()
-                ? typed.id.trim()
-                : null;
-            const name =
-              typeof typed.name === "string" && typed.name.trim()
-                ? typed.name.trim()
-                : null;
-            const mimeType =
-              typeof typed.mimeType === "string" && typed.mimeType.trim()
-                ? typed.mimeType.trim()
-                : "application/octet-stream";
-            const sizeBytes = Number(typed.sizeBytes);
-            const category = typed.category;
-            const validCategory =
-              category === "image" ||
-              category === "pdf" ||
-              category === "markdown" ||
-              category === "code" ||
-              category === "text" ||
-              category === "file";
-            if (!id || !name || !validCategory) return out;
-            out.push({
-              id,
-              name,
-              mimeType,
-              sizeBytes: Number.isFinite(sizeBytes)
-                ? Math.max(0, sizeBytes)
-                : 0,
-              category,
-              imageDataUrl:
-                typeof typed.imageDataUrl === "string" &&
-                typed.imageDataUrl.trim()
-                  ? typed.imageDataUrl
-                  : undefined,
-              textContent:
-                typeof typed.textContent === "string" && typed.textContent
-                  ? typed.textContent
-                  : undefined,
-              storedPath:
-                typeof typed.storedPath === "string" && typed.storedPath.trim()
-                  ? typed.storedPath.trim()
-                  : undefined,
-              contentHash:
-                typeof typed.contentHash === "string" &&
-                /^[a-f0-9]{64}$/i.test(typed.contentHash.trim())
-                  ? typed.contentHash.trim().toLowerCase()
-                  : undefined,
-            });
-            return out;
-          }, []);
-          if (normalized.length) {
-            attachments = normalized;
-          }
-        }
-      } catch (_err) {
-        attachments = undefined;
-      }
-    }
-    if (!attachments?.length && screenshotImages?.length) {
-      attachments = screenshotImages.map((url, index) => ({
-        id: `legacy-screenshot-${index + 1}`,
-        name: `Screenshot ${index + 1}.png`,
-        mimeType: "image/png",
-        sizeBytes: 0,
-        category: "image" as const,
-        imageDataUrl: url,
-      }));
-    }
-    let contextRefs: ContextRefsJson | undefined;
-    if (typeof row.contextRefsJson === "string" && row.contextRefsJson) {
-      try {
-        const parsed = JSON.parse(row.contextRefsJson) as unknown;
-        if (parsed && typeof parsed === "object") {
-          contextRefs = parsed as ContextRefsJson;
-        }
-      } catch (_err) {
-        contextRefs = undefined;
-      }
-    }
-    messages.push({
-      role,
-      text: typeof row.text === "string" ? row.text : "",
-      timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
-      selectedText:
-        typeof row.selectedText === "string" ? row.selectedText : undefined,
-      selectedTexts: normalizedTexts.length ? normalizedTexts : undefined,
-      selectedTextSources: (() => {
-        if (!normalizedTexts.length) return undefined;
-        return normalizedTexts.map((_, index) =>
-          normalizeSelectedTextSource(selectedTextSources?.[index]),
-        );
-      })(),
-      selectedTextPaperContexts,
-      paperContexts,
-      screenshotImages,
-      attachments,
-      modelName: typeof row.modelName === "string" ? row.modelName : undefined,
-      reasoningSummary:
-        typeof row.reasoningSummary === "string"
-          ? row.reasoningSummary
-          : undefined,
-      reasoningDetails:
-        typeof row.reasoningDetails === "string"
-          ? row.reasoningDetails
-          : undefined,
-      contextRefs,
-    });
-  }
-
-  return messages;
+function normalizeTreeId(value: unknown): number | null {
+  const id = Number(value);
+  if (!Number.isFinite(id)) return null;
+  const normalized = Math.floor(id);
+  return normalized > 0 ? normalized : null;
 }
 
-export async function appendMessage(
-  conversationKey: number,
-  message: StoredChatMessage,
-): Promise<void> {
-  const normalizedKey = normalizeConversationKey(conversationKey);
-  if (!normalizedKey) return;
+function normalizeBranchIndex(value: unknown): number {
+  const index = Number(value);
+  return Number.isFinite(index) ? Math.max(0, Math.floor(index)) : 0;
+}
 
+function serializeMessageFields(
+  message: Partial<StoredChatMessage>,
+): SerializedMessageFields {
   const timestamp = Number(message.timestamp);
   const selectedTexts = Array.isArray(message.selectedTexts)
     ? message.selectedTexts
@@ -541,7 +357,9 @@ export async function appendMessage(
   );
   const paperContexts = normalizePaperContextRefs(message.paperContexts);
   const screenshotImages = Array.isArray(message.screenshotImages)
-    ? message.screenshotImages.filter((entry) => Boolean(entry))
+    ? message.screenshotImages.filter(
+        (entry): entry is string => typeof entry === "string" && Boolean(entry),
+      )
     : [];
   const attachments = Array.isArray(message.attachments)
     ? message.attachments
@@ -561,30 +379,967 @@ export async function appendMessage(
               : undefined,
         }))
     : [];
+  return {
+    timestamp: Number.isFinite(timestamp) ? Math.floor(timestamp) : Date.now(),
+    selectedTexts,
+    selectedTextSources,
+    selectedTextPaperContexts,
+    paperContexts,
+    screenshotImages,
+    attachments,
+  };
+}
+
+function toStoredChatMessage(
+  row: StoredChatMessageRow,
+): StoredChatMessage | null {
+  const role =
+    row.role === "assistant"
+      ? "assistant"
+      : row.role === "user"
+        ? "user"
+        : null;
+  if (!role) return null;
+
+  const timestamp = Number(row.timestamp);
+  let selectedTexts: string[] | undefined;
+  if (typeof row.selectedTextsJson === "string" && row.selectedTextsJson) {
+    try {
+      const parsed = JSON.parse(row.selectedTextsJson) as unknown;
+      if (Array.isArray(parsed)) {
+        const normalized = parsed.filter(
+          (entry): entry is string =>
+            typeof entry === "string" && Boolean(entry.trim()),
+        );
+        if (normalized.length) {
+          selectedTexts = normalized;
+        }
+      }
+    } catch (_err) {
+      selectedTexts = undefined;
+    }
+  }
+  let selectedTextSources: SelectedTextSource[] | undefined;
+  if (
+    typeof row.selectedTextSourcesJson === "string" &&
+    row.selectedTextSourcesJson
+  ) {
+    try {
+      const parsed = JSON.parse(row.selectedTextSourcesJson) as unknown;
+      if (Array.isArray(parsed)) {
+        selectedTextSources = parsed.map((entry) =>
+          normalizeSelectedTextSource(entry),
+        );
+      }
+    } catch (_err) {
+      selectedTextSources = undefined;
+    }
+  }
+  const normalizedTexts = selectedTexts?.length
+    ? selectedTexts
+    : typeof row.selectedText === "string" && row.selectedText.trim()
+      ? [row.selectedText]
+      : [];
+  let selectedTextPaperContexts: (PaperContextRef | undefined)[] | undefined;
+  if (
+    typeof row.selectedTextPaperContextsJson === "string" &&
+    row.selectedTextPaperContextsJson
+  ) {
+    try {
+      const parsed = JSON.parse(row.selectedTextPaperContextsJson) as unknown;
+      const normalized = normalizeSelectedTextPaperContexts(
+        parsed,
+        normalizedTexts.length,
+      );
+      if (normalized.some((entry) => Boolean(entry))) {
+        selectedTextPaperContexts = normalized;
+      }
+    } catch (_err) {
+      selectedTextPaperContexts = undefined;
+    }
+  }
+  let paperContexts: PaperContextRef[] | undefined;
+  if (typeof row.paperContextsJson === "string" && row.paperContextsJson) {
+    try {
+      const parsed = JSON.parse(row.paperContextsJson) as unknown;
+      const normalized = normalizePaperContextRefs(parsed);
+      if (normalized.length) {
+        paperContexts = normalized;
+      }
+    } catch (_err) {
+      paperContexts = undefined;
+    }
+  }
+  let screenshotImages: string[] | undefined;
+  if (typeof row.screenshotImages === "string" && row.screenshotImages) {
+    try {
+      const parsed = JSON.parse(row.screenshotImages) as unknown;
+      if (Array.isArray(parsed)) {
+        const normalized = parsed.filter(
+          (entry): entry is string =>
+            typeof entry === "string" && Boolean(entry.trim()),
+        );
+        if (normalized.length) {
+          screenshotImages = normalized;
+        }
+      }
+    } catch (_err) {
+      screenshotImages = undefined;
+    }
+  }
+  let attachments: StoredChatMessage["attachments"] | undefined;
+  if (typeof row.attachmentsJson === "string" && row.attachmentsJson) {
+    try {
+      const parsed = JSON.parse(row.attachmentsJson) as unknown;
+      if (Array.isArray(parsed)) {
+        const normalized = parsed.reduce<
+          NonNullable<StoredChatMessage["attachments"]>
+        >((out, entry) => {
+          if (!entry || typeof entry !== "object") return out;
+          const typed = entry as Record<string, unknown>;
+          const id =
+            typeof typed.id === "string" && typed.id.trim()
+              ? typed.id.trim()
+              : null;
+          const name =
+            typeof typed.name === "string" && typed.name.trim()
+              ? typed.name.trim()
+              : null;
+          const mimeType =
+            typeof typed.mimeType === "string" && typed.mimeType.trim()
+              ? typed.mimeType.trim()
+              : "application/octet-stream";
+          const sizeBytes = Number(typed.sizeBytes);
+          const category = typed.category;
+          const validCategory =
+            category === "image" ||
+            category === "pdf" ||
+            category === "markdown" ||
+            category === "code" ||
+            category === "text" ||
+            category === "file";
+          if (!id || !name || !validCategory) return out;
+          out.push({
+            id,
+            name,
+            mimeType,
+            sizeBytes: Number.isFinite(sizeBytes) ? Math.max(0, sizeBytes) : 0,
+            category,
+            imageDataUrl:
+              typeof typed.imageDataUrl === "string" &&
+              typed.imageDataUrl.trim()
+                ? typed.imageDataUrl
+                : undefined,
+            textContent:
+              typeof typed.textContent === "string" && typed.textContent
+                ? typed.textContent
+                : undefined,
+            storedPath:
+              typeof typed.storedPath === "string" && typed.storedPath.trim()
+                ? typed.storedPath.trim()
+                : undefined,
+            contentHash:
+              typeof typed.contentHash === "string" &&
+              /^[a-f0-9]{64}$/i.test(typed.contentHash.trim())
+                ? typed.contentHash.trim().toLowerCase()
+                : undefined,
+          });
+          return out;
+        }, []);
+        if (normalized.length) {
+          attachments = normalized;
+        }
+      }
+    } catch (_err) {
+      attachments = undefined;
+    }
+  }
+  if (!attachments?.length && screenshotImages?.length) {
+    attachments = screenshotImages.map((url, index) => ({
+      id: `legacy-screenshot-${index + 1}`,
+      name: `Screenshot ${index + 1}.png`,
+      mimeType: "image/png",
+      sizeBytes: 0,
+      category: "image" as const,
+      imageDataUrl: url,
+    }));
+  }
+  let contextRefs: ContextRefsJson | undefined;
+  if (typeof row.contextRefsJson === "string" && row.contextRefsJson) {
+    try {
+      const parsed = JSON.parse(row.contextRefsJson) as unknown;
+      if (parsed && typeof parsed === "object") {
+        contextRefs = parsed as ContextRefsJson;
+      }
+    } catch (_err) {
+      contextRefs = undefined;
+    }
+  }
+
+  return {
+    messageId: normalizeTreeId(row.messageId) ?? undefined,
+    parentMessageId: normalizeTreeId(row.parentMessageId),
+    activeChildMessageId: normalizeTreeId(row.activeChildMessageId),
+    branchIndex: normalizeBranchIndex(row.branchIndex),
+    role,
+    text: typeof row.text === "string" ? row.text : "",
+    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+    selectedText:
+      typeof row.selectedText === "string" ? row.selectedText : undefined,
+    selectedTexts: normalizedTexts.length ? normalizedTexts : undefined,
+    selectedTextSources: (() => {
+      if (!normalizedTexts.length) return undefined;
+      return normalizedTexts.map((_, index) =>
+        normalizeSelectedTextSource(selectedTextSources?.[index]),
+      );
+    })(),
+    selectedTextPaperContexts,
+    paperContexts,
+    screenshotImages,
+    attachments,
+    modelName: typeof row.modelName === "string" ? row.modelName : undefined,
+    reasoningSummary:
+      typeof row.reasoningSummary === "string"
+        ? row.reasoningSummary
+        : undefined,
+    reasoningDetails:
+      typeof row.reasoningDetails === "string"
+        ? row.reasoningDetails
+        : undefined,
+    contextRefs,
+  };
+}
+
+const CHAT_MESSAGE_SELECT_SQL = `id AS messageId,
+            parent_id AS parentMessageId,
+            active_child_id AS activeChildMessageId,
+            branch_index AS branchIndex,
+            role,
+            text,
+            timestamp,
+            selected_text AS selectedText,
+            selected_texts_json AS selectedTextsJson,
+            selected_text_sources_json AS selectedTextSourcesJson,
+            selected_text_paper_contexts_json AS selectedTextPaperContextsJson,
+            paper_contexts_json AS paperContextsJson,
+            screenshot_images AS screenshotImages,
+            attachments_json AS attachmentsJson,
+            model_name AS modelName,
+            reasoning_summary AS reasoningSummary,
+            reasoning_details AS reasoningDetails,
+            context_refs_json AS contextRefsJson`;
+
+function annotateSiblingMetadata(
+  messages: StoredChatMessage[],
+  treeRows: ChatTreeNodeRow[],
+): StoredChatMessage[] {
+  const groups = new Map<string, number[]>();
+  const nodeOrder = new Map<number, { branchIndex: number; id: number }>();
+  for (const row of treeRows) {
+    const id = normalizeTreeId(row.messageId);
+    if (!id) continue;
+    const parentId = normalizeTreeId(row.parentMessageId);
+    const key = parentId === null ? "root" : String(parentId);
+    const branchIndex = normalizeBranchIndex(row.branchIndex);
+    nodeOrder.set(id, { branchIndex, id });
+    const list = groups.get(key) || [];
+    list.push(id);
+    groups.set(key, list);
+  }
+  for (const list of groups.values()) {
+    list.sort((a, b) => {
+      const aOrder = nodeOrder.get(a);
+      const bOrder = nodeOrder.get(b);
+      return (aOrder?.branchIndex ?? 0) - (bOrder?.branchIndex ?? 0) || a - b;
+    });
+  }
+  for (const message of messages) {
+    if (!message.messageId) continue;
+    const key =
+      message.parentMessageId === null || message.parentMessageId === undefined
+        ? "root"
+        : String(message.parentMessageId);
+    const siblings = groups.get(key) || [message.messageId];
+    message.siblingMessageIds = siblings.slice();
+    message.siblingCount = siblings.length;
+    message.siblingIndex = Math.max(1, siblings.indexOf(message.messageId) + 1);
+  }
+  return messages;
+}
+
+async function loadTreeRows(
+  conversationKey: number,
+): Promise<ChatTreeNodeRow[]> {
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT id AS messageId,
+            parent_id AS parentMessageId,
+            active_child_id AS activeChildMessageId,
+            branch_index AS branchIndex
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ?
+     ORDER BY timestamp ASC, id ASC`,
+    [conversationKey],
+  )) as ChatTreeNodeRow[] | undefined;
+  return rows || [];
+}
+
+async function getTreeState(
+  conversationKey: number,
+): Promise<{ activeRootId: number | null; activeLeafId: number | null }> {
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT active_root_id AS activeRootId,
+            active_leaf_id AS activeLeafId
+     FROM ${CHAT_TREE_STATE_TABLE}
+     WHERE conversation_key = ?
+     LIMIT 1`,
+    [conversationKey],
+  )) as Array<{ activeRootId?: unknown; activeLeafId?: unknown }> | undefined;
+  return {
+    activeRootId: normalizeTreeId(rows?.[0]?.activeRootId),
+    activeLeafId: normalizeTreeId(rows?.[0]?.activeLeafId),
+  };
+}
+
+async function upsertTreeState(
+  conversationKey: number,
+  activeRootId: number | null,
+  activeLeafId: number | null,
+): Promise<void> {
+  await Zotero.DB.queryAsync(
+    `INSERT OR REPLACE INTO ${CHAT_TREE_STATE_TABLE}
+      (conversation_key, active_root_id, active_leaf_id)
+     VALUES (?, ?, ?)`,
+    [conversationKey, activeRootId, activeLeafId],
+  );
+}
+
+function resolveActiveLeafFromRows(
+  rootId: number | null,
+  treeRows: ChatTreeNodeRow[],
+): number | null {
+  if (!rootId) return null;
+  const byId = new Map<number, ChatTreeNodeRow>();
+  for (const row of treeRows) {
+    const id = normalizeTreeId(row.messageId);
+    if (id) byId.set(id, row);
+  }
+  let currentId: number | null = rootId;
+  const visited = new Set<number>();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const row = byId.get(currentId);
+    const activeChildId = normalizeTreeId(row?.activeChildMessageId);
+    if (!activeChildId || !byId.has(activeChildId)) return currentId;
+    currentId = activeChildId;
+  }
+  return currentId;
+}
+
+async function repairActiveChildChain(
+  conversationKey: number,
+  rootId: number,
+  treeRows: ChatTreeNodeRow[],
+): Promise<number> {
+  const groups = new Map<string, ChatTreeNodeRow[]>();
+  for (const row of treeRows) {
+    const id = normalizeTreeId(row.messageId);
+    if (!id) continue;
+    const parentId = normalizeTreeId(row.parentMessageId);
+    const key = parentId === null ? "root" : String(parentId);
+    const list = groups.get(key) || [];
+    list.push(row);
+    groups.set(key, list);
+  }
+  for (const list of groups.values()) {
+    list.sort((a, b) => {
+      const aId = normalizeTreeId(a.messageId) || 0;
+      const bId = normalizeTreeId(b.messageId) || 0;
+      return (
+        normalizeBranchIndex(a.branchIndex) -
+          normalizeBranchIndex(b.branchIndex) || aId - bId
+      );
+    });
+  }
+
+  let currentId = rootId;
+  const visited = new Set<number>();
+  while (!visited.has(currentId)) {
+    visited.add(currentId);
+    const current = treeRows.find(
+      (row) => normalizeTreeId(row.messageId) === currentId,
+    );
+    const activeChildId = normalizeTreeId(current?.activeChildMessageId);
+    const children = groups.get(String(currentId)) || [];
+    const activeChildStillValid = children.some(
+      (child) => normalizeTreeId(child.messageId) === activeChildId,
+    );
+    if (activeChildId && activeChildStillValid) {
+      currentId = activeChildId;
+      continue;
+    }
+    const fallbackChildId = normalizeTreeId(children[0]?.messageId);
+    if (!fallbackChildId) return currentId;
+    await Zotero.DB.queryAsync(
+      `UPDATE ${CHAT_MESSAGES_TABLE}
+       SET active_child_id = ?
+       WHERE id = ? AND conversation_key = ?`,
+      [fallbackChildId, currentId, conversationKey],
+    );
+    currentId = fallbackChildId;
+  }
+  return currentId;
+}
+
+async function migrateConversationToTreeState(
+  conversationKey: number,
+): Promise<void> {
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT id AS messageId,
+            parent_id AS parentMessageId,
+            active_child_id AS activeChildMessageId,
+            branch_index AS branchIndex
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ?
+     ORDER BY timestamp ASC, id ASC`,
+    [conversationKey],
+  )) as ChatTreeNodeRow[] | undefined;
+  if (!rows?.length) {
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_TREE_STATE_TABLE}
+       WHERE conversation_key = ?`,
+      [conversationKey],
+    );
+    return;
+  }
+
+  const state = await getTreeState(conversationKey);
+  const knownIds = new Set(
+    rows
+      .map((row) => normalizeTreeId(row.messageId))
+      .filter((id): id is number => Boolean(id)),
+  );
+  if (state.activeRootId && knownIds.has(state.activeRootId)) return;
+
+  const hasAnyParent = rows.some((row) => normalizeTreeId(row.parentMessageId));
+  if (!hasAnyParent) {
+    let previousId: number | null = null;
+    for (const row of rows) {
+      const id = normalizeTreeId(row.messageId);
+      if (!id) continue;
+      await Zotero.DB.queryAsync(
+        `UPDATE ${CHAT_MESSAGES_TABLE}
+         SET parent_id = ?,
+             active_child_id = NULL,
+             branch_index = 0
+         WHERE id = ? AND conversation_key = ?`,
+        [previousId, id, conversationKey],
+      );
+      if (previousId) {
+        await Zotero.DB.queryAsync(
+          `UPDATE ${CHAT_MESSAGES_TABLE}
+           SET active_child_id = ?
+           WHERE id = ? AND conversation_key = ?`,
+          [id, previousId, conversationKey],
+        );
+      }
+      previousId = id;
+    }
+    const firstId = normalizeTreeId(rows[0]?.messageId);
+    const lastId = previousId;
+    await upsertTreeState(conversationKey, firstId, lastId);
+    return;
+  }
+
+  let roots = rows.filter((row) => !normalizeTreeId(row.parentMessageId));
+  if (!roots.length) {
+    const firstId = normalizeTreeId(rows[0]?.messageId);
+    if (!firstId) return;
+    await Zotero.DB.queryAsync(
+      `UPDATE ${CHAT_MESSAGES_TABLE}
+       SET parent_id = NULL,
+           branch_index = 0
+       WHERE id = ? AND conversation_key = ?`,
+      [firstId, conversationKey],
+    );
+    rows[0].parentMessageId = null;
+    roots = [rows[0]];
+  }
+  roots.sort((a, b) => {
+    const aId = normalizeTreeId(a.messageId) || 0;
+    const bId = normalizeTreeId(b.messageId) || 0;
+    return (
+      normalizeBranchIndex(a.branchIndex) -
+        normalizeBranchIndex(b.branchIndex) || aId - bId
+    );
+  });
+  const rootId = normalizeTreeId(roots[0]?.messageId);
+  if (!rootId) return;
+  const leafId = await repairActiveChildChain(conversationKey, rootId, rows);
+  await upsertTreeState(conversationKey, rootId, leafId);
+}
+
+async function migrateLinearConversationsToTree(): Promise<void> {
+  const keys = (await Zotero.DB.columnQueryAsync(
+    `SELECT DISTINCT conversation_key
+     FROM ${CHAT_MESSAGES_TABLE}
+     ORDER BY conversation_key ASC`,
+  )) as number[] | false;
+  if (!keys) return;
+  for (const rawKey of keys) {
+    const key = normalizeConversationKey(Number(rawKey));
+    if (!key) continue;
+    await migrateConversationToTreeState(key);
+  }
+}
+
+async function ensureTreeStateForConversation(
+  conversationKey: number,
+): Promise<void> {
+  await migrateConversationToTreeState(conversationKey);
+}
+
+export async function loadConversation(
+  conversationKey: number,
+  limit: number,
+): Promise<StoredChatMessage[]> {
+  return loadConversationPath(conversationKey, limit);
+}
+
+export async function loadConversationPath(
+  conversationKey: number,
+  limit = 200,
+): Promise<StoredChatMessage[]> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return [];
+
+  await ensureTreeStateForConversation(normalizedKey);
+  const normalizedLimit = normalizeLimit(limit, 200);
+  const treeRows = await loadTreeRows(normalizedKey);
+  const state = await getTreeState(normalizedKey);
+  if (!state.activeRootId) return [];
+
+  const byId = new Map<number, ChatTreeNodeRow>();
+  for (const row of treeRows) {
+    const id = normalizeTreeId(row.messageId);
+    if (id) byId.set(id, row);
+  }
+  const activeIds: number[] = [];
+  let currentId: number | null = state.activeRootId;
+  const visited = new Set<number>();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    activeIds.push(currentId);
+    const row = byId.get(currentId);
+    const nextId = normalizeTreeId(row?.activeChildMessageId);
+    currentId = nextId && byId.has(nextId) ? nextId : null;
+  }
+
+  const limitedIds =
+    activeIds.length > normalizedLimit
+      ? activeIds.slice(-normalizedLimit)
+      : activeIds;
+  if (!limitedIds.length) return [];
+  const placeholders = limitedIds.map(() => "?").join(",");
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT ${CHAT_MESSAGE_SELECT_SQL}
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ?
+       AND id IN (${placeholders})`,
+    [normalizedKey, ...limitedIds],
+  )) as StoredChatMessageRow[] | undefined;
+  if (!rows?.length) return [];
+  const rowById = new Map<number, StoredChatMessageRow>();
+  for (const row of rows) {
+    const id = normalizeTreeId(row.messageId);
+    if (id) rowById.set(id, row);
+  }
+  const messages = limitedIds
+    .map((id) => {
+      const row = rowById.get(id);
+      return row ? toStoredChatMessage(row) : null;
+    })
+    .filter((message): message is StoredChatMessage => Boolean(message));
+  return annotateSiblingMetadata(messages, treeRows);
+}
+
+export async function loadConversationTree(
+  conversationKey: number,
+): Promise<StoredChatMessage[]> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return [];
+  await ensureTreeStateForConversation(normalizedKey);
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT ${CHAT_MESSAGE_SELECT_SQL}
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ?
+     ORDER BY timestamp ASC, id ASC`,
+    [normalizedKey],
+  )) as StoredChatMessageRow[] | undefined;
+  if (!rows?.length) return [];
+  const messages = rows
+    .map((row) => toStoredChatMessage(row))
+    .filter((message): message is StoredChatMessage => Boolean(message));
+  return annotateSiblingMetadata(messages, await loadTreeRows(normalizedKey));
+}
+
+export async function appendMessage(
+  conversationKey: number,
+  message: StoredChatMessage,
+): Promise<number> {
+  return appendMessageNode(conversationKey, message);
+}
+
+async function getDefaultAppendParentId(
+  conversationKey: number,
+): Promise<number | null> {
+  await ensureTreeStateForConversation(conversationKey);
+  const state = await getTreeState(conversationKey);
+  return state.activeLeafId;
+}
+
+async function getSiblingBranchIndex(
+  conversationKey: number,
+  parentMessageId: number | null,
+): Promise<number> {
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT MAX(branch_index) AS maxBranchIndex
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ?
+       AND ${parentMessageId === null ? "parent_id IS NULL" : "parent_id = ?"}`,
+    parentMessageId === null
+      ? [conversationKey]
+      : [conversationKey, parentMessageId],
+  )) as Array<{ maxBranchIndex?: unknown }> | undefined;
+  const maxBranchIndex = Number(rows?.[0]?.maxBranchIndex);
+  return Number.isFinite(maxBranchIndex) ? Math.floor(maxBranchIndex) + 1 : 0;
+}
+
+async function getRootIdFromRows(
+  conversationKey: number,
+): Promise<number | null> {
+  const rootId = (await Zotero.DB.valueQueryAsync(
+    `SELECT id
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ?
+       AND parent_id IS NULL
+     ORDER BY branch_index ASC, id ASC
+     LIMIT 1`,
+    [conversationKey],
+  )) as number | false;
+  return normalizeTreeId(rootId);
+}
+
+export async function appendMessageNode(
+  conversationKey: number,
+  message: StoredChatMessage,
+  parentMessageId?: number | null,
+): Promise<number> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  if (!normalizedKey) return 0;
+  const normalizedParent =
+    parentMessageId === undefined
+      ? await getDefaultAppendParentId(normalizedKey)
+      : normalizeTreeId(parentMessageId);
+  if (normalizedParent) {
+    const parentConversationKey = (await Zotero.DB.valueQueryAsync(
+      `SELECT conversation_key
+       FROM ${CHAT_MESSAGES_TABLE}
+       WHERE id = ?
+       LIMIT 1`,
+      [normalizedParent],
+    )) as number | false;
+    if (Number(parentConversationKey) !== normalizedKey) return 0;
+  }
+
+  const serialized = serializeMessageFields(message);
+  const branchIndex = await getSiblingBranchIndex(
+    normalizedKey,
+    normalizedParent,
+  );
   await Zotero.DB.queryAsync(
     `INSERT INTO ${CHAT_MESSAGES_TABLE}
-      (conversation_key, role, text, timestamp, selected_text, selected_texts_json, selected_text_sources_json, selected_text_paper_contexts_json, paper_contexts_json, screenshot_images, attachments_json, model_name, reasoning_summary, reasoning_details, context_refs_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (conversation_key, parent_id, active_child_id, branch_index, role, text, timestamp, selected_text, selected_texts_json, selected_text_sources_json, selected_text_paper_contexts_json, paper_contexts_json, screenshot_images, attachments_json, model_name, reasoning_summary, reasoning_details, context_refs_json)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       normalizedKey,
+      normalizedParent,
+      branchIndex,
       message.role,
       message.text,
-      Number.isFinite(timestamp) ? Math.floor(timestamp) : Date.now(),
-      selectedTexts[0] || message.selectedText || null,
-      selectedTexts.length ? JSON.stringify(selectedTexts) : null,
-      selectedTextSources.length ? JSON.stringify(selectedTextSources) : null,
-      selectedTextPaperContexts.some((entry) => Boolean(entry))
-        ? JSON.stringify(selectedTextPaperContexts)
+      serialized.timestamp,
+      serialized.selectedTexts[0] || message.selectedText || null,
+      serialized.selectedTexts.length
+        ? JSON.stringify(serialized.selectedTexts)
         : null,
-      paperContexts.length ? JSON.stringify(paperContexts) : null,
-      screenshotImages.length ? JSON.stringify(screenshotImages) : null,
-      attachments.length ? JSON.stringify(attachments) : null,
+      serialized.selectedTextSources.length
+        ? JSON.stringify(serialized.selectedTextSources)
+        : null,
+      serialized.selectedTextPaperContexts.some((entry) => Boolean(entry))
+        ? JSON.stringify(serialized.selectedTextPaperContexts)
+        : null,
+      serialized.paperContexts.length
+        ? JSON.stringify(serialized.paperContexts)
+        : null,
+      serialized.screenshotImages.length
+        ? JSON.stringify(serialized.screenshotImages)
+        : null,
+      serialized.attachments.length
+        ? JSON.stringify(serialized.attachments)
+        : null,
       message.modelName || null,
       message.reasoningSummary || null,
       message.reasoningDetails || null,
       message.contextRefs ? JSON.stringify(message.contextRefs) : null,
     ],
   );
+  const insertedId = normalizeTreeId(
+    await Zotero.DB.valueQueryAsync(`SELECT last_insert_rowid()`),
+  );
+  if (!insertedId) return 0;
+
+  if (normalizedParent) {
+    await Zotero.DB.queryAsync(
+      `UPDATE ${CHAT_MESSAGES_TABLE}
+       SET active_child_id = ?
+       WHERE id = ? AND conversation_key = ?`,
+      [insertedId, normalizedParent, normalizedKey],
+    );
+  }
+  const activeRootId =
+    normalizedParent === null
+      ? insertedId
+      : (await getTreeState(normalizedKey)).activeRootId ||
+        (await getRootIdFromRows(normalizedKey));
+  await upsertTreeState(normalizedKey, activeRootId, insertedId);
+  return insertedId;
+}
+
+export async function createSiblingBranch(
+  conversationKey: number,
+  sourceMessageId: number,
+  message: StoredChatMessage,
+): Promise<number> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  const sourceId = normalizeTreeId(sourceMessageId);
+  if (!normalizedKey || !sourceId) return 0;
+  const rows = (await Zotero.DB.queryAsync(
+    `SELECT parent_id AS parentMessageId
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ? AND id = ?
+     LIMIT 1`,
+    [normalizedKey, sourceId],
+  )) as Array<{ parentMessageId?: unknown }> | undefined;
+  if (!rows?.length) return 0;
+  return appendMessageNode(
+    normalizedKey,
+    message,
+    normalizeTreeId(rows[0]?.parentMessageId),
+  );
+}
+
+export async function updateMessageNode(
+  conversationKey: number,
+  messageId: number,
+  message: Partial<StoredChatMessage>,
+): Promise<void> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  const normalizedMessageId = normalizeTreeId(messageId);
+  if (!normalizedKey || !normalizedMessageId) return;
+
+  const assignments: string[] = [];
+  const values: unknown[] = [];
+  const serialized = serializeMessageFields(message);
+  if (typeof message.text === "string") {
+    assignments.push("text = ?");
+    values.push(message.text);
+  }
+  if (message.timestamp !== undefined) {
+    assignments.push("timestamp = ?");
+    values.push(serialized.timestamp);
+  }
+  if (
+    message.selectedText !== undefined ||
+    message.selectedTexts !== undefined
+  ) {
+    assignments.push("selected_text = ?");
+    assignments.push("selected_texts_json = ?");
+    assignments.push("selected_text_sources_json = ?");
+    assignments.push("selected_text_paper_contexts_json = ?");
+    values.push(serialized.selectedTexts[0] || message.selectedText || null);
+    values.push(
+      serialized.selectedTexts.length
+        ? JSON.stringify(serialized.selectedTexts)
+        : null,
+    );
+    values.push(
+      serialized.selectedTextSources.length
+        ? JSON.stringify(serialized.selectedTextSources)
+        : null,
+    );
+    values.push(
+      serialized.selectedTextPaperContexts.some((entry) => Boolean(entry))
+        ? JSON.stringify(serialized.selectedTextPaperContexts)
+        : null,
+    );
+  }
+  if (message.paperContexts !== undefined) {
+    assignments.push("paper_contexts_json = ?");
+    values.push(
+      serialized.paperContexts.length
+        ? JSON.stringify(serialized.paperContexts)
+        : null,
+    );
+  }
+  if (message.screenshotImages !== undefined) {
+    assignments.push("screenshot_images = ?");
+    values.push(
+      serialized.screenshotImages.length
+        ? JSON.stringify(serialized.screenshotImages)
+        : null,
+    );
+  }
+  if (message.attachments !== undefined) {
+    assignments.push("attachments_json = ?");
+    values.push(
+      serialized.attachments.length
+        ? JSON.stringify(serialized.attachments)
+        : null,
+    );
+  }
+  if (message.modelName !== undefined) {
+    assignments.push("model_name = ?");
+    values.push(message.modelName || null);
+  }
+  if (message.reasoningSummary !== undefined) {
+    assignments.push("reasoning_summary = ?");
+    values.push(message.reasoningSummary || null);
+  }
+  if (message.reasoningDetails !== undefined) {
+    assignments.push("reasoning_details = ?");
+    values.push(message.reasoningDetails || null);
+  }
+  if (message.contextRefs !== undefined) {
+    assignments.push("context_refs_json = ?");
+    values.push(
+      message.contextRefs ? JSON.stringify(message.contextRefs) : null,
+    );
+  }
+  if (!assignments.length) return;
+  await Zotero.DB.queryAsync(
+    `UPDATE ${CHAT_MESSAGES_TABLE}
+     SET ${assignments.join(", ")}
+     WHERE conversation_key = ? AND id = ?`,
+    [...values, normalizedKey, normalizedMessageId],
+  );
+}
+
+export async function setActiveChild(
+  conversationKey: number,
+  parentMessageId: number | null,
+  childMessageId: number,
+): Promise<StoredChatMessage[]> {
+  const normalizedKey = normalizeConversationKey(conversationKey);
+  const normalizedParent = normalizeTreeId(parentMessageId);
+  const normalizedChild = normalizeTreeId(childMessageId);
+  if (!normalizedKey || !normalizedChild) return [];
+
+  await ensureTreeStateForConversation(normalizedKey);
+  const childRows = (await Zotero.DB.queryAsync(
+    `SELECT parent_id AS parentMessageId
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE conversation_key = ? AND id = ?
+     LIMIT 1`,
+    [normalizedKey, normalizedChild],
+  )) as Array<{ parentMessageId?: unknown }> | undefined;
+  if (!childRows?.length) return loadConversationPath(normalizedKey, 200);
+  const childParent = normalizeTreeId(childRows[0]?.parentMessageId);
+  if (childParent !== normalizedParent) {
+    return loadConversationPath(normalizedKey, 200);
+  }
+
+  if (normalizedParent) {
+    await Zotero.DB.queryAsync(
+      `UPDATE ${CHAT_MESSAGES_TABLE}
+       SET active_child_id = ?
+       WHERE conversation_key = ? AND id = ?`,
+      [normalizedChild, normalizedKey, normalizedParent],
+    );
+  }
+
+  const treeRows = await loadTreeRows(normalizedKey);
+  const leafId = resolveActiveLeafFromRows(normalizedChild, treeRows);
+  const state = await getTreeState(normalizedKey);
+  const activeRootId = normalizedParent
+    ? state.activeRootId || (await getRootIdFromRows(normalizedKey))
+    : normalizedChild;
+  await upsertTreeState(normalizedKey, activeRootId, leafId || normalizedChild);
+  return loadConversationPath(normalizedKey, 200);
+}
+
+function cloneStoredMessageForInsert(
+  message: StoredChatMessage,
+): StoredChatMessage {
+  return {
+    role: message.role,
+    text: message.text,
+    timestamp: message.timestamp,
+    selectedText: message.selectedText,
+    selectedTexts: message.selectedTexts
+      ? message.selectedTexts.slice()
+      : undefined,
+    selectedTextSources: message.selectedTextSources
+      ? message.selectedTextSources.slice()
+      : undefined,
+    selectedTextPaperContexts: message.selectedTextPaperContexts
+      ? message.selectedTextPaperContexts.slice()
+      : undefined,
+    paperContexts: message.paperContexts
+      ? message.paperContexts.slice()
+      : undefined,
+    screenshotImages: message.screenshotImages
+      ? message.screenshotImages.slice()
+      : undefined,
+    attachments: message.attachments
+      ? message.attachments.map((attachment) => ({ ...attachment }))
+      : undefined,
+    modelName: message.modelName,
+    reasoningSummary: message.reasoningSummary,
+    reasoningDetails: message.reasoningDetails,
+    contextRefs: message.contextRefs,
+  };
+}
+
+export async function cloneActivePathPrefixToConversation(
+  sourceConversationKey: number,
+  targetConversationKey: number,
+  throughMessageId: number,
+): Promise<number[]> {
+  const normalizedSourceKey = normalizeConversationKey(sourceConversationKey);
+  const normalizedTargetKey = normalizeConversationKey(targetConversationKey);
+  const normalizedThroughId = normalizeTreeId(throughMessageId);
+  if (!normalizedSourceKey || !normalizedTargetKey || !normalizedThroughId) {
+    return [];
+  }
+
+  const activePath = await loadConversationPath(normalizedSourceKey, 10000);
+  const throughIndex = activePath.findIndex(
+    (message) => message.messageId === normalizedThroughId,
+  );
+  if (throughIndex < 0) return [];
+
+  const clonedIds: number[] = [];
+  let parentId: number | null = null;
+  for (const message of activePath.slice(0, throughIndex + 1)) {
+    const clonedId = await appendMessageNode(
+      normalizedTargetKey,
+      cloneStoredMessageForInsert(message),
+      parentId,
+    );
+    if (!clonedId) break;
+    clonedIds.push(clonedId);
+    parentId = clonedId;
+  }
+  return clonedIds;
 }
 
 export async function updateLatestUserMessage(
@@ -604,79 +1359,12 @@ export async function updateLatestUserMessage(
 ): Promise<void> {
   const normalizedKey = normalizeConversationKey(conversationKey);
   if (!normalizedKey) return;
-
-  const timestamp = Number(message.timestamp);
-  const selectedTexts = Array.isArray(message.selectedTexts)
-    ? message.selectedTexts
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-    : typeof message.selectedText === "string" && message.selectedText.trim()
-      ? [message.selectedText.trim()]
-      : [];
-  const selectedTextSources = selectedTexts.map((_, index) =>
-    normalizeSelectedTextSource(message.selectedTextSources?.[index]),
-  );
-  const selectedTextPaperContexts = normalizeSelectedTextPaperContexts(
-    message.selectedTextPaperContexts,
-    selectedTexts.length,
-  );
-  const paperContexts = normalizePaperContextRefs(message.paperContexts);
-  const screenshotImages = Array.isArray(message.screenshotImages)
-    ? message.screenshotImages.filter((entry) => Boolean(entry))
-    : [];
-  const attachments = Array.isArray(message.attachments)
-    ? message.attachments
-        .filter(
-          (entry) => entry && typeof entry.id === "string" && entry.id.trim(),
-        )
-        .map((entry) => ({
-          ...entry,
-          storedPath:
-            typeof entry.storedPath === "string" && entry.storedPath.trim()
-              ? entry.storedPath.trim()
-              : undefined,
-          contentHash:
-            typeof entry.contentHash === "string" &&
-            /^[a-f0-9]{64}$/i.test(entry.contentHash.trim())
-              ? entry.contentHash.trim().toLowerCase()
-              : undefined,
-        }))
-    : [];
-
-  await Zotero.DB.queryAsync(
-    `UPDATE ${CHAT_MESSAGES_TABLE}
-     SET text = ?,
-         timestamp = ?,
-         selected_text = ?,
-         selected_texts_json = ?,
-         selected_text_sources_json = ?,
-         selected_text_paper_contexts_json = ?,
-         paper_contexts_json = ?,
-         screenshot_images = ?,
-         attachments_json = ?
-     WHERE id = (
-       SELECT id
-       FROM ${CHAT_MESSAGES_TABLE}
-       WHERE conversation_key = ? AND role = 'user'
-       ORDER BY timestamp DESC, id DESC
-       LIMIT 1
-     )`,
-    [
-      message.text || "",
-      Number.isFinite(timestamp) ? Math.floor(timestamp) : Date.now(),
-      selectedTexts[0] || message.selectedText || null,
-      selectedTexts.length ? JSON.stringify(selectedTexts) : null,
-      selectedTextSources.length ? JSON.stringify(selectedTextSources) : null,
-      selectedTextPaperContexts.some((entry) => Boolean(entry))
-        ? JSON.stringify(selectedTextPaperContexts)
-        : null,
-      paperContexts.length ? JSON.stringify(paperContexts) : null,
-      screenshotImages.length ? JSON.stringify(screenshotImages) : null,
-      attachments.length ? JSON.stringify(attachments) : null,
-      normalizedKey,
-    ],
-  );
+  const activePath = await loadConversationPath(normalizedKey, 10000);
+  const latestUser = [...activePath]
+    .reverse()
+    .find((entry) => entry.role === "user" && entry.messageId);
+  if (!latestUser?.messageId) return;
+  await updateMessageNode(normalizedKey, latestUser.messageId, message);
 }
 
 export async function updateLatestAssistantMessage(
@@ -688,31 +1376,12 @@ export async function updateLatestAssistantMessage(
 ): Promise<void> {
   const normalizedKey = normalizeConversationKey(conversationKey);
   if (!normalizedKey) return;
-
-  const timestamp = Number(message.timestamp);
-  await Zotero.DB.queryAsync(
-    `UPDATE ${CHAT_MESSAGES_TABLE}
-     SET text = ?,
-         timestamp = ?,
-         model_name = ?,
-         reasoning_summary = ?,
-         reasoning_details = ?
-     WHERE id = (
-       SELECT id
-       FROM ${CHAT_MESSAGES_TABLE}
-       WHERE conversation_key = ? AND role = 'assistant'
-       ORDER BY timestamp DESC, id DESC
-       LIMIT 1
-     )`,
-    [
-      message.text || "",
-      Number.isFinite(timestamp) ? Math.floor(timestamp) : Date.now(),
-      message.modelName || null,
-      message.reasoningSummary || null,
-      message.reasoningDetails || null,
-      normalizedKey,
-    ],
-  );
+  const activePath = await loadConversationPath(normalizedKey, 10000);
+  const latestAssistant = [...activePath]
+    .reverse()
+    .find((entry) => entry.role === "assistant" && entry.messageId);
+  if (!latestAssistant?.messageId) return;
+  await updateMessageNode(normalizedKey, latestAssistant.messageId, message);
 }
 
 export async function clearConversation(
@@ -721,11 +1390,18 @@ export async function clearConversation(
   const normalizedKey = normalizeConversationKey(conversationKey);
   if (!normalizedKey) return;
 
-  await Zotero.DB.queryAsync(
-    `DELETE FROM ${CHAT_MESSAGES_TABLE}
-     WHERE conversation_key = ?`,
-    [normalizedKey],
-  );
+  await Zotero.DB.executeTransaction(async () => {
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_MESSAGES_TABLE}
+       WHERE conversation_key = ?`,
+      [normalizedKey],
+    );
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_TREE_STATE_TABLE}
+       WHERE conversation_key = ?`,
+      [normalizedKey],
+    );
+  });
 }
 
 export async function pruneConversation(
@@ -741,17 +1417,9 @@ export async function pruneConversation(
     return;
   }
 
-  await Zotero.DB.queryAsync(
-    `DELETE FROM ${CHAT_MESSAGES_TABLE}
-     WHERE id IN (
-       SELECT id
-       FROM ${CHAT_MESSAGES_TABLE}
-       WHERE conversation_key = ?
-       ORDER BY timestamp DESC, id DESC
-       LIMIT -1 OFFSET ?
-     )`,
-    [normalizedKey, normalizedKeep],
-  );
+  // Tree conversations keep hidden siblings and historical paths.  Pruning by
+  // recency would corrupt branch navigation, so positive keep values are kept
+  // as a compatibility no-op.
 }
 
 type GlobalConversationSummaryRow = {
@@ -860,7 +1528,6 @@ export async function listGlobalConversations(
   return out;
 }
 
-
 export async function getGlobalConversationUserTurnCount(
   conversationKey: number,
 ): Promise<number> {
@@ -948,11 +1615,23 @@ export async function deleteGlobalConversation(
 ): Promise<void> {
   const normalizedKey = normalizeConversationKey(conversationKey);
   if (!normalizedKey) return;
-  await Zotero.DB.queryAsync(
-    `DELETE FROM ${GLOBAL_CONVERSATIONS_TABLE}
-     WHERE conversation_key = ?`,
-    [normalizedKey],
-  );
+  await Zotero.DB.executeTransaction(async () => {
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_MESSAGES_TABLE}
+       WHERE conversation_key = ?`,
+      [normalizedKey],
+    );
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_TREE_STATE_TABLE}
+       WHERE conversation_key = ?`,
+      [normalizedKey],
+    );
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${GLOBAL_CONVERSATIONS_TABLE}
+       WHERE conversation_key = ?`,
+      [normalizedKey],
+    );
+  });
 }
 
 export async function deleteAllGlobalConversationsByLibrary(
@@ -986,6 +1665,11 @@ export async function deleteAllGlobalConversationsByLibrary(
       deletedKeys,
     );
     await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_TREE_STATE_TABLE}
+       WHERE conversation_key IN (${placeholders})`,
+      deletedKeys,
+    );
+    await Zotero.DB.queryAsync(
       `DELETE FROM ${GLOBAL_CONVERSATIONS_TABLE}
        WHERE library_id = ?`,
       [normalizedLibraryID],
@@ -998,6 +1682,7 @@ export async function deleteAllGlobalConversationsByLibrary(
 export async function clearAllChatHistory(): Promise<void> {
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_MESSAGES_TABLE}`);
+    await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_TREE_STATE_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${GLOBAL_CONVERSATIONS_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${PAPER_CONVERSATIONS_TABLE}`);
   });
@@ -1101,7 +1786,9 @@ export async function listPaperConversations(
       parentItemId: normalizedParent,
       createdAt: Math.floor(Number(createdAt) || 0),
       title: typeof title === "string" && title ? title : undefined,
-      lastActivityAt: Math.floor(Number(lastActivityAt) || Number(createdAt) || 0),
+      lastActivityAt: Math.floor(
+        Number(lastActivityAt) || Number(createdAt) || 0,
+      ),
       userTurnCount: Math.floor(Number(userTurnCount) || 0),
       isPinned: Number(isPinned) === 1,
     });
@@ -1124,6 +1811,10 @@ export async function deletePaperConversation(
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(
       `DELETE FROM ${CHAT_MESSAGES_TABLE} WHERE conversation_key = ?`,
+      [normalizedKey],
+    );
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${CHAT_TREE_STATE_TABLE} WHERE conversation_key = ?`,
       [normalizedKey],
     );
     await Zotero.DB.queryAsync(

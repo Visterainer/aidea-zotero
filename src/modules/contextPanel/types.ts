@@ -6,6 +6,13 @@ export type SelectedTextContext = {
 };
 
 export interface Message {
+  messageId?: number;
+  parentMessageId?: number | null;
+  activeChildMessageId?: number | null;
+  branchIndex?: number;
+  siblingIndex?: number;
+  siblingCount?: number;
+  siblingMessageIds?: number[];
   role: "user" | "assistant";
   text: string;
   timestamp: number;
@@ -24,6 +31,19 @@ export interface Message {
   screenshotExpanded?: boolean;
   screenshotActiveIndex?: number;
   modelName?: string;
+  reasoningSummary?: string;
+  reasoningDetails?: string;
+  contextRefs?: {
+    basePdf?: {
+      itemId: number;
+      contextItemId: number;
+      title: string;
+      removed?: boolean;
+    };
+    supplementalPapers?: PaperContextRef[];
+    fileAttachmentIds?: string[];
+    compactedSummary?: string;
+  };
   streaming?: boolean;
 }
 export type ActionDropdownSpec = {

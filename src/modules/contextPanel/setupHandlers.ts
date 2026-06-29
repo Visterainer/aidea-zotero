@@ -93,8 +93,10 @@ import {
   copyRenderedMarkdownToClipboard,
   exportGeneratedImageDataUrl,
   retryLatestAssistantResponse,
+  editUserMessageAndRetry,
   editLatestUserMessageAndRetry,
   findLatestRetryPair,
+  switchConversationVariant,
   type EditLatestTurnMarker,
 } from "./chat";
 import {
@@ -129,6 +131,7 @@ import {
 } from "./attachmentStorage";
 import {
   clearConversation as clearStoredConversation,
+  cloneActivePathPrefixToConversation,
   createGlobalConversation,
   createPaperConversation,
   deleteAllGlobalConversationsByLibrary,
@@ -6844,6 +6847,157 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   bodyWithPaperPickerDismiss.__llmPaperPickerDismissHandler =
     dismissPaperPickerOnOutsidePointerDown;
 
+  const getActiveMessageById = (messageId: number) => {
+    if (!item || !Number.isFinite(messageId)) return null;
+    const key = getConversationKey(item);
+    const history = chatHistory.get(key) || [];
+    return history.find((msg) => msg.messageId === messageId) || null;
+  };
+
+  const startInlineUserMessageEdit = (editTarget: HTMLButtonElement) => {
+    if (!item) return;
+    const messageId = Number(editTarget.dataset.messageId || "");
+    if (!Number.isFinite(messageId)) return;
+    const message = getActiveMessageById(messageId);
+    if (!message || message.role !== "user") return;
+    const wrapper = editTarget.closest(
+      ".llm-message-wrapper.user",
+    ) as HTMLDivElement | null;
+    const bubble = wrapper?.querySelector(
+      ".llm-bubble.user",
+    ) as HTMLDivElement | null;
+    if (!wrapper || !bubble) return;
+
+    closePromptMenu();
+    closeResponseMenu();
+    closeRetryModelMenu();
+    closeExportMenu();
+    chatBox
+      ?.querySelectorAll(".llm-bubble.user.llm-inline-editing")
+      .forEach(() => refreshChatPreservingScroll());
+
+    bubble.classList.add("llm-inline-editing");
+    bubble.textContent = "";
+    const editCard = createElement(
+      body.ownerDocument as Document,
+      "div",
+      "llm-inline-edit-card",
+    ) as HTMLDivElement;
+    const textarea = createElement(
+      body.ownerDocument as Document,
+      "textarea",
+      "llm-inline-edit-textarea",
+    ) as HTMLTextAreaElement;
+    textarea.value = message.text || "";
+    textarea.rows = 1;
+    textarea.setAttribute("aria-label", getPanelI18n().edit);
+    const resizeInlineEditor = () => {
+      textarea.style.height = "auto";
+      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 48), 180);
+      textarea.style.height = `${nextHeight}px`;
+    };
+    textarea.addEventListener("input", resizeInlineEditor);
+    const actions = createElement(
+      body.ownerDocument as Document,
+      "div",
+      "llm-inline-edit-actions",
+    ) as HTMLDivElement;
+    const cancelEdit = createElement(
+      body.ownerDocument as Document,
+      "button",
+      "llm-inline-edit-cancel",
+      {
+        type: "button",
+        textContent: getPanelI18n().cancel,
+      },
+    ) as HTMLButtonElement;
+    const sendEdit = createElement(
+      body.ownerDocument as Document,
+      "button",
+      "llm-inline-edit-send",
+      {
+        type: "button",
+        textContent: getPanelI18n().send,
+      },
+    ) as HTMLButtonElement;
+    actions.append(cancelEdit, sendEdit);
+    editCard.append(textarea, actions);
+    bubble.append(editCard);
+    resizeInlineEditor();
+    textarea.focus({ preventScroll: true });
+    textarea.select();
+
+    cancelEdit.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      refreshChatPreservingScroll();
+    });
+    sendEdit.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const nextText = sanitizeText(textarea.value || "");
+      if (!nextText.trim()) {
+        if (status)
+          setStatus(status, getPanelI18n().emptyPromptStatus, "error");
+        return;
+      }
+      const resolvedProfile = getSelectedProfileForItem(item!.id);
+      void editUserMessageAndRetry(
+        body,
+        item!,
+        messageId,
+        nextText,
+        resolvedProfile.model,
+        resolvedProfile.apiBase,
+        resolvedProfile.apiKey,
+        undefined,
+      ).then((result) => {
+        if (result !== "ok" && status) {
+          setStatus(status, getPanelI18n().failedToSaveEditedPrompt, "error");
+        }
+      });
+    });
+  };
+
+  const branchAssistantMessageToNewChat = async (messageId: number) => {
+    if (!item || !Number.isFinite(messageId)) return;
+    if (isPanelGenerating(body)) {
+      if (status) {
+        setStatus(status, getPanelI18n().waitForCurrentResponse, "ready");
+      }
+      return;
+    }
+    const sourceConversationKey = getConversationKey(item);
+    if (isGlobalPortalItem(item)) {
+      const libraryID = getCurrentLibraryID();
+      if (!libraryID) return;
+      const targetKey = await createGlobalConversation(libraryID);
+      if (!targetKey) return;
+      const clonedIds = await cloneActivePathPrefixToConversation(
+        sourceConversationKey,
+        targetKey,
+        messageId,
+      );
+      if (!clonedIds.length) return;
+      activeGlobalConversationByLibrary.set(libraryID, targetKey);
+      activeConversationModeByLibrary.set(libraryID, "global");
+      await switchGlobalConversation(targetKey);
+      return;
+    }
+
+    const currentPaperItemId = item.id;
+    const targetKey = await createPaperConversation(currentPaperItemId);
+    if (!targetKey) return;
+    const clonedIds = await cloneActivePathPrefixToConversation(
+      sourceConversationKey,
+      targetKey,
+      messageId,
+    );
+    if (!clonedIds.length) return;
+    activePaperConversationByItem.set(currentPaperItemId, targetKey);
+    await switchPaperConversation(targetKey);
+  };
+
   if (chatBox) {
     chatBox.addEventListener("click", (e: Event) => {
       // Copy code block or math block content
@@ -6864,6 +7018,42 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
             }, 1500);
           }
         });
+        return;
+      }
+
+      const variantTarget = (e.target as Element | null)?.closest(
+        ".llm-variant-btn",
+      ) as HTMLButtonElement | null;
+      if (variantTarget) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!item || variantTarget.disabled) return;
+        const rawParent = variantTarget.dataset.parentMessageId;
+        const parentMessageId =
+          rawParent && Number.isFinite(Number(rawParent))
+            ? Number(rawParent)
+            : null;
+        const childMessageId = Number(
+          variantTarget.dataset.childMessageId || "",
+        );
+        if (!Number.isFinite(childMessageId)) return;
+        void switchConversationVariant(
+          body,
+          item,
+          parentMessageId,
+          childMessageId,
+        );
+        return;
+      }
+
+      const branchTarget = (e.target as Element | null)?.closest(
+        ".llm-branch-chat",
+      ) as HTMLButtonElement | null;
+      if (branchTarget) {
+        e.preventDefault();
+        e.stopPropagation();
+        const messageId = Number(branchTarget.dataset.messageId || "");
+        void branchAssistantMessageToNewChat(messageId);
         return;
       }
 
@@ -6921,33 +7111,16 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
 
       const editTarget = (e.target as Element | null)?.closest(
-        ".llm-edit-latest",
+        ".llm-edit-message",
       ) as HTMLButtonElement | null;
       if (editTarget) {
         e.preventDefault();
         e.stopPropagation();
+        if (editTarget.disabled) return;
         closeResponseMenu();
         closeExportMenu();
         closeRetryModelMenu();
-        if (!item || !promptMenuEditBtn) return;
-        const userTimestamp = Number(editTarget.dataset.userTimestamp || "");
-        const assistantTimestamp = Number(
-          editTarget.dataset.assistantTimestamp || "",
-        );
-        if (
-          !Number.isFinite(userTimestamp) ||
-          !Number.isFinite(assistantTimestamp)
-        ) {
-          if (status) setStatus(status, i18n.noEditableLatestPrompt, "error");
-          return;
-        }
-        setPromptMenuTarget({
-          item,
-          conversationKey: getConversationKey(item),
-          userTimestamp,
-          assistantTimestamp,
-        });
-        promptMenuEditBtn.click();
+        startInlineUserMessageEdit(editTarget);
         return;
       }
 

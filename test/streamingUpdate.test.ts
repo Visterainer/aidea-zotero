@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  findAssistantBubbleByMessageId,
   findLastAssistantBubble,
   patchStreamingBubble,
   finalizeStreamingBubble,
@@ -15,9 +16,7 @@ import {
  * Create a minimal HTMLDivElement-like object that is sufficient for the
  * streaming update functions.  This avoids requiring a full DOM library.
  */
-function createMockDiv(
-  className?: string,
-): HTMLDivElement {
+function createMockDiv(className?: string): HTMLDivElement {
   const children: any[] = [];
   const classList = new Set(className ? className.split(" ") : []);
   const attributes = new Map<string, string>();
@@ -116,7 +115,12 @@ function selectorMatches(el: any, selector: string): boolean {
   if (!el) return false;
 
   // Handle compound selectors like ".llm-message-wrapper.assistant"
-  if (selector.startsWith(".") && !selector.includes(" ") && !selector.includes("[") && !selector.includes(":")) {
+  if (
+    selector.startsWith(".") &&
+    !selector.includes(" ") &&
+    !selector.includes("[") &&
+    !selector.includes(":")
+  ) {
     const classes = selector.split(".").filter(Boolean);
     const elClasses = (el.className || "").split(/\s+/);
     return classes.every((cls: string) => elClasses.includes(cls));
@@ -230,6 +234,35 @@ describe("streamingUpdate", function () {
   });
 
   // -----------------------------------------------------------------------
+  // findAssistantBubbleByMessageId
+  // -----------------------------------------------------------------------
+  describe("findAssistantBubbleByMessageId", function () {
+    it("should find the assistant bubble for the requested message id", function () {
+      const chatBox = createMockDiv();
+
+      const wrapper1 = createMockDiv("llm-message-wrapper assistant");
+      wrapper1.setAttribute("data-message-id", "101");
+      const bubble1 = createMockDiv("llm-bubble assistant");
+      wrapper1.appendChild(bubble1);
+      chatBox.appendChild(wrapper1);
+
+      const wrapper2 = createMockDiv("llm-message-wrapper assistant");
+      wrapper2.setAttribute("data-message-id", "202");
+      const bubble2 = createMockDiv("llm-bubble assistant");
+      wrapper2.appendChild(bubble2);
+      chatBox.appendChild(wrapper2);
+
+      assert.strictEqual(findAssistantBubbleByMessageId(chatBox, 101), bubble1);
+      assert.strictEqual(findAssistantBubbleByMessageId(chatBox, 202), bubble2);
+    });
+
+    it("should return null when the requested message is not visible", function () {
+      const { chatBox } = buildChatBoxWithMessages();
+      assert.isNull(findAssistantBubbleByMessageId(chatBox, 999));
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // patchStreamingBubble
   // -----------------------------------------------------------------------
   describe("patchStreamingBubble", function () {
@@ -250,7 +283,9 @@ describe("streamingUpdate", function () {
       const { assistantBubble } = buildChatBoxWithMessages();
       patchStreamingBubble(assistantBubble, "");
       // Skeleton should still be there
-      assert.isNotNull(assistantBubble.querySelector(".llm-streaming-skeleton"));
+      assert.isNotNull(
+        assistantBubble.querySelector(".llm-streaming-skeleton"),
+      );
     });
 
     it("should remove skeleton on first content patch", function () {
@@ -329,7 +364,9 @@ describe("streamingUpdate", function () {
 
     it("should remove leftover skeleton", function () {
       const { assistantBubble } = buildChatBoxWithMessages();
-      assert.isNotNull(assistantBubble.querySelector(".llm-streaming-skeleton"));
+      assert.isNotNull(
+        assistantBubble.querySelector(".llm-streaming-skeleton"),
+      );
 
       finalizeStreamingBubble(assistantBubble);
 

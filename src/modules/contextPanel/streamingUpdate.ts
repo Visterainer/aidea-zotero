@@ -42,6 +42,41 @@ export function findLastAssistantBubble(
   ) as HTMLDivElement | null;
 }
 
+/**
+ * Find the assistant bubble for a specific persisted message node.
+ *
+ * Streaming requests can keep running while the user switches conversation
+ * variants. Looking up the bubble by id on every patch prevents deltas from
+ * being applied to whichever assistant happens to be visible last.
+ */
+export function findAssistantBubbleByMessageId(
+  chatBox: HTMLDivElement | null,
+  messageId: number | undefined,
+): HTMLDivElement | null {
+  if (!chatBox || !Number.isFinite(messageId)) return null;
+  const wrappers = Array.from(
+    chatBox.querySelectorAll(".llm-message-wrapper.assistant"),
+  ) as Element[];
+  for (const wrapper of wrappers) {
+    if (
+      typeof HTMLElement !== "undefined" &&
+      wrapper instanceof HTMLElement &&
+      wrapper.dataset.messageId === String(messageId)
+    ) {
+      return wrapper.querySelector(
+        ".llm-bubble.assistant",
+      ) as HTMLDivElement | null;
+    }
+    const attr = wrapper.getAttribute("data-message-id");
+    if (attr === String(messageId)) {
+      return wrapper.querySelector(
+        ".llm-bubble.assistant",
+      ) as HTMLDivElement | null;
+    }
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Patch
 // ---------------------------------------------------------------------------
@@ -99,9 +134,7 @@ export function patchStreamingBubble(
  * - Removes the `streaming` CSS class (hides cursor animation)
  * - Removes any leftover skeleton
  */
-export function finalizeStreamingBubble(
-  bubble: HTMLDivElement | null,
-): void {
+export function finalizeStreamingBubble(bubble: HTMLDivElement | null): void {
   if (!bubble) return;
   bubble.classList.remove("streaming");
   const skeleton = bubble.querySelector(".llm-streaming-skeleton");
@@ -241,9 +274,9 @@ export function createStreamingAutoScroller(
       const distanceFromBottom =
         chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight;
       if (distanceFromBottom > threshold) {
-        _active = false;   // User scrolled up → stop auto-scroll
+        _active = false; // User scrolled up → stop auto-scroll
       } else {
-        _active = true;    // User scrolled back to bottom → resume
+        _active = true; // User scrolled back to bottom → resume
       }
 
       // Suspend scroll-event persistence so the height jump from

@@ -53,6 +53,9 @@ export type PanelI18n = {
   paperContextAdded: (n: number, max: number) => string;
   cancelled: string;
   retry: string;
+  branchToNewChat: string;
+  previousVariant: string;
+  nextVariant: string;
   addText: string;
   addTextPopupTitle: string;
   addTextTitle: string;
@@ -3779,6 +3782,9 @@ export function getPanelI18n(): PanelI18n {
       paperContextAdded: (n, max) => `Paper context added (${n}/${max})`,
       cancelled: "Cancelled",
       retry: "Retry",
+      branchToNewChat: "Branch to new chat",
+      previousVariant: "Previous version",
+      nextVariant: "Next version",
       addText: "Add Text",
       addTextPopupTitle: "Add selected text to LLM panel",
       addTextTitle: "Include selected reader text",
@@ -4072,6 +4078,9 @@ export function getPanelI18n(): PanelI18n {
     paperContextAdded: (n, max) => `已添加论文上下文（${n}/${max}）`,
     cancelled: "已取消",
     retry: "重试",
+    branchToNewChat: "分支到新聊天",
+    previousVariant: "上一个版本",
+    nextVariant: "下一个版本",
     addText: "添加文本",
     addTextPopupTitle: "将选中文本添加到 LLM 面板",
     addTextTitle: "添加选中的阅读器文本",

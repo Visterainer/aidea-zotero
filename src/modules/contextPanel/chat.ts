@@ -1,18 +1,19 @@
 import { renderMarkdown, renderMarkdownForNote } from "../../utils/markdown";
 import {
-  findLastAssistantBubble,
+  findAssistantBubbleByMessageId,
   patchStreamingBubble,
   finalizeStreamingBubble,
   createQueuedStreamingPatch,
   createStreamingAutoScroller,
 } from "./streamingUpdate";
 import {
-  appendMessage as appendStoredMessage,
+  appendMessageNode,
   clearConversation as clearStoredConversation,
-  loadConversation,
-  pruneConversation,
-  updateLatestUserMessage as updateStoredLatestUserMessage,
-  updateLatestAssistantMessage as updateStoredLatestAssistantMessage,
+  createSiblingBranch,
+  loadConversationPath,
+  loadConversationTree,
+  setActiveChild as setStoredActiveChild,
+  updateMessageNode,
   StoredChatMessage,
   ContextRefsJson,
 } from "../../utils/chatStore";
@@ -125,6 +126,8 @@ import {
   resolveMemoryLibraryID,
   searchMemories,
 } from "../../utils/memoryStore";
+
+const activeStreamingAssistantMessages = new Map<number, Message>();
 
 function getAbortController(): new () => AbortController {
   return (
@@ -520,26 +523,35 @@ export {
   persistChatScrollSnapshot,
 } from "./chatScroll";
 
+async function syncConversationAttachmentRefs(
+  conversationKey: number,
+): Promise<void> {
+  const storedMessages = await loadConversationTree(conversationKey);
+  const attachmentHashes =
+    collectAttachmentHashesFromStoredMessages(storedMessages);
+  await replaceOwnerAttachmentRefs(
+    "conversation",
+    conversationKey,
+    attachmentHashes,
+  );
+}
+
 async function persistConversationMessage(
   conversationKey: number,
   message: StoredChatMessage,
-): Promise<void> {
+  parentMessageId?: number | null,
+): Promise<number> {
   try {
-    await appendStoredMessage(conversationKey, message);
-    await pruneConversation(conversationKey, PERSISTED_HISTORY_LIMIT);
-    const storedMessages = await loadConversation(
+    const messageId = await appendMessageNode(
       conversationKey,
-      PERSISTED_HISTORY_LIMIT,
+      message,
+      parentMessageId,
     );
-    const attachmentHashes =
-      collectAttachmentHashesFromStoredMessages(storedMessages);
-    await replaceOwnerAttachmentRefs(
-      "conversation",
-      conversationKey,
-      attachmentHashes,
-    );
+    await syncConversationAttachmentRefs(conversationKey);
+    return messageId;
   } catch (err) {
     ztoolkit.log("LLM: Failed to persist chat message", err);
+    return 0;
   }
 }
 
@@ -572,6 +584,13 @@ function toPanelMessage(message: StoredChatMessage): Message {
   );
   const paperContexts = normalizePaperContexts(message.paperContexts);
   return {
+    messageId: message.messageId,
+    parentMessageId: message.parentMessageId,
+    activeChildMessageId: message.activeChildMessageId,
+    branchIndex: message.branchIndex,
+    siblingIndex: message.siblingIndex,
+    siblingCount: message.siblingCount,
+    siblingMessageIds: message.siblingMessageIds,
     role: message.role,
     text: message.text,
     timestamp: message.timestamp,
@@ -595,6 +614,24 @@ function toPanelMessage(message: StoredChatMessage): Message {
     screenshotExpanded: false,
     screenshotActiveIndex: screenshotImages?.length ? 0 : undefined,
     modelName: message.modelName,
+    reasoningSummary: message.reasoningSummary,
+    reasoningDetails: message.reasoningDetails,
+    contextRefs: message.contextRefs,
+  };
+}
+
+function overlayActiveStreamingMessage(message: Message): Message {
+  if (!message.messageId) return message;
+  const streaming = activeStreamingAssistantMessages.get(message.messageId);
+  if (!streaming) return message;
+  return {
+    ...message,
+    text: streaming.text,
+    timestamp: streaming.timestamp,
+    modelName: streaming.modelName,
+    reasoningSummary: streaming.reasoningSummary,
+    reasoningDetails: streaming.reasoningDetails,
+    streaming: true,
   };
 }
 
@@ -617,13 +654,15 @@ export async function ensureConversationLoaded(
 
   const task = (async () => {
     try {
-      const storedMessages = await loadConversation(
+      const storedMessages = await loadConversationPath(
         conversationKey,
         PERSISTED_HISTORY_LIMIT,
       );
       chatHistory.set(
         conversationKey,
-        storedMessages.map((message) => toPanelMessage(message)),
+        storedMessages.map((message) =>
+          overlayActiveStreamingMessage(toPanelMessage(message)),
+        ),
       );
       // Phase 2: Restore conversation context pool from DB refs.
       restoreContextPoolFromStoredMessages(conversationKey, storedMessages);
@@ -680,6 +719,39 @@ export async function ensureConversationLoaded(
 
   loadingConversationTasks.set(conversationKey, task);
   await task;
+}
+
+export async function reloadActiveConversationPath(
+  item: Zotero.Item,
+  options?: { forceContextRestore?: boolean },
+): Promise<Message[]> {
+  const conversationKey = getConversationKey(item);
+  const storedMessages = await loadConversationPath(
+    conversationKey,
+    PERSISTED_HISTORY_LIMIT,
+  );
+  const panelMessages = storedMessages.map((message) =>
+    overlayActiveStreamingMessage(toPanelMessage(message)),
+  );
+  chatHistory.set(conversationKey, panelMessages);
+  loadedConversationKeys.add(conversationKey);
+  restoreContextPoolFromStoredMessages(conversationKey, storedMessages, {
+    force: options?.forceContextRestore,
+  });
+  return panelMessages;
+}
+
+export async function switchConversationVariant(
+  body: Element,
+  item: Zotero.Item,
+  parentMessageId: number | null,
+  childMessageId: number,
+): Promise<void> {
+  const conversationKey = getConversationKey(item);
+  await setStoredActiveChild(conversationKey, parentMessageId, childMessageId);
+  loadedConversationKeys.delete(conversationKey);
+  await reloadActiveConversationPath(item, { forceContextRestore: true });
+  refreshChat(body, item);
 }
 
 export async function copyTextToClipboard(
@@ -1300,9 +1372,10 @@ function buildContextRefsSnapshot(
 function restoreContextPoolFromStoredMessages(
   conversationKey: number,
   storedMessages: StoredChatMessage[],
+  options?: { force?: boolean },
 ): void {
   // Don't overwrite if pool already exists (e.g., still in memory).
-  if (conversationContextPool.has(conversationKey)) return;
+  if (!options?.force && conversationContextPool.has(conversationKey)) return;
 
   // Find the latest user message with contextRefs.
   let latestContextRefs: ContextRefsJson | undefined;
@@ -1313,7 +1386,13 @@ function restoreContextPoolFromStoredMessages(
       break;
     }
   }
-  if (!latestContextRefs) return;
+  if (!latestContextRefs) {
+    if (options?.force) {
+      conversationContextPool.delete(conversationKey);
+      zoneBSummaryCache.delete(conversationKey);
+    }
+    return;
+  }
 
   const pool: ConversationContextPoolEntry = {
     basePdfContext: "", // Will be rebuilt lazily on next send.
@@ -1349,6 +1428,8 @@ function restoreContextPoolFromStoredMessages(
     ztoolkit.log(
       `LLM: Restored Zone B summary from DB (${latestContextRefs.compactedSummary.length} chars)`,
     );
+  } else if (options?.force) {
+    zoneBSummaryCache.delete(conversationKey);
   }
 
   ztoolkit.log(
@@ -1751,11 +1832,6 @@ export type LatestRetryPair = {
   assistantMessage: Message;
 };
 
-type AssistantMessageSnapshot = Pick<
-  Message,
-  "text" | "timestamp" | "modelName"
->;
-
 const GENERATED_IMAGE_MARKDOWN_RE =
   /!\[[^\]]*?\]\((data:image\/[a-z0-9.+-]+;base64,[^)]+)\)/gi;
 
@@ -1809,24 +1885,6 @@ export function findLatestRetryPair(
     };
   }
   return null;
-}
-
-function takeAssistantSnapshot(message: Message): AssistantMessageSnapshot {
-  return {
-    text: message.text,
-    timestamp: message.timestamp,
-    modelName: message.modelName,
-  };
-}
-
-function restoreAssistantSnapshot(
-  message: Message,
-  snapshot: AssistantMessageSnapshot,
-): void {
-  message.text = snapshot.text;
-  message.timestamp = snapshot.timestamp;
-  message.modelName = snapshot.modelName;
-  message.streaming = false;
 }
 
 function reconstructRetryPayload(userMessage: Message): {
@@ -1912,6 +1970,25 @@ function reconstructRetryPayload(userMessage: Message): {
   };
 }
 
+function toStoredMessageFromPanelMessage(message: Message): StoredChatMessage {
+  return {
+    role: message.role,
+    text: message.text,
+    timestamp: message.timestamp,
+    selectedText: message.selectedText,
+    selectedTexts: message.selectedTexts,
+    selectedTextSources: message.selectedTextSources,
+    selectedTextPaperContexts: message.selectedTextPaperContexts,
+    paperContexts: message.paperContexts,
+    screenshotImages: message.screenshotImages,
+    attachments: message.attachments,
+    modelName: message.modelName,
+    reasoningSummary: message.reasoningSummary,
+    reasoningDetails: message.reasoningDetails,
+    contextRefs: message.contextRefs as ContextRefsJson | undefined,
+  };
+}
+
 function buildHistoryMessageForLLM(message: Message): ChatMessage {
   if (message.role === "assistant") {
     return {
@@ -1972,66 +2049,337 @@ export type EditLatestTurnResult =
   | "stale"
   | "persist-failed";
 
-function normalizeEditableAttachments(
-  attachments?: ChatAttachment[],
-): ChatAttachment[] {
-  const normalized = (
-    Array.isArray(attachments)
-      ? attachments.filter(
-          (attachment) =>
-            Boolean(attachment) &&
-            typeof attachment === "object" &&
-            typeof attachment.id === "string" &&
-            attachment.id.trim() &&
-            typeof attachment.name === "string" &&
-            attachment.name.trim() &&
-            attachment.category !== "image",
-        )
-      : []
-  ) as ChatAttachment[];
-  return normalized.map((attachment) => ({
-    ...attachment,
-    id: attachment.id.trim(),
-    name: attachment.name.trim(),
-    mimeType:
-      typeof attachment.mimeType === "string" && attachment.mimeType.trim()
-        ? attachment.mimeType.trim()
-        : "application/octet-stream",
-    sizeBytes: Number.isFinite(attachment.sizeBytes)
-      ? Math.max(0, attachment.sizeBytes)
-      : 0,
-    textContent:
-      typeof attachment.textContent === "string"
-        ? attachment.textContent
-        : undefined,
-    storedPath:
-      typeof attachment.storedPath === "string" && attachment.storedPath.trim()
-        ? attachment.storedPath.trim()
-        : undefined,
-    contentHash:
-      typeof attachment.contentHash === "string" &&
-      /^[a-f0-9]{64}$/i.test(attachment.contentHash.trim())
-        ? attachment.contentHash.trim().toLowerCase()
-        : undefined,
-  }));
-}
+export async function editUserMessageAndRetry(
+  body: Element,
+  item: Zotero.Item,
+  messageId: number,
+  displayQuestion: string,
+  model?: string,
+  apiBase?: string,
+  apiKey?: string,
+  advanced?: AdvancedModelParams,
+): Promise<EditLatestTurnResult> {
+  const ui = getPanelRequestUI(body);
+  const i18n = getPanelI18n();
+  if (isPanelGenerating(body)) {
+    if (ui.status) {
+      setStatus(ui.status, i18n.waitForCurrentResponse, "ready");
+    }
+    return "stale";
+  }
 
-function normalizeEditablePaperContexts(
-  paperContexts?: PaperContextRef[],
-): PaperContextRef[] {
-  return normalizePaperContexts(paperContexts);
+  await ensureConversationLoaded(item);
+  const conversationKey = getConversationKey(item);
+  const history = chatHistory.get(conversationKey) || [];
+  const sourceUserIndex = history.findIndex(
+    (entry) => entry.role === "user" && entry.messageId === messageId,
+  );
+  const sourceUser = history[sourceUserIndex];
+  if (sourceUserIndex < 0 || !sourceUser?.messageId) return "missing";
+  if (history.some((entry) => entry.streaming)) return "stale";
+
+  const nextDisplayQuestion = sanitizeText(displayQuestion || "");
+  const nextUserMessage: Message = {
+    ...sourceUser,
+    messageId: undefined,
+    activeChildMessageId: undefined,
+    siblingIndex: undefined,
+    siblingCount: undefined,
+    siblingMessageIds: undefined,
+    text: nextDisplayQuestion,
+    timestamp: Date.now(),
+    selectedTextExpanded: false,
+    selectedTextExpandedIndex: -1,
+    screenshotExpanded: false,
+    screenshotActiveIndex: sourceUser.screenshotImages?.length ? 0 : undefined,
+    paperContextsExpanded: false,
+    attachmentsExpanded: false,
+    attachmentActiveIndex: undefined,
+  };
+  const { question, screenshotImages, fileAttachments, paperContexts } =
+    reconstructRetryPayload(nextUserMessage);
+  if (!question.trim()) return "missing";
+
+  let effectiveRequestConfig: EffectiveRequestConfig;
+  try {
+    effectiveRequestConfig = resolveEffectiveRequestConfig({
+      item,
+      model,
+      apiBase,
+      apiKey,
+      advanced,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (ui.status) setStatus(ui.status, errMsg, "error");
+    return "stale";
+  }
+
+  restoreContextPoolFromStoredMessages(
+    conversationKey,
+    [toStoredMessageFromPanelMessage(sourceUser)],
+    { force: true },
+  );
+
+  const thisRequestId = nextRequestId();
+  beginPanelRequest(body, thisRequestId);
+  setRequestUIBusy(body, ui, conversationKey, i18n.preparingRetry);
+  const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
+    body,
+    item,
+    conversationKey,
+    ui,
+  );
+
+  const historyForLLM = history
+    .slice(0, sourceUserIndex)
+    .slice(-MAX_HISTORY_MESSAGES);
+  const generatedImageContext =
+    collectRecentGeneratedImageDataUrls(historyForLLM);
+  const nextUserId = await createSiblingBranch(
+    conversationKey,
+    sourceUser.messageId,
+    toStoredMessageFromPanelMessage(nextUserMessage),
+  );
+  if (!nextUserId) {
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return "persist-failed";
+  }
+  nextUserMessage.messageId = nextUserId;
+  nextUserMessage.parentMessageId = sourceUser.parentMessageId ?? null;
+
+  const assistantMessage: Message = {
+    role: "assistant",
+    text: "",
+    timestamp: Date.now(),
+    modelName: effectiveRequestConfig.model,
+    streaming: true,
+  };
+  const assistantId = await appendMessageNode(
+    conversationKey,
+    toStoredMessageFromPanelMessage(assistantMessage),
+    nextUserId,
+  );
+  if (!assistantId) {
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return "persist-failed";
+  }
+  assistantMessage.messageId = assistantId;
+  assistantMessage.parentMessageId = nextUserId;
+  activeStreamingAssistantMessages.set(assistantId, assistantMessage);
+
+  await reloadActiveConversationPath(item, { forceContextRestore: true });
+  refreshChatSafely();
+
+  const persistAssistantUpdate = async () => {
+    if (!assistantMessage.messageId) return;
+    await updateMessageNode(conversationKey, assistantMessage.messageId, {
+      text: assistantMessage.text,
+      timestamp: assistantMessage.timestamp,
+      modelName: assistantMessage.modelName,
+    });
+  };
+
+  try {
+    const combinedContext = await buildCombinedContextForRequest({
+      item,
+      question,
+      imageCount: screenshotImages.length,
+      paperContexts,
+      apiBase: effectiveRequestConfig.apiBase,
+      apiKey: effectiveRequestConfig.apiKey,
+      conversationKey,
+      setStatusSafely,
+    });
+    const refreshedContextRefs = buildContextRefsSnapshot(conversationKey);
+    nextUserMessage.contextRefs = refreshedContextRefs;
+    await updateMessageNode(conversationKey, nextUserId, {
+      contextRefs: refreshedContextRefs,
+    });
+
+    const llmHistory = await compactConversationHistory({
+      conversationKey,
+      combinedContext,
+      historyForLLM,
+      currentQuestion: question,
+      apiBase: effectiveRequestConfig.apiBase,
+      apiKey: effectiveRequestConfig.apiKey,
+      model: effectiveRequestConfig.model,
+    });
+
+    const AbortControllerCtor = getAbortController();
+    const attached = attachPanelAbortController(
+      body,
+      thisRequestId,
+      AbortControllerCtor ? new AbortControllerCtor() : null,
+    );
+    if (!attached) {
+      assistantMessage.text = `*(${i18n.cancelled})*`;
+      assistantMessage.streaming = false;
+      refreshChatSafely();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
+      return "stale";
+    }
+    const panelAbortController = getPanelAbortController(body);
+    const editAutoScroller = createStreamingAutoScroller(
+      ui.chatBox as HTMLDivElement | null,
+      suspendScrollUpdates,
+      resumeScrollUpdates,
+    );
+    const queueEditPatch = createQueuedStreamingPatch(() => {
+      editAutoScroller.patchAndScroll(() => {
+        patchStreamingBubble(
+          findAssistantBubbleByMessageId(
+            ui.chatBox as HTMLDivElement | null,
+            assistantMessage.messageId,
+          ),
+          assistantMessage.text,
+        );
+      });
+    });
+    const requestImages = [...generatedImageContext, ...screenshotImages].slice(
+      -MAX_SELECTED_IMAGES,
+    );
+    let streamedAnswer = "";
+    const answer = await callLLMStream(
+      {
+        prompt: question,
+        context: combinedContext,
+        history: llmHistory,
+        signal: panelAbortController?.signal,
+        images: requestImages,
+        attachments: fileAttachments,
+        model: effectiveRequestConfig.model,
+        apiBase: effectiveRequestConfig.apiBase,
+        apiKey: effectiveRequestConfig.apiKey,
+        temperature: effectiveRequestConfig.advanced?.temperature,
+        maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+      },
+      (delta) => {
+        streamedAnswer += sanitizeText(delta);
+        assistantMessage.text = streamedAnswer;
+        queueEditPatch();
+      },
+    );
+
+    if (
+      isPanelRequestCancelled(body, thisRequestId) ||
+      Boolean(panelAbortController?.signal.aborted)
+    ) {
+      finalizeStreamingBubble(
+        findAssistantBubbleByMessageId(
+          ui.chatBox as HTMLDivElement | null,
+          assistantMessage.messageId,
+        ),
+      );
+      assistantMessage.text = streamedAnswer || assistantMessage.text;
+      if (!assistantMessage.text)
+        assistantMessage.text = `*(${i18n.cancelled})*`;
+      assistantMessage.timestamp = Date.now();
+      assistantMessage.modelName = effectiveRequestConfig.model;
+      assistantMessage.streaming = false;
+      refreshChatSafely();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
+      setStatusSafely(i18n.statusReady, "ready");
+      return "ok";
+    }
+
+    finalizeStreamingBubble(
+      findAssistantBubbleByMessageId(
+        ui.chatBox as HTMLDivElement | null,
+        assistantMessage.messageId,
+      ),
+    );
+    assistantMessage.text =
+      sanitizeText(answer) || streamedAnswer || i18n.noResponse;
+    assistantMessage.timestamp = Date.now();
+    assistantMessage.modelName = effectiveRequestConfig.model;
+    assistantMessage.streaming = false;
+    refreshChatSafely();
+    await persistAssistantUpdate();
+    if (assistantMessage.messageId) {
+      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+    }
+    await syncConversationAttachmentRefs(conversationKey);
+    await reloadActiveConversationPath(item, { forceContextRestore: true });
+    refreshChatSafely();
+
+    setStatusSafely(i18n.statusReady, "ready");
+    await autoCaptureRequestMemories({
+      item,
+      conversationKey,
+      userMessageText: nextUserMessage.text,
+      selectedTexts: getMessageSelectedTexts(nextUserMessage),
+    });
+    return "ok";
+  } catch (err) {
+    const isCancelled =
+      isPanelRequestCancelled(body, thisRequestId) ||
+      Boolean(getPanelAbortController(body)?.signal.aborted) ||
+      (err as { name?: string }).name === "AbortError";
+    if (isCancelled) {
+      assistantMessage.streaming = false;
+      if (!assistantMessage.text)
+        assistantMessage.text = `*(${i18n.cancelled})*`;
+      refreshChatSafely();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
+      setStatusSafely(i18n.statusReady, "ready");
+      return "ok";
+    }
+    const errMsg = (err as Error).message || "Error";
+    const retryHint = resolveMultimodalRetryHint(
+      errMsg,
+      screenshotImages.length,
+    );
+    assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
+    assistantMessage.streaming = false;
+    refreshChatSafely();
+    await persistAssistantUpdate();
+    if (assistantMessage.messageId) {
+      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+    }
+    await reloadActiveConversationPath(item, { forceContextRestore: true });
+    refreshChatSafely();
+    setStatusSafely(
+      i18n.operationFailed(`${errMsg}${retryHint}`.slice(0, 40)),
+      "error",
+    );
+    return "ok";
+  } finally {
+    if (finishPanelRequest(body, thisRequestId)) {
+      setHistoryControlsDisabled(body, false);
+      restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    }
+  }
 }
 
 export async function editLatestUserMessageAndRetry(
   body: Element,
   item: Zotero.Item,
   displayQuestion: string,
-  selectedTexts?: string[],
-  selectedTextSources?: SelectedTextSource[],
-  selectedTextPaperContexts?: (PaperContextRef | undefined)[],
-  screenshotImages?: string[],
-  paperContexts?: PaperContextRef[],
-  attachments?: ChatAttachment[],
+  _selectedTexts?: string[],
+  _selectedTextSources?: SelectedTextSource[],
+  _selectedTextPaperContexts?: (PaperContextRef | undefined)[],
+  _screenshotImages?: string[],
+  _paperContexts?: PaperContextRef[],
+  _attachments?: ChatAttachment[],
   expected?: EditLatestTurnMarker,
   model?: string,
   apiBase?: string,
@@ -2042,7 +2390,7 @@ export async function editLatestUserMessageAndRetry(
   const conversationKey = getConversationKey(item);
   const history = chatHistory.get(conversationKey) || [];
   const retryPair = findLatestRetryPair(history);
-  if (!retryPair) return "missing";
+  if (!retryPair?.userMessage.messageId) return "missing";
   if (retryPair.assistantMessage.streaming) return "stale";
   if (
     expected &&
@@ -2052,101 +2400,16 @@ export async function editLatestUserMessageAndRetry(
   ) {
     return "stale";
   }
-
-  const selectedTextsForMessage = normalizeSelectedTexts(selectedTexts);
-  const selectedTextSourcesForMessage = normalizeSelectedTextSources(
-    selectedTextSources,
-    selectedTextsForMessage.length,
-  );
-  const selectedTextPaperContextsForMessage =
-    normalizeSelectedTextPaperContextsByIndex(
-      selectedTextPaperContexts,
-      selectedTextsForMessage.length,
-    );
-  const selectedTextForMessage = selectedTextsForMessage[0] || "";
-  const screenshotImagesForMessage = Array.isArray(screenshotImages)
-    ? screenshotImages
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-        .slice(0, MAX_SELECTED_IMAGES)
-    : [];
-  const paperContextsForMessage = normalizeEditablePaperContexts(paperContexts);
-  const attachmentsForMessage = normalizeEditableAttachments(attachments);
-  const updatedTimestamp = Date.now();
-  const nextDisplayQuestion = sanitizeText(displayQuestion || "");
-
-  retryPair.userMessage.text = nextDisplayQuestion;
-  retryPair.userMessage.timestamp = updatedTimestamp;
-  retryPair.userMessage.selectedText = selectedTextForMessage || undefined;
-  retryPair.userMessage.selectedTextExpanded = false;
-  retryPair.userMessage.selectedTexts = selectedTextsForMessage.length
-    ? selectedTextsForMessage
-    : undefined;
-  retryPair.userMessage.selectedTextSources =
-    selectedTextSourcesForMessage.length
-      ? selectedTextSourcesForMessage
-      : undefined;
-  retryPair.userMessage.selectedTextPaperContexts =
-    selectedTextPaperContextsForMessage.some((entry) => Boolean(entry))
-      ? selectedTextPaperContextsForMessage
-      : undefined;
-  retryPair.userMessage.selectedTextExpandedIndex = -1;
-  retryPair.userMessage.screenshotImages = screenshotImagesForMessage.length
-    ? screenshotImagesForMessage
-    : undefined;
-  retryPair.userMessage.screenshotExpanded = false;
-  retryPair.userMessage.screenshotActiveIndex =
-    screenshotImagesForMessage.length ? 0 : undefined;
-  retryPair.userMessage.paperContexts = paperContextsForMessage.length
-    ? paperContextsForMessage
-    : undefined;
-  retryPair.userMessage.paperContextsExpanded = false;
-  retryPair.userMessage.attachments = attachmentsForMessage.length
-    ? attachmentsForMessage
-    : undefined;
-  retryPair.userMessage.attachmentsExpanded = false;
-  retryPair.userMessage.attachmentActiveIndex = undefined;
-
-  try {
-    await updateStoredLatestUserMessage(conversationKey, {
-      text: retryPair.userMessage.text,
-      timestamp: retryPair.userMessage.timestamp,
-      selectedText: retryPair.userMessage.selectedText,
-      selectedTexts: retryPair.userMessage.selectedTexts,
-      selectedTextSources: retryPair.userMessage.selectedTextSources,
-      selectedTextPaperContexts:
-        retryPair.userMessage.selectedTextPaperContexts,
-      screenshotImages: retryPair.userMessage.screenshotImages,
-      paperContexts: retryPair.userMessage.paperContexts,
-      attachments: retryPair.userMessage.attachments,
-    });
-
-    const storedMessages = await loadConversation(
-      conversationKey,
-      PERSISTED_HISTORY_LIMIT,
-    );
-    const attachmentHashes =
-      collectAttachmentHashesFromStoredMessages(storedMessages);
-    await replaceOwnerAttachmentRefs(
-      "conversation",
-      conversationKey,
-      attachmentHashes,
-    );
-  } catch (err) {
-    ztoolkit.log("LLM: Failed to persist edited latest user message", err);
-    return "persist-failed";
-  }
-
-  await retryLatestAssistantResponse(
+  return editUserMessageAndRetry(
     body,
     item,
+    retryPair.userMessage.messageId,
+    displayQuestion,
     model,
     apiBase,
     apiKey,
     advanced,
   );
-  return "ok";
 }
 
 export async function retryLatestAssistantResponse(
@@ -2171,6 +2434,10 @@ export async function retryLatestAssistantResponse(
   const history = chatHistory.get(conversationKey) || [];
   const retryPair = findLatestRetryPair(history);
   if (!retryPair) {
+    if (ui.status) setStatus(ui.status, i18n.noRetryableResponseFound, "error");
+    return;
+  }
+  if (!retryPair.userMessage.messageId) {
     if (ui.status) setStatus(ui.status, i18n.noRetryableResponseFound, "error");
     return;
   }
@@ -2216,16 +2483,44 @@ export async function retryLatestAssistantResponse(
     return;
   }
 
-  const assistantMessage = retryPair.assistantMessage;
-  const assistantSnapshot = takeAssistantSnapshot(assistantMessage);
-  assistantMessage.text = "";
-  assistantMessage.streaming = true;
+  restoreContextPoolFromStoredMessages(
+    conversationKey,
+    [toStoredMessageFromPanelMessage(retryPair.userMessage)],
+    { force: true },
+  );
+
+  const assistantMessage: Message = {
+    role: "assistant",
+    text: "",
+    timestamp: Date.now(),
+    modelName: effectiveRequestConfig.model,
+    streaming: true,
+  };
+  const assistantId = await appendMessageNode(
+    conversationKey,
+    toStoredMessageFromPanelMessage(assistantMessage),
+    retryPair.userMessage.messageId,
+  );
+  if (!assistantId) {
+    setStatusSafely(i18n.operationFailed("persist"), "error");
+    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
+    setHistoryControlsDisabled(body, false);
+    return;
+  }
+  assistantMessage.messageId = assistantId;
+  assistantMessage.parentMessageId = retryPair.userMessage.messageId;
+  activeStreamingAssistantMessages.set(assistantId, assistantMessage);
+  await reloadActiveConversationPath(item, { forceContextRestore: true });
   refreshChatSafely();
   let streamedAnswer = "";
 
-  const restoreOriginalAssistant = () => {
-    restoreAssistantSnapshot(assistantMessage, assistantSnapshot);
-    refreshChatSafely();
+  const persistAssistantUpdate = async () => {
+    if (!assistantMessage.messageId) return;
+    await updateMessageNode(conversationKey, assistantMessage.messageId, {
+      text: assistantMessage.text,
+      timestamp: assistantMessage.timestamp,
+      modelName: assistantMessage.modelName,
+    });
   };
 
   try {
@@ -2240,7 +2535,15 @@ export async function retryLatestAssistantResponse(
       setStatusSafely,
     });
     if (isPanelRequestCancelled(body, thisRequestId)) {
-      restoreOriginalAssistant();
+      assistantMessage.text = `*(${i18n.cancelled})*`;
+      assistantMessage.streaming = false;
+      refreshChatSafely();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
       setStatusSafely(i18n.cancelled, "ready");
       return;
     }
@@ -2261,23 +2564,36 @@ export async function retryLatestAssistantResponse(
       AbortControllerCtor ? new AbortControllerCtor() : null,
     );
     if (!attached) {
-      restoreOriginalAssistant();
+      assistantMessage.text = `*(${i18n.cancelled})*`;
+      assistantMessage.streaming = false;
+      refreshChatSafely();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
       setStatusSafely(i18n.cancelled, "ready");
       return;
     }
     const panelAbortController = getPanelAbortController(body);
     if (isPanelRequestCancelled(body, thisRequestId)) {
       panelAbortController?.abort();
-      restoreOriginalAssistant();
+      assistantMessage.text = `*(${i18n.cancelled})*`;
+      assistantMessage.streaming = false;
+      refreshChatSafely();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
       setStatusSafely(i18n.cancelled, "ready");
       return;
     }
 
     // Incremental DOM update: find the skeleton bubble that refreshChat
     // created and patch it in place instead of re-rendering the whole chat.
-    const retryBubbleRef = findLastAssistantBubble(
-      ui.chatBox as HTMLDivElement | null,
-    );
     const retryAutoScroller = createStreamingAutoScroller(
       ui.chatBox as HTMLDivElement | null,
       suspendScrollUpdates,
@@ -2285,7 +2601,13 @@ export async function retryLatestAssistantResponse(
     );
     const queueRetryPatch = createQueuedStreamingPatch(() => {
       retryAutoScroller.patchAndScroll(() => {
-        patchStreamingBubble(retryBubbleRef, assistantMessage.text);
+        patchStreamingBubble(
+          findAssistantBubbleByMessageId(
+            ui.chatBox as HTMLDivElement | null,
+            assistantMessage.messageId,
+          ),
+          assistantMessage.text,
+        );
       });
     });
 
@@ -2319,22 +2641,33 @@ export async function retryLatestAssistantResponse(
       Boolean(panelAbortController?.signal.aborted)
     ) {
       // Keep whatever the LLM has already generated
-      finalizeStreamingBubble(retryBubbleRef);
+      finalizeStreamingBubble(
+        findAssistantBubbleByMessageId(
+          ui.chatBox as HTMLDivElement | null,
+          assistantMessage.messageId,
+        ),
+      );
       assistantMessage.text = streamedAnswer || assistantMessage.text;
       assistantMessage.timestamp = Date.now();
       assistantMessage.modelName = effectiveRequestConfig.model;
       assistantMessage.streaming = false;
       refreshChatSafely();
-      await updateStoredLatestAssistantMessage(conversationKey, {
-        text: assistantMessage.text,
-        timestamp: assistantMessage.timestamp,
-        modelName: assistantMessage.modelName,
-      });
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
       setStatusSafely(i18n.statusReady, "ready");
       return;
     }
 
-    finalizeStreamingBubble(retryBubbleRef);
+    finalizeStreamingBubble(
+      findAssistantBubbleByMessageId(
+        ui.chatBox as HTMLDivElement | null,
+        assistantMessage.messageId,
+      ),
+    );
     assistantMessage.text =
       sanitizeText(answer) || streamedAnswer || i18n.noResponse;
     assistantMessage.timestamp = Date.now();
@@ -2342,11 +2675,12 @@ export async function retryLatestAssistantResponse(
     assistantMessage.streaming = false;
     refreshChatSafely();
 
-    await updateStoredLatestAssistantMessage(conversationKey, {
-      text: assistantMessage.text,
-      timestamp: assistantMessage.timestamp,
-      modelName: assistantMessage.modelName,
-    });
+    await persistAssistantUpdate();
+    if (assistantMessage.messageId) {
+      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+    }
+    await reloadActiveConversationPath(item, { forceContextRestore: true });
+    refreshChatSafely();
 
     setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
@@ -2365,24 +2699,41 @@ export async function retryLatestAssistantResponse(
       if (assistantMessage.text) {
         assistantMessage.streaming = false;
         refreshChatSafely();
-        await updateStoredLatestAssistantMessage(conversationKey, {
-          text: assistantMessage.text,
-          timestamp: Date.now(),
-          modelName: effectiveRequestConfig.model,
-        });
+        assistantMessage.timestamp = Date.now();
+        assistantMessage.modelName = effectiveRequestConfig.model;
+        await persistAssistantUpdate();
+        if (assistantMessage.messageId) {
+          activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+        }
       } else {
-        restoreOriginalAssistant();
+        assistantMessage.text = `*(${i18n.cancelled})*`;
+        assistantMessage.streaming = false;
+        refreshChatSafely();
+        await persistAssistantUpdate();
+        if (assistantMessage.messageId) {
+          activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+        }
       }
+      await reloadActiveConversationPath(item, { forceContextRestore: true });
+      refreshChatSafely();
       setStatusSafely(i18n.statusReady, "ready");
       return;
     }
 
-    restoreOriginalAssistant();
     const errMsg = (err as Error).message || "Error";
     const retryHint = resolveMultimodalRetryHint(
       errMsg,
       screenshotImages.length,
     );
+    assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
+    assistantMessage.streaming = false;
+    refreshChatSafely();
+    await persistAssistantUpdate();
+    if (assistantMessage.messageId) {
+      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+    }
+    await reloadActiveConversationPath(item, { forceContextRestore: true });
+    refreshChatSafely();
     setStatusSafely(
       `Retry failed: ${`${errMsg}${retryHint}`.slice(0, 48)}`,
       "error",
@@ -2442,6 +2793,9 @@ export async function sendQuestion(
     chatHistory.set(conversationKey, []);
   }
   const history = chatHistory.get(conversationKey)!;
+  const parentMessageId = history.length
+    ? (history[history.length - 1]?.messageId ?? null)
+    : null;
   const historyForLLM = history.slice(-MAX_HISTORY_MESSAGES);
   const generatedImageContext = collectRecentGeneratedImageDataUrls(history);
   const requestFileAttachments = normalizeModelFileAttachments(attachments);
@@ -2511,21 +2865,30 @@ export async function sendQuestion(
     screenshotExpanded: false,
     screenshotActiveIndex: 0,
     attachments: attachments?.length ? attachments : undefined,
+    contextRefs: buildContextRefsSnapshot(conversationKey),
   };
   history.push(userMessage);
-  await persistConversationMessage(conversationKey, {
-    role: "user",
-    text: userMessage.text,
-    timestamp: userMessage.timestamp,
-    selectedText: userMessage.selectedText,
-    selectedTexts: userMessage.selectedTexts,
-    selectedTextSources: userMessage.selectedTextSources,
-    selectedTextPaperContexts: userMessage.selectedTextPaperContexts,
-    paperContexts: userMessage.paperContexts,
-    screenshotImages: userMessage.screenshotImages,
-    attachments: userMessage.attachments,
-    contextRefs: buildContextRefsSnapshot(conversationKey),
-  });
+  const userMessageId = await persistConversationMessage(
+    conversationKey,
+    {
+      role: "user",
+      text: userMessage.text,
+      timestamp: userMessage.timestamp,
+      selectedText: userMessage.selectedText,
+      selectedTexts: userMessage.selectedTexts,
+      selectedTextSources: userMessage.selectedTextSources,
+      selectedTextPaperContexts: userMessage.selectedTextPaperContexts,
+      paperContexts: userMessage.paperContexts,
+      screenshotImages: userMessage.screenshotImages,
+      attachments: userMessage.attachments,
+      contextRefs: userMessage.contextRefs as ContextRefsJson | undefined,
+    },
+    parentMessageId,
+  );
+  if (userMessageId) {
+    userMessage.messageId = userMessageId;
+    userMessage.parentMessageId = parentMessageId;
+  }
 
   const assistantMessage: Message = {
     role: "assistant",
@@ -2535,17 +2898,27 @@ export async function sendQuestion(
     streaming: true,
   };
   history.push(assistantMessage);
-  if (history.length > PERSISTED_HISTORY_LIMIT) {
-    history.splice(0, history.length - PERSISTED_HISTORY_LIMIT);
+  const assistantMessageId = await persistConversationMessage(
+    conversationKey,
+    {
+      role: "assistant",
+      text: assistantMessage.text,
+      timestamp: assistantMessage.timestamp,
+      modelName: assistantMessage.modelName,
+    },
+    userMessageId || userMessage.messageId || null,
+  );
+  if (assistantMessageId) {
+    assistantMessage.messageId = assistantMessageId;
+    assistantMessage.parentMessageId =
+      userMessageId || userMessage.messageId || null;
+    activeStreamingAssistantMessages.set(assistantMessageId, assistantMessage);
   }
   refreshChatSafely();
 
-  let assistantPersisted = false;
-  const persistAssistantOnce = async () => {
-    if (assistantPersisted) return;
-    assistantPersisted = true;
-    await persistConversationMessage(conversationKey, {
-      role: "assistant",
+  const persistAssistantUpdate = async () => {
+    if (!assistantMessage.messageId) return;
+    await updateMessageNode(conversationKey, assistantMessage.messageId, {
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
@@ -2556,7 +2929,10 @@ export async function sendQuestion(
       // Keep whatever the LLM has already generated
       assistantMessage.streaming = false;
       refreshChatSafely();
-      await persistAssistantOnce();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
     } else {
       // Nothing generated yet — keep the assistant message as a
       // "cancelled" placeholder so that the user-assistant pair stays
@@ -2565,7 +2941,10 @@ export async function sendQuestion(
       assistantMessage.text = `*(${i18n.cancelled})*`;
       assistantMessage.streaming = false;
       refreshChatSafely();
-      await persistAssistantOnce();
+      await persistAssistantUpdate();
+      if (assistantMessage.messageId) {
+        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+      }
     }
     setStatusSafely(i18n.statusReady, "ready");
   };
@@ -2581,6 +2960,13 @@ export async function sendQuestion(
       conversationKey,
       setStatusSafely,
     });
+    const refreshedContextRefs = buildContextRefsSnapshot(conversationKey);
+    userMessage.contextRefs = refreshedContextRefs;
+    if (userMessage.messageId) {
+      await updateMessageNode(conversationKey, userMessage.messageId, {
+        contextRefs: refreshedContextRefs,
+      });
+    }
 
     const llmHistory = await compactConversationHistory({
       conversationKey,
@@ -2603,11 +2989,8 @@ export async function sendQuestion(
       return;
     }
     const panelAbortController = getPanelAbortController(body);
-    // Incremental DOM update: find the skeleton bubble that refreshChat
-    // created and patch it in place instead of re-rendering the whole chat.
-    const sendBubbleRef = findLastAssistantBubble(
-      ui.chatBox as HTMLDivElement | null,
-    );
+    // Incremental DOM update: patch the concrete assistant node if it is
+    // currently visible. Variant switches can hide it while streaming.
     const sendAutoScroller = createStreamingAutoScroller(
       ui.chatBox as HTMLDivElement | null,
       suspendScrollUpdates,
@@ -2615,7 +2998,13 @@ export async function sendQuestion(
     );
     const queueStreamingPatch = createQueuedStreamingPatch(() => {
       sendAutoScroller.patchAndScroll(() => {
-        patchStreamingBubble(sendBubbleRef, assistantMessage.text);
+        patchStreamingBubble(
+          findAssistantBubbleByMessageId(
+            ui.chatBox as HTMLDivElement | null,
+            assistantMessage.messageId,
+          ),
+          assistantMessage.text,
+        );
       });
     });
 
@@ -2652,12 +3041,20 @@ export async function sendQuestion(
       return;
     }
 
-    finalizeStreamingBubble(sendBubbleRef);
+    finalizeStreamingBubble(
+      findAssistantBubbleByMessageId(
+        ui.chatBox as HTMLDivElement | null,
+        assistantMessage.messageId,
+      ),
+    );
     assistantMessage.text =
       sanitizeText(answer) || assistantMessage.text || i18n.noResponse;
     assistantMessage.streaming = false;
     refreshChatSafely();
-    await persistAssistantOnce();
+    await persistAssistantUpdate();
+    if (assistantMessage.messageId) {
+      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+    }
 
     setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
@@ -2681,7 +3078,10 @@ export async function sendQuestion(
     assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
     assistantMessage.streaming = false;
     refreshChatSafely();
-    await persistAssistantOnce();
+    await persistAssistantUpdate();
+    if (assistantMessage.messageId) {
+      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
+    }
 
     setStatusSafely(
       i18n.operationFailed(`${errMsg}${retryHint}`.slice(0, 40)),
@@ -2750,27 +3150,22 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
   const latestAssistantIndex = latestRetryPair
     ? latestRetryPair.userIndex + 1
     : -1;
-  const latestEditableUserIndex = latestRetryPair?.userIndex ?? -1;
-  const latestEditableUserTimestamp = latestRetryPair?.userMessage.timestamp;
-  const latestEditableAssistantTimestamp =
-    latestRetryPair?.assistantMessage.timestamp;
-  const latestEditableIsIdle = Boolean(
-    latestRetryPair && !latestRetryPair.assistantMessage.streaming,
-  );
+  const hasStreamingMessage = history.some((entry) => Boolean(entry.streaming));
 
   for (const [index, msg] of history.entries()) {
     const isUser = msg.role === "user";
-    const canEditLatestUserPrompt = Boolean(
-      isUser &&
-      item &&
-      latestEditableIsIdle &&
-      index === latestEditableUserIndex &&
-      Number.isFinite(latestEditableUserTimestamp) &&
-      Number.isFinite(latestEditableAssistantTimestamp),
+    const canShowEditUserMessage = Boolean(
+      isUser && item && Number.isFinite(msg.messageId),
+    );
+    const canEditUserMessage = Boolean(
+      canShowEditUserMessage && !hasStreamingMessage,
     );
     let hasUserContext = false;
     const wrapper = doc.createElement("div") as HTMLDivElement;
     wrapper.className = `llm-message-wrapper ${isUser ? "user" : "assistant"}`;
+    if (Number.isFinite(msg.messageId)) {
+      wrapper.dataset.messageId = String(msg.messageId);
+    }
 
     const bubble = doc.createElement("div") as HTMLDivElement;
     bubble.className = `llm-bubble ${isUser ? "user" : "assistant"}`;
@@ -3414,7 +3809,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       }
 
       bubble.textContent = sanitizeText(msg.text || "");
-      if (canEditLatestUserPrompt) {
+      const canOpenLegacyPromptMenu = false;
+      if (canOpenLegacyPromptMenu && canEditUserMessage) {
         bubble.addEventListener("contextmenu", (e: Event) => {
           const me = e as MouseEvent;
           me.preventDefault();
@@ -3442,12 +3838,6 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             retryModelMenu.style.display = "none";
           }
           setResponseMenuTarget(null);
-          setPromptMenuTarget({
-            item,
-            conversationKey,
-            userTimestamp: latestEditableUserTimestamp as number,
-            assistantTimestamp: latestEditableAssistantTimestamp as number,
-          });
           positionMenuAtPointer(body, promptMenu, me.clientX, me.clientY);
         });
       }
@@ -3547,6 +3937,54 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
     const meta = doc.createElement("div") as HTMLDivElement;
     meta.className = "llm-message-meta";
 
+    const appendVariantNav = () => {
+      if (
+        !Number.isFinite(msg.messageId) ||
+        (msg.siblingCount || 0) <= 1 ||
+        !Array.isArray(msg.siblingMessageIds) ||
+        msg.siblingMessageIds.length <= 1
+      ) {
+        return;
+      }
+      const siblingIndex = Math.max(1, msg.siblingIndex || 1);
+      const siblingCount = msg.siblingMessageIds.length;
+      const currentOffset = Math.max(0, siblingIndex - 1);
+      const prevId = msg.siblingMessageIds[currentOffset - 1];
+      const nextId = msg.siblingMessageIds[currentOffset + 1];
+      const parentId = msg.parentMessageId ?? null;
+      const variantWrap = doc.createElement("span") as HTMLSpanElement;
+      variantWrap.className = "llm-variant-nav";
+      variantWrap.dataset.variantKind = isUser ? "user" : "assistant";
+      const makeVariantButton = (
+        direction: "prev" | "next",
+        targetId: number | undefined,
+      ) => {
+        const btn = doc.createElement("button") as HTMLButtonElement;
+        btn.type = "button";
+        btn.className = `llm-variant-btn llm-variant-${direction}`;
+        btn.textContent = direction === "prev" ? "<" : ">";
+        btn.title =
+          direction === "prev" ? i18n.previousVariant : i18n.nextVariant;
+        btn.setAttribute("aria-label", btn.title);
+        btn.disabled = !targetId;
+        btn.dataset.variantKind = isUser ? "user" : "assistant";
+        btn.dataset.parentMessageId = parentId === null ? "" : String(parentId);
+        if (targetId) btn.dataset.childMessageId = String(targetId);
+        return btn;
+      };
+      variantWrap.appendChild(makeVariantButton("prev", prevId));
+      const indicator = doc.createElement("span") as HTMLSpanElement;
+      indicator.className = "llm-variant-indicator";
+      indicator.textContent = `${siblingIndex}/${siblingCount}`;
+      variantWrap.appendChild(indicator);
+      variantWrap.appendChild(makeVariantButton("next", nextId));
+      meta.appendChild(variantWrap);
+    };
+
+    if (!isUser) {
+      appendVariantNav();
+    }
+
     // Copy button for every message with text
     if (msg.text?.trim()) {
       const copyBtn = doc.createElement("button") as HTMLButtonElement;
@@ -3555,37 +3993,58 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       copyBtn.title = i18n.copy;
       copyBtn.setAttribute("aria-label", i18n.copy);
       copyBtn.dataset.msgIndex = String(index);
+      if (Number.isFinite(msg.messageId)) {
+        copyBtn.dataset.messageId = String(msg.messageId);
+      }
       meta.appendChild(copyBtn);
 
-      // Save as note button (book with plus)
-      const noteBtn = doc.createElement("button") as HTMLButtonElement;
-      noteBtn.type = "button";
-      noteBtn.className = "llm-msg-note-btn";
-      noteBtn.title = i18n.saveAsNote;
-      noteBtn.setAttribute("aria-label", i18n.saveAsNote);
-      noteBtn.dataset.msgIndex = String(index);
-      meta.appendChild(noteBtn);
+      if (!isUser) {
+        // Save as note button (book with plus)
+        const noteBtn = doc.createElement("button") as HTMLButtonElement;
+        noteBtn.type = "button";
+        noteBtn.className = "llm-msg-note-btn";
+        noteBtn.title = i18n.saveAsNote;
+        noteBtn.setAttribute("aria-label", i18n.saveAsNote);
+        noteBtn.dataset.msgIndex = String(index);
+        if (Number.isFinite(msg.messageId)) {
+          noteBtn.dataset.messageId = String(msg.messageId);
+        }
+        meta.appendChild(noteBtn);
+      }
     }
 
-    const time = doc.createElement("span") as HTMLSpanElement;
-    time.className = "llm-message-time";
-    time.textContent = formatTime(msg.timestamp);
-    if (canEditLatestUserPrompt) {
+    if (canShowEditUserMessage) {
       const editBtn = doc.createElement("button") as HTMLButtonElement;
       editBtn.type = "button";
-      editBtn.className = "llm-edit-latest";
+      editBtn.className = "llm-edit-message";
       editBtn.textContent = "";
       editBtn.title = i18n.edit;
       editBtn.setAttribute("aria-label", i18n.edit);
-      editBtn.dataset.userTimestamp = String(
-        latestEditableUserTimestamp as number,
-      );
-      editBtn.dataset.assistantTimestamp = String(
-        latestEditableAssistantTimestamp as number,
-      );
+      editBtn.dataset.messageId = String(msg.messageId);
+      editBtn.disabled = !canEditUserMessage;
       meta.appendChild(editBtn);
     }
-    meta.appendChild(time);
+
+    if (isUser) {
+      appendVariantNav();
+    } else {
+      const time = doc.createElement("span") as HTMLSpanElement;
+      time.className = "llm-message-time";
+      time.textContent = formatTime(msg.timestamp);
+      meta.appendChild(time);
+    }
+
+    if (!isUser && !msg.streaming && msg.text.trim() && msg.messageId) {
+      const branchBtn = doc.createElement("button") as HTMLButtonElement;
+      branchBtn.type = "button";
+      branchBtn.className = "llm-branch-chat";
+      branchBtn.textContent = "";
+      branchBtn.title = i18n.branchToNewChat;
+      branchBtn.setAttribute("aria-label", i18n.branchToNewChat);
+      branchBtn.dataset.messageId = String(msg.messageId);
+      meta.appendChild(branchBtn);
+    }
+
     if (
       !isUser &&
       index === latestAssistantIndex &&
@@ -3598,6 +4057,9 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       retryBtn.textContent = "";
       retryBtn.title = i18n.retry;
       retryBtn.setAttribute("aria-label", i18n.retry);
+      if (Number.isFinite(msg.messageId)) {
+        retryBtn.dataset.messageId = String(msg.messageId);
+      }
       meta.appendChild(retryBtn);
     }
 
