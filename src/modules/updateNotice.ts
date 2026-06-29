@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-const NOTICE_ID = "v3.2.1-conversation-theme-oauth-env-v1";
+const NOTICE_ID = "v3.2.1-chat-branch-theme-restart-v2";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -496,46 +496,34 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
 > = {
   "en-US": {
     eyebrow: "Update",
-    title: "Conversation experience update",
-    lead: "This update refines AIdea's plugin-wide visual themes and improves OAuth authorization environment installation and update flows. The interface is more consistent, and environment maintenance is more automatic.",
-    note: "The plugin has been updated. Restart Zotero to make sure the new interface styles and background environment update logic are fully active.",
+    title: "AIdea has been updated",
+    lead: "This update focuses on improving the chat experience and interaction details.",
+    note: "After updating the plugin, restart Zotero to make sure AIdea displays correctly.",
     alsoLabel: "This update includes",
     alsoItems: [
       {
-        label: "Plugin themes",
-        text: "New built-in themes are available across AIdea's own interface: Blue Porcelain, Eye Green, Warm Cream, Premium Gray, Midnight Black, and Sakura Pink. The Default theme keeps the existing system style.",
+        label: "Chat branching",
+        text: "Branch from any assistant reply into a new chat while keeping the current context, so you can explore different directions.",
       },
       {
-        label: "Input area polish",
-        text: "The input area now uses a soft theme background, the central editor keeps a clearer reading layer, and the Send button follows the current theme color.",
+        label: "Edit historical messages",
+        text: "Edit any previous user message directly and regenerate the reply. Existing replies are preserved and can be switched between versions.",
       },
       {
-        label: "Clearer emphasis",
-        text: "Bold content in model replies now uses the current theme's emphasis color, making summaries, conclusions, keywords, and structured points easier to scan.",
-      },
-      {
-        label: "Send button",
-        text: "The Send button now uses a paper-plane icon for a more stable layout. Its tooltip and accessibility label still follow the current interface language.",
-      },
-      {
-        label: "OAuth environment updates",
-        text: "OAuth authorization environment checks, installs, and updates have been improved. On Windows, macOS, and Ubuntu, AIdea will complete the available automatic steps and provide clearer terminal guidance when manual action is needed.",
+        label: "Context inheritance",
+        text: "Chat history, attachment context, and the default paper PDF inheritance logic have been refined for more stable multi-turn conversations.",
       },
     ],
-    exampleLabel: "Usage",
+    exampleLabel: "Interface and interaction improvements",
     examplePrompt: "",
     modeItems: [
       {
-        label: "Choose a theme",
-        text: "Switch themes from the plugin theme option in Settings.",
+        label: "Theme coordination",
+        text: "Global theme coordination has been improved, making the interface more consistent across different themes.",
       },
       {
-        label: "Default theme",
-        text: "Use the Default theme if you prefer an interface closer to Zotero's native style.",
-      },
-      {
-        label: "Environment update",
-        text: "If the OAuth authorization environment needs an update, click Install/Update Env in Settings. AIdea will run the steps it can complete automatically.",
+        label: "Interaction polish",
+        text: "Several buttons, icons, inline editing states, and context-area interactions have been adjusted to reduce visual breaks and improve usability.",
       },
     ],
     confirm: "OK",
@@ -543,49 +531,37 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
   },
   "zh-CN": {
     eyebrow: "更新提示",
-    title: "对话体验更新",
-    lead: "这次更新优化了对话标签页的主题视觉，并改进了 OAuth 授权环境的安装与更新流程。界面更统一，环境维护也更自动。",
-    note: "插件已更新。建议重启 Zotero，以确保新的界面样式和后台环境更新逻辑完整生效。",
-    alsoLabel: "本次更新包括",
+    title: "AIdea 已更新",
+    lead: "本次更新重点优化了聊天体验与整体交互。",
+    note: "插件更新后请重启 Zotero，确保插件显示正常。",
+    alsoLabel: "聊天体验升级",
     alsoItems: [
       {
-        label: "插件主题",
-        text: "新增多套内置插件主题：青花瓷、护眼绿、米白色、高级灰、暗夜黑、樱花粉。默认主题继续保持原有系统样式。",
+        label: "聊天分支",
+        text: "支持从任意助手回复分支到新聊天，保留当前上下文并继续探索不同方向。",
       },
       {
-        label: "输入区视觉优化",
-        text: "输入区域现在会跟随主题呈现柔和背景，中心输入框保持更清晰的阅读层次，发送按钮也会同步使用当前主题色。",
+        label: "历史消息编辑",
+        text: "支持直接编辑任意历史用户消息并重新生成回答，原有回答不会被覆盖，可在不同版本间切换。",
       },
       {
-        label: "重点文字更清晰",
-        text: "模型回复中的加粗内容会使用当前主题的强调色显示，便于快速识别摘要、结论、关键词和结构化要点。",
-      },
-      {
-        label: "发送按钮优化",
-        text: "发送按钮改为纸飞机图标，视觉更稳定；鼠标悬停提示和无障碍标签仍会跟随当前界面语言。",
-      },
-      {
-        label: "OAuth 授权环境更新",
-        text: "优化了 OAuth 授权环境的检查、安装和更新流程。在 Windows、macOS 和 Ubuntu 上会尽量自动完成环境准备；需要用户手动处理时，会给出更明确的终端提示。",
+        label: "上下文继承",
+        text: "优化聊天记录、附件上下文与默认论文 PDF 的继承逻辑，让多轮对话更稳定。",
       },
     ],
-    exampleLabel: "使用说明",
+    exampleLabel: "界面与交互优化",
     examplePrompt: "",
     modeItems: [
       {
-        label: "选择主题",
-        text: "可在设置中的插件主题选项里切换主题。",
+        label: "多主题协同",
+        text: "优化多主题下的全局样式协同，界面在不同主题中显示更加一致。",
       },
       {
-        label: "默认主题",
-        text: "如果希望界面尽量接近 Zotero 原生样式，可以继续使用默认主题。",
-      },
-      {
-        label: "环境更新",
-        text: "如果 OAuth 授权环境提示需要更新，可在设置中点击安装/更新环境，AIdea 会自动执行可完成的步骤。",
+        label: "交互细节",
+        text: "调整部分按钮、图标、编辑态和上下文区域交互，减少割裂感并提升可用性。",
       },
     ],
-    confirm: "我知道了",
+    confirm: "知道了",
     close: "关闭更新提示",
   },
 };
@@ -763,27 +739,11 @@ function createNoticeBody(
         namespace: "html",
         properties: { innerText: copy.lead },
         styles: {
-          marginBottom: "12px",
+          marginBottom: "16px",
           color: "var(--llm-theme-chat-muted, #374151)",
           fontSize: "13px",
           fontWeight: "650",
           lineHeight: "1.55",
-        },
-      },
-      {
-        tag: "div",
-        namespace: "html",
-        properties: { innerText: copy.note },
-        styles: {
-          marginBottom: "16px",
-          padding: "10px 12px",
-          borderInlineStart: "3px solid #dc2626",
-          borderRadius: "6px",
-          background: "rgba(220, 38, 38, 0.08)",
-          color: "#b91c1c",
-          fontSize: "13px",
-          fontWeight: "700",
-          lineHeight: "1.5",
         },
       },
       ...(alsoChildren.length
@@ -797,7 +757,8 @@ function createNoticeBody(
                 border:
                   "1px solid var(--llm-theme-border, rgba(99, 102, 241, 0.18))",
                 borderRadius: "8px",
-                background: "var(--llm-theme-chip-bg, rgba(99, 102, 241, 0.055))",
+                background:
+                  "var(--llm-theme-chip-bg, rgba(99, 102, 241, 0.055))",
               },
               children: alsoChildren,
             },
@@ -808,8 +769,7 @@ function createNoticeBody(
         namespace: "html",
         styles: {
           padding: "13px 14px",
-          border:
-            "1px solid var(--llm-theme-border, rgba(13, 148, 136, 0.22))",
+          border: "1px solid var(--llm-theme-border, rgba(13, 148, 136, 0.22))",
           borderRadius: "8px",
           background: "var(--llm-theme-chip-bg, rgba(13, 148, 136, 0.06))",
         },
@@ -827,6 +787,22 @@ function createNoticeBody(
           },
           ...detailChildren,
         ],
+      },
+      {
+        tag: "div",
+        namespace: "html",
+        properties: { innerText: copy.note },
+        styles: {
+          marginTop: "14px",
+          padding: "10px 12px",
+          borderInlineStart: "3px solid #dc2626",
+          borderRadius: "6px",
+          background: "rgba(220, 38, 38, 0.08)",
+          color: "#b91c1c",
+          fontSize: "12px",
+          fontWeight: "750",
+          lineHeight: "1.5",
+        },
       },
     ],
   };
