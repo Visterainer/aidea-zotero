@@ -10,6 +10,7 @@ import {
 } from "./normalizers";
 import {
   GLOBAL_CONVERSATION_KEY_BASE,
+  INLINE_CONTEXT_COLLAPSE_THRESHOLD,
   MAX_SELECTED_TEXT_CONTEXTS,
 } from "./constants";
 import {
@@ -31,6 +32,8 @@ import {
   getSelectionFromDocument,
 } from "./readerSelection";
 import { getPanelI18n } from "./i18n";
+
+const SELECTED_TEXT_GROUP_EXPANDED_INDEX = -2;
 
 function getActiveReaderForSelectedTab(): any | null {
   const tabs = getZoteroTabsState();
@@ -476,11 +479,35 @@ export function getSelectedTextExpandedIndex(
     if (raw === true) return 0;
     return -1;
   })();
+  if (normalized === SELECTED_TEXT_GROUP_EXPANDED_INDEX) {
+    return -1;
+  }
   if (normalized < 0 || normalized >= count) {
     selectedTextPreviewExpandedCache.delete(itemId);
     return -1;
   }
   return normalized;
+}
+
+export function setSelectedTextGroupExpanded(
+  itemId: number,
+  expanded: boolean,
+): void {
+  if (expanded) {
+    selectedTextPreviewExpandedCache.set(
+      itemId,
+      SELECTED_TEXT_GROUP_EXPANDED_INDEX,
+    );
+    return;
+  }
+  selectedTextPreviewExpandedCache.delete(itemId);
+}
+
+export function isSelectedTextGroupExpanded(itemId: number): boolean {
+  return (
+    selectedTextPreviewExpandedCache.get(itemId) ===
+    SELECTED_TEXT_GROUP_EXPANDED_INDEX
+  );
 }
 
 export function setSelectedTextExpandedIndex(
@@ -567,6 +594,12 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     itemId,
     selectedContexts.length,
   );
+  const isGrouped = selectedContexts.length > INLINE_CONTEXT_COLLAPSE_THRESHOLD;
+  const isGroupExpanded =
+    isGrouped &&
+    (selectedTextPreviewExpandedCache.get(itemId) ===
+      SELECTED_TEXT_GROUP_EXPANDED_INDEX ||
+      expandedIndex >= 0);
   const isGlobalConversation = itemId >= GLOBAL_CONVERSATION_KEY_BASE;
   previewList.style.display = "contents";
   previewList.innerHTML = "";
@@ -659,6 +692,108 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     previewBox.append(previewHeader, previewExpanded);
     previewList.appendChild(previewBox);
   };
+
+  if (isGrouped) {
+    const summaryBox = ownerDoc.createElement("div");
+    summaryBox.className = "llm-selected-context llm-selected-context-summary";
+    summaryBox.classList.toggle("expanded", isGroupExpanded);
+    summaryBox.classList.toggle("collapsed", !isGroupExpanded);
+    summaryBox.dataset.contextSummary = "selected-text";
+
+    const summaryHeader = ownerDoc.createElement("div");
+    summaryHeader.className =
+      "llm-image-preview-header llm-selected-context-header";
+
+    const summaryMeta = ownerDoc.createElement("button");
+    summaryMeta.type = "button";
+    summaryMeta.className =
+      "llm-image-preview-meta llm-selected-context-meta llm-selected-context-summary-toggle";
+    summaryMeta.textContent = `Text Context (${selectedContexts.length})`;
+    summaryMeta.setAttribute(
+      "aria-expanded",
+      isGroupExpanded ? "true" : "false",
+    );
+
+    const summaryClear = ownerDoc.createElement("button");
+    summaryClear.type = "button";
+    summaryClear.className =
+      "llm-remove-img-btn llm-selected-context-clear-all";
+    summaryClear.textContent = "×";
+    const i18n = getPanelI18n();
+    summaryClear.title = i18n.clearSelectedContext;
+    summaryClear.setAttribute("aria-label", i18n.clearSelectedContext);
+
+    summaryHeader.append(summaryMeta, summaryClear);
+
+    const summaryExpanded = ownerDoc.createElement("div");
+    summaryExpanded.className =
+      "llm-image-preview-expanded llm-selected-context-expanded llm-selected-context-group-expanded";
+    summaryExpanded.hidden = false;
+    summaryExpanded.style.display = "grid";
+
+    const detailList = ownerDoc.createElement("div");
+    detailList.className = "llm-selected-context-detail-list";
+
+    for (const [index, selectedContext] of selectedContexts.entries()) {
+      const selectedText = selectedContext.text;
+      const selectedSource = selectedContext.source;
+      const contextLabel =
+        isGlobalConversation && selectedSource === "pdf"
+          ? formatOpenChatTextContextLabel(selectedContext.paperContext)
+          : index > 0
+            ? `Text Context (${index + 1})`
+            : "Text Context";
+      const isCorrupted = isLikelyCorruptedSelectedText(selectedText);
+
+      const row = ownerDoc.createElement("div");
+      row.className = "llm-selected-context-detail-item";
+      row.dataset.contextIndex = `${index}`;
+      row.dataset.contextSource = selectedSource;
+      row.classList.toggle(
+        "llm-selected-context-detail-item-corrupted",
+        isCorrupted,
+      );
+
+      const indexPill = ownerDoc.createElement("span");
+      indexPill.className = "llm-context-detail-index";
+      indexPill.textContent = `${index + 1}`;
+
+      const textWrap = ownerDoc.createElement("div");
+      textWrap.className = "llm-selected-context-detail-text";
+
+      const label = ownerDoc.createElement("span");
+      label.className = "llm-selected-context-detail-label";
+      label.textContent = contextLabel;
+
+      const text = ownerDoc.createElement("div");
+      text.className = "llm-selected-context-detail-body";
+      text.textContent = selectedText;
+      text.title = selectedText;
+
+      textWrap.append(label, text);
+
+      const removeBtn = ownerDoc.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className =
+        "llm-file-context-remove llm-selected-context-clear";
+      removeBtn.dataset.contextIndex = `${index}`;
+      removeBtn.textContent = "×";
+      removeBtn.title = i18n.clearSelectedContext;
+      removeBtn.setAttribute("aria-label", i18n.clearSelectedContext);
+
+      row.append(indexPill, textWrap, removeBtn);
+      detailList.appendChild(row);
+    }
+
+    summaryExpanded.append(detailList);
+    summaryBox.append(summaryHeader, summaryExpanded);
+    previewList.appendChild(summaryBox);
+
+    if (selectTextBtn) {
+      selectTextBtn.classList.add("llm-action-btn-active");
+    }
+    return;
+  }
 
   for (const [index, selectedContext] of selectedContexts.entries()) {
     renderSelectedContext(selectedContext, index);

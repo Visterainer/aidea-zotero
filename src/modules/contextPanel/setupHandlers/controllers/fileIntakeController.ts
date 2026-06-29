@@ -10,6 +10,7 @@ import {
   extractTextFromPdfPath,
   extractTextFromStoredFile,
 } from "../../../../utils/fileExtraction";
+import { getPanelI18n } from "../../i18n";
 
 type StatusLevel = "ready" | "warning" | "error";
 
@@ -286,6 +287,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
   processIncomingFiles: (incomingFiles: File[]) => Promise<void>;
 } {
   const processIncomingFiles = async (incomingFiles: File[]) => {
+    const labels = getPanelI18n();
     const item = deps.getItem();
     if (!item || !incomingFiles.length) return;
     const imageUnsupported = deps.isScreenshotUnsupportedModel(
@@ -300,6 +302,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
     let rejectedPdfCount = 0;
     let skippedImageCount = 0;
     let failedPersistCount = 0;
+    let failedPdfTextExtractionCount = 0;
 
     for (const [index, file] of incomingFiles.entries()) {
       const fileName =
@@ -330,6 +333,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
           nextImages.push(optimizedDataUrl);
           addedCount += 1;
         } catch (err) {
+          skippedImageCount += 1;
           ztoolkit.log("LLM: Failed to read image upload", err);
         }
         continue;
@@ -405,10 +409,14 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         }
         // If in-memory read failed, try from stored path
         if (!textContent && storedPath) {
-          textContent = await extractTextFromStoredFile(
-            storedPath,
-            normalizedFile.type || "",
-          );
+          try {
+            textContent = await extractTextFromStoredFile(
+              storedPath,
+              normalizedFile.type || "",
+            );
+          } catch (err) {
+            ztoolkit.log("LLM: Failed to extract text from uploaded file", err);
+          }
         }
       } else if (category === "pdf") {
         // Use Zotero's PDFWorker — same engine as Zotero's built-in PDF indexing
@@ -422,12 +430,19 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
             );
           }
         }
+        if (!textContent?.trim()) {
+          failedPdfTextExtractionCount += 1;
+        }
       } else if (category === "file" && storedPath) {
         // Try Zotero-based extraction for other file types (EPUB, HTML, etc.)
-        textContent = await extractTextFromStoredFile(
-          storedPath,
-          normalizedFile.type || "",
-        );
+        try {
+          textContent = await extractTextFromStoredFile(
+            storedPath,
+            normalizedFile.type || "",
+          );
+        } catch (err) {
+          ztoolkit.log("LLM: Failed to extract text from uploaded file", err);
+        }
       }
 
       // storedPath and contentHash are already set above
@@ -483,37 +498,58 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
     }
 
     if (!deps.setStatusMessage) return;
+    const warningParts: string[] = [];
+    if (addedCount > 0 || replacedCount > 0) {
+      warningParts.push(labels.uploadedAttachments(addedCount, replacedCount));
+    }
+    if (rejectedPdfCount > 0) {
+      warningParts.push(labels.uploadSkippedLargePdfs(rejectedPdfCount));
+    }
+    if (skippedImageCount > 0) {
+      warningParts.push(labels.uploadSkippedImages(skippedImageCount));
+    }
+    if (failedPersistCount > 0) {
+      warningParts.push(labels.uploadPersistFailed(failedPersistCount));
+    }
+    if (failedPdfTextExtractionCount > 0) {
+      warningParts.push(
+        labels.pdfTextExtractionIncomplete(failedPdfTextExtractionCount),
+      );
+    }
     if (
       (addedCount > 0 || replacedCount > 0) &&
-      (rejectedPdfCount > 0 || skippedImageCount > 0 || failedPersistCount > 0)
+      (rejectedPdfCount > 0 ||
+        skippedImageCount > 0 ||
+        failedPersistCount > 0 ||
+        failedPdfTextExtractionCount > 0)
     ) {
-      const replaceText =
-        replacedCount > 0 ? `, replaced ${replacedCount}` : "";
-      deps.setStatusMessage(
-        `Uploaded ${addedCount} attachment(s)${replaceText}, skipped ${rejectedPdfCount} PDF(s) > 50MB, ${skippedImageCount} image(s), ${failedPersistCount} file(s) not persisted`,
-        "warning",
-      );
+      deps.setStatusMessage(warningParts.join("; "), "warning");
       return;
     }
     if (addedCount > 0 || replacedCount > 0) {
-      const replaceText =
-        replacedCount > 0 ? `, replaced ${replacedCount}` : "";
       deps.setStatusMessage(
-        `Uploaded ${addedCount} attachment(s)${replaceText}`,
+        labels.uploadedAttachments(addedCount, replacedCount),
         "ready",
       );
       return;
     }
     if (rejectedPdfCount > 0) {
       deps.setStatusMessage(
-        `PDF exceeds 50MB limit (${rejectedPdfCount} file(s) skipped)`,
+        labels.uploadSkippedLargePdfs(rejectedPdfCount),
         "error",
+      );
+      return;
+    }
+    if (skippedImageCount > 0) {
+      deps.setStatusMessage(
+        labels.uploadSkippedImages(skippedImageCount),
+        "warning",
       );
       return;
     }
     if (failedPersistCount > 0) {
       deps.setStatusMessage(
-        `Failed to persist ${failedPersistCount} file(s) to local chat-attachments`,
+        labels.uploadPersistFailed(failedPersistCount),
         "error",
       );
     }

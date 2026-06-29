@@ -8,6 +8,7 @@ import type {
 } from "../../types";
 import type { SelectedTextSource } from "../../types";
 import type { EditLatestTurnMarker, EditLatestTurnResult } from "../../chat";
+import { getPanelI18n } from "../../i18n";
 
 type StatusLevel = "ready" | "warning" | "error";
 
@@ -127,11 +128,9 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
   doSend: () => Promise<void>;
 } {
   const doSend = async () => {
+    const labels = getPanelI18n();
     if (deps.isPanelGenerating()) {
-      deps.setStatusMessage?.(
-        "Wait for the current response to finish",
-        "ready",
-      );
+      deps.setStatusMessage?.(labels.waitForCurrentResponse, "ready");
       return;
     }
 
@@ -162,6 +161,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       !selectedPaperContexts.length &&
       !selectedFiles.length
     ) {
+      deps.setStatusMessage?.(labels.emptyPromptStatus, "warning");
       return;
     }
 
@@ -227,10 +227,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       ""
     ).trim();
     if (!activeModelName) {
-      deps.setStatusMessage?.(
-        "No model available. Complete OAuth login and refresh models in Settings.",
-        "error",
-      );
+      deps.setStatusMessage?.(labels.chatReadinessNoModels, "error");
       return;
     }
     const selectedImages = deps
@@ -245,7 +242,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       const latest = await deps.getLatestEditablePair();
       if (!latest) {
         deps.setActiveEditSession(null);
-        deps.setStatusMessage?.("No editable latest prompt", "error");
+        deps.setStatusMessage?.(labels.noEditableLatestPrompt, "error");
         return;
       }
       const { conversationKey: latestKey, pair } = latest;
@@ -284,10 +281,10 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         }
         if (editResult === "missing") {
           deps.setActiveEditSession(null);
-          deps.setStatusMessage?.("No editable latest prompt", "error");
+          deps.setStatusMessage?.(labels.noEditableLatestPrompt, "error");
           return;
         }
-        deps.setStatusMessage?.("Failed to save edited prompt", "error");
+        deps.setStatusMessage?.(labels.failedToSaveEditedPrompt, "error");
         return;
       }
 

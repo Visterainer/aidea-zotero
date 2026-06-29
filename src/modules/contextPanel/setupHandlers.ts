@@ -106,7 +106,9 @@ import {
   getSelectedTextContexts,
   getSelectedTextExpandedIndex,
   includeSelectedTextFromReader,
+  isSelectedTextGroupExpanded,
   resolveContextSourceItem,
+  setSelectedTextGroupExpanded,
   setSelectedTextContextEntries,
   setSelectedTextContexts,
   setSelectedTextExpandedIndex,
@@ -1435,9 +1437,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     if (!panelRoot) return;
 
     const textPanels = Array.from(
-      panelRoot.querySelectorAll(
-        ".llm-selected-context.expanded:not(.llm-selected-context-summary)",
-      ),
+      panelRoot.querySelectorAll(".llm-selected-context.expanded"),
     ) as HTMLElement[];
     for (const panel of textPanels) {
       positionContextPopup(
@@ -1489,9 +1489,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           ".llm-paper-context-chip",
         ) as HTMLElement | null) ||
         paperPreview;
-      positionContextPopup(paperAnchor, paperPreviewExpanded, {
-        preferredWidth: 620,
-      });
+      positionContextPopup(paperAnchor, paperPreviewExpanded);
     }
   };
   const EDIT_STALE_STATUS_TEXT =
@@ -1556,6 +1554,45 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   refreshChatPlaceholderForLanguage = refreshInputPlaceholder;
   refreshInputPlaceholder();
 
+  const getCurrentReaderPaperIds = () => {
+    if (tabType !== "reader") return null;
+    const currentPaperItem = basePaperItem || item;
+    const currentItemId = Math.floor(Number(currentPaperItem?.id) || 0);
+    const currentParentId = Math.floor(
+      Number((currentPaperItem as Zotero.Item | null)?.parentID) || 0,
+    );
+    return { currentItemId, currentParentId };
+  };
+
+  const matchesCurrentReaderPaper = (
+    ids: Array<number | null | undefined>,
+  ): boolean => {
+    const current = getCurrentReaderPaperIds();
+    if (!current) return false;
+    const { currentItemId, currentParentId } = current;
+    return ids.some((rawId) => {
+      const id = Math.floor(Number(rawId) || 0);
+      return (
+        id > 0 &&
+        (id === currentItemId ||
+          (currentParentId > 0 && id === currentParentId))
+      );
+    });
+  };
+
+  const isPaperContextCurrent = (
+    paperContext: PaperContextRef | null | undefined,
+  ): boolean => {
+    if (!paperContext) return false;
+    return matchesCurrentReaderPaper([
+      paperContext.itemId,
+      paperContext.contextItemId,
+    ]);
+  };
+
+  const isBasePaperCurrent = (basePdfItemId: number | null | undefined) =>
+    matchesCurrentReaderPaper([basePdfItemId]);
+
   const appendPaperChip = (
     ownerDoc: Document,
     list: HTMLDivElement,
@@ -1572,6 +1609,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       "div",
       "llm-selected-context llm-paper-context-chip",
     );
+    const isCurrentPaperContext = isPaperContextCurrent(paperContext);
+    chip.classList.toggle("llm-paper-context-current", isCurrentPaperContext);
     if (options?.autoLoaded) {
       chip.classList.add("llm-paper-context-chip-autoloaded");
       chip.dataset.autoLoaded = "true";
@@ -1691,6 +1730,94 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     const ownerDoc = body.ownerDocument;
     if (!ownerDoc) return;
 
+    type PaperDetailEntry = {
+      label: string;
+      meta: string;
+      index: number;
+      removeLabel: string;
+      isCurrent: boolean;
+    };
+    const paperDetailEntries: PaperDetailEntry[] = [];
+    const createPaperDetailEntry = (
+      paperContext: PaperContextRef,
+      index: number,
+    ): PaperDetailEntry => {
+      const metadata = resolvePaperContextDisplayMetadata(paperContext);
+      const meta = [metadata.firstCreator || "", metadata.year || ""]
+        .filter(Boolean)
+        .join(" · ");
+      const label = paperContext.title || "PDF";
+      return {
+        label,
+        meta,
+        index,
+        removeLabel: i18n.unpinNamedContext(label),
+        isCurrent: isPaperContextCurrent(paperContext),
+      };
+    };
+    const appendPaperDetailRow = (
+      entry: PaperDetailEntry,
+      displayIndex: number,
+    ) => {
+      if (!paperPreviewExpandedList) return;
+      const rowLabel = displayIndex > 1 ? `PDF (${displayIndex})` : "PDF";
+      const bodyText = entry.meta
+        ? `${entry.label} · ${entry.meta}`
+        : entry.label;
+      const row = createElement(
+        ownerDoc,
+        "div",
+        "llm-paper-context-detail-item llm-selected-context-detail-item",
+      );
+      row.classList.toggle("llm-paper-context-current", entry.isCurrent);
+      const index = createElement(
+        ownerDoc,
+        "span",
+        "llm-context-detail-index llm-paper-context-index",
+        {
+          textContent: `${displayIndex}`,
+        },
+      );
+      const textWrap = createElement(
+        ownerDoc,
+        "div",
+        "llm-selected-context-detail-text",
+      );
+      const label = createElement(
+        ownerDoc,
+        "span",
+        "llm-paper-context-row-label llm-selected-context-detail-label",
+        {
+          textContent: rowLabel,
+          title: rowLabel,
+        },
+      );
+      const body = createElement(
+        ownerDoc,
+        "span",
+        "llm-paper-context-detail-body llm-selected-context-detail-body",
+        {
+          textContent: bodyText,
+          title: bodyText,
+        },
+      );
+      textWrap.append(label, body);
+      const removeBtn = createElement(
+        ownerDoc,
+        "button",
+        "llm-selected-context-clear llm-paper-context-clear",
+        {
+          type: "button",
+          textContent: "×",
+          title: entry.removeLabel,
+        },
+      ) as HTMLButtonElement;
+      removeBtn.dataset.paperContextIndex = `${entry.index}`;
+      removeBtn.setAttribute("aria-label", entry.removeLabel);
+      row.append(index, textWrap, removeBtn);
+      paperPreviewExpandedList.appendChild(row);
+    };
+
     // Phase 4: Show base PDF chip at the top if pool has one.
     if (hasBasePdf && pool) {
       const basePdfTitle = pool.basePdfTitle || i18n.trCurrentPdf;
@@ -1700,11 +1827,20 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       const labelText = isCompressed
         ? `📝 ${basePdfTitle} [Summary]`
         : `📝 ${basePdfTitle}`;
+      const isCurrentBasePaper = isBasePaperCurrent(pool.basePdfItemId);
+      paperDetailEntries.push({
+        label: basePdfTitle,
+        meta: "",
+        index: -2,
+        removeLabel: i18n.unpinNamedContext(basePdfTitle),
+        isCurrent: isCurrentBasePaper,
+      });
       const chip = createElement(
         ownerDoc,
         "div",
         "llm-selected-context llm-paper-context-chip llm-base-pdf-chip",
       );
+      chip.classList.toggle("llm-paper-context-current", isCurrentBasePaper);
       chip.classList.add("collapsed");
       const chipHeader = createElement(
         ownerDoc,
@@ -1762,12 +1898,16 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       !autoLoadedMatchesBasePdf
     ) {
       // Show auto-loaded chip as display-only (dismissible via dismissedAutoLoadPaperCache)
+      paperDetailEntries.push(
+        createPaperDetailEntry(autoLoadedPaperContext, -1),
+      );
       appendPaperChip(ownerDoc, paperPreviewList, autoLoadedPaperContext, {
         removable: true,
         removableIndex: -1,
         autoLoaded: true,
       });
       selectedPapers.forEach((paperContext, index) => {
+        paperDetailEntries.push(createPaperDetailEntry(paperContext, index));
         appendPaperChip(ownerDoc, paperPreviewList, paperContext, {
           removable: true,
           removableIndex: index,
@@ -1775,6 +1915,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       });
     } else {
       selectedPapers.forEach((paperContext, index) => {
+        paperDetailEntries.push(createPaperDetailEntry(paperContext, index));
         appendPaperChip(ownerDoc, paperPreviewList, paperContext, {
           removable: true,
           removableIndex: index,
@@ -1808,25 +1949,48 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         "div",
         "llm-image-preview-header llm-selected-context-header llm-paper-context-chip-header",
       );
+      const summaryTrigger = createElement(
+        ownerDoc,
+        "span",
+        "llm-paper-context-summary-trigger",
+        {
+          title: paperExpanded ? i18n.collapsePdfs : i18n.expandPdfs,
+        },
+      );
+      const summaryIcon = createElement(
+        ownerDoc,
+        "span",
+        "llm-paper-context-summary-icon",
+        {
+          textContent: "📝",
+        },
+      );
+      summaryIcon.setAttribute("aria-hidden", "true");
       const summaryLabel = createElement(
         ownerDoc,
         "span",
         "llm-paper-context-chip-label",
         {
           textContent: `PDF (${paperChips.length})`,
-          title: paperExpanded ? i18n.collapsePdfs : i18n.expandPdfs,
         },
       );
-      const summaryIndicator = createElement(ownerDoc, "span", "", {
-        textContent: paperExpanded ? " ▲" : " ▼",
-      });
-      summaryIndicator.style.opacity = "0.5";
-      summaryIndicator.style.fontSize = "10px";
-      summaryIndicator.style.marginLeft = "4px";
-      summaryLabel.appendChild(summaryIndicator);
-      summaryHeader.append(summaryLabel);
+      summaryTrigger.append(summaryIcon, summaryLabel);
+      summaryHeader.append(summaryTrigger);
+      const summaryClear = createElement(
+        ownerDoc,
+        "button",
+        "llm-remove-img-btn llm-paper-context-clear-all",
+        {
+          type: "button",
+          textContent: "×",
+          title: i18n.clearSelectedContext,
+        },
+      ) as HTMLButtonElement;
+      summaryClear.setAttribute("aria-label", i18n.clearSelectedContext);
+      summaryHeader.append(summaryClear);
       summaryChip.append(summaryHeader);
       summaryChip.addEventListener("click", (e: Event) => {
+        if ((e.target as HTMLElement).closest(".llm-remove-img-btn")) return;
         e.preventDefault();
         e.stopPropagation();
         if (!item) return;
@@ -1840,6 +2004,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           }
           selectedImagePreviewExpandedCache.set(item.id, false);
           selectedFilePreviewExpandedCache.set(item.id, false);
+          fileCategoryExpandedCache.get(item.id)?.clear();
         }
         updateFilePreview();
         updateImagePreview();
@@ -1850,9 +2015,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       paperPreviewList.innerHTML = "";
       paperPreviewList.appendChild(summaryChip);
       if (paperExpanded) {
-        paperChips.forEach((chip) => {
-          paperPreviewExpandedList.appendChild(chip);
-        });
+        paperDetailEntries.forEach((entry, index) =>
+          appendPaperDetailRow(entry, index + 1),
+        );
       }
     } else {
       selectedPaperPreviewExpandedCache.set(item.id, false);
@@ -2043,8 +2208,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         "llm-selected-context llm-paper-context-chip llm-file-chip-inline",
       );
       chip.classList.add("collapsed");
-      chip.style.flexBasis = "100%";
-      chip.style.width = "100%";
       chip.dataset.category = attachment.category || "file";
       if (attachment.processing) {
         chip.classList.add("llm-file-chip-processing");
@@ -2112,8 +2275,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         "llm-selected-context llm-paper-context-chip llm-file-chip-inline",
       );
       chip.classList.add("collapsed");
-      chip.style.flexBasis = "100%";
-      chip.style.width = "100%";
       chip.style.cursor = "pointer";
       chip.dataset.category = cat;
       if (procCount > 0) {
@@ -2132,17 +2293,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         "llm-paper-context-chip-label",
         {
           textContent: summaryText,
-          title: isGroupExpanded ? "Click to collapse" : "Click to expand",
         },
       );
-
-      const indicator = createElement(ownerDoc, "span", "", {
-        textContent: isGroupExpanded ? " ▴" : " ▾",
-      });
-      indicator.style.opacity = "0.5";
-      indicator.style.fontSize = "10px";
-      indicator.style.marginLeft = "4px";
-      chipLabel.appendChild(indicator);
 
       chipHeader.append(chipLabel);
 
@@ -2170,8 +2322,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       chip.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).closest(".llm-remove-img-btn")) return;
         if (!item) return;
-        if (isGroupExpanded) expandedSet!.delete(cat);
-        else expandedSet!.add(cat);
+        if (isGroupExpanded) {
+          expandedSet!.delete(cat);
+        } else {
+          expandedSet!.clear();
+          expandedSet!.add(cat);
+          const textContextKey = getTextContextConversationKey();
+          if (textContextKey) {
+            setSelectedTextExpandedIndex(textContextKey, null);
+          }
+          selectedImagePreviewExpandedCache.set(item.id, false);
+          selectedPaperPreviewExpandedCache.set(item.id, false);
+        }
+        updatePaperPreview();
+        updateSelectedTextPreview();
+        updateImagePreview();
         updateFilePreview();
       });
 
@@ -2214,6 +2379,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     });
 
     // ── Show card container if any category group is expanded ──
+    selectedFilePreviewExpandedCache.set(item.id, hasExpandedGroup);
+
     if (hasExpandedGroup) {
       filePreview.style.display = "flex";
       filePreview.classList.add("expanded");
@@ -4264,9 +4431,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       sendBtn.title = labels.send;
       sendBtn.setAttribute("aria-label", labels.send);
     }
-    setActionButtonLabel(cancelBtn, labels.cancel, "X", mode);
     if (cancelBtn) {
+      if (cancelBtn.textContent !== "") {
+        cancelBtn.textContent = "";
+      }
+      cancelBtn.classList.toggle("llm-action-icon-only", mode === "icon");
       cancelBtn.title = labels.cancel;
+      cancelBtn.setAttribute("aria-label", labels.cancel);
     }
   };
 
@@ -4495,18 +4666,12 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       if (mode === "icon") {
         return ACTION_LAYOUT_CONTEXT_ICON_WIDTH_PX;
       }
-      const labels = getPanelI18n();
       const sendWidth = getFullSlotRequiredWidth(
         sendSlot,
         sendBtn,
-        labels.send,
+        getPanelI18n().send,
       );
-      const cancelWidth = getFullSlotRequiredWidth(
-        sendSlot,
-        cancelBtn,
-        labels.cancel,
-      );
-      return Math.max(sendWidth, cancelWidth, 78);
+      return Math.max(sendWidth, 78);
     };
 
     const newChatSlotEl = newChatBtn?.parentElement as HTMLElement | null;
@@ -6967,6 +7132,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         }
         selectedPaperPreviewExpandedCache.set(item.id, false);
         selectedFilePreviewExpandedCache.set(item.id, false);
+        fileCategoryExpandedCache.get(item.id)?.clear();
       }
       updatePaperPreviewPreservingScroll();
       updateFilePreviewPreservingScroll();
@@ -7036,6 +7202,31 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       if (!item) return;
       const target = e.target as Element | null;
       if (!target) return;
+      const clearAllBtn = target.closest(
+        ".llm-paper-context-clear-all",
+      ) as HTMLButtonElement | null;
+      if (clearAllBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const poolKey =
+          conversationKey ?? (item ? getConversationKey(item) : null);
+        const pool =
+          poolKey !== null ? conversationContextPool.get(poolKey) : undefined;
+        if (pool) {
+          pool.basePdfRemoved = true;
+        }
+        const autoRef = resolveAutoLoadedPaperContext();
+        if (autoRef) {
+          const dismissKey = `${autoRef.itemId}:${autoRef.contextItemId}`;
+          dismissedAutoLoadPaperCache.set(item.id, dismissKey);
+        }
+        clearSelectedPaperState(item.id);
+        updatePaperPreview();
+        if (status)
+          setStatus(status, getPanelI18n().paperContextDismissed, "ready");
+        return;
+      }
+
       const clearBtn = target.closest(
         ".llm-paper-context-clear",
       ) as HTMLButtonElement | null;
@@ -7046,6 +7237,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         clearBtn.dataset.paperContextIndex || "",
         10,
       );
+
+      // Base PDF chip (index -2): mark removed in the conversation pool.
+      if (index === -2) {
+        const poolKey =
+          conversationKey ?? (item ? getConversationKey(item) : null);
+        const pool =
+          poolKey !== null ? conversationContextPool.get(poolKey) : undefined;
+        if (pool) {
+          pool.basePdfRemoved = true;
+        }
+        updatePaperPreview();
+        if (status)
+          setStatus(status, getPanelI18n().paperContextDismissed, "ready");
+        return;
+      }
 
       // Auto-loaded chip (index -1): dismiss via dismissedAutoLoadPaperCache
       if (index === -1) {
@@ -7130,10 +7336,47 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         }
         const nextContexts = selectedContexts.filter((_, i) => i !== index);
         setSelectedTextContextEntries(textContextKey, nextContexts);
-        setSelectedTextExpandedIndex(textContextKey, null);
+        if (nextContexts.length > INLINE_CONTEXT_COLLAPSE_THRESHOLD) {
+          setSelectedTextGroupExpanded(textContextKey, true);
+        } else {
+          setSelectedTextExpandedIndex(textContextKey, null);
+        }
         updateSelectedTextPreviewPreservingScroll();
         if (status)
           setStatus(status, getPanelI18n().selectedTextRemoved, "ready");
+        return;
+      }
+
+      const summaryBox = target.closest(
+        ".llm-selected-context-summary",
+      ) as HTMLElement | null;
+      if (summaryBox) {
+        if (target.closest(".llm-selected-context-expanded")) {
+          e.stopPropagation();
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const textContextKey = getTextContextConversationKey();
+        if (!textContextKey) return;
+        const selectedContexts = getSelectedTextContextEntries(textContextKey);
+        if (selectedContexts.length <= INLINE_CONTEXT_COLLAPSE_THRESHOLD) {
+          setSelectedTextExpandedIndex(textContextKey, null);
+          updateSelectedTextPreviewPreservingScroll();
+          return;
+        }
+        const nextExpanded = !summaryBox.classList.contains("expanded");
+        setSelectedTextGroupExpanded(textContextKey, nextExpanded);
+        if (nextExpanded) {
+          selectedImagePreviewExpandedCache.set(item.id, false);
+          selectedPaperPreviewExpandedCache.set(item.id, false);
+          selectedFilePreviewExpandedCache.set(item.id, false);
+          fileCategoryExpandedCache.get(item.id)?.clear();
+        }
+        updatePaperPreviewPreservingScroll();
+        updateFilePreviewPreservingScroll();
+        updateImagePreviewPreservingScroll();
+        updateSelectedTextPreviewPreservingScroll();
         return;
       }
 
@@ -7163,6 +7406,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         selectedImagePreviewExpandedCache.set(item.id, false);
         selectedPaperPreviewExpandedCache.set(item.id, false);
         selectedFilePreviewExpandedCache.set(item.id, false);
+        fileCategoryExpandedCache.get(item.id)?.clear();
       }
       updatePaperPreviewPreservingScroll();
       updateFilePreviewPreservingScroll();
@@ -7216,12 +7460,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       selectedImagePreviewExpandedCache.get(item.id) === true;
     const paperPinned = selectedPaperPreviewExpandedCache.get(item.id) === true;
     const filePinned = selectedFilePreviewExpandedCache.get(item.id) === true;
-    if (!textPinned && !figurePinned && !paperPinned && !filePinned) return;
+    const textGroupPinned = isSelectedTextGroupExpanded(textContextKey);
+    if (
+      !textPinned &&
+      !textGroupPinned &&
+      !figurePinned &&
+      !paperPinned &&
+      !filePinned
+    )
+      return;
 
     setSelectedTextExpandedIndex(textContextKey, null);
     selectedImagePreviewExpandedCache.set(item.id, false);
     selectedPaperPreviewExpandedCache.set(item.id, false);
     selectedFilePreviewExpandedCache.set(item.id, false);
+    fileCategoryExpandedCache.get(item.id)?.clear();
     updatePaperPreviewPreservingScroll();
     updateFilePreviewPreservingScroll();
     updateSelectedTextPreviewPreservingScroll();

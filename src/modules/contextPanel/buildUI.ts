@@ -1593,9 +1593,12 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     "llm-shortcut-btn llm-action-btn llm-action-btn-danger llm-send-btn llm-cancel-btn",
     {
       id: "llm-cancel",
-      textContent: i18n.cancel,
+      textContent: "",
+      title: i18n.cancel,
+      type: "button",
     },
   );
+  cancelBtn.setAttribute("aria-label", i18n.cancel);
   cancelBtn.style.display = "none";
   const sendSlot = createElement(doc, "div", "llm-action-slot");
   sendSlot.append(sendBtn, cancelBtn);

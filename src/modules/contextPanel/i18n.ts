@@ -32,6 +32,7 @@ export type PanelI18n = {
   statusSelectItem: string;
   placeholderGlobal: string;
   placeholderPaper: string;
+  emptyPromptStatus: string;
   placeholderGlobalTips: readonly string[];
   placeholderPaperTips: readonly string[];
   modelSelectHint: string;
@@ -159,6 +160,11 @@ export type PanelI18n = {
   figureCount: (count: number, max: number) => string;
   fileCount: (count: number) => string;
   paperCount: (count: number, max: number) => string;
+  uploadedAttachments: (added: number, replaced: number) => string;
+  uploadSkippedLargePdfs: (count: number) => string;
+  uploadSkippedImages: (count: number) => string;
+  uploadPersistFailed: (count: number) => string;
+  pdfTextExtractionIncomplete: (count: number) => string;
   screenshotNth: (n: number) => string;
   openAttachment: (name: string) => string;
   fileFallback: string;
@@ -176,6 +182,7 @@ export type PanelI18n = {
   createdNewNote: string;
   failedToCreateNote: string;
   editingLatestPrompt: string;
+  failedToSaveEditedPrompt: string;
   noChatHistoryDetected: string;
   copiedChatAsMd: string;
   savedChatHistoryToNewNote: string;
@@ -3748,6 +3755,8 @@ export function getPanelI18n(): PanelI18n {
       placeholderPaper:
         "Ask about this paper... Type @ for adding other papers as context",
       ...PANEL_I18N_PLACEHOLDER_TIPS["en-US"],
+      emptyPromptStatus:
+        "Type a question, or add text, PDFs, or images as context first.",
       modelSelectHint: "Select model",
       modelNoModels: "No models available. Login and refresh in Settings.",
       modelClickChoose: "Click to choose a model",
@@ -3895,6 +3904,17 @@ export function getPanelI18n(): PanelI18n {
       fileCount: (count) => `Files (${count})`,
       paperCount: (count, max) =>
         Number.isFinite(max) ? `Papers (${count}/${max})` : `Papers (${count})`,
+      uploadedAttachments: (added, replaced) =>
+        `Uploaded ${added} attachment(s)${
+          replaced > 0 ? `, replaced ${replaced}` : ""
+        }`,
+      uploadSkippedLargePdfs: (count) =>
+        `${count} PDF(s) skipped because they exceed the 50MB limit`,
+      uploadSkippedImages: (count) => `${count} image(s) skipped`,
+      uploadPersistFailed: (count) =>
+        `Failed to save ${count} file(s) to local chat attachments`,
+      pdfTextExtractionIncomplete: (count) =>
+        `Could not extract text from ${count} PDF(s); the file was attached, but answers may not use its text`,
       screenshotNth: (n) => `Screenshot ${n}`,
       openAttachment: (name) => `Open ${name}`,
       fileFallback: "file",
@@ -3912,6 +3932,7 @@ export function getPanelI18n(): PanelI18n {
       createdNewNote: "Created a new note",
       failedToCreateNote: "Failed to create note",
       editingLatestPrompt: "Editing latest prompt",
+      failedToSaveEditedPrompt: "Failed to save edited prompt",
       noChatHistoryDetected: "No chat history detected.",
       copiedChatAsMd: "Copied chat as md",
       savedChatHistoryToNewNote: "Saved chat history to new note",
@@ -4030,6 +4051,8 @@ export function getPanelI18n(): PanelI18n {
     placeholderGlobal: "开始提问... 输入 @ 添加论文",
     placeholderPaper: "对当前论文提问... 输入 @ 添加其他论文上下文",
     ...PANEL_I18N_PLACEHOLDER_TIPS["zh-CN"],
+    emptyPromptStatus:
+      "\u8bf7\u8f93\u5165\u95ee\u9898\uff0c\u6216\u5148\u6dfb\u52a0\u6587\u672c\u3001PDF \u6216\u56fe\u7247\u4e0a\u4e0b\u6587\u3002",
     modelSelectHint: "选择模型",
     modelNoModels: "暂无模型，请在设置中登录 OAuth 并刷新模型列表。",
     modelClickChoose: "点击选择模型",
@@ -4166,6 +4189,18 @@ export function getPanelI18n(): PanelI18n {
     fileCount: (count) => `文件（${count}）`,
     paperCount: (count, max) =>
       Number.isFinite(max) ? `论文（${count}/${max}）` : `论文（${count}）`,
+    uploadedAttachments: (added, replaced) =>
+      `\u5df2\u4e0a\u4f20 ${added} \u4e2a\u9644\u4ef6${
+        replaced > 0 ? `\uff0c\u5df2\u66ff\u6362 ${replaced} \u4e2a` : ""
+      }`,
+    uploadSkippedLargePdfs: (count) =>
+      `${count} \u4e2a PDF \u8d85\u8fc7 50MB \u9650\u5236\uff0c\u5df2\u8df3\u8fc7`,
+    uploadSkippedImages: (count) =>
+      `${count} \u5f20\u56fe\u7247\u5df2\u8df3\u8fc7`,
+    uploadPersistFailed: (count) =>
+      `${count} \u4e2a\u6587\u4ef6\u672a\u80fd\u4fdd\u5b58\u5230\u672c\u5730\u5bf9\u8bdd\u9644\u4ef6`,
+    pdfTextExtractionIncomplete: (count) =>
+      `${count} \u4e2a PDF \u672a\u80fd\u63d0\u53d6\u6587\u672c\uff1b\u6587\u4ef6\u5df2\u9644\u52a0\uff0c\u4f46\u56de\u7b54\u53ef\u80fd\u65e0\u6cd5\u4f7f\u7528\u5176\u6587\u672c`,
     screenshotNth: (n) => `截图 ${n}`,
     openAttachment: (name) => `打开 ${name}`,
     fileFallback: "文件",
@@ -4183,6 +4218,8 @@ export function getPanelI18n(): PanelI18n {
     createdNewNote: "已创建新笔记",
     failedToCreateNote: "创建笔记失败",
     editingLatestPrompt: "正在编辑最近一条提问",
+    failedToSaveEditedPrompt:
+      "\u4fdd\u5b58\u7f16\u8f91\u540e\u7684\u63d0\u95ee\u5931\u8d25",
     noChatHistoryDetected: "未检测到聊天记录。",
     copiedChatAsMd: "已复制对话 Markdown",
     savedChatHistoryToNewNote: "已将聊天记录保存为新笔记",

@@ -264,6 +264,218 @@ function getMessageSelectedTexts(message: Message): string[] {
   return normalizeSelectedTexts(message.selectedTexts, message.selectedText);
 }
 
+type UserContextPopoverDisplay = "block" | "flex" | "grid";
+
+let activeUserContextPopoverClose: (() => void) | null = null;
+
+function closeActiveUserContextPopover(): void {
+  const close = activeUserContextPopoverClose;
+  if (!close) return;
+  activeUserContextPopoverClose = null;
+  close();
+}
+
+function getUserContextPopoverBounds(
+  body: Element,
+  win: Window,
+): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+} {
+  const viewport = {
+    left: 0,
+    top: 0,
+    right: win.innerWidth,
+    bottom: win.innerHeight,
+    width: win.innerWidth,
+    height: win.innerHeight,
+  };
+  const bodyRect = body.getBoundingClientRect();
+  if (bodyRect.width <= 0 || bodyRect.height <= 0) return viewport;
+  const left = Math.max(viewport.left, bodyRect.left);
+  const top = Math.max(viewport.top, bodyRect.top);
+  const right = Math.min(viewport.right, bodyRect.right);
+  const bottom = Math.min(viewport.bottom, bodyRect.bottom);
+  const width = right - left;
+  const height = bottom - top;
+  if (width <= 0 || height <= 0) return viewport;
+  return { left, top, right, bottom, width, height };
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (max < min) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function positionUserContextPopover(
+  body: Element,
+  anchor: HTMLElement,
+  popover: HTMLElement,
+  display: UserContextPopoverDisplay,
+): void {
+  const doc = body.ownerDocument;
+  if (!doc) return;
+  const win = doc.defaultView;
+  if (!win) return;
+
+  const margin = 8;
+  const gap = 6;
+  const bounds = getUserContextPopoverBounds(body, win);
+  const anchorRect = anchor.getBoundingClientRect();
+  const availableWidth = Math.max(180, bounds.width - margin * 2);
+  const preferredWidth = Number.parseFloat(
+    popover.dataset.preferredWidth || "",
+  );
+  const popoverWidth = Math.min(
+    Number.isFinite(preferredWidth) && preferredWidth > 0
+      ? preferredWidth
+      : 620,
+    availableWidth,
+  );
+
+  popover.hidden = false;
+  popover.style.display = display;
+  popover.style.position = "fixed";
+  popover.style.width = `${popoverWidth}px`;
+  popover.style.maxWidth = `${popoverWidth}px`;
+  popover.style.left = "0px";
+  popover.style.top = "0px";
+  popover.style.maxHeight = "";
+  popover.style.visibility = "hidden";
+
+  const naturalHeight = Math.max(
+    80,
+    Math.min(
+      popover.scrollHeight || popover.offsetHeight || 0,
+      420,
+      Math.max(80, bounds.height - margin * 2),
+    ),
+  );
+  const availableBelow = Math.max(
+    0,
+    bounds.bottom - anchorRect.bottom - gap - margin,
+  );
+  const availableAbove = Math.max(
+    0,
+    anchorRect.top - bounds.top - gap - margin,
+  );
+  const placeBelow =
+    availableBelow >= Math.min(naturalHeight, 220) ||
+    availableBelow >= availableAbove;
+  const availableHeight = placeBelow ? availableBelow : availableAbove;
+  const maxHeight = Math.max(
+    80,
+    Math.min(
+      naturalHeight,
+      Math.max(80, availableHeight),
+      Math.max(80, bounds.height - margin * 2),
+    ),
+  );
+
+  popover.style.maxHeight = `${maxHeight}px`;
+  const measuredHeight = Math.min(popover.offsetHeight || maxHeight, maxHeight);
+  const left = clampNumber(
+    anchorRect.right - popoverWidth,
+    bounds.left + margin,
+    bounds.right - margin - popoverWidth,
+  );
+  const rawTop = placeBelow
+    ? anchorRect.bottom + gap
+    : anchorRect.top - gap - measuredHeight;
+  const top = clampNumber(
+    rawTop,
+    bounds.top + margin,
+    bounds.bottom - margin - measuredHeight,
+  );
+
+  popover.classList.toggle("llm-user-context-popover-above", !placeBelow);
+  popover.classList.toggle("llm-user-context-popover-below", placeBelow);
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+  popover.style.visibility = "";
+}
+
+function openUserContextPopover(params: {
+  body: Element;
+  chatBox: HTMLDivElement;
+  anchor: HTMLElement;
+  popover: HTMLElement;
+  display: UserContextPopoverDisplay;
+  close: () => void;
+}): void {
+  closeActiveUserContextPopover();
+
+  const { body, chatBox, anchor, popover, display, close } = params;
+  const doc = body.ownerDocument;
+  if (!doc) return;
+  const win = doc.defaultView;
+  let disposed = false;
+  let listenersAttached = false;
+
+  const cleanup = () => {
+    if (!listenersAttached) return;
+    listenersAttached = false;
+    doc.removeEventListener("mousedown", handleDocumentMouseDown, true);
+    doc.removeEventListener("keydown", handleDocumentKeyDown, true);
+    chatBox.removeEventListener("scroll", handleScroll);
+    win?.removeEventListener("resize", handleResize, true);
+  };
+  const closeSelf = () => {
+    if (disposed) return;
+    disposed = true;
+    cleanup();
+    if (activeUserContextPopoverClose === closeSelf) {
+      activeUserContextPopoverClose = null;
+    }
+    close();
+  };
+  const handleDocumentMouseDown = (event: MouseEvent) => {
+    const target = event.target as Node | null;
+    if (target && (anchor.contains(target) || popover.contains(target))) {
+      return;
+    }
+    closeSelf();
+  };
+  const handleDocumentKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      closeSelf();
+    }
+  };
+  const handleScroll = () => {
+    closeSelf();
+  };
+  const handleResize = () => {
+    if (!disposed) {
+      positionUserContextPopover(body, anchor, popover, display);
+    }
+  };
+
+  positionUserContextPopover(body, anchor, popover, display);
+  activeUserContextPopoverClose = closeSelf;
+  win?.setTimeout(() => {
+    if (disposed) return;
+    listenersAttached = true;
+    doc.addEventListener("mousedown", handleDocumentMouseDown, true);
+    doc.addEventListener("keydown", handleDocumentKeyDown, true);
+    chatBox.addEventListener("scroll", handleScroll, { passive: true });
+    win.addEventListener("resize", handleResize, true);
+  }, 0);
+}
+
+function createReadonlyContextRemovePlaceholder(
+  doc: Document,
+): HTMLSpanElement {
+  const placeholder = doc.createElement("span") as HTMLSpanElement;
+  placeholder.className =
+    "llm-selected-context-clear llm-history-context-remove-placeholder";
+  placeholder.setAttribute("aria-hidden", "true");
+  return placeholder;
+}
+
 function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
   const children = Array.from(wrapper.children) as HTMLElement[];
   for (const child of children) {
@@ -2487,14 +2699,23 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
   const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
   if (!chatBox) return;
   const doc = body.ownerDocument!;
+  const contextPopoverRoot =
+    body instanceof (doc.defaultView?.HTMLElement || HTMLElement) &&
+    (body as HTMLElement).id === "llm-main"
+      ? (body as HTMLElement)
+      : ((body.querySelector("#llm-main") as HTMLElement | null) ?? body);
   const i18n = getPanelI18n();
   const bubbleLanguage = getUiLanguageOption(getPanelLang());
   setPromptMenuTarget(null);
+  closeActiveUserContextPopover();
+  body
+    .querySelectorAll(".llm-user-context-popover, .llm-history-context-popover")
+    .forEach((popover: Element) => popover.remove());
 
   if (!item) {
     chatBox.innerHTML = `
         <div class="llm-welcome">
-          <div class="llm-welcome-icon">AI</div>
+          <div class="llm-welcome-icon">AIdea</div>
         <div class="llm-welcome-text">${i18n.statusSelectItem}</div>
         </div>
       `;
@@ -2517,7 +2738,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
   if (history.length === 0) {
     chatBox.innerHTML = `
       <div class="llm-welcome">
-        <div class="llm-welcome-icon">AI</div>
+        <div class="llm-welcome-icon">AIdea</div>
       </div>
     `;
     return;
@@ -2558,12 +2779,14 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
     if (isUser) {
       const contextBadgesRow = doc.createElement("div") as HTMLDivElement;
-      contextBadgesRow.className = "llm-user-context-badges";
+      contextBadgesRow.className =
+        "llm-context-previews llm-user-context-badges llm-history-context-previews";
       let hasContextBadge = false;
 
       const screenshotImages = Array.isArray(msg.screenshotImages)
         ? msg.screenshotImages.filter((entry) => Boolean(entry))
         : [];
+      let selectedTextExpanded: HTMLDivElement | null = null;
       let screenshotExpanded: HTMLDivElement | null = null;
       let papersExpanded: HTMLDivElement | null = null;
       let filesExpanded: HTMLDivElement | null = null;
@@ -2580,147 +2803,313 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       const hasScreenshotContext = screenshotImages.length > 0;
       const hasSelectedTextContext = selectedTexts.length > 0;
       hasUserContext = hasScreenshotContext || hasSelectedTextContext;
+      if (hasSelectedTextContext) {
+        const selectedChip = doc.createElement("div") as HTMLDivElement;
+        selectedChip.className =
+          "llm-selected-context llm-selected-context-summary llm-history-context-chip";
+        selectedChip.dataset.contextSummary = "selected-text";
+
+        const selectedHeader = doc.createElement("div") as HTMLDivElement;
+        selectedHeader.className =
+          "llm-image-preview-header llm-selected-context-header";
+
+        const selectedTrigger = doc.createElement(
+          "button",
+        ) as HTMLButtonElement;
+        selectedTrigger.type = "button";
+        selectedTrigger.className =
+          "llm-image-preview-meta llm-selected-context-meta llm-selected-context-summary-toggle llm-history-context-trigger";
+        selectedTrigger.textContent =
+          selectedTexts.length > 1
+            ? `Text Context (${selectedTexts.length})`
+            : "Text Context";
+        selectedTrigger.title = selectedTexts.join("\n");
+        selectedHeader.appendChild(selectedTrigger);
+        selectedChip.appendChild(selectedHeader);
+
+        const selectedExpandedEl = doc.createElement("div") as HTMLDivElement;
+        selectedExpandedEl.className =
+          "llm-image-preview-expanded llm-selected-context-expanded llm-selected-context-group-expanded llm-user-context-popover llm-history-context-popover llm-history-selected-text-popover";
+        selectedTextExpanded = selectedExpandedEl;
+
+        const detailList = doc.createElement("div") as HTMLDivElement;
+        detailList.className =
+          "llm-selected-context-detail-list llm-history-selected-text-detail-list";
+
+        selectedTexts.forEach((selectedText, contextIndex) => {
+          const selectedSource = selectedTextSources[contextIndex] || "pdf";
+          const selectedTextPaperContext =
+            selectedTextPaperContexts[contextIndex];
+          const selectedTextPaperLabel =
+            isGlobalConversation &&
+            selectedSource === "pdf" &&
+            selectedTextPaperContext
+              ? formatPaperCitationLabel(selectedTextPaperContext)
+              : "";
+          const contextLabel =
+            selectedTextPaperLabel ||
+            (contextIndex > 0
+              ? `Text Context (${contextIndex + 1})`
+              : "Text Context");
+
+          const row = doc.createElement("div") as HTMLDivElement;
+          row.className =
+            "llm-selected-context-detail-item llm-history-selected-text-detail-item llm-history-readonly-context-row";
+          row.dataset.contextSource = selectedSource;
+
+          const indexPill = doc.createElement("span") as HTMLSpanElement;
+          indexPill.className = "llm-context-detail-index";
+          indexPill.textContent = `${contextIndex + 1}`;
+
+          const textWrap = doc.createElement("div") as HTMLDivElement;
+          textWrap.className = "llm-selected-context-detail-text";
+
+          const label = doc.createElement("span") as HTMLSpanElement;
+          label.className = "llm-selected-context-detail-label";
+          label.textContent = contextLabel;
+          label.title = contextLabel;
+
+          const text = doc.createElement("div") as HTMLDivElement;
+          text.className = "llm-selected-context-detail-body";
+          text.textContent = selectedText;
+          text.title = selectedText;
+
+          const removePlaceholder = createReadonlyContextRemovePlaceholder(doc);
+          textWrap.append(label, text);
+          row.append(indexPill, textWrap, removePlaceholder);
+          detailList.appendChild(row);
+        });
+
+        selectedExpandedEl.appendChild(detailList);
+
+        const applySelectedTextState = () => {
+          const expanded = Boolean(msg.selectedTextExpanded);
+          selectedChip.classList.toggle("expanded", expanded);
+          selectedChip.classList.toggle("collapsed", !expanded);
+          selectedTrigger.classList.toggle("expanded", expanded);
+          selectedTrigger.setAttribute(
+            "aria-expanded",
+            expanded ? "true" : "false",
+          );
+          selectedExpandedEl.hidden = !expanded;
+          selectedExpandedEl.classList.toggle(
+            "llm-history-context-popover-open",
+            expanded,
+          );
+          selectedExpandedEl.style.display = expanded ? "grid" : "none";
+          if (expanded) {
+            positionUserContextPopover(
+              chatBox,
+              selectedTrigger,
+              selectedExpandedEl,
+              "grid",
+            );
+          }
+          selectedTrigger.title = expanded
+            ? "Collapse Text Context"
+            : "Expand Text Context";
+        };
+        const toggleSelectedTextExpanded = () => {
+          mutateChatWithScrollGuard(() => {
+            const nextExpanded = !msg.selectedTextExpanded;
+            if (!nextExpanded) {
+              closeActiveUserContextPopover();
+              msg.selectedTextExpanded = false;
+              applySelectedTextState();
+              return;
+            }
+            closeActiveUserContextPopover();
+            msg.selectedTextExpanded = true;
+            applySelectedTextState();
+            openUserContextPopover({
+              body: chatBox,
+              chatBox,
+              anchor: selectedTrigger,
+              popover: selectedExpandedEl,
+              display: "grid",
+              close: () => {
+                msg.selectedTextExpanded = false;
+                applySelectedTextState();
+              },
+            });
+          });
+        };
+        applySelectedTextState();
+        selectedTrigger.addEventListener("mousedown", (e: Event) => {
+          const mouse = e as MouseEvent;
+          if (mouse.button !== 0) return;
+          mouse.preventDefault();
+          mouse.stopPropagation();
+          toggleSelectedTextExpanded();
+        });
+        selectedTrigger.addEventListener("click", (e: Event) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        selectedTrigger.addEventListener("keydown", (e: KeyboardEvent) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSelectedTextExpanded();
+        });
+
+        contextBadgesRow.appendChild(selectedChip);
+        hasContextBadge = true;
+      }
       if (hasScreenshotContext) {
-        const screenshotBar = doc.createElement("button") as HTMLButtonElement;
-        screenshotBar.type = "button";
-        screenshotBar.className = "llm-user-screenshots-bar";
+        const screenshotChip = doc.createElement("div") as HTMLDivElement;
+        screenshotChip.className =
+          "llm-image-preview llm-image-preview-large-thumbs llm-history-context-chip";
 
-        const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
-        screenshotIcon.className = "llm-user-screenshots-icon";
-        screenshotIcon.setAttribute("aria-hidden", "true");
+        const screenshotHeader = doc.createElement("div") as HTMLDivElement;
+        screenshotHeader.className = "llm-image-preview-header";
 
-        const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
-        screenshotLabel.className = "llm-user-screenshots-label";
-        screenshotLabel.textContent = i18n.figureCount(
+        const screenshotTrigger = doc.createElement(
+          "button",
+        ) as HTMLButtonElement;
+        screenshotTrigger.type = "button";
+        screenshotTrigger.className =
+          "llm-image-preview-meta llm-history-context-trigger";
+        screenshotTrigger.textContent = i18n.figureCount(
           screenshotImages.length,
           MAX_SELECTED_IMAGES,
         );
-
-        screenshotBar.append(screenshotIcon, screenshotLabel);
+        screenshotHeader.appendChild(screenshotTrigger);
+        screenshotChip.appendChild(screenshotHeader);
 
         const screenshotExpandedEl = doc.createElement("div") as HTMLDivElement;
-        screenshotExpandedEl.className = "llm-user-screenshots-expanded";
+        screenshotExpandedEl.className =
+          "llm-image-preview-expanded llm-user-context-popover llm-history-context-popover llm-history-screenshots-popover";
+        screenshotExpandedEl.dataset.preferredWidth = `${screenshotImages.length * 210 + 24}`;
         screenshotExpanded = screenshotExpandedEl;
 
-        const thumbStrip = doc.createElement("div") as HTMLDivElement;
-        thumbStrip.className = "llm-user-screenshots-thumbs";
+        const screenshotGrid = doc.createElement("div") as HTMLDivElement;
+        screenshotGrid.className =
+          "llm-image-preview-strip llm-history-screenshots-grid";
 
-        const previewWrap = doc.createElement("div") as HTMLDivElement;
-        previewWrap.className = "llm-user-screenshots-preview";
-        const previewImg = doc.createElement("img") as HTMLImageElement;
-        previewImg.className = "llm-user-screenshots-preview-img";
-        previewImg.alt = i18n.selectedScreenshotPreview;
-        previewWrap.appendChild(previewImg);
-
-        const thumbButtons: HTMLButtonElement[] = [];
         screenshotImages.forEach((imageUrl, index) => {
-          const thumbBtn = doc.createElement("button") as HTMLButtonElement;
-          thumbBtn.type = "button";
-          thumbBtn.className = "llm-user-screenshot-thumb";
-          thumbBtn.title = i18n.screenshotNth(index + 1);
+          const imageItem = doc.createElement("div") as HTMLDivElement;
+          imageItem.className = "llm-preview-item";
+          imageItem.title = i18n.screenshotNth(index + 1);
 
-          const thumbImg = doc.createElement("img") as HTMLImageElement;
-          thumbImg.className = "llm-user-screenshot-thumb-img";
-          thumbImg.src = imageUrl;
-          thumbImg.alt = i18n.screenshotNth(index + 1);
-          thumbBtn.appendChild(thumbImg);
+          const imageFrame = doc.createElement("div") as HTMLDivElement;
+          imageFrame.className = "llm-preview-thumb llm-history-preview-thumb";
 
-          const activateScreenshotThumb = (e: Event) => {
-            const mouse = e as MouseEvent;
-            if (typeof mouse.button === "number" && mouse.button !== 0) return;
-            e.preventDefault();
-            e.stopPropagation();
-            mutateChatWithScrollGuard(() => {
-              msg.screenshotActiveIndex = index;
-              if (!msg.screenshotExpanded) {
-                msg.screenshotExpanded = true;
-              }
-              applyScreenshotState();
-            });
-          };
-          thumbBtn.addEventListener("mousedown", activateScreenshotThumb);
-          thumbBtn.addEventListener("click", (e: Event) => {
-            e.preventDefault();
-            e.stopPropagation();
-          });
-          thumbBtn.addEventListener("keydown", (e: KeyboardEvent) => {
-            if (e.key !== "Enter" && e.key !== " ") return;
-            activateScreenshotThumb(e);
-          });
-          thumbButtons.push(thumbBtn);
-          thumbStrip.appendChild(thumbBtn);
+          const image = doc.createElement("img") as HTMLImageElement;
+          image.className = "llm-preview-img";
+          image.src = imageUrl;
+          image.alt = i18n.screenshotNth(index + 1);
+
+          const removePlaceholder = createReadonlyContextRemovePlaceholder(doc);
+          removePlaceholder.classList.add("llm-preview-remove-one");
+          imageFrame.appendChild(image);
+          imageItem.append(imageFrame, removePlaceholder);
+          screenshotGrid.appendChild(imageItem);
         });
 
-        screenshotExpandedEl.append(thumbStrip, previewWrap);
+        screenshotExpandedEl.appendChild(screenshotGrid);
 
         const applyScreenshotState = () => {
           const expanded = Boolean(msg.screenshotExpanded);
-          let activeIndex =
-            typeof msg.screenshotActiveIndex === "number"
-              ? Math.floor(msg.screenshotActiveIndex)
-              : 0;
-          if (activeIndex < 0 || activeIndex >= screenshotImages.length) {
-            activeIndex = 0;
-            msg.screenshotActiveIndex = 0;
-          }
-          screenshotBar.classList.toggle("expanded", expanded);
-          screenshotBar.setAttribute(
+          screenshotChip.classList.toggle("expanded", expanded);
+          screenshotChip.classList.toggle("collapsed", !expanded);
+          screenshotTrigger.classList.toggle("expanded", expanded);
+          screenshotTrigger.setAttribute(
             "aria-expanded",
             expanded ? "true" : "false",
           );
           screenshotExpandedEl.hidden = !expanded;
-          screenshotExpandedEl.style.display = expanded ? "flex" : "none";
-          previewImg.src = screenshotImages[activeIndex];
-          thumbButtons.forEach((btn, index) => {
-            btn.classList.toggle("active", index === activeIndex);
-          });
-          screenshotBar.title = expanded
+          screenshotExpandedEl.classList.toggle(
+            "llm-history-context-popover-open",
+            expanded,
+          );
+          screenshotExpandedEl.style.display = expanded ? "grid" : "none";
+          if (expanded) {
+            positionUserContextPopover(
+              chatBox,
+              screenshotTrigger,
+              screenshotExpandedEl,
+              "grid",
+            );
+          }
+          screenshotTrigger.title = expanded
             ? i18n.collapseFigures
             : i18n.expandFigures;
         };
 
         const toggleScreenshotsExpanded = () => {
           mutateChatWithScrollGuard(() => {
-            msg.screenshotExpanded = !msg.screenshotExpanded;
+            const nextExpanded = !msg.screenshotExpanded;
+            if (!nextExpanded) {
+              closeActiveUserContextPopover();
+              msg.screenshotExpanded = false;
+              applyScreenshotState();
+              return;
+            }
+            closeActiveUserContextPopover();
+            msg.screenshotExpanded = true;
             applyScreenshotState();
+            openUserContextPopover({
+              body: chatBox,
+              chatBox,
+              anchor: screenshotTrigger,
+              popover: screenshotExpandedEl,
+              display: "grid",
+              close: () => {
+                msg.screenshotExpanded = false;
+                applyScreenshotState();
+              },
+            });
           });
         };
         applyScreenshotState();
-        screenshotBar.addEventListener("mousedown", (e: Event) => {
+        screenshotTrigger.addEventListener("mousedown", (e: Event) => {
           const mouse = e as MouseEvent;
           if (mouse.button !== 0) return;
           mouse.preventDefault();
           mouse.stopPropagation();
           toggleScreenshotsExpanded();
         });
-        screenshotBar.addEventListener("click", (e: Event) => {
+        screenshotTrigger.addEventListener("click", (e: Event) => {
           e.preventDefault();
           e.stopPropagation();
         });
-        screenshotBar.addEventListener("keydown", (e: KeyboardEvent) => {
+        screenshotTrigger.addEventListener("keydown", (e: KeyboardEvent) => {
           if (e.key !== "Enter" && e.key !== " ") return;
           e.preventDefault();
           e.stopPropagation();
           toggleScreenshotsExpanded();
         });
 
-        contextBadgesRow.appendChild(screenshotBar);
+        contextBadgesRow.appendChild(screenshotChip);
         hasContextBadge = true;
       }
 
       const paperContexts = normalizePaperContexts(msg.paperContexts);
       hasUserContext = hasUserContext || paperContexts.length > 0;
       if (paperContexts.length) {
-        const papersBar = doc.createElement("button") as HTMLButtonElement;
-        papersBar.type = "button";
-        papersBar.className = "llm-user-papers-bar";
+        const papersChip = doc.createElement("div") as HTMLDivElement;
+        papersChip.className =
+          "llm-selected-context llm-paper-context-chip llm-file-chip-inline llm-paper-context-summary llm-history-context-chip";
+        papersChip.dataset.category = "pdf";
+
+        const papersHeader = doc.createElement("div") as HTMLDivElement;
+        papersHeader.className =
+          "llm-image-preview-header llm-selected-context-header llm-paper-context-chip-header";
+
+        const papersTrigger = doc.createElement("button") as HTMLButtonElement;
+        papersTrigger.type = "button";
+        papersTrigger.className =
+          "llm-paper-context-summary-trigger llm-history-context-trigger";
+        papersTrigger.title = i18n.expandPapers;
 
         const papersIcon = doc.createElement("span") as HTMLSpanElement;
-        papersIcon.className = "llm-user-papers-icon";
+        papersIcon.className = "llm-paper-context-summary-icon";
+        papersIcon.textContent = "📝";
         papersIcon.setAttribute("aria-hidden", "true");
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
-        papersLabel.className = "llm-user-papers-label";
+        papersLabel.className = "llm-paper-context-chip-label";
         papersLabel.textContent = i18n.paperCount(
           paperContexts.length,
           MAX_SELECTED_PAPER_CONTEXTS,
@@ -2728,76 +3117,130 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         papersLabel.title = paperContexts
           .map((entry) => entry.title)
           .join("\n");
-        papersBar.append(papersIcon, papersLabel);
+        papersTrigger.append(papersIcon, papersLabel);
+        papersHeader.appendChild(papersTrigger);
+        papersChip.appendChild(papersHeader);
 
         const papersExpandedEl = doc.createElement("div") as HTMLDivElement;
-        papersExpandedEl.className = "llm-user-papers-expanded";
+        papersExpandedEl.className =
+          "llm-image-preview-expanded llm-paper-context-expanded llm-user-context-popover llm-history-context-popover llm-history-papers-popover";
         papersExpanded = papersExpandedEl;
         const papersList = doc.createElement("div") as HTMLDivElement;
-        papersList.className = "llm-user-papers-list";
-        for (const paperContext of paperContexts) {
-          const paperItem = doc.createElement("div") as HTMLDivElement;
-          paperItem.className = "llm-user-papers-item";
-
-          if (paperContext.citationKey) {
-            const keyBadge = doc.createElement("span") as HTMLSpanElement;
-            keyBadge.className = "llm-user-papers-item-key";
-            keyBadge.textContent = paperContext.citationKey;
-            keyBadge.title = paperContext.citationKey;
-            paperItem.appendChild(keyBadge);
-          }
-
-          const paperTitle = doc.createElement("span") as HTMLSpanElement;
-          paperTitle.className = "llm-user-papers-item-title";
-          paperTitle.textContent = paperContext.title;
-          paperTitle.title = paperContext.title;
-
-          const paperMeta = doc.createElement("span") as HTMLSpanElement;
-          paperMeta.className = "llm-user-papers-item-meta";
+        papersList.className = "llm-paper-context-list";
+        for (const [paperIndex, paperContext] of paperContexts.entries()) {
+          const displayIndex = paperIndex + 1;
+          const rowLabel = displayIndex > 1 ? `PDF (${displayIndex})` : "PDF";
           const metaParts = [
             paperContext.firstCreator || "",
             paperContext.year || "",
           ].filter(Boolean);
-          paperMeta.textContent =
-            metaParts.join(" | ") || i18n.supplementalPaper;
-          paperMeta.title = paperMeta.textContent;
-          paperItem.append(paperTitle, paperMeta);
+          const bodyText = metaParts.length
+            ? `${paperContext.title} · ${metaParts.join(" · ")}`
+            : paperContext.title;
+
+          const paperItem = doc.createElement("div") as HTMLDivElement;
+          paperItem.className =
+            "llm-paper-context-item llm-paper-context-detail-item llm-selected-context-detail-item llm-history-readonly-context-row";
+
+          const indexPill = doc.createElement("span") as HTMLSpanElement;
+          indexPill.className =
+            "llm-context-detail-index llm-paper-context-index";
+          indexPill.textContent = `${displayIndex}`;
+
+          const textWrap = doc.createElement("div") as HTMLDivElement;
+          textWrap.className = "llm-selected-context-detail-text";
+
+          const label = doc.createElement("span") as HTMLSpanElement;
+          label.className =
+            "llm-paper-context-row-label llm-selected-context-detail-label";
+          label.textContent = rowLabel;
+          label.title = rowLabel;
+
+          const body = doc.createElement("span") as HTMLSpanElement;
+          body.className =
+            "llm-paper-context-detail-body llm-selected-context-detail-body";
+          body.textContent = bodyText;
+          body.title = bodyText;
+
+          const removePlaceholder = createReadonlyContextRemovePlaceholder(doc);
+          textWrap.append(label, body);
+          paperItem.append(indexPill, textWrap, removePlaceholder);
           papersList.appendChild(paperItem);
         }
         papersExpandedEl.appendChild(papersList);
 
         const applyPapersState = () => {
           const expanded = Boolean(msg.paperContextsExpanded);
-          papersBar.classList.toggle("expanded", expanded);
-          papersBar.setAttribute("aria-expanded", expanded ? "true" : "false");
+          papersChip.classList.toggle("expanded", expanded);
+          papersChip.classList.toggle("collapsed", !expanded);
+          papersTrigger.classList.toggle("expanded", expanded);
+          papersTrigger.setAttribute(
+            "aria-expanded",
+            expanded ? "true" : "false",
+          );
           papersExpandedEl.hidden = !expanded;
-          papersExpandedEl.style.display = expanded ? "block" : "none";
-          papersBar.title = expanded ? i18n.collapsePapers : i18n.expandPapers;
+          papersExpandedEl.classList.toggle(
+            "llm-history-context-popover-open",
+            expanded,
+          );
+          papersExpandedEl.style.display = expanded ? "grid" : "none";
+          if (expanded) {
+            positionUserContextPopover(
+              chatBox,
+              papersTrigger,
+              papersExpandedEl,
+              "grid",
+            );
+          }
+          papersTrigger.title = expanded
+            ? i18n.collapsePapers
+            : i18n.expandPapers;
         };
         const togglePapersExpanded = () => {
-          msg.paperContextsExpanded = !msg.paperContextsExpanded;
-          applyPapersState();
+          mutateChatWithScrollGuard(() => {
+            const nextExpanded = !msg.paperContextsExpanded;
+            if (!nextExpanded) {
+              closeActiveUserContextPopover();
+              msg.paperContextsExpanded = false;
+              applyPapersState();
+              return;
+            }
+            closeActiveUserContextPopover();
+            msg.paperContextsExpanded = true;
+            applyPapersState();
+            openUserContextPopover({
+              body: chatBox,
+              chatBox,
+              anchor: papersTrigger,
+              popover: papersExpandedEl,
+              display: "grid",
+              close: () => {
+                msg.paperContextsExpanded = false;
+                applyPapersState();
+              },
+            });
+          });
         };
         applyPapersState();
-        papersBar.addEventListener("mousedown", (e: Event) => {
+        papersTrigger.addEventListener("mousedown", (e: Event) => {
           const mouse = e as MouseEvent;
           if (mouse.button !== 0) return;
           mouse.preventDefault();
           mouse.stopPropagation();
           togglePapersExpanded();
         });
-        papersBar.addEventListener("click", (e: Event) => {
+        papersTrigger.addEventListener("click", (e: Event) => {
           e.preventDefault();
           e.stopPropagation();
         });
-        papersBar.addEventListener("keydown", (e: KeyboardEvent) => {
+        papersTrigger.addEventListener("keydown", (e: KeyboardEvent) => {
           if (e.key !== "Enter" && e.key !== " ") return;
           e.preventDefault();
           e.stopPropagation();
           togglePapersExpanded();
         });
 
-        contextBadgesRow.appendChild(papersBar);
+        contextBadgesRow.appendChild(papersChip);
         hasContextBadge = true;
       }
 
@@ -2828,7 +3271,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         filesBar.append(filesIcon, filesLabel);
 
         const filesExpandedEl = doc.createElement("div") as HTMLDivElement;
-        filesExpandedEl.className = "llm-user-files-expanded";
+        filesExpandedEl.className =
+          "llm-user-files-expanded llm-user-context-popover";
         filesExpanded = filesExpandedEl;
         const filesList = doc.createElement("div") as HTMLDivElement;
         filesList.className = "llm-user-files-list";
@@ -2895,11 +3339,40 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           filesBar.setAttribute("aria-expanded", expanded ? "true" : "false");
           filesExpandedEl.hidden = !expanded;
           filesExpandedEl.style.display = expanded ? "block" : "none";
+          if (expanded) {
+            positionUserContextPopover(
+              chatBox,
+              filesBar,
+              filesExpandedEl,
+              "block",
+            );
+          }
           filesBar.title = expanded ? i18n.collapseFiles : i18n.expandFiles;
         };
         const toggleFilesExpanded = () => {
-          msg.attachmentsExpanded = !msg.attachmentsExpanded;
-          applyFilesState();
+          mutateChatWithScrollGuard(() => {
+            const nextExpanded = !msg.attachmentsExpanded;
+            if (!nextExpanded) {
+              closeActiveUserContextPopover();
+              msg.attachmentsExpanded = false;
+              applyFilesState();
+              return;
+            }
+            closeActiveUserContextPopover();
+            msg.attachmentsExpanded = true;
+            applyFilesState();
+            openUserContextPopover({
+              body: chatBox,
+              chatBox,
+              anchor: filesBar,
+              popover: filesExpandedEl,
+              display: "block",
+              close: () => {
+                msg.attachmentsExpanded = false;
+                applyFilesState();
+              },
+            });
+          });
         };
         applyFilesState();
         filesBar.addEventListener("mousedown", (e: Event) => {
@@ -2927,51 +3400,19 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       if (hasContextBadge) {
         wrapper.appendChild(contextBadgesRow);
       }
+      if (selectedTextExpanded) {
+        contextPopoverRoot.appendChild(selectedTextExpanded);
+      }
       if (screenshotExpanded) {
-        wrapper.appendChild(screenshotExpanded);
+        contextPopoverRoot.appendChild(screenshotExpanded);
       }
       if (papersExpanded) {
-        wrapper.appendChild(papersExpanded);
+        contextPopoverRoot.appendChild(papersExpanded);
       }
       if (filesExpanded) {
-        wrapper.appendChild(filesExpanded);
+        contextPopoverRoot.appendChild(filesExpanded);
       }
 
-      if (hasSelectedTextContext) {
-        msg.selectedTextExpandedIndex = -1;
-        msg.selectedTextExpanded = false;
-
-        selectedTexts.forEach((selectedText, contextIndex) => {
-          const selectedSource = selectedTextSources[contextIndex] || "pdf";
-          const selectedTextPaperContext =
-            selectedTextPaperContexts[contextIndex];
-          const selectedTextPaperLabel =
-            isGlobalConversation &&
-            selectedSource === "pdf" &&
-            selectedTextPaperContext
-              ? formatPaperCitationLabel(selectedTextPaperContext)
-              : "";
-          const selectedBar = doc.createElement("div") as HTMLDivElement;
-          selectedBar.className = "llm-user-selected-text";
-          selectedBar.dataset.contextSource = selectedSource;
-
-          const selectedIcon = doc.createElement("span") as HTMLSpanElement;
-          selectedIcon.className = "llm-user-selected-text-icon";
-          selectedIcon.setAttribute("aria-hidden", "true");
-
-          const selectedContent = doc.createElement("span") as HTMLSpanElement;
-          selectedContent.className = "llm-user-selected-text-content";
-          selectedContent.textContent = selectedTextPaperLabel
-            ? `${selectedTextPaperLabel} - ${selectedText}`
-            : selectedText;
-
-          selectedBar.append(selectedIcon, selectedContent);
-          selectedBar.title = selectedTextPaperLabel
-            ? `${selectedTextPaperLabel} - selected text context`
-            : "Selected text context";
-          wrapper.appendChild(selectedBar);
-        });
-      }
       bubble.textContent = sanitizeText(msg.text || "");
       if (canEditLatestUserPrompt) {
         bubble.addEventListener("contextmenu", (e: Event) => {
