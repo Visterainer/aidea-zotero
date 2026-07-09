@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-const NOTICE_ID = "v3.2.2-chat-branch-theme-restart-v1";
+const NOTICE_ID = "v3.2.3-duplicate-chat-output-fix-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -497,70 +497,20 @@ const CURRENT_UPDATE_NOTICE_COPIES: Partial<
   "en-US": {
     eyebrow: "Update",
     title: "AIdea has been updated",
-    lead: "This update focuses on improving the chat experience and interaction details.",
-    note: "After updating the plugin, restart Zotero to make sure AIdea displays correctly.",
-    alsoLabel: "This update includes",
-    alsoItems: [
-      {
-        label: "Chat branching",
-        text: "Branch from any assistant reply into a new chat while keeping the current context, so you can explore different directions.",
-      },
-      {
-        label: "Edit historical messages",
-        text: "Edit any previous user message directly and regenerate the reply. Existing replies are preserved and can be switched between versions.",
-      },
-      {
-        label: "Context inheritance",
-        text: "Chat history, attachment context, and the default paper PDF inheritance logic have been refined for more stable multi-turn conversations.",
-      },
-    ],
-    exampleLabel: "Interface and interaction improvements",
+    lead: "Fixed an issue where assistant replies could occasionally appear twice in the current chat window.",
+    note: "Restart Zotero after updating. Chat history itself is not saved twice, and future replies should display normally as a single response.",
+    exampleLabel: "",
     examplePrompt: "",
-    modeItems: [
-      {
-        label: "Theme coordination",
-        text: "Global theme coordination has been improved, making the interface more consistent across different themes.",
-      },
-      {
-        label: "Interaction polish",
-        text: "Several buttons, icons, inline editing states, and context-area interactions have been adjusted to reduce visual breaks and improve usability.",
-      },
-    ],
     confirm: "OK",
     close: "Close update notice",
   },
   "zh-CN": {
     eyebrow: "更新提示",
     title: "AIdea 已更新",
-    lead: "本次更新重点优化了聊天体验与整体交互。",
-    note: "插件更新后请重启 Zotero，确保插件显示正常。",
-    alsoLabel: "聊天体验升级",
-    alsoItems: [
-      {
-        label: "聊天分支",
-        text: "支持从任意助手回复分支到新聊天，保留当前上下文并继续探索不同方向。",
-      },
-      {
-        label: "历史消息编辑",
-        text: "支持直接编辑任意历史用户消息并重新生成回答，原有回答不会被覆盖，可在不同版本间切换。",
-      },
-      {
-        label: "上下文继承",
-        text: "优化聊天记录、附件上下文与默认论文 PDF 的继承逻辑，让多轮对话更稳定。",
-      },
-    ],
-    exampleLabel: "界面与交互优化",
+    lead: "修复了对话功能中，助手回复偶尔重复显示两份的问题。",
+    note: "更新后请重启 Zotero。历史记录本身不会重复保存，后续对话会按一条回复正常显示。",
+    exampleLabel: "",
     examplePrompt: "",
-    modeItems: [
-      {
-        label: "多主题协同",
-        text: "优化多主题下的全局样式协同，界面在不同主题中显示更加一致。",
-      },
-      {
-        label: "交互细节",
-        text: "调整部分按钮、图标、编辑态和上下文区域交互，减少割裂感并提升可用性。",
-      },
-    ],
     confirm: "知道了",
     close: "关闭更新提示",
   },
@@ -692,6 +642,9 @@ function createNoticeBody(
           },
         },
       ];
+  const hasDetailCard = Boolean(
+    copy.exampleLabel && (copy.examplePrompt || copy.modeItems?.length),
+  );
   return {
     tag: "div",
     namespace: "html",
@@ -764,30 +717,36 @@ function createNoticeBody(
             },
           ]
         : []),
-      {
-        tag: "div",
-        namespace: "html",
-        styles: {
-          padding: "13px 14px",
-          border: "1px solid var(--llm-theme-border, rgba(13, 148, 136, 0.22))",
-          borderRadius: "8px",
-          background: "var(--llm-theme-chip-bg, rgba(13, 148, 136, 0.06))",
-        },
-        children: [
-          {
-            tag: "div",
-            namespace: "html",
-            properties: { innerText: copy.exampleLabel },
-            styles: {
-              marginBottom: "7px",
-              color: "var(--llm-theme-accent, #0f766e)",
-              fontSize: "12px",
-              fontWeight: "750",
+      ...(hasDetailCard
+        ? [
+            {
+              tag: "div",
+              namespace: "html",
+              styles: {
+                padding: "13px 14px",
+                border:
+                  "1px solid var(--llm-theme-border, rgba(13, 148, 136, 0.22))",
+                borderRadius: "8px",
+                background:
+                  "var(--llm-theme-chip-bg, rgba(13, 148, 136, 0.06))",
+              },
+              children: [
+                {
+                  tag: "div",
+                  namespace: "html",
+                  properties: { innerText: copy.exampleLabel },
+                  styles: {
+                    marginBottom: "7px",
+                    color: "var(--llm-theme-accent, #0f766e)",
+                    fontSize: "12px",
+                    fontWeight: "750",
+                  },
+                },
+                ...detailChildren,
+              ],
             },
-          },
-          ...detailChildren,
-        ],
-      },
+          ]
+        : []),
       {
         tag: "div",
         namespace: "html",
