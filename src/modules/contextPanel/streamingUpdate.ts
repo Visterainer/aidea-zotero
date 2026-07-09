@@ -98,6 +98,7 @@ export function patchStreamingBubble(
   text: string,
 ): void {
   if (!bubble || !bubble.parentNode) return;
+  if (!bubble.classList.contains("streaming")) return;
 
   const safeText = sanitizeText(text);
   if (!safeText) return;

@@ -3859,12 +3859,22 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       const hasAnswerText = Boolean(msg.text);
       if (hasAnswerText) {
         const safeText = sanitizeText(msg.text);
-        if (msg.streaming) bubble.classList.add("streaming");
-        try {
-          bubble.innerHTML = renderMarkdown(safeText);
-        } catch (err) {
-          ztoolkit.log("LLM render error:", err);
-          bubble.textContent = safeText;
+        const renderAssistantMarkdown = (target: HTMLDivElement) => {
+          try {
+            target.innerHTML = renderMarkdown(safeText);
+          } catch (err) {
+            ztoolkit.log("LLM render error:", err);
+            target.textContent = safeText;
+          }
+        };
+        if (msg.streaming) {
+          bubble.classList.add("streaming");
+          const streamingContent = doc.createElement("div") as HTMLDivElement;
+          streamingContent.setAttribute("data-streaming-content", "true");
+          renderAssistantMarkdown(streamingContent);
+          bubble.appendChild(streamingContent);
+        } else {
+          renderAssistantMarkdown(bubble);
         }
         bubble.addEventListener("contextmenu", (e: Event) => {
           const me = e as MouseEvent;

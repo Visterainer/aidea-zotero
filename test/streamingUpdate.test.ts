@@ -313,6 +313,18 @@ describe("streamingUpdate", function () {
       assert.isNotNull(contentEl, "content element should be created");
     });
 
+    it("should not patch finalized bubbles", function () {
+      const { assistantBubble } = buildChatBoxWithMessages();
+      finalizeStreamingBubble(assistantBubble);
+
+      patchStreamingBubble(assistantBubble, "Late patch");
+
+      assert.isNull(
+        assistantBubble.querySelector("[data-streaming-content]"),
+        "late queued patches should not recreate streamed content",
+      );
+    });
+
     it("should render markdown into the content element", function () {
       const { assistantBubble } = buildChatBoxWithMessages();
       patchStreamingBubble(assistantBubble, "**Bold** text");
@@ -342,6 +354,22 @@ describe("streamingUpdate", function () {
       assert.strictEqual(contentEl1, contentEl2);
       // Content should have changed
       assert.notEqual(contentEl2!.innerHTML, firstContent);
+    });
+
+    it("should reuse a pre-rendered streaming content element", function () {
+      const { assistantBubble } = buildChatBoxWithMessages();
+      const existingContent = createMockDiv();
+      existingContent.setAttribute("data-streaming-content", "true");
+      existingContent.innerHTML = "<p>Initial</p>";
+      assistantBubble.appendChild(existingContent);
+
+      patchStreamingBubble(assistantBubble, "Updated");
+
+      const contentEl = assistantBubble.querySelector(
+        "[data-streaming-content]",
+      );
+      assert.strictEqual(contentEl, existingContent);
+      assert.include(contentEl!.innerHTML, "Updated");
     });
   });
 
