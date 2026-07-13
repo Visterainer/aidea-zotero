@@ -5,8 +5,9 @@
  * On Windows, startHidden prevents command prompt windows from appearing.
  * -------------------------------------------------------------------------*/
 
-const IS_WIN_PROC = (typeof Zotero !== "undefined" && Zotero.isWin) ||
-               (typeof navigator !== "undefined" && /win/i.test(navigator.platform));
+const IS_WIN_PROC =
+  (typeof Zotero !== "undefined" && Zotero.isWin) ||
+  (typeof navigator !== "undefined" && /win/i.test(navigator.platform));
 
 export interface RunningProcess {
   /** Kill the subprocess tree */
@@ -23,18 +24,28 @@ export interface RunningProcess {
  * @returns     handle with kill() and a completion promise
  */
 export function launchProcess(exe: string, args: string[]): RunningProcess {
-  const file = (Components.classes as any)["@mozilla.org/file/local;1"]
-    .createInstance((Components.interfaces as any).nsIFile);
+  const file = (Components.classes as any)[
+    "@mozilla.org/file/local;1"
+  ].createInstance((Components.interfaces as any).nsIFile);
   file.initWithPath(exe);
 
-  const proc = (Components.classes as any)["@mozilla.org/process/util;1"]
-    .createInstance((Components.interfaces as any).nsIProcess);
+  const proc = (Components.classes as any)[
+    "@mozilla.org/process/util;1"
+  ].createInstance((Components.interfaces as any).nsIProcess);
   proc.init(file);
 
   // Suppress terminal window on Windows
   if (IS_WIN_PROC) {
-    try { proc.startHidden = true; } catch { /* older Gecko may not support */ }
-    try { proc.noShell = true; } catch { /* best effort */ }
+    try {
+      proc.startHidden = true;
+    } catch {
+      /* older Gecko may not support */
+    }
+    try {
+      proc.noShell = true;
+    } catch {
+      /* best effort */
+    }
   }
 
   const done = new Promise<number>((resolve, reject) => {
@@ -52,7 +63,11 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
 
   return {
     kill() {
-      try { proc.kill(); } catch { /* already dead */ }
+      try {
+        proc.kill();
+      } catch {
+        /* already dead */
+      }
     },
     done,
   };

@@ -1,6 +1,4 @@
-import {
-  type ModelProfileKey,
-} from "../../constants";
+import { type ModelProfileKey } from "../../constants";
 import {
   getApiProfiles,
   getPrimaryConnectionMode,
@@ -17,14 +15,15 @@ import {
   parseModelSelectionCache,
 } from "../../../../utils/oauthModelSelection";
 
-function parseOAuthModelCache():
-  Partial<Record<OAuthProviderId, ProviderModelOption[]>> {
+function parseOAuthModelCache(): Partial<
+  Record<OAuthProviderId, ProviderModelOption[]>
+> {
   const cacheRaw = getStringPref("oauthModelListCache").trim();
   if (!cacheRaw) return {};
   try {
-    const parsed = JSON.parse(
-      cacheRaw,
-    ) as Partial<Record<OAuthProviderId, ProviderModelOption[]>>;
+    const parsed = JSON.parse(cacheRaw) as Partial<
+      Record<OAuthProviderId, ProviderModelOption[]>
+    >;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -173,7 +172,9 @@ export function persistModelName(modelName: string): void {
       modelName,
       true,
     );
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function persistModelProvider(provider: string): void {
@@ -183,7 +184,9 @@ export function persistModelProvider(provider: string): void {
       provider,
       true,
     );
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getSelectedModelInfo(itemId: number | null) {
@@ -200,7 +203,12 @@ export function getSelectedModelInfo(itemId: number | null) {
   if (itemId === null) {
     return choices[0]
       ? buildResult(choices[0])
-      : { selected: "primary" as const, choices, currentModel: "", currentProvider: "" };
+      : {
+          selected: "primary" as const,
+          choices,
+          currentModel: "",
+          currentProvider: "",
+        };
   }
 
   const cachedSelection = selectedModelCache.get(itemId);
@@ -212,8 +220,11 @@ export function getSelectedModelInfo(itemId: number | null) {
     if (!isProfileKey) {
       // Match by both model name and provider ID if available
       const byModel = cachedProvider
-        ? choices.find((entry) => entry.model === cachedSelection && entry.providerId === cachedProvider)
-          || choices.find((entry) => entry.model === cachedSelection)
+        ? choices.find(
+            (entry) =>
+              entry.model === cachedSelection &&
+              entry.providerId === cachedProvider,
+          ) || choices.find((entry) => entry.model === cachedSelection)
         : choices.find((entry) => entry.model === cachedSelection);
       if (byModel) return buildResult(byModel);
     }
@@ -226,9 +237,11 @@ export function getSelectedModelInfo(itemId: number | null) {
     const persistedProvider = getPersistedModelProvider();
     const byPersisted = persistedProvider
       ? choices.find(
-          (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase()
-            && entry.providerId === persistedProvider,
-        ) || choices.find(
+          (entry) =>
+            entry.model.toLowerCase() === persistedModel.toLowerCase() &&
+            entry.providerId === persistedProvider,
+        ) ||
+        choices.find(
           (entry) => entry.model.toLowerCase() === persistedModel.toLowerCase(),
         )
       : choices.find(
@@ -259,5 +272,10 @@ export function getSelectedModelInfo(itemId: number | null) {
   const first = choices[0];
   return first
     ? buildResult(first)
-    : { selected: "primary" as ModelProfileKey, choices, currentModel: "", currentProvider: "" };
+    : {
+        selected: "primary" as ModelProfileKey,
+        choices,
+        currentModel: "",
+        currentProvider: "",
+      };
 }

@@ -127,7 +127,12 @@ export async function buildSupplementalPaperContext(
   let remaining = SUPPLEMENTAL_PAPER_CONTEXT_TOTAL_MAX_LENGTH;
   for (const [index, ref] of deduped.entries()) {
     if (remaining <= 0) break;
-    const block = await buildSinglePaperContext(ref, question, index, apiOverrides);
+    const block = await buildSinglePaperContext(
+      ref,
+      question,
+      index,
+      apiOverrides,
+    );
     if (!block) continue;
     if (block.length > remaining) {
       blocks.push(block.slice(0, Math.max(0, remaining)));

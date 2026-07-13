@@ -54,9 +54,7 @@ describe("pdfContext", function () {
     });
 
     it("should tokenize mixed English and Chinese text", function () {
-      const tokens = tokenizeText(
-        "The transformer模型 uses attention机制",
-      );
+      const tokens = tokenizeText("The transformer模型 uses attention机制");
       // English: "transformer" (11), "uses" — wait, "uses" (4 chars >= 3)
       // "attention" (9)
       // Chinese: 模, 型, 机, 制 — individual chars (excluding 用 which isn't here)

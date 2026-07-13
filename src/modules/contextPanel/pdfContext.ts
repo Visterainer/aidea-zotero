@@ -327,7 +327,9 @@ export async function buildContext(
       contextParts.push("Paper Full Text (complete document):");
       contextParts.push(chunks.join("\n\n"));
       if (fullLength) {
-        contextParts.push(`\n[Full document content provided — ${fullLength} chars]`);
+        contextParts.push(
+          `\n[Full document content provided — ${fullLength} chars]`,
+        );
       }
       return contextParts.join("\n\n");
     }
@@ -427,13 +429,15 @@ export async function buildContext(
   }
 
   if (fullLength) {
-    contextParts.push(`\n[Relevant sections extracted from the document (${fullLength} chars total). Answer based on the content provided above.]`);
+    contextParts.push(
+      `\n[Relevant sections extracted from the document (${fullLength} chars total). Answer based on the content provided above.]`,
+    );
   }
 
   ztoolkit.log(
     `LLM buildContext: chunks=${chunks.length}, picked=${picked.size}, ` +
-    `excerpts=${excerpts.length}, contextLen=${contextParts.join("\n\n").length}, ` +
-    `fullLength=${fullLength}, maxLen=${maxLength}, forceRetrieval=${forceRetrieval}`,
+      `excerpts=${excerpts.length}, contextLen=${contextParts.join("\n\n").length}, ` +
+      `fullLength=${fullLength}, maxLen=${maxLength}, forceRetrieval=${forceRetrieval}`,
   );
 
   return contextParts.join("\n\n");

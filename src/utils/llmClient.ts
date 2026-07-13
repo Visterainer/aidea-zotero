@@ -430,8 +430,7 @@ function getOSFile(): OSFileLike | undefined {
   const fromGlobal = (globalThis as { OS?: { File?: OSFileLike } }).OS?.File;
   if (fromGlobal?.read) return fromGlobal;
   const toolkitOS = ztoolkit.getGlobal("OS") as
-    | { File?: OSFileLike }
-    | undefined;
+    { File?: OSFileLike } | undefined;
   const fromToolkit = toolkitOS?.File;
   return fromToolkit?.read ? fromToolkit : undefined;
 }
@@ -443,8 +442,7 @@ function getZoteroFile(): ZoteroFileLike | undefined {
     return fromGlobal;
   }
   const toolkitZotero = ztoolkit.getGlobal("Zotero") as
-    | { File?: ZoteroFileLike }
-    | undefined;
+    { File?: ZoteroFileLike } | undefined;
   const fromToolkit = toolkitZotero?.File;
   if (fromToolkit?.getContentsAsync || fromToolkit?.getBinaryContentsAsync) {
     return fromToolkit;
@@ -613,8 +611,7 @@ function getFormDataCtor(): typeof FormData | undefined {
   const fromGlobal = (globalThis as { FormData?: typeof FormData }).FormData;
   if (typeof fromGlobal === "function") return fromGlobal;
   const fromToolkit = ztoolkit.getGlobal("FormData") as
-    | typeof FormData
-    | undefined;
+    typeof FormData | undefined;
   return typeof fromToolkit === "function" ? fromToolkit : undefined;
 }
 
@@ -975,9 +972,7 @@ function splitThoughtTaggedText(
 }
 
 type ParameterSource =
-  | "explicit-task"
-  | "omitted-provider-default"
-  | "provider-required-fallback";
+  "explicit-task" | "omitted-provider-default" | "provider-required-fallback";
 
 function buildTokenParam(model: string, maxTokens: number | undefined) {
   if (maxTokens === undefined) return {};
@@ -1537,9 +1532,7 @@ function stripTemperature(payload: Record<string, unknown>) {
 }
 
 type TemperaturePolicy =
-  | { mode: "default" }
-  | { mode: "omit" }
-  | { mode: "fixed"; value: number };
+  { mode: "default" } | { mode: "omit" } | { mode: "fixed"; value: number };
 
 const temperaturePolicyCache = new Map<string, TemperaturePolicy>();
 
@@ -2292,8 +2285,7 @@ export async function callLLMStream(
     ((typeof XMLHttpRequest !== "undefined"
       ? XMLHttpRequest
       : ztoolkit?.getGlobal?.("XMLHttpRequest")) as
-      | typeof XMLHttpRequest
-      | undefined);
+      typeof XMLHttpRequest | undefined);
 
   if (XHRCtor) {
     // Apply cached temperature policy if available

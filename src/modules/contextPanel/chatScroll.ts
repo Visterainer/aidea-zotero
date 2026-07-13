@@ -73,7 +73,10 @@ export function isChatViewportVisible(chatBox: HTMLDivElement): boolean {
   return chatBox.clientHeight > 0 && chatBox.getClientRects().length > 0;
 }
 
-export function clampScrollTop(chatBox: HTMLDivElement, scrollTop: number): number {
+export function clampScrollTop(
+  chatBox: HTMLDivElement,
+  scrollTop: number,
+): number {
   return Math.max(0, Math.min(getMaxScrollTop(chatBox), scrollTop));
 }
 
@@ -87,7 +90,9 @@ export function isNearBottom(chatBox: HTMLDivElement): boolean {
 // Snapshot CRUD
 // ---------------------------------------------------------------------------
 
-export function buildChatScrollSnapshot(chatBox: HTMLDivElement): ChatScrollSnapshot {
+export function buildChatScrollSnapshot(
+  chatBox: HTMLDivElement,
+): ChatScrollSnapshot {
   const mode: ChatScrollMode = isNearBottom(chatBox)
     ? "followBottom"
     : "manual";
@@ -128,7 +133,9 @@ export function applyChatScrollSnapshot(
   });
 }
 
-export function getChatScrollSnapshot(conversationKey: number): ChatScrollSnapshot | undefined {
+export function getChatScrollSnapshot(
+  conversationKey: number,
+): ChatScrollSnapshot | undefined {
   return chatScrollSnapshots.get(conversationKey);
 }
 
@@ -216,14 +223,18 @@ export function scheduleFollowBottomStabilization(
       try {
         const ownerWindow = body.ownerDocument?.defaultView;
         ownerWindow?.cancelAnimationFrame?.(entry.rafId);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       entry.rafId = null;
     }
     if (entry.timeoutId !== null) {
       try {
         const ownerWindow = body.ownerDocument?.defaultView;
         ownerWindow?.clearTimeout?.(entry.timeoutId);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       entry.timeoutId = null;
     }
   };

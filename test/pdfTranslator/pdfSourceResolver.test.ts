@@ -30,9 +30,8 @@ const existingFiles = new Set<string>();
 };
 
 // Import after mocks
-const { resolveItemPdfPath, getDefaultOutputDir } = await import(
-  "../../src/modules/pdfTranslator/pdfSourceResolver"
-);
+const { resolveItemPdfPath, getDefaultOutputDir } =
+  await import("../../src/modules/pdfTranslator/pdfSourceResolver");
 
 /* ── Tests ── */
 
@@ -51,7 +50,10 @@ console.log("\n=== pdfSourceResolver: PDF attachment item ===");
     getFilePath: () => "/home/user/papers/test.pdf",
   };
   const result = await resolveItemPdfPath(mockItem);
-  assert(result === "/home/user/papers/test.pdf", `returns PDF path: ${result}`);
+  assert(
+    result === "/home/user/papers/test.pdf",
+    `returns PDF path: ${result}`,
+  );
 }
 
 console.log("\n=== pdfSourceResolver: regular item with best attachment ===");
@@ -66,7 +68,10 @@ console.log("\n=== pdfSourceResolver: regular item with best attachment ===");
     getBestAttachment: async () => mockAttach,
   };
   const result = await resolveItemPdfPath(mockItem);
-  assert(result === "/home/user/papers/paper2.pdf", `returns attachment PDF path: ${result}`);
+  assert(
+    result === "/home/user/papers/paper2.pdf",
+    `returns attachment PDF path: ${result}`,
+  );
 }
 
 console.log("\n=== pdfSourceResolver: regular item without attachments ===");

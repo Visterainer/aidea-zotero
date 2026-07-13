@@ -20,12 +20,12 @@ AIdea 面向研究工作流设计。相比在 Zotero、浏览器和外部 AI 应
 
 ## 支持的服务商
 
-| 服务商 | 登录方式 | 额外配置 |
-| --- | --- | --- |
+| 服务商           | 登录方式                       | 额外配置                  |
+| ---------------- | ------------------------------ | ------------------------- |
 | OpenAI (ChatGPT) | 通过 Codex CLI 进行 OAuth 登录 | 插件自动安装 Node.js 环境 |
-| Google Gemini | 插件内 OAuth (PKCE) | 插件自动安装 Node.js 环境 |
-| Qwen | 插件内 OAuth (Device Code) | 无需额外运行时 |
-| GitHub Copilot | 插件内 OAuth (Device Code) | 无需额外运行时 |
+| Google Gemini    | 插件内 OAuth (PKCE)            | 插件自动安装 Node.js 环境 |
+| Qwen             | 插件内 OAuth (Device Code)     | 无需额外运行时            |
+| GitHub Copilot   | 插件内 OAuth (Device Code)     | 无需额外运行时            |
 
 ## 环境要求
 

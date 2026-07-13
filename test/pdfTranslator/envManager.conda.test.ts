@@ -122,7 +122,10 @@ console.log("\n=== envManager: uv path resolution ===");
 {
   const root = getEnvRoot();
   assert(root.includes("aidea-translate"), `env root: ${root}`);
-  assert(root.includes("zotero-profile"), `uv env also prefers profile dir: ${root}`);
+  assert(
+    root.includes("zotero-profile"),
+    `uv env also prefers profile dir: ${root}`,
+  );
 
   const py = getPythonBin(root);
   assert(py.includes("python"), `python bin inside venv: ${py}`);

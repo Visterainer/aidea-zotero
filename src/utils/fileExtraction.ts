@@ -15,7 +15,8 @@ export const readFileAsDataURL = async (
       }
       reject(new Error("Invalid data URL result"));
     };
-    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.onerror = () =>
+      reject(reader.error || new Error("File read failed"));
     reader.readAsDataURL(file);
   });
 };
@@ -35,7 +36,8 @@ export const readFileAsText = async (
       }
       reject(new Error("Invalid text result"));
     };
-    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.onerror = () =>
+      reject(reader.error || new Error("File read failed"));
     reader.readAsText(file);
   });
 };
@@ -61,7 +63,8 @@ export const readFileAsArrayBuffer = async (
       }
       reject(new Error("Invalid arrayBuffer result"));
     };
-    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.onerror = () =>
+      reject(reader.error || new Error("File read failed"));
     reader.readAsArrayBuffer(file);
   });
 };

@@ -83,7 +83,9 @@ describe("constants — safeguard limits", function () {
     it("SUPPLEMENTAL_PAPER_CONTEXT limits should be finite", function () {
       assert.isTrue(Number.isFinite(SUPPLEMENTAL_PAPER_CONTEXT_MAX_CHUNKS));
       assert.isTrue(Number.isFinite(SUPPLEMENTAL_PAPER_CONTEXT_MAX_LENGTH));
-      assert.isTrue(Number.isFinite(SUPPLEMENTAL_PAPER_CONTEXT_TOTAL_MAX_LENGTH));
+      assert.isTrue(
+        Number.isFinite(SUPPLEMENTAL_PAPER_CONTEXT_TOTAL_MAX_LENGTH),
+      );
     });
   });
 

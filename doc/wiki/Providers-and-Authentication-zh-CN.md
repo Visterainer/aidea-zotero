@@ -4,12 +4,12 @@ AIdea 支持多个 AI 服务商，并使用 OAuth 登录流程，让用户直接
 
 ## 总览
 
-| 服务商 | 登录方式 | 是否需要环境安装 | 说明 |
-| --- | --- | --- | --- |
-| OpenAI (ChatGPT) | 通过 Codex CLI 进行 OAuth 登录 | 是 | 依赖本地环境配置 |
-| Google Gemini | 插件内 OAuth (PKCE) | 是 | 依赖本地环境配置 |
-| Qwen | Device Code | 否 | 浏览器授权，带验证码复制流程 |
-| GitHub Copilot | Device Code | 否 | 浏览器授权，带验证码复制流程 |
+| 服务商           | 登录方式                       | 是否需要环境安装 | 说明                         |
+| ---------------- | ------------------------------ | ---------------- | ---------------------------- |
+| OpenAI (ChatGPT) | 通过 Codex CLI 进行 OAuth 登录 | 是               | 依赖本地环境配置             |
+| Google Gemini    | 插件内 OAuth (PKCE)            | 是               | 依赖本地环境配置             |
+| Qwen             | Device Code                    | 否               | 浏览器授权，带验证码复制流程 |
+| GitHub Copilot   | Device Code                    | 否               | 浏览器授权，带验证码复制流程 |
 
 ## 推荐操作顺序
 

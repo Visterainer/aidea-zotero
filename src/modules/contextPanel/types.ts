@@ -76,12 +76,7 @@ export type ResolvedContextSource = {
 };
 
 export type ChatAttachmentCategory =
-  | "image"
-  | "pdf"
-  | "markdown"
-  | "code"
-  | "text"
-  | "file";
+  "image" | "pdf" | "markdown" | "code" | "text" | "file";
 
 export type ChatAttachment = {
   id: string;

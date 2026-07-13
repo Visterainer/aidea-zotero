@@ -100,44 +100,38 @@ describe("oauthModelSelection defaults", function () {
   it("should ignore unsupported gpt alias ids when picking Copilot defaults", function () {
     const selected = getDefaultSelectedModelIds(
       "github-copilot",
-      models([
-        "gpt-41-copilot",
-        "gpt-5.4-mini",
-        "gpt-5.3-codex",
-        "gpt-4.1",
-      ]),
+      models(["gpt-41-copilot", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-4.1"]),
     );
 
-    assert.deepEqual(selected, [
-      "gpt-5.4-mini",
-      "gpt-4.1",
-      "gpt-5.3-codex",
-    ]);
+    assert.deepEqual(selected, ["gpt-5.4-mini", "gpt-4.1", "gpt-5.3-codex"]);
   });
 });
 
 describe("oauthModelSelection persistence", function () {
   it("should preserve an explicit empty selection for a provider", function () {
-    const modelCache: Partial<Record<OAuthProviderId, ProviderModelOption[]>> = {
-      qwen: models(["coder-model", "vision-model"]),
-    };
+    const modelCache: Partial<Record<OAuthProviderId, ProviderModelOption[]>> =
+      {
+        qwen: models(["coder-model", "vision-model"]),
+      };
     const reconciled = reconcileModelSelectionCache(modelCache, { qwen: [] });
 
     assert.isFalse(reconciled.changed);
     assert.deepEqual(reconciled.cache, { qwen: [] });
     assert.deepEqual(
-      getSelectedProviderModels("qwen", modelCache.qwen || [], reconciled.cache),
+      getSelectedProviderModels(
+        "qwen",
+        modelCache.qwen || [],
+        reconciled.cache,
+      ),
       [],
     );
   });
 
   it("should initialize missing provider selections from defaults", function () {
-    const modelCache: Partial<Record<OAuthProviderId, ProviderModelOption[]>> = {
-      "google-gemini-cli": models([
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-      ]),
-    };
+    const modelCache: Partial<Record<OAuthProviderId, ProviderModelOption[]>> =
+      {
+        "google-gemini-cli": models(["gemini-2.5-pro", "gemini-2.5-flash"]),
+      };
     const reconciled = reconcileModelSelectionCache(modelCache, {});
 
     assert.isTrue(reconciled.changed);

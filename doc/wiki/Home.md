@@ -20,12 +20,12 @@ AIdea is designed for research workflows. Instead of switching between Zotero, b
 
 ## Supported Providers
 
-| Provider | Login Method | Extra Setup |
-| --- | --- | --- |
-| OpenAI (ChatGPT) | OAuth via Codex CLI | Node.js environment installed by plugin |
-| Google Gemini | In-plugin OAuth (PKCE) | Node.js environment installed by plugin |
-| Qwen | In-plugin OAuth (Device Code) | No extra runtime setup |
-| GitHub Copilot | In-plugin OAuth (Device Code) | No extra runtime setup |
+| Provider         | Login Method                  | Extra Setup                             |
+| ---------------- | ----------------------------- | --------------------------------------- |
+| OpenAI (ChatGPT) | OAuth via Codex CLI           | Node.js environment installed by plugin |
+| Google Gemini    | In-plugin OAuth (PKCE)        | Node.js environment installed by plugin |
+| Qwen             | In-plugin OAuth (Device Code) | No extra runtime setup                  |
+| GitHub Copilot   | In-plugin OAuth (Device Code) | No extra runtime setup                  |
 
 ## Requirements
 

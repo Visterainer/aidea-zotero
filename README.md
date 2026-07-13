@@ -190,12 +190,12 @@ For each provider card, the typical setup order is:
 
 > **① `Install/Update Env`** → **② `OAuth Login`** → **③ `Refresh Models`**
 
-| Button                   | What it does |
-| ------------------------ | ------------ |
-| **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step. |
+| Button                   | What it does                                                                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step.                                 |
 | **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI and Gemini open the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization. |
-| **`Refresh Models`**     | Loads the list of available models for the provider after login. |
-| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider. |
+| **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                              |
+| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                      |
 
 <p align="center">
   <img src="doc/screenshots/settings_oauth_models_en.png" alt="OAuth providers and model management" width="700" />
@@ -209,11 +209,11 @@ AIdea can also connect to any **OpenAI-compatible chat endpoint**, including loc
 
 In **Settings**, switch to **API Mode** and fill in:
 
-| Field            | Required | Description |
-| ---------------- | -------- | ----------- |
+| Field            | Required | Description                                                                                                 |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
 | **API Base URL** | Yes      | The base URL of the compatible endpoint, such as `https://api.openai.com/v1` or `http://localhost:11434/v1` |
-| **API Key**      | No       | Required only when the endpoint expects authentication |
-| **Model**        | Yes      | Enter the model manually or click **Auto Fetch Models** to detect available models |
+| **API Key**      | No       | Required only when the endpoint expects authentication                                                      |
+| **Model**        | Yes      | Enter the model manually or click **Auto Fetch Models** to detect available models                          |
 
 <p align="center">
   <img src="doc/screenshots/settings_api_en.png" alt="API mode custom endpoint" width="700" />
@@ -235,15 +235,15 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 
 ## ⚙️ Configuration
 
-| Setting             | Description                                            | Default                      |
-| ------------------- | ------------------------------------------------------ | ---------------------------- |
-| **UI Language**     | Plugin interface language                              | Auto-detected, fallback EN   |
-| **System Prompt**   | Custom instructions for the model                      | Empty                        |
-| **Show "Add Text"** | Show the Add Text option in the reader selection popup | On                           |
-| **Selection Translation** | Translate selected reader text in the popup and reuse local cold-start context | On |
-| **Selection Translation Model** | Dedicated model for reader selection translation | First available model unless changed |
-| **Show All Models** | Show all available models instead of a curated subset  | Off                          |
-| **Tab Bar**         | Show or hide the tab navigation bar                    | Hidden                       |
+| Setting                         | Description                                                                    | Default                              |
+| ------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------ |
+| **UI Language**                 | Plugin interface language                                                      | Auto-detected, fallback EN           |
+| **System Prompt**               | Custom instructions for the model                                              | Empty                                |
+| **Show "Add Text"**             | Show the Add Text option in the reader selection popup                         | On                                   |
+| **Selection Translation**       | Translate selected reader text in the popup and reuse local cold-start context | On                                   |
+| **Selection Translation Model** | Dedicated model for reader selection translation                               | First available model unless changed |
+| **Show All Models**             | Show all available models instead of a curated subset                          | Off                                  |
+| **Tab Bar**                     | Show or hide the tab navigation bar                                            | Hidden                               |
 
 ---
 

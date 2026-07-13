@@ -1,7 +1,17 @@
 .vscode
+.scaffold
+.pytest_cache
+**/__pycache__
 build
 logs
 node_modules
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Generated website output
+site/.astro
+site/dist
+
+# External reference repositories
+reference

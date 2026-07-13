@@ -41,9 +41,7 @@ export function applyModelFilters(choices: ModelChoice[]): ModelChoice[] {
     filtered.push(...(filter ? filter(group) : group));
   }
 
-  filtered.sort(
-    (a, b) => (a.provider || "").localeCompare(b.provider || ""),
-  );
+  filtered.sort((a, b) => (a.provider || "").localeCompare(b.provider || ""));
 
   return filtered;
 }

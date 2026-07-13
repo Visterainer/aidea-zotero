@@ -253,12 +253,7 @@ describe("conversationContextPool", () => {
 // ---------------------------------------------------------------------------
 describe("attachment pinned/ephemeral classification", () => {
   type AttachmentCategory =
-    | "image"
-    | "pdf"
-    | "markdown"
-    | "code"
-    | "text"
-    | "file";
+    "image" | "pdf" | "markdown" | "code" | "text" | "file";
 
   function isPinnedCategory(category: AttachmentCategory): boolean {
     return category !== "image";
