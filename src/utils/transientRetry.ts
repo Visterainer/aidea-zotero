@@ -1,12 +1,5 @@
 export const RETRYABLE_TRANSIENT_STATUS_CODES = new Set([
-  408,
-  409,
-  425,
-  429,
-  500,
-  502,
-  503,
-  504,
+  408, 409, 425, 429, 500, 502, 503, 504,
 ]);
 
 const RETRYABLE_TRANSIENT_MESSAGE_FRAGMENTS = [
@@ -24,7 +17,9 @@ const RETRYABLE_TRANSIENT_MESSAGE_FRAGMENTS = [
   "timeout",
 ];
 
-export function parseHttpStatusFromErrorMessage(message: string): number | null {
+export function parseHttpStatusFromErrorMessage(
+  message: string,
+): number | null {
   const trimmed = String(message || "").trim();
   const direct = trimmed.match(/^(\d{3})\b/);
   if (direct) {
@@ -62,9 +57,7 @@ export function isRetryableTransientErrorMessage(message: string): boolean {
 export function isRetryableTransientError(error: unknown): boolean {
   if (isAbortLikeError(error)) return false;
   const message =
-    error instanceof Error
-      ? String(error.message || "")
-      : String(error || "");
+    error instanceof Error ? String(error.message || "") : String(error || "");
   const status = parseHttpStatusFromErrorMessage(message);
   if (typeof status === "number" && isRetryableTransientStatus(status)) {
     return true;
@@ -72,7 +65,10 @@ export function isRetryableTransientError(error: unknown): boolean {
   return isRetryableTransientErrorMessage(message);
 }
 
-async function delayWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
+async function delayWithSignal(
+  ms: number,
+  signal?: AbortSignal,
+): Promise<void> {
   if (!ms || ms <= 0) return;
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -177,7 +173,10 @@ export async function fetchWithTransientRetry(
       if (!isRetryableTransientStatus(response.status)) {
         return response;
       }
-      const retryBody = await response.clone().text().catch(() => "");
+      const retryBody = await response
+        .clone()
+        .text()
+        .catch(() => "");
       throw new Error(
         `${response.status} ${response.statusText}${
           retryBody ? ` - ${retryBody.slice(0, 400)}` : ""

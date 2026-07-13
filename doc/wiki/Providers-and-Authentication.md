@@ -4,12 +4,12 @@ AIdea supports multiple providers and uses OAuth-based login flows so users can 
 
 ## Overview
 
-| Provider | Login Flow | Needs Env Install | Notes |
-| --- | --- | --- | --- |
-| OpenAI (ChatGPT) | OAuth via Codex CLI | Yes | Uses local environment setup |
-| Google Gemini | In-plugin OAuth (PKCE) | Yes | Uses local environment setup |
-| Qwen | Device Code | No | Login happens in browser with code copy flow |
-| GitHub Copilot | Device Code | No | Login happens in browser with code copy flow |
+| Provider         | Login Flow             | Needs Env Install | Notes                                        |
+| ---------------- | ---------------------- | ----------------- | -------------------------------------------- |
+| OpenAI (ChatGPT) | OAuth via Codex CLI    | Yes               | Uses local environment setup                 |
+| Google Gemini    | In-plugin OAuth (PKCE) | Yes               | Uses local environment setup                 |
+| Qwen             | Device Code            | No                | Login happens in browser with code copy flow |
+| GitHub Copilot   | Device Code            | No                | Login happens in browser with code copy flow |
 
 ## Recommended Setup Order
 

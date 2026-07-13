@@ -188,8 +188,7 @@ function openStoredAttachmentFromMessage(attachment: ChatAttachment): boolean {
   if (!fileUrl) return false;
   try {
     const launch = (Zotero as any).launchURL as
-      | ((url: string) => void)
-      | undefined;
+      ((url: string) => void) | undefined;
     if (typeof launch === "function") {
       launch(fileUrl);
       return true;
@@ -199,8 +198,7 @@ function openStoredAttachmentFromMessage(attachment: ChatAttachment): boolean {
   }
   try {
     const win = Zotero.getMainWindow?.() as
-      | (Window & { open?: (url?: string, target?: string) => unknown })
-      | null;
+      (Window & { open?: (url?: string, target?: string) => unknown }) | null;
     if (win?.open) {
       win.open(fileUrl, "_blank");
       return true;
@@ -775,8 +773,7 @@ export async function copyTextToClipboard(
   if (!safeText) return;
 
   const win = body.ownerDocument?.defaultView as
-    | (Window & { navigator?: Navigator })
-    | undefined;
+    (Window & { navigator?: Navigator }) | undefined;
   if (win?.navigator?.clipboard?.writeText) {
     try {
       await win.navigator.clipboard.writeText(safeText);
@@ -798,8 +795,7 @@ export async function copyTextToClipboard(
     const svc = helper?.classes?.[
       "@mozilla.org/widget/clipboardhelper;1"
     ]?.getService(helper.interfaces.nsIClipboardHelper) as
-      | { copyString: (value: string) => void }
-      | undefined;
+      { copyString: (value: string) => void } | undefined;
     if (svc) svc.copyString(safeText);
   } catch (err) {
     ztoolkit.log("Clipboard fallback copy failed:", err);
@@ -871,8 +867,7 @@ function getImageExtensionFromMime(mime: string): string {
 
 function decodeBase64ImageBytes(body: Element, base64: string): Uint8Array {
   const win = body.ownerDocument?.defaultView as
-    | (Window & { atob?: (data: string) => string })
-    | undefined;
+    (Window & { atob?: (data: string) => string }) | undefined;
   const globalAtob = (globalThis as { atob?: (data: string) => string }).atob;
   const atobFn = win?.atob?.bind(win) || globalAtob?.bind(globalThis);
   if (!atobFn) {
@@ -2057,10 +2052,7 @@ export type EditLatestTurnMarker = {
 };
 
 export type EditLatestTurnResult =
-  | "ok"
-  | "missing"
-  | "stale"
-  | "persist-failed";
+  "ok" | "missing" | "stale" | "persist-failed";
 
 export async function editUserMessageAndRetry(
   body: Element,
@@ -3693,8 +3685,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         for (const attachment of fileAttachments) {
           const canOpen = Boolean(toFileUrl(attachment.storedPath));
           const fileItem = doc.createElement(canOpen ? "button" : "div") as
-            | HTMLButtonElement
-            | HTMLDivElement;
+            HTMLButtonElement | HTMLDivElement;
           fileItem.className = "llm-user-files-item";
           if (canOpen) {
             fileItem.classList.add("llm-user-files-item-openable");

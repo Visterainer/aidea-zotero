@@ -84,11 +84,11 @@ AIdea は、論文の読解、追質問、抜粋、ノート整理、選択範�
 
 ## 対応する接続方式
 
-| 方式 | 認証 | 補足 |
-| --- | --- | --- |
-| OpenAI（ChatGPT） | Codex CLI 経由の OAuth | 必要な場合はプラグインが Node.js 実行環境を自動導入 |
-| Google Gemini | プラグイン内 OAuth（PKCE） | 必要な場合はプラグインが Node.js 実行環境を自動導入 |
-| GitHub Copilot | プラグイン内 OAuth（Device Code） | Node.js の追加導入は不要 |
+| 方式                      | 認証                                 | 補足                                                     |
+| ------------------------- | ------------------------------------ | -------------------------------------------------------- |
+| OpenAI（ChatGPT）         | Codex CLI 経由の OAuth               | 必要な場合はプラグインが Node.js 実行環境を自動導入      |
+| Google Gemini             | プラグイン内 OAuth（PKCE）           | 必要な場合はプラグインが Node.js 実行環境を自動導入      |
+| GitHub Copilot            | プラグイン内 OAuth（Device Code）    | Node.js の追加導入は不要                                 |
 | OpenAI 互換エンドポイント | API Base URL、モデル、任意の API Key | ローカル、自前運用、またはサードパーティ互換サービス向け |
 
 ## インストール

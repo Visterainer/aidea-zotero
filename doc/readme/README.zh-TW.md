@@ -84,12 +84,12 @@ AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整
 
 ## 支援的連線方式
 
-| 方式 | 驗證方式 | 說明 |
-| --- | --- | --- |
-| OpenAI（ChatGPT） | 透過 Codex CLI 完成 OAuth | 外掛可在需要時自動安裝 Node.js 執行環境 |
-| Google Gemini | 外掛內 OAuth（PKCE） | 外掛可在需要時自動安裝 Node.js 執行環境 |
-| GitHub Copilot | 外掛內 OAuth（Device Code） | 無需額外的 Node.js 啟動步驟 |
-| OpenAI 相容端點 | API Base URL、模型與可選 API Key | 適用於本地、自託管或第三方相容服務 |
+| 方式              | 驗證方式                         | 說明                                    |
+| ----------------- | -------------------------------- | --------------------------------------- |
+| OpenAI（ChatGPT） | 透過 Codex CLI 完成 OAuth        | 外掛可在需要時自動安裝 Node.js 執行環境 |
+| Google Gemini     | 外掛內 OAuth（PKCE）             | 外掛可在需要時自動安裝 Node.js 執行環境 |
+| GitHub Copilot    | 外掛內 OAuth（Device Code）      | 無需額外的 Node.js 啟動步驟             |
+| OpenAI 相容端點   | API Base URL、模型與可選 API Key | 適用於本地、自託管或第三方相容服務      |
 
 ## 安裝
 

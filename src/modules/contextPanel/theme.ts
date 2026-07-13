@@ -10,8 +10,7 @@ export type BuiltinComposerThemeId =
   | "sakura-pink";
 
 export type ComposerThemeSelection =
-  | BuiltinComposerThemeId
-  | `custom:${string}`;
+  BuiltinComposerThemeId | `custom:${string}`;
 
 export type ComposerThemeLabelKey =
   | "composerThemeDefault"
@@ -595,13 +594,9 @@ export function resolvePluginThemeState(
   rawBuiltinOverrides?: unknown,
 ): PluginThemeState {
   const customThemes = parseCustomComposerThemes(rawCustomThemes);
-  const builtinOverrides = parseBuiltinComposerThemeOverrides(
-    rawBuiltinOverrides,
-  );
-  const selection = normalizeComposerThemeSelection(
-    rawSelection,
-    customThemes,
-  );
+  const builtinOverrides =
+    parseBuiltinComposerThemeOverrides(rawBuiltinOverrides);
+  const selection = normalizeComposerThemeSelection(rawSelection, customThemes);
   const paletteValue = getEffectiveComposerThemePalette(
     selection,
     customThemes,

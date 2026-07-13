@@ -1,28 +1,11 @@
 const REASONING_PROFILE_TABLE_VERSION = 6;
 
 export type ReasoningProvider =
-  | "openai"
-  | "gemini"
-  | "deepseek"
-  | "kimi"
-  | "qwen"
-  | "grok"
-  | "anthropic";
+  "openai" | "gemini" | "deepseek" | "kimi" | "qwen" | "grok" | "anthropic";
 export type ReasoningLevel =
-  | "default"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+  "default" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type OpenAIReasoningEffort =
-  | "default"
-  | "none"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+  "default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type GeminiThinkingParam = "thinking_level" | "thinking_budget";
 export type GeminiThinkingValue = "low" | "medium" | "high" | number;
 export type GeminiReasoningOption = {

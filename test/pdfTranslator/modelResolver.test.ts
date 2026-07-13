@@ -52,43 +52,44 @@ console.log("\n=== modelResolver: URL normalization ===");
   assert(
     normalizeApiBaseUrl("https://api.openai.com/v1/chat/completions") ===
       "https://api.openai.com/v1",
-    "strips /chat/completions"
+    "strips /chat/completions",
   );
 
   assert(
     normalizeApiBaseUrl("https://api.openai.com/v1/responses") ===
       "https://api.openai.com/v1",
-    "strips /responses"
+    "strips /responses",
   );
 
   assert(
     normalizeApiBaseUrl("https://api.openai.com/v1/embeddings") ===
       "https://api.openai.com/v1",
-    "strips /embeddings"
+    "strips /embeddings",
   );
 
   assert(
     normalizeApiBaseUrl("https://api.openai.com/v1") ===
       "https://api.openai.com/v1",
-    "preserves clean /v1 base"
+    "preserves clean /v1 base",
   );
 
   assert(
-    normalizeApiBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai") ===
+    normalizeApiBaseUrl(
       "https://generativelanguage.googleapis.com/v1beta/openai",
-    "preserves Gemini OpenAI-compatible base"
+    ) === "https://generativelanguage.googleapis.com/v1beta/openai",
+    "preserves Gemini OpenAI-compatible base",
   );
 
   assert(
     normalizeApiBaseUrl("https://api.openai.com/v1/") ===
       "https://api.openai.com/v1",
-    "strips trailing slash"
+    "strips trailing slash",
   );
 
   assert(
     normalizeApiBaseUrl("  https://custom.api.com/v1  ") ===
       "https://custom.api.com/v1",
-    "trims whitespace"
+    "trims whitespace",
   );
 }
 
@@ -116,8 +117,14 @@ console.log("\n=== modelResolver: resolveModelCredentials structure ===");
   assert(typeof creds.modelId === "string", "has modelId");
   assert(typeof creds.apiKey === "string", "has apiKey");
   assert(typeof creds.apiUrl === "string", "has apiUrl");
-  assert(creds.apiUrl === "http://127.0.0.1:1/v1", "apiUrl now points at local proxy");
-  assert(creds.oauthProxy.provider === "openai-compatible", "direct API path can use local proxy");
+  assert(
+    creds.apiUrl === "http://127.0.0.1:1/v1",
+    "apiUrl now points at local proxy",
+  );
+  assert(
+    creds.oauthProxy.provider === "openai-compatible",
+    "direct API path can use local proxy",
+  );
   assert(
     creds.oauthProxy.apiBase.includes("/v1beta/"),
     "proxied upstream apiBase preserves version",

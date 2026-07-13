@@ -46,8 +46,12 @@ describe("reasoningProfiles", function () {
     });
 
     it("gemini-2.5-flash-lite should support reasoning", function () {
-      assert.isTrue(supportsReasoningForModel("gemini", "gemini-2.5-flash-lite"));
-      const profile = getGeminiReasoningProfileForModel("gemini-2.5-flash-lite");
+      assert.isTrue(
+        supportsReasoningForModel("gemini", "gemini-2.5-flash-lite"),
+      );
+      const profile = getGeminiReasoningProfileForModel(
+        "gemini-2.5-flash-lite",
+      );
       assert.equal(profile.param, "thinking_budget");
       // Default should be "off" (0)
       assert.equal(profile.defaultValue, 0);
@@ -81,7 +85,9 @@ describe("reasoningProfiles", function () {
 
   describe("Anthropic models", function () {
     it("claude should support reasoning", function () {
-      assert.isTrue(supportsReasoningForModel("anthropic", "claude-3.5-sonnet"));
+      assert.isTrue(
+        supportsReasoningForModel("anthropic", "claude-3.5-sonnet"),
+      );
     });
 
     it("claude reasoning profile should have budget tokens", function () {
@@ -99,7 +105,9 @@ describe("reasoningProfiles", function () {
     });
 
     it("qwen3-thinking should be thinking-only", function () {
-      const profile = getQwenReasoningProfileForModel("qwen3-small-thinking-2507");
+      const profile = getQwenReasoningProfileForModel(
+        "qwen3-small-thinking-2507",
+      );
       assert.isTrue(profile.defaultEnableThinking);
     });
 

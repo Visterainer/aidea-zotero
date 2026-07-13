@@ -7,11 +7,13 @@ description: Build the Zotero plugin and deploy XPI to desktop
 // turbo-all
 
 1. Build the plugin:
+
 ```
 npm run build
 ```
 
 2. Copy the built XPI to desktop:
+
 ```
 Copy-Item "e:\OneDrive\业余工程\Zotero_LLM_Plugin\.scaffold\build\AIdea-*.xpi" "$env:USERPROFILE\Desktop\" -Force
 ```

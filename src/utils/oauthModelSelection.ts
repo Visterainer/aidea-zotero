@@ -1,17 +1,18 @@
-import type {
-  OAuthProviderId,
-  ProviderModelOption,
-} from "./oauthCli";
+import type { OAuthProviderId, ProviderModelOption } from "./oauthCli";
 
-export type ProviderModelSelectionCache =
-  Partial<Record<OAuthProviderId, string[]>>;
+export type ProviderModelSelectionCache = Partial<
+  Record<OAuthProviderId, string[]>
+>;
 
 function hasOwn<T extends object>(value: T, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 export function normalizeModelId(value: string): string {
-  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 export function parseModelSelectionCache(
@@ -136,11 +137,12 @@ export function getDefaultSelectedModelIds(
     );
   }
 
-
-
   const selected = [
     ...modelIds.filter((id) => /^claude-/i.test(id)),
-    pickBestGeminiModel(modelIds.filter((id) => /^gemini-/i.test(id)), "pro"),
+    pickBestGeminiModel(
+      modelIds.filter((id) => /^gemini-/i.test(id)),
+      "pro",
+    ),
     pickBestGeminiModel(
       modelIds.filter((id) => /^gemini-/i.test(id)),
       "flash",
@@ -150,8 +152,8 @@ export function getDefaultSelectedModelIds(
     ),
     ...modelIds.filter((id) => /^grok-/i.test(id)),
   ];
-  const filteredSelected = selected.filter(
-    (value): value is string => Boolean(value),
+  const filteredSelected = selected.filter((value): value is string =>
+    Boolean(value),
   );
   if (filteredSelected.length === 0) {
     return canonicalizeSelectedModelIds(modelIds, models);
@@ -188,12 +190,14 @@ export function reconcileModelSelectionCache(
   selectionCache: ProviderModelSelectionCache,
 ): { cache: ProviderModelSelectionCache; changed: boolean } {
   const next: ProviderModelSelectionCache = {};
-  const providers = Array.from(new Set([
-    "openai-codex",
-    "google-gemini-cli",
-    "github-copilot",
-    ...Object.keys(modelCache)
-  ])) as OAuthProviderId[];
+  const providers = Array.from(
+    new Set([
+      "openai-codex",
+      "google-gemini-cli",
+      "github-copilot",
+      ...Object.keys(modelCache),
+    ]),
+  ) as OAuthProviderId[];
 
   for (const provider of providers) {
     const models = modelCache[provider] || [];
@@ -223,7 +227,7 @@ function sameSelectionCache(
     "google-gemini-cli",
     "github-copilot",
     ...Object.keys(left),
-    ...Object.keys(right)
+    ...Object.keys(right),
   ]) as Set<OAuthProviderId>;
 
   for (const provider of providers) {
@@ -290,13 +294,13 @@ function pickBestGeminiModel(
       !best ||
       version > best.version ||
       (version === best.version && rank > best.rank) ||
-      (version === best.version && rank === best.rank && modelId.length < best.id.length) ||
-      (
-        version === best.version &&
+      (version === best.version &&
+        rank === best.rank &&
+        modelId.length < best.id.length) ||
+      (version === best.version &&
         rank === best.rank &&
         modelId.length === best.id.length &&
-        modelId.localeCompare(best.id) < 0
-      )
+        modelId.localeCompare(best.id) < 0)
     ) {
       best = { id: modelId, version, rank };
     }

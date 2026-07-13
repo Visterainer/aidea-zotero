@@ -30,8 +30,8 @@ export class ProgressPoller {
   ) {}
 
   start(): void {
-    if (this.timer) return;                       // already running
-    this.lastKey = "";                            // reset dedup on fresh start
+    if (this.timer) return; // already running
+    this.lastKey = ""; // reset dedup on fresh start
     void this.tick();
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
@@ -51,10 +51,10 @@ export class ProgressPoller {
   async tick(): Promise<void> {
     try {
       const exists = await IOUtils.exists(this.filePath);
-      if (!exists) return;                       // file not created yet
+      if (!exists) return; // file not created yet
 
       const text = await IOUtils.readUTF8(this.filePath);
-      if (!text.trim()) return;                  // empty / being written
+      if (!text.trim()) return; // empty / being written
 
       const data = JSON.parse(text) as ProgressData;
 
@@ -70,13 +70,13 @@ export class ProgressPoller {
         data.warningCount ?? "",
         data.errorCount ?? "",
       ].join("|");
-      if (key === this.lastKey) return;           // no change — skip
+      if (key === this.lastKey) return; // no change — skip
       this.lastKey = key;
 
       this.callback(data);
 
       if (data.status === "done" || data.status === "error") {
-        this.stop();                             // auto-stop on terminal state
+        this.stop(); // auto-stop on terminal state
       }
     } catch {
       // File may be mid-write (atomic replace not yet visible).

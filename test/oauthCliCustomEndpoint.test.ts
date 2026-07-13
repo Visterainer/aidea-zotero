@@ -66,10 +66,7 @@ describe("oauthCli custom endpoint model discovery", function () {
         ok: true,
         async json() {
           return {
-            models: [
-              { name: "llama3.1:8b" },
-              { name: "qwen2.5:14b" },
-            ],
+            models: [{ name: "llama3.1:8b" }, { name: "qwen2.5:14b" }],
           };
         },
       };

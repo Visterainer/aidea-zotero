@@ -83,7 +83,10 @@ const KNOWN_OAUTH_PROVIDERS = new Set<OAuthProviderId>([
 
 function getStringPref(key: string): string {
   try {
-    const value = Zotero.Prefs.get(`${addon.data.config.prefsPrefix}.${key}`, true);
+    const value = Zotero.Prefs.get(
+      `${addon.data.config.prefsPrefix}.${key}`,
+      true,
+    );
     return typeof value === "string" ? value : "";
   } catch {
     return "";
@@ -97,12 +100,15 @@ type CachedOAuthModelRow = {
   supportedEndpoints?: string[];
 };
 
-function parseOAuthModelCache():
-  Partial<Record<OAuthProviderId, CachedOAuthModelRow[]>> {
+function parseOAuthModelCache(): Partial<
+  Record<OAuthProviderId, CachedOAuthModelRow[]>
+> {
   const raw = getStringPref("oauthModelListCache").trim();
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Partial<Record<OAuthProviderId, CachedOAuthModelRow[]>>;
+    const parsed = JSON.parse(raw) as Partial<
+      Record<OAuthProviderId, CachedOAuthModelRow[]>
+    >;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -110,7 +116,9 @@ function parseOAuthModelCache():
 }
 
 function providerFromLabel(providerLabel?: string): OAuthProviderId | null {
-  const normalized = String(providerLabel || "").trim().toLowerCase();
+  const normalized = String(providerLabel || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return null;
   return OAUTH_LABEL_TO_PROVIDER[normalized] || null;
 }
@@ -122,7 +130,11 @@ function providerFromApiBase(apiBase?: string): OAuthProviderId | null {
 function inferProviderFromModelName(modelName: string): OAuthProviderId | null {
   const normalized = normalizeModelId(modelName);
   if (!normalized) return null;
-  if (normalized.startsWith("gpt-") || normalized.startsWith("o1") || normalized.startsWith("o3")) {
+  if (
+    normalized.startsWith("gpt-") ||
+    normalized.startsWith("o1") ||
+    normalized.startsWith("o3")
+  ) {
     return "openai-codex";
   }
   if (normalized.startsWith("gemini-")) {
@@ -146,7 +158,9 @@ function modelExistsInProviderCache(
   const models = cache[provider];
   if (!Array.isArray(models)) return false;
   const normalizedModel = normalizeModelId(modelName);
-  return models.some((row) => normalizeModelId(String(row.id || "")) === normalizedModel);
+  return models.some(
+    (row) => normalizeModelId(String(row.id || "")) === normalizedModel,
+  );
 }
 
 function getCachedProviderModel(
@@ -158,7 +172,9 @@ function getCachedProviderModel(
   if (!Array.isArray(models)) return null;
   const normalizedModel = normalizeModelId(modelName);
   return (
-    models.find((row) => normalizeModelId(String(row.id || "")) === normalizedModel) || null
+    models.find(
+      (row) => normalizeModelId(String(row.id || "")) === normalizedModel,
+    ) || null
   );
 }
 
@@ -288,7 +304,9 @@ async function resolveFromApiBaseAndKey(
   };
 }
 
-async function resolveFromProfiles(modelName: string): Promise<TranslateCredentials | null> {
+async function resolveFromProfiles(
+  modelName: string,
+): Promise<TranslateCredentials | null> {
   const profiles = getApiProfiles();
   const normalized = normalizeModelId(modelName);
 
@@ -297,14 +315,22 @@ async function resolveFromProfiles(modelName: string): Promise<TranslateCredenti
     const profileModel = String(profile.model || "").trim();
     if (!profileModel) continue;
     if (normalizeModelId(profileModel) !== normalized) continue;
-    const creds = await resolveFromApiBaseAndKey(profileModel, profile.apiBase, profile.apiKey);
+    const creds = await resolveFromApiBaseAndKey(
+      profileModel,
+      profile.apiBase,
+      profile.apiKey,
+    );
     if (creds) return creds;
   }
 
   // 2) Fallback to primary profile when it has explicit API base.
   const primary = profiles.primary;
   if (primary?.apiBase?.trim()) {
-    const creds = await resolveFromApiBaseAndKey(modelName, primary.apiBase, primary.apiKey);
+    const creds = await resolveFromApiBaseAndKey(
+      modelName,
+      primary.apiBase,
+      primary.apiKey,
+    );
     if (creds) return creds;
   }
 
@@ -333,8 +359,14 @@ export async function resolveModelCredentials(
   let entry: ModelChoice | undefined;
   if (providerId) {
     entry =
-      choices.find((c) => c.model === modelName && c.providerId === providerId) ||
-      choices.find((c) => normalizeModelId(c.model) === normalized && c.providerId === providerId);
+      choices.find(
+        (c) => c.model === modelName && c.providerId === providerId,
+      ) ||
+      choices.find(
+        (c) =>
+          normalizeModelId(c.model) === normalized &&
+          c.providerId === providerId,
+      );
   }
   if (!entry) {
     entry =
@@ -361,9 +393,16 @@ export async function resolveModelCredentials(
   }
 
   // 3) OAuth provider model inferred from cache/label/heuristics.
-  const provider = detectOAuthProviderForModel(entry.model, entry.provider, entry.apiBase);
+  const provider = detectOAuthProviderForModel(
+    entry.model,
+    entry.provider,
+    entry.apiBase,
+  );
   if (!provider) return null;
-  const oauthResolved = await resolveOAuthProviderCredentials(provider, entry.model);
+  const oauthResolved = await resolveOAuthProviderCredentials(
+    provider,
+    entry.model,
+  );
   if (oauthResolved) return oauthResolved;
 
   // 4) Final fallback: try model name directly against profiles.
@@ -386,8 +425,8 @@ export async function resolveModelCredentialsOrThrow(
       : "";
     throw new Error(
       `Cannot resolve API credentials for model "${modelName}". ` +
-      `Please ensure the model is authenticated and has a valid API key/token.` +
-      providerHint,
+        `Please ensure the model is authenticated and has a valid API key/token.` +
+        providerHint,
     );
   }
   return creds;

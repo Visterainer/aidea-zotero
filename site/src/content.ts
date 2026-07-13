@@ -69,12 +69,7 @@ export type PageData = {
 };
 
 export type HeadingKey =
-  | "hero"
-  | "trust"
-  | "story"
-  | "feature"
-  | "translation"
-  | "install";
+  "hero" | "trust" | "story" | "feature" | "translation" | "install";
 
 export type HeadingFragment = {
   text: string;
@@ -84,9 +79,16 @@ export type HeadingFragment = {
 
 const plain = (text: string): HeadingFragment => ({ text });
 const accent = (text: string): HeadingFragment => ({ text, accent: true });
-const accentKeep = (text: string): HeadingFragment => ({ text, accent: true, keep: true });
+const accentKeep = (text: string): HeadingFragment => ({
+  text,
+  accent: true,
+  keep: true,
+});
 
-export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment[]>> = {
+export const headingFragments: Record<
+  Locale,
+  Record<HeadingKey, HeadingFragment[]>
+> = {
   "zh-CN": {
     hero: [
       plain("在 Zotero 里"),
@@ -144,7 +146,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organize notes"),
       plain(" inside Zotero."),
     ],
-    trust: [plain("A "), accent("research plugin"), plain(" built for ongoing use.")],
+    trust: [
+      plain("A "),
+      accent("research plugin"),
+      plain(" built for ongoing use."),
+    ],
     story: [
       plain("Built around real "),
       accent("reading"),
@@ -154,9 +160,19 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organizing"),
       plain(" work."),
     ],
-    feature: [plain("Covers the tasks that come up most often while "), accent("reading papers"), plain(".")],
-    translation: [accent("Full-paper translation"), plain(" can stay inside Zotero.")],
-    install: [accent("Install it in a few steps"), plain(" and start using it.")],
+    feature: [
+      plain("Covers the tasks that come up most often while "),
+      accent("reading papers"),
+      plain("."),
+    ],
+    translation: [
+      accent("Full-paper translation"),
+      plain(" can stay inside Zotero."),
+    ],
+    install: [
+      accent("Install it in a few steps"),
+      plain(" and start using it."),
+    ],
   },
   ja: {
     hero: [
@@ -168,7 +184,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accentKeep("ノートを整理する"),
       plain("。"),
     ],
-    trust: [plain("継続的な利用に向いた"), accentKeep("研究プラグイン"), plain("です。")],
+    trust: [
+      plain("継続的な利用に向いた"),
+      accentKeep("研究プラグイン"),
+      plain("です。"),
+    ],
     story: [
       plain(""),
       accentKeep("読む"),
@@ -178,12 +198,27 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accentKeep("整理する"),
       plain("流れに合わせて設計。"),
     ],
-    feature: [plain("論文読解で頻繁に発生する"), accentKeep("作業"), plain("をまとめて扱えます。")],
-    translation: [accentKeep("論文全体の翻訳"), plain("も Zotero の中で続けられます。")],
+    feature: [
+      plain("論文読解で頻繁に発生する"),
+      accentKeep("作業"),
+      plain("をまとめて扱えます。"),
+    ],
+    translation: [
+      accentKeep("論文全体の翻訳"),
+      plain("も Zotero の中で続けられます。"),
+    ],
     install: [accentKeep("数ステップで導入"), plain("してすぐ使えます。")],
   },
   ko: {
-    hero: [plain("Zotero 안에서 "), accent("읽고"), plain(", "), accent("묻고"), plain(", 노트를 "), accent("정리하세요"), plain(".")],
+    hero: [
+      plain("Zotero 안에서 "),
+      accent("읽고"),
+      plain(", "),
+      accent("묻고"),
+      plain(", 노트를 "),
+      accent("정리하세요"),
+      plain("."),
+    ],
     trust: [plain("오랫동안 쓰기 좋은 "), accent("연구 플러그인"), plain(".")],
     story: [
       plain(""),
@@ -194,8 +229,15 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("정리"),
       plain("의 실제 흐름에 맞춰 설계했습니다."),
     ],
-    feature: [plain("논문을 읽을 때 자주 마주치는 "), accent("작업"), plain("을 다룹니다.")],
-    translation: [accent("논문 전체 번역"), plain("도 Zotero 안에서 이어갈 수 있습니다.")],
+    feature: [
+      plain("논문을 읽을 때 자주 마주치는 "),
+      accent("작업"),
+      plain("을 다룹니다."),
+    ],
+    translation: [
+      accent("논문 전체 번역"),
+      plain("도 Zotero 안에서 이어갈 수 있습니다."),
+    ],
     install: [accent("몇 단계만으로"), plain(" 바로 사용할 수 있습니다.")],
   },
   fr: {
@@ -207,7 +249,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organiser ses notes"),
       plain(" dans Zotero."),
     ],
-    trust: [plain("Un "), accent("plugin de recherche"), plain(" pensé pour durer.")],
+    trust: [
+      plain("Un "),
+      accent("plugin de recherche"),
+      plain(" pensé pour durer."),
+    ],
     story: [
       plain("Conçu pour les vrais gestes de "),
       accent("lecture"),
@@ -217,13 +263,32 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organisation"),
       plain("."),
     ],
-    feature: [plain("Couvre les tâches qui reviennent le plus souvent pendant la "), accent("lecture d'articles"), plain(".")],
-    translation: [accent("La traduction intégrale"), plain(" peut rester dans Zotero.")],
+    feature: [
+      plain("Couvre les tâches qui reviennent le plus souvent pendant la "),
+      accent("lecture d'articles"),
+      plain("."),
+    ],
+    translation: [
+      accent("La traduction intégrale"),
+      plain(" peut rester dans Zotero."),
+    ],
     install: [accent("Quelques étapes suffisent"), plain(" pour commencer.")],
   },
   de: {
-    hero: [plain("In Zotero "), accent("lesen"), plain(", "), accent("fragen"), plain(" und Notizen "), accent("organisieren"), plain(".")],
-    trust: [plain("Ein "), accent("Forschungs-Plugin"), plain(" für den laufenden Alltag.")],
+    hero: [
+      plain("In Zotero "),
+      accent("lesen"),
+      plain(", "),
+      accent("fragen"),
+      plain(" und Notizen "),
+      accent("organisieren"),
+      plain("."),
+    ],
+    trust: [
+      plain("Ein "),
+      accent("Forschungs-Plugin"),
+      plain(" für den laufenden Alltag."),
+    ],
     story: [
       plain("Entwickelt für "),
       accent("Lesen"),
@@ -233,9 +298,19 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("Ordnen"),
       plain(" in Zotero."),
     ],
-    feature: [plain("Deckt die Aufgaben ab, die beim "), accent("Lesen von Papers"), plain(" ständig auftauchen.")],
-    translation: [accent("Auch Volltext-Übersetzungen"), plain(" bleiben in Zotero.")],
-    install: [accent("In wenigen Schritten"), plain(" installiert und einsatzbereit.")],
+    feature: [
+      plain("Deckt die Aufgaben ab, die beim "),
+      accent("Lesen von Papers"),
+      plain(" ständig auftauchen."),
+    ],
+    translation: [
+      accent("Auch Volltext-Übersetzungen"),
+      plain(" bleiben in Zotero."),
+    ],
+    install: [
+      accent("In wenigen Schritten"),
+      plain(" installiert und einsatzbereit."),
+    ],
   },
   es: {
     hero: [
@@ -246,7 +321,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organiza tus notas"),
       plain(" dentro de Zotero."),
     ],
-    trust: [plain("Un "), accent("complemento de investigación"), plain(" pensado para el uso continuo.")],
+    trust: [
+      plain("Un "),
+      accent("complemento de investigación"),
+      plain(" pensado para el uso continuo."),
+    ],
     story: [
       plain("Pensado para "),
       accent("leer"),
@@ -256,8 +335,15 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organizar"),
       plain(" en el trabajo real."),
     ],
-    feature: [plain("Cubre las tareas que más se repiten al "), accent("leer artículos"), plain(".")],
-    translation: [accent("La traducción completa"), plain(" también puede quedarse dentro de Zotero.")],
+    feature: [
+      plain("Cubre las tareas que más se repiten al "),
+      accent("leer artículos"),
+      plain("."),
+    ],
+    translation: [
+      accent("La traducción completa"),
+      plain(" también puede quedarse dentro de Zotero."),
+    ],
     install: [accent("Bastan unos pocos pasos"), plain(" para empezar.")],
   },
   ru: {
@@ -269,7 +355,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("ведите заметки"),
       plain(" в Zotero."),
     ],
-    trust: [plain(""), accent("Исследовательский плагин"), plain(" для длительной работы.")],
+    trust: [
+      plain(""),
+      accent("Исследовательский плагин"),
+      plain(" для длительной работы."),
+    ],
     story: [
       plain("Спроектирован под реальный процесс "),
       accent("чтения"),
@@ -279,8 +369,15 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("организации"),
       plain(" материалов."),
     ],
-    feature: [plain("Закрывает задачи, которые чаще всего возникают при "), accent("чтении статей"), plain(".")],
-    translation: [accent("Полный перевод статьи"), plain(" тоже может оставаться внутри Zotero.")],
+    feature: [
+      plain("Закрывает задачи, которые чаще всего возникают при "),
+      accent("чтении статей"),
+      plain("."),
+    ],
+    translation: [
+      accent("Полный перевод статьи"),
+      plain(" тоже может оставаться внутри Zotero."),
+    ],
     install: [accent("Несколько шагов"), plain(" — и можно начинать работу.")],
   },
   pt: {
@@ -292,7 +389,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organize notas"),
       plain(" dentro do Zotero."),
     ],
-    trust: [plain("Um "), accent("plugin de pesquisa"), plain(" pensado para uso contínuo.")],
+    trust: [
+      plain("Um "),
+      accent("plugin de pesquisa"),
+      plain(" pensado para uso contínuo."),
+    ],
     story: [
       plain("Projetado para o trabalho real de "),
       accent("leitura"),
@@ -302,8 +403,15 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("organização"),
       plain("."),
     ],
-    feature: [plain("Cobre as tarefas que aparecem com mais frequência na "), accent("leitura de artigos"), plain(".")],
-    translation: [accent("A tradução integral"), plain(" também pode permanecer dentro do Zotero.")],
+    feature: [
+      plain("Cobre as tarefas que aparecem com mais frequência na "),
+      accent("leitura de artigos"),
+      plain("."),
+    ],
+    translation: [
+      accent("A tradução integral"),
+      plain(" também pode permanecer dentro do Zotero."),
+    ],
     install: [accent("Bastam alguns passos"), plain(" para começar.")],
   },
   ar: {
@@ -315,7 +423,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("نظّم ملاحظاتك"),
       plain(" داخل Zotero."),
     ],
-    trust: [plain("إضافة "), accent("بحثية"), plain(" مناسبة للاستخدام المستمر.")],
+    trust: [
+      plain("إضافة "),
+      accent("بحثية"),
+      plain(" مناسبة للاستخدام المستمر."),
+    ],
     story: [
       plain("مصمم لسير العمل الحقيقي في "),
       accent("القراءة"),
@@ -325,8 +437,15 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("التنظيم"),
       plain("."),
     ],
-    feature: [plain("يغطي المهام التي تتكرر كثيراً أثناء "), accent("قراءة الأوراق العلمية"), plain(".")],
-    translation: [accent("ترجمة المقال كاملاً"), plain(" يمكن أن تبقى داخل Zotero.")],
+    feature: [
+      plain("يغطي المهام التي تتكرر كثيراً أثناء "),
+      accent("قراءة الأوراق العلمية"),
+      plain("."),
+    ],
+    translation: [
+      accent("ترجمة المقال كاملاً"),
+      plain(" يمكن أن تبقى داخل Zotero."),
+    ],
     install: [accent("بضع خطوات فقط"), plain(" للبدء.")],
   },
   hi: {
@@ -339,7 +458,11 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("व्यवस्थित करें"),
       plain("।"),
     ],
-    trust: [plain("लंबे समय की शोध-प्रक्रिया के लिए बना "), accent("शोध प्लगइन"), plain("।")],
+    trust: [
+      plain("लंबे समय की शोध-प्रक्रिया के लिए बना "),
+      accent("शोध प्लगइन"),
+      plain("।"),
+    ],
     story: [
       plain(""),
       accent("पढ़ने"),
@@ -349,8 +472,15 @@ export const headingFragments: Record<Locale, Record<HeadingKey, HeadingFragment
       accent("व्यवस्थित करने"),
       plain(" के असली प्रवाह के लिए बना।"),
     ],
-    feature: [plain("शोध-पत्र पढ़ते समय बार-बार आने वाले "), accent("काम"), plain(" सँभालता है।")],
-    translation: [accent("पूरे शोध-पत्र का अनुवाद"), plain(" भी Zotero के भीतर रह सकता है।")],
+    feature: [
+      plain("शोध-पत्र पढ़ते समय बार-बार आने वाले "),
+      accent("काम"),
+      plain(" सँभालता है।"),
+    ],
+    translation: [
+      accent("पूरे शोध-पत्र का अनुवाद"),
+      plain(" भी Zotero के भीतर रह सकता है।"),
+    ],
     install: [accent("कुछ ही चरणों में"), plain(" शुरू करें।")],
   },
 };
@@ -412,7 +542,8 @@ export const pageContent: Record<Locale, PageData> = {
       panelLabel: "侧栏问答",
       panelCaption: "围绕当前条目和论文正文继续提问、整理和记录。",
       secondaryPanelLabel: "模型与提供商",
-      secondaryPanelCaption: "登录、切换模型和配置兼容接口都在同一个设置面板里。",
+      secondaryPanelCaption:
+        "登录、切换模型和配置兼容接口都在同一个设置面板里。",
     },
     featureSection: {
       kicker: "主要能力",
@@ -470,7 +601,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "如果你想了解实现方式、提交问题或参与改进，可以直接在 GitHub 仓库查看源码、Issue 和发布记录。",
     },
     footer: {
-      summary: "AIdea 是一个免费开源的 Zotero 插件，服务对象是希望在论文阅读现场使用 AI 的研究者、学生和知识工作者。",
+      summary:
+        "AIdea 是一个免费开源的 Zotero 插件，服务对象是希望在论文阅读现场使用 AI 的研究者、学生和知识工作者。",
       releaseLabel: "安装插件",
       docsLabel: "项目文档",
       githubLabel: "GitHub 仓库",
@@ -478,7 +610,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 许可证",
       projectTitle: "项目入口",
       communityTitle: "参与改进",
-      communityBody: "欢迎通过 Issue 反馈问题、查看发布记录，或直接在仓库中了解实现细节。",
+      communityBody:
+        "欢迎通过 Issue 反馈问题、查看发布记录，或直接在仓库中了解实现细节。",
     },
   },
   en: {
@@ -535,9 +668,11 @@ export const pageContent: Record<Locale, PageData> = {
         "Useful output can be saved back into Zotero instead of disappearing into one-off chat history.",
       ],
       panelLabel: "Side-panel workflow",
-      panelCaption: "Ask, capture context, and keep notes attached to the current item.",
+      panelCaption:
+        "Ask, capture context, and keep notes attached to the current item.",
       secondaryPanelLabel: "Models and providers",
-      secondaryPanelCaption: "Sign in, switch models, or configure compatible endpoints in one place.",
+      secondaryPanelCaption:
+        "Sign in, switch models, or configure compatible endpoints in one place.",
     },
     featureSection: {
       kicker: "Common Tasks",
@@ -580,7 +715,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Translation",
       heading: "Full-paper translation can stay inside Zotero.",
       body: "The translation panel is aimed at the pages that are actually difficult in academic papers, including diagrams, formulas, and tables. The gallery below shows real outputs already present in the repository, not marketing mockups.",
-      captions: ["Architecture page", "Formula-heavy page", "Tables mixed with prose"],
+      captions: [
+        "Architecture page",
+        "Formula-heavy page",
+        "Tables mixed with prose",
+      ],
       panelAlt: "Full document translation panel",
     },
     install: {
@@ -595,7 +734,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "If you want to inspect the implementation, report a problem, or contribute improvements, everything is available in the GitHub repository.",
     },
     footer: {
-      summary: "AIdea is a free and open-source Zotero plugin for researchers, students, and knowledge workers who want AI support to stay close to the reading surface.",
+      summary:
+        "AIdea is a free and open-source Zotero plugin for researchers, students, and knowledge workers who want AI support to stay close to the reading surface.",
       releaseLabel: "Install Plugin",
       docsLabel: "Project Docs",
       githubLabel: "GitHub Repository",
@@ -603,7 +743,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 License",
       projectTitle: "Project Links",
       communityTitle: "Contribute",
-      communityBody: "You can follow releases, report problems, and inspect the implementation directly in the repository.",
+      communityBody:
+        "You can follow releases, report problems, and inspect the implementation directly in the repository.",
     },
   },
   ja: {
@@ -660,9 +801,11 @@ export const pageContent: Record<Locale, PageData> = {
         "有用な出力を一時的なチャットで終わらせず、Zotero に保存できます。",
       ],
       panelLabel: "サイドパネル",
-      panelCaption: "現在のアイテムに紐づいたまま質問し、文脈を集め、ノートを整理できます。",
+      panelCaption:
+        "現在のアイテムに紐づいたまま質問し、文脈を集め、ノートを整理できます。",
       secondaryPanelLabel: "モデルとプロバイダー",
-      secondaryPanelCaption: "サインイン、モデル切替、互換エンドポイント設定を 1 か所で行えます。",
+      secondaryPanelCaption:
+        "サインイン、モデル切替、互換エンドポイント設定を 1 か所で行えます。",
     },
     featureSection: {
       kicker: "主な機能",
@@ -705,7 +848,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "全文翻訳",
       heading: "論文全体の翻訳も Zotero の中で続けられます。",
       body: "翻訳パネルは、図、数式、表のような学術論文で扱いにくいページを想定しています。下のギャラリーはマーケティング用画像ではなく、実際の出力例です。",
-      captions: ["構成図のページ", "数式が多いページ", "表と本文が混在するページ"],
+      captions: [
+        "構成図のページ",
+        "数式が多いページ",
+        "表と本文が混在するページ",
+      ],
       panelAlt: "全文翻訳パネル",
     },
     install: {
@@ -720,7 +867,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "実装の確認、問題報告、改善への参加は GitHub リポジトリから行えます。",
     },
     footer: {
-      summary: "AIdea は、AI を読書面の近くに置いたまま研究したい研究者、学生、知識労働者向けの無料・オープンソース Zotero プラグインです。",
+      summary:
+        "AIdea は、AI を読書面の近くに置いたまま研究したい研究者、学生、知識労働者向けの無料・オープンソース Zotero プラグインです。",
       releaseLabel: "プラグインを入手",
       docsLabel: "ドキュメント",
       githubLabel: "GitHub リポジトリ",
@@ -728,7 +876,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 ライセンス",
       projectTitle: "プロジェクト情報",
       communityTitle: "改善に参加",
-      communityBody: "リリースの確認、問題報告、実装の確認をリポジトリ上で行えます。",
+      communityBody:
+        "リリースの確認、問題報告、実装の確認をリポジトリ上で行えます。",
     },
   },
   de: {
@@ -785,13 +934,16 @@ export const pageContent: Record<Locale, PageData> = {
         "Nuetzliche Ergebnisse lassen sich in Zotero sichern statt in Einmal-Chatverlaeufen zu verschwinden.",
       ],
       panelLabel: "Seitenleisten-Workflow",
-      panelCaption: "Fragen stellen, Kontext sammeln und Notizen direkt am aktuellen Eintrag halten.",
+      panelCaption:
+        "Fragen stellen, Kontext sammeln und Notizen direkt am aktuellen Eintrag halten.",
       secondaryPanelLabel: "Modelle und Anbieter",
-      secondaryPanelCaption: "Anmelden, Modelle wechseln und kompatible Endpunkte an einem Ort konfigurieren.",
+      secondaryPanelCaption:
+        "Anmelden, Modelle wechseln und kompatible Endpunkte an einem Ort konfigurieren.",
     },
     featureSection: {
       kicker: "Haeufige Aufgaben",
-      heading: "Deckt die Aufgaben ab, die beim Lesen von Papers staendig auftauchen.",
+      heading:
+        "Deckt die Aufgaben ab, die beim Lesen von Papers staendig auftauchen.",
       body: "AIdea konzentriert sich auf die Teile des Workflows, zu denen Zotero-Nutzer immer wieder zurueckkehren: Fragen am Quelltext, Modellwechsel, Volltext-Uebersetzung und das Rueckspeichern nuetzlicher Ergebnisse in Notizen.",
       cards: [
         {
@@ -830,7 +982,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Uebersetzung",
       heading: "Auch Volltext-Uebersetzungen bleiben in Zotero.",
       body: "Das Uebersetzungsfenster richtet sich an schwierige Paper-Seiten mit Diagrammen, Formeln und Tabellen. Die Galerie unten zeigt echte Ausgaben aus dem Repository, keine Marketing-Mockups.",
-      captions: ["Architektur-Seite", "Formellastige Seite", "Tabellen mit Fliesstext"],
+      captions: [
+        "Architektur-Seite",
+        "Formellastige Seite",
+        "Tabellen mit Fliesstext",
+      ],
       panelAlt: "Panel fuer Volltext-Uebersetzung",
     },
     install: {
@@ -845,7 +1001,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "Implementierung, Fehlermeldungen und Verbesserungen sind direkt ueber das GitHub-Repository zugaenglich.",
     },
     footer: {
-      summary: "AIdea ist ein kostenloses Open-Source-Zotero-Plugin fuer Forschende, Studierende und Wissensarbeiter, die KI moeglichst nah an der Leseflaeche nutzen moechten.",
+      summary:
+        "AIdea ist ein kostenloses Open-Source-Zotero-Plugin fuer Forschende, Studierende und Wissensarbeiter, die KI moeglichst nah an der Leseflaeche nutzen moechten.",
       releaseLabel: "Plugin installieren",
       docsLabel: "Dokumentation",
       githubLabel: "GitHub-Repository",
@@ -853,7 +1010,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 Lizenz",
       projectTitle: "Projektlinks",
       communityTitle: "Mitwirken",
-      communityBody: "Releases verfolgen, Probleme melden und die Implementierung direkt im Repository nachvollziehen.",
+      communityBody:
+        "Releases verfolgen, Probleme melden und die Implementierung direkt im Repository nachvollziehen.",
     },
   },
   fr: {
@@ -863,7 +1021,8 @@ export const pageContent: Record<Locale, PageData> = {
       "AIdea est un plugin IA gratuit et open source pour Zotero, concu pour le chat contextualise, la traduction, la prise de notes et l'acces a plusieurs fournisseurs directement dans la bibliotheque et le lecteur PDF.",
     badge: "Gratuit & Open Source",
     hero: {
-      eyebrow: "Pour celles et ceux qui lisent des articles, annotent et synthetisent",
+      eyebrow:
+        "Pour celles et ceux qui lisent des articles, annotent et synthetisent",
       heading: "Lire, questionner et organiser ses notes dans Zotero.",
       subheading:
         "AIdea est un projet gratuit et open source. Il regroupe dans Zotero le chat, l'ancrage sur des passages, la traduction integrale, l'acces a plusieurs modeles et la memoire locale afin de garder le flux de recherche au meme endroit.",
@@ -902,7 +1061,8 @@ export const pageContent: Record<Locale, PageData> = {
     },
     story: {
       kicker: "Usages",
-      heading: "Concu pour les vrais gestes de lecture, d'extrait et d'organisation.",
+      heading:
+        "Concu pour les vrais gestes de lecture, d'extrait et d'organisation.",
       body: "AIdea s'adresse aux personnes qui lisent attentivement, extraient des passages, comparent des sources et maintiennent leurs notes au fil du travail. On pose la question dans le panneau lateral, on joint un passage PDF comme contexte, on renvoie le resultat dans les notes et on peut poursuivre avec une traduction integrale.",
       bullets: [
         "Le meme panneau lateral fonctionne dans la bibliotheque et dans le lecteur PDF.",
@@ -910,13 +1070,16 @@ export const pageContent: Record<Locale, PageData> = {
         "Les sorties utiles peuvent etre enregistrees dans Zotero au lieu de disparaitre dans un chat temporaire.",
       ],
       panelLabel: "Flux lateral",
-      panelCaption: "Poser une question, rattacher le contexte et garder les notes liees a l'item courant.",
+      panelCaption:
+        "Poser une question, rattacher le contexte et garder les notes liees a l'item courant.",
       secondaryPanelLabel: "Modeles et fournisseurs",
-      secondaryPanelCaption: "Connexion, changement de modele et configuration d'endpoints compatibles au meme endroit.",
+      secondaryPanelCaption:
+        "Connexion, changement de modele et configuration d'endpoints compatibles au meme endroit.",
     },
     featureSection: {
       kicker: "Taches courantes",
-      heading: "Couvre les taches qui reviennent le plus souvent pendant la lecture d'articles.",
+      heading:
+        "Couvre les taches qui reviennent le plus souvent pendant la lecture d'articles.",
       body: "AIdea se concentre sur les parties du flux auxquelles les utilisateurs de Zotero reviennent sans cesse : poser une question sur le texte source, changer de modele, traduire un article entier et enregistrer les sorties utiles dans les notes.",
       cards: [
         {
@@ -955,7 +1118,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Traduction",
       heading: "La traduction integrale peut rester dans Zotero.",
       body: "Le panneau de traduction vise les pages les plus difficiles des articles scientifiques : schemas, formules et tableaux. La galerie ci-dessous montre de vraies sorties deja presentes dans le depot.",
-      captions: ["Page d'architecture", "Page riche en formules", "Tableaux melanges au texte"],
+      captions: [
+        "Page d'architecture",
+        "Page riche en formules",
+        "Tableaux melanges au texte",
+      ],
       panelAlt: "Panneau de traduction integrale",
     },
     install: {
@@ -970,7 +1137,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "Le depot GitHub permet de consulter l'implementation, signaler un probleme et contribuer a l'amelioration du projet.",
     },
     footer: {
-      summary: "AIdea est un plugin Zotero gratuit et open source pour les chercheurs, etudiants et travailleurs du savoir qui veulent garder l'assistance IA au plus pres de la surface de lecture.",
+      summary:
+        "AIdea est un plugin Zotero gratuit et open source pour les chercheurs, etudiants et travailleurs du savoir qui veulent garder l'assistance IA au plus pres de la surface de lecture.",
       releaseLabel: "Installer le plugin",
       docsLabel: "Documentation",
       githubLabel: "Depot GitHub",
@@ -978,7 +1146,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "Licence AGPL-3.0",
       projectTitle: "Liens du projet",
       communityTitle: "Contribuer",
-      communityBody: "Suivez les releases, remontez les problemes et examinez l'implementation directement dans le depot.",
+      communityBody:
+        "Suivez les releases, remontez les problemes et examinez l'implementation directement dans le depot.",
     },
   },
   "zh-TW": {
@@ -1037,7 +1206,8 @@ export const pageContent: Record<Locale, PageData> = {
       panelLabel: "側欄問答",
       panelCaption: "圍繞目前條目與論文正文繼續提問、整理和記錄。",
       secondaryPanelLabel: "模型與提供商",
-      secondaryPanelCaption: "登入、切換模型與設定相容介面都在同一個面板中完成。",
+      secondaryPanelCaption:
+        "登入、切換模型與設定相容介面都在同一個面板中完成。",
     },
     featureSection: {
       kicker: "主要能力",
@@ -1095,7 +1265,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "如果你想了解實作方式、回報問題或參與改進，可以直接在 GitHub 倉庫查看原始碼、Issue 與發布記錄。",
     },
     footer: {
-      summary: "AIdea 是一個免費開源的 Zotero 外掛，服務對象是希望在論文閱讀現場使用 AI 的研究者、學生與知識工作者。",
+      summary:
+        "AIdea 是一個免費開源的 Zotero 外掛，服務對象是希望在論文閱讀現場使用 AI 的研究者、學生與知識工作者。",
       releaseLabel: "安裝外掛",
       docsLabel: "專案文件",
       githubLabel: "GitHub 倉庫",
@@ -1103,7 +1274,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 授權",
       projectTitle: "專案入口",
       communityTitle: "參與改進",
-      communityBody: "歡迎透過 Issue 回報問題、查看發布記錄，或直接在倉庫中了解實作細節。",
+      communityBody:
+        "歡迎透過 Issue 回報問題、查看發布記錄，或直接在倉庫中了解實作細節。",
     },
   },
   ko: {
@@ -1160,9 +1332,11 @@ export const pageContent: Record<Locale, PageData> = {
         "유용한 출력은 일회성 채팅 기록에 머물지 않고 Zotero로 다시 저장할 수 있습니다.",
       ],
       panelLabel: "사이드 패널 흐름",
-      panelCaption: "현재 항목에 연결된 상태로 질문하고, 문맥을 붙이고, 노트를 남깁니다.",
+      panelCaption:
+        "현재 항목에 연결된 상태로 질문하고, 문맥을 붙이고, 노트를 남깁니다.",
       secondaryPanelLabel: "모델과 제공자",
-      secondaryPanelCaption: "로그인, 모델 전환, 호환 엔드포인트 설정을 한곳에서 처리합니다.",
+      secondaryPanelCaption:
+        "로그인, 모델 전환, 호환 엔드포인트 설정을 한곳에서 처리합니다.",
     },
     featureSection: {
       kicker: "주요 기능",
@@ -1205,7 +1379,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "전체 번역",
       heading: "논문 전체 번역도 Zotero 안에서 이어갈 수 있습니다.",
       body: "번역 패널은 도표, 수식, 표처럼 학술 논문에서 특히 까다로운 페이지를 염두에 두고 있습니다. 아래 갤러리는 저장소에 이미 있는 실제 출력 예시입니다.",
-      captions: ["구조도 페이지", "수식이 많은 페이지", "표와 본문이 섞인 페이지"],
+      captions: [
+        "구조도 페이지",
+        "수식이 많은 페이지",
+        "표와 본문이 섞인 페이지",
+      ],
       panelAlt: "전체 번역 패널",
     },
     install: {
@@ -1220,7 +1398,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "구현을 확인하거나 문제를 제보하거나 개선에 참여하고 싶다면 GitHub 저장소에서 코드, 이슈, 릴리스를 바로 확인할 수 있습니다.",
     },
     footer: {
-      summary: "AIdea는 논문을 읽는 자리 가까이에서 AI를 쓰고 싶은 연구자, 학생, 지식 노동자를 위한 무료 오픈소스 Zotero 플러그인입니다.",
+      summary:
+        "AIdea는 논문을 읽는 자리 가까이에서 AI를 쓰고 싶은 연구자, 학생, 지식 노동자를 위한 무료 오픈소스 Zotero 플러그인입니다.",
       releaseLabel: "플러그인 설치",
       docsLabel: "문서",
       githubLabel: "GitHub 저장소",
@@ -1228,7 +1407,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 라이선스",
       projectTitle: "프로젝트 링크",
       communityTitle: "기여하기",
-      communityBody: "릴리스를 확인하고 문제를 제보하며 구현을 직접 살펴볼 수 있습니다.",
+      communityBody:
+        "릴리스를 확인하고 문제를 제보하며 구현을 직접 살펴볼 수 있습니다.",
     },
   },
   es: {
@@ -1285,9 +1465,11 @@ export const pageContent: Record<Locale, PageData> = {
         "Los resultados útiles pueden guardarse de nuevo en Zotero en lugar de perderse en un chat temporal.",
       ],
       panelLabel: "Flujo en panel lateral",
-      panelCaption: "Pregunta, añade contexto y conserva las notas ligadas al elemento actual.",
+      panelCaption:
+        "Pregunta, añade contexto y conserva las notas ligadas al elemento actual.",
       secondaryPanelLabel: "Modelos y proveedores",
-      secondaryPanelCaption: "Inicia sesión, cambia de modelo o configura endpoints compatibles en un solo lugar.",
+      secondaryPanelCaption:
+        "Inicia sesión, cambia de modelo o configura endpoints compatibles en un solo lugar.",
     },
     featureSection: {
       kicker: "Tareas comunes",
@@ -1328,9 +1510,14 @@ export const pageContent: Record<Locale, PageData> = {
     },
     translation: {
       kicker: "Traducción",
-      heading: "La traducción completa también puede quedarse dentro de Zotero.",
+      heading:
+        "La traducción completa también puede quedarse dentro de Zotero.",
       body: "El panel de traducción está pensado para las páginas realmente difíciles de los artículos académicos, incluidas diagramas, fórmulas y tablas. La galería inferior muestra salidas reales del repositorio.",
-      captions: ["Página de arquitectura", "Página cargada de fórmulas", "Tablas mezcladas con texto"],
+      captions: [
+        "Página de arquitectura",
+        "Página cargada de fórmulas",
+        "Tablas mezcladas con texto",
+      ],
       panelAlt: "Panel de traducción completa",
     },
     install: {
@@ -1345,7 +1532,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "Si quieres revisar la implementación, reportar un problema o contribuir, puedes hacerlo directamente desde el repositorio en GitHub.",
     },
     footer: {
-      summary: "AIdea es un complemento gratuito y de código abierto para Zotero dirigido a investigadores, estudiantes y profesionales del conocimiento que quieren usar IA cerca de la superficie de lectura.",
+      summary:
+        "AIdea es un complemento gratuito y de código abierto para Zotero dirigido a investigadores, estudiantes y profesionales del conocimiento que quieren usar IA cerca de la superficie de lectura.",
       releaseLabel: "Instalar complemento",
       docsLabel: "Documentación",
       githubLabel: "Repositorio en GitHub",
@@ -1353,7 +1541,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "Licencia AGPL-3.0",
       projectTitle: "Enlaces del proyecto",
       communityTitle: "Contribuir",
-      communityBody: "Sigue las releases, reporta problemas y revisa la implementación directamente en el repositorio.",
+      communityBody:
+        "Sigue las releases, reporta problemas y revisa la implementación directamente en el repositorio.",
     },
   },
   ru: {
@@ -1402,7 +1591,8 @@ export const pageContent: Record<Locale, PageData> = {
     },
     story: {
       kicker: "Сценарии",
-      heading: "Спроектирован под реальный процесс чтения, выписок и организации материалов.",
+      heading:
+        "Спроектирован под реальный процесс чтения, выписок и организации материалов.",
       body: "AIdea рассчитан на тех, кто внимательно читает статьи, выделяет фрагменты, сравнивает источники и параллельно ведет заметки. Можно задавать вопросы в боковой панели, прикреплять точные фрагменты PDF, возвращать полезные результаты в заметки и при необходимости переходить к переводу всей статьи.",
       bullets: [
         "Одна и та же боковая панель работает и в библиотеке, и в PDF-ридере.",
@@ -1410,13 +1600,16 @@ export const pageContent: Record<Locale, PageData> = {
         "Полезные результаты можно сохранять обратно в Zotero, а не терять в разовом чате.",
       ],
       panelLabel: "Рабочий процесс в боковой панели",
-      panelCaption: "Задавайте вопросы, прикрепляйте контекст и сохраняйте заметки рядом с текущим источником.",
+      panelCaption:
+        "Задавайте вопросы, прикрепляйте контекст и сохраняйте заметки рядом с текущим источником.",
       secondaryPanelLabel: "Модели и провайдеры",
-      secondaryPanelCaption: "Вход, переключение моделей и настройка совместимых эндпоинтов в одном месте.",
+      secondaryPanelCaption:
+        "Вход, переключение моделей и настройка совместимых эндпоинтов в одном месте.",
     },
     featureSection: {
       kicker: "Типовые задачи",
-      heading: "Закрывает задачи, которые чаще всего возникают при чтении статей.",
+      heading:
+        "Закрывает задачи, которые чаще всего возникают при чтении статей.",
       body: "AIdea сосредоточен на частях рабочего процесса, к которым пользователи Zotero возвращаются постоянно: вопросы по исходному тексту, переключение моделей, перевод всей статьи и сохранение полезного вывода в заметки.",
       cards: [
         {
@@ -1455,7 +1648,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Перевод",
       heading: "Полный перевод статьи тоже может оставаться внутри Zotero.",
       body: "Панель перевода рассчитана на действительно сложные страницы научных статей: схемы, формулы и таблицы. Галерея ниже показывает реальные результаты из репозитория.",
-      captions: ["Страница со схемой", "Страница с большим количеством формул", "Таблицы вперемешку с текстом"],
+      captions: [
+        "Страница со схемой",
+        "Страница с большим количеством формул",
+        "Таблицы вперемешку с текстом",
+      ],
       panelAlt: "Панель полного перевода",
     },
     install: {
@@ -1470,7 +1667,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "Если хотите изучить реализацию, сообщить о проблеме или помочь проекту, всё это можно сделать прямо в репозитории GitHub.",
     },
     footer: {
-      summary: "AIdea — это бесплатный плагин Zotero с открытым кодом для исследователей, студентов и специалистов по знаниям, которые хотят использовать ИИ рядом с поверхностью чтения.",
+      summary:
+        "AIdea — это бесплатный плагин Zotero с открытым кодом для исследователей, студентов и специалистов по знаниям, которые хотят использовать ИИ рядом с поверхностью чтения.",
       releaseLabel: "Установить плагин",
       docsLabel: "Документация",
       githubLabel: "Репозиторий GitHub",
@@ -1478,7 +1676,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "Лицензия AGPL-3.0",
       projectTitle: "Ссылки проекта",
       communityTitle: "Участвовать",
-      communityBody: "Следите за релизами, сообщайте о проблемах и смотрите реализацию прямо в репозитории.",
+      communityBody:
+        "Следите за релизами, сообщайте о проблемах и смотрите реализацию прямо в репозитории.",
     },
   },
   pt: {
@@ -1527,7 +1726,8 @@ export const pageContent: Record<Locale, PageData> = {
     },
     story: {
       kicker: "Casos de uso",
-      heading: "Projetado para o trabalho real de leitura, extração e organização.",
+      heading:
+        "Projetado para o trabalho real de leitura, extração e organização.",
       body: "AIdea foi feito para quem lê com cuidado, extrai trechos, compara fontes e mantém notas ao longo do processo. Pergunte no painel lateral, anexe passagens exatas do PDF, devolva resultados úteis para as notas e siga para a tradução completa quando necessário.",
       bullets: [
         "O mesmo painel lateral funciona tanto na biblioteca quanto no leitor de PDF.",
@@ -1535,13 +1735,16 @@ export const pageContent: Record<Locale, PageData> = {
         "Resultados úteis podem ser salvos de volta no Zotero em vez de desaparecerem em um chat temporário.",
       ],
       panelLabel: "Fluxo no painel lateral",
-      panelCaption: "Pergunte, anexe contexto e mantenha as notas ligadas ao item atual.",
+      panelCaption:
+        "Pergunte, anexe contexto e mantenha as notas ligadas ao item atual.",
       secondaryPanelLabel: "Modelos e provedores",
-      secondaryPanelCaption: "Login, troca de modelo e configuração de endpoints compatíveis no mesmo lugar.",
+      secondaryPanelCaption:
+        "Login, troca de modelo e configuração de endpoints compatíveis no mesmo lugar.",
     },
     featureSection: {
       kicker: "Tarefas comuns",
-      heading: "Cobre as tarefas que aparecem com mais frequência na leitura de artigos.",
+      heading:
+        "Cobre as tarefas que aparecem com mais frequência na leitura de artigos.",
       body: "AIdea foca nas partes do fluxo às quais usuários de Zotero sempre retornam: perguntar sobre o texto-fonte, alternar modelos, traduzir artigos completos e salvar saídas úteis de volta nas notas.",
       cards: [
         {
@@ -1580,7 +1783,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Tradução",
       heading: "A tradução integral também pode permanecer dentro do Zotero.",
       body: "O painel de tradução mira nas páginas realmente difíceis de artigos académicos, incluindo diagramas, fórmulas e tabelas. A galeria abaixo mostra saídas reais já presentes no repositório.",
-      captions: ["Página de arquitetura", "Página com muitas fórmulas", "Tabelas misturadas ao texto"],
+      captions: [
+        "Página de arquitetura",
+        "Página com muitas fórmulas",
+        "Tabelas misturadas ao texto",
+      ],
       panelAlt: "Painel de tradução integral",
     },
     install: {
@@ -1595,7 +1802,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "Se quiser revisar a implementação, relatar um problema ou contribuir, tudo isso pode ser feito diretamente no repositório do GitHub.",
     },
     footer: {
-      summary: "AIdea é um plugin Zotero gratuito e de código aberto para pesquisadores, estudantes e trabalhadores do conhecimento que querem manter a IA perto da superfície de leitura.",
+      summary:
+        "AIdea é um plugin Zotero gratuito e de código aberto para pesquisadores, estudantes e trabalhadores do conhecimento que querem manter a IA perto da superfície de leitura.",
       releaseLabel: "Instalar plugin",
       docsLabel: "Documentação",
       githubLabel: "Repositório GitHub",
@@ -1603,7 +1811,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "Licença AGPL-3.0",
       projectTitle: "Links do projeto",
       communityTitle: "Contribuir",
-      communityBody: "Acompanhe releases, relate problemas e examine a implementação diretamente no repositório.",
+      communityBody:
+        "Acompanhe releases, relate problemas e examine a implementação diretamente no repositório.",
     },
   },
   ar: {
@@ -1662,7 +1871,8 @@ export const pageContent: Record<Locale, PageData> = {
       panelLabel: "سير العمل في اللوحة الجانبية",
       panelCaption: "اسأل، وأضف السياق، وأبقِ الملاحظات متصلة بالمصدر الحالي.",
       secondaryPanelLabel: "النماذج والمزودون",
-      secondaryPanelCaption: "تسجيل الدخول وتبديل النماذج وضبط نقاط النهاية المتوافقة في مكان واحد.",
+      secondaryPanelCaption:
+        "تسجيل الدخول وتبديل النماذج وضبط نقاط النهاية المتوافقة في مكان واحد.",
     },
     featureSection: {
       kicker: "المهام الشائعة",
@@ -1720,7 +1930,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "إذا أردت مراجعة التنفيذ أو الإبلاغ عن مشكلة أو المساهمة في التطوير، فيمكنك فعل ذلك مباشرة من مستودع GitHub.",
     },
     footer: {
-      summary: "AIdea إضافة Zotero مجانية ومفتوحة المصدر للباحثين والطلاب والعاملين في المعرفة الذين يريدون إبقاء الذكاء الاصطناعي قريباً من سطح القراءة.",
+      summary:
+        "AIdea إضافة Zotero مجانية ومفتوحة المصدر للباحثين والطلاب والعاملين في المعرفة الذين يريدون إبقاء الذكاء الاصطناعي قريباً من سطح القراءة.",
       releaseLabel: "تثبيت الإضافة",
       docsLabel: "التوثيق",
       githubLabel: "مستودع GitHub",
@@ -1728,7 +1939,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "رخصة AGPL-3.0",
       projectTitle: "روابط المشروع",
       communityTitle: "المساهمة",
-      communityBody: "تابع الإصدارات، وأبلغ عن المشاكل، وافحص التنفيذ مباشرة من المستودع.",
+      communityBody:
+        "تابع الإصدارات، وأبلغ عن المشاكل، وافحص التنفيذ مباشرة من المستودع.",
     },
   },
   hi: {
@@ -1738,7 +1950,8 @@ export const pageContent: Record<Locale, PageData> = {
       "AIdea Zotero के लिए एक मुफ्त और मुक्त-स्रोत AI प्लगइन है, जो आपकी लाइब्रेरी और PDF रीडर के भीतर शोध-पत्र आधारित चैट, अनुवाद, नोट्स व्यवस्थित करना और कई प्रदाताओं तक पहुँच देता है।",
     badge: "मुफ्त और मुक्त-स्रोत",
     hero: {
-      eyebrow: "उन लोगों के लिए जो शोध-पत्र पढ़ते हैं, नोट्स बनाते हैं और समीक्षाएँ लिखते हैं",
+      eyebrow:
+        "उन लोगों के लिए जो शोध-पत्र पढ़ते हैं, नोट्स बनाते हैं और समीक्षाएँ लिखते हैं",
       heading: "Zotero के भीतर पढ़ें, पूछें और नोट्स व्यवस्थित करें।",
       subheading:
         "AIdea एक मुफ्त और मुक्त-स्रोत परियोजना है। यह चैट, चुने हुए अंश पर आधारित उत्तर, पूरे दस्तावेज़ का अनुवाद, कई प्रदाताओं तक पहुँच और स्थानीय मेमोरी को Zotero के भीतर रखता है, ताकि शोध का प्रवाह बार-बार ब्राउज़र टैब में न टूटे।",
@@ -1777,7 +1990,8 @@ export const pageContent: Record<Locale, PageData> = {
     },
     story: {
       kicker: "उपयोग के दृश्य",
-      heading: "पढ़ने, अंश निकालने और व्यवस्थित करने के असली प्रवाह के लिए बना।",
+      heading:
+        "पढ़ने, अंश निकालने और व्यवस्थित करने के असली प्रवाह के लिए बना।",
       body: "AIdea उन लोगों के लिए है जो ध्यान से पढ़ते हैं, अंश निकालते हैं, स्रोतों की तुलना करते हैं और साथ-साथ नोट्स सँभालते हैं। साइड पैनल में पूछिए, सटीक PDF अंश को संदर्भ में जोड़िए, उपयोगी परिणामों को नोट्स में वापस भेजिए और ज़रूरत पड़ने पर पूरे दस्तावेज़ के अनुवाद तक जाइए।",
       bullets: [
         "वही साइड पैनल लाइब्रेरी व्यू और PDF रीडर दोनों में काम करता है।",
@@ -1785,9 +1999,11 @@ export const pageContent: Record<Locale, PageData> = {
         "उपयोगी परिणाम Zotero में वापस सहेजे जा सकते हैं, वे केवल अस्थायी चैट में नहीं खोते।",
       ],
       panelLabel: "साइड-पैनल कार्यप्रवाह",
-      panelCaption: "सवाल पूछिए, संदर्भ जोड़िए और मौजूदा आइटम से जुड़े नोट्स बनाए रखिए।",
+      panelCaption:
+        "सवाल पूछिए, संदर्भ जोड़िए और मौजूदा आइटम से जुड़े नोट्स बनाए रखिए।",
       secondaryPanelLabel: "मॉडल और प्रदाता",
-      secondaryPanelCaption: "साइन इन, मॉडल बदलना और संगत एंडपॉइंट की सेटिंग एक ही जगह पर।",
+      secondaryPanelCaption:
+        "साइन इन, मॉडल बदलना और संगत एंडपॉइंट की सेटिंग एक ही जगह पर।",
     },
     featureSection: {
       kicker: "मुख्य क्षमताएँ",
@@ -1830,7 +2046,11 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "अनुवाद",
       heading: "पूरे शोध-पत्र का अनुवाद भी Zotero के भीतर रह सकता है।",
       body: "अनुवाद पैनल उन अकादमिक पृष्ठों के लिए बना है जो सच में कठिन होते हैं, जैसे डायग्राम, सूत्र और तालिकाएँ। नीचे की गैलरी रिपॉज़िटरी में मौजूद वास्तविक आउटपुट दिखाती है।",
-      captions: ["आर्किटेक्चर पृष्ठ", "सूत्रों से भरा पृष्ठ", "पाठ के साथ मिली-जुली तालिकाएँ"],
+      captions: [
+        "आर्किटेक्चर पृष्ठ",
+        "सूत्रों से भरा पृष्ठ",
+        "पाठ के साथ मिली-जुली तालिकाएँ",
+      ],
       panelAlt: "पूर्ण-दस्तावेज़ अनुवाद पैनल",
     },
     install: {
@@ -1845,7 +2065,8 @@ export const pageContent: Record<Locale, PageData> = {
       note: "अगर आप कार्यान्वयन देखना, समस्या रिपोर्ट करना या योगदान देना चाहते हैं, तो GitHub रिपॉज़िटरी में कोड, issues और releases सब मिल जाएँगे।",
     },
     footer: {
-      summary: "AIdea शोधकर्ताओं, छात्रों और ज्ञान-कर्मियों के लिए एक मुफ्त मुक्त-स्रोत Zotero प्लगइन है, जो पढ़ने की सतह के पास ही AI रखना चाहते हैं।",
+      summary:
+        "AIdea शोधकर्ताओं, छात्रों और ज्ञान-कर्मियों के लिए एक मुफ्त मुक्त-स्रोत Zotero प्लगइन है, जो पढ़ने की सतह के पास ही AI रखना चाहते हैं।",
       releaseLabel: "प्लगइन इंस्टॉल करें",
       docsLabel: "दस्तावेज़",
       githubLabel: "GitHub रिपॉज़िटरी",
@@ -1853,7 +2074,8 @@ export const pageContent: Record<Locale, PageData> = {
       licenseLabel: "AGPL-3.0 लाइसेंस",
       projectTitle: "परियोजना लिंक",
       communityTitle: "योगदान दें",
-      communityBody: "Releases देखें, समस्याएँ रिपोर्ट करें और कार्यान्वयन को सीधे रिपॉज़िटरी में देखिए।",
+      communityBody:
+        "Releases देखें, समस्याएँ रिपोर्ट करें और कार्यान्वयन को सीधे रिपॉज़िटरी में देखिए।",
     },
   },
 };

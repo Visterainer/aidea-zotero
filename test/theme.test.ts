@@ -159,8 +159,20 @@ describe("plugin theme state", function () {
   it("deduplicates custom themes and applies builtin overrides", function () {
     const customThemes = theme.parseCustomComposerThemes(
       JSON.stringify([
-        { id: "custom:a", name: "Same", palette: {}, createdAt: 1, updatedAt: 1 },
-        { id: "custom:b", name: "Same", palette: {}, createdAt: 2, updatedAt: 2 },
+        {
+          id: "custom:a",
+          name: "Same",
+          palette: {},
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: "custom:b",
+          name: "Same",
+          palette: {},
+          createdAt: 2,
+          updatedAt: 2,
+        },
       ]),
     );
     assert.lengthOf(customThemes, 1);

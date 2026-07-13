@@ -107,14 +107,14 @@
 
 #### 路径规划
 
-| 项目 | 路径 |
-|------|------|
-| uv 二进制 | 系统 PATH 或 `~/.local/bin/uv` |
-| 虚拟环境 | `{Zotero.DataDirectory}/extensions/aidea-translate-env/` |
+| 项目                   | 路径                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| uv 二进制              | 系统 PATH 或 `~/.local/bin/uv`                                                  |
+| 虚拟环境               | `{Zotero.DataDirectory}/extensions/aidea-translate-env/`                        |
 | pdf2zh_next 可执行文件 | `{venvDir}/bin/pdf2zh_next` (Unix) 或 `{venvDir}/Scripts/pdf2zh_next.exe` (Win) |
-| 桥接脚本 | `{addonDir}/scripts/aidea_bridge.py` (随插件分发) |
-| 临时 config.toml | `{Zotero.TempDirectory}/aidea_translate_config.toml` |
-| 进度文件 | `{Zotero.TempDirectory}/aidea_translate_progress.json` |
+| 桥接脚本               | `{addonDir}/scripts/aidea_bridge.py` (随插件分发)                               |
+| 临时 config.toml       | `{Zotero.TempDirectory}/aidea_translate_config.toml`                            |
+| 进度文件               | `{Zotero.TempDirectory}/aidea_translate_progress.json`                          |
 
 #### 环境状态检测
 
@@ -126,28 +126,29 @@ async function checkEnvironment(): Promise<EnvStatus> {
 
   // 2. 检查虚拟环境是否存在
   const venvDir = getVenvDir();
-  if (!await IOUtils.exists(venvDir)) return { status: "no_venv" };
+  if (!(await IOUtils.exists(venvDir))) return { status: "no_venv" };
 
   // 3. 检查 pdf2zh_next 是否已安装
   const pdf2zhBin = getPdf2zhBinary(venvDir);
-  if (!await IOUtils.exists(pdf2zhBin)) return { status: "no_pdf2zh" };
+  if (!(await IOUtils.exists(pdf2zhBin))) return { status: "no_pdf2zh" };
 
   return { status: "ready", venvDir, pdf2zhBin };
 }
 ```
 
 按钮状态：
+
 - 环境未就绪 → 显示 **"⬇️ 配置翻译环境"**
 - 安装中 → 显示 **"⏳ 安装中..."** + 安装进度
 - 环境就绪 → 显示 **"✅ 环境就绪"** (禁用)
 
 ### 2.2 跨平台兼容
 
-| 平台 | uv 安装方式 | Python 路径 | pdf2zh_next 路径 |
-|------|------------|-------------|------------------|
+| 平台    | uv 安装方式     | Python 路径                 | pdf2zh_next 路径                 |
+| ------- | --------------- | --------------------------- | -------------------------------- |
 | Windows | PowerShell 脚本 | `{venv}/Scripts/python.exe` | `{venv}/Scripts/pdf2zh_next.exe` |
-| macOS | curl + sh | `{venv}/bin/python` | `{venv}/bin/pdf2zh_next` |
-| Linux | curl + sh | `{venv}/bin/python` | `{venv}/bin/pdf2zh_next` |
+| macOS   | curl + sh       | `{venv}/bin/python`         | `{venv}/bin/pdf2zh_next`         |
+| Linux   | curl + sh       | `{venv}/bin/python`         | `{venv}/bin/pdf2zh_next`         |
 
 ---
 
@@ -175,7 +176,7 @@ import json, sys, os, subprocess, re, time
 def main():
     task = json.load(open(sys.argv[1], encoding='utf-8'))
     progress_file = task["progressFile"]
-    
+
     # 构建 pdf2zh_next CLI 命令
     cmd = [
         task["pdf2zhBin"],
@@ -188,12 +189,12 @@ def main():
         "--config-file", task["configFile"],
         "--watermark-output-mode", "no_watermark",
     ]
-    
+
     if task.get("noDual"):
         cmd.append("--no-dual")
     if task.get("noMono"):
         cmd.append("--no-mono")
-    
+
     # 写入初始进度
     write_progress(progress_file, {
         "status": "running",
@@ -201,7 +202,7 @@ def main():
         "message": "正在初始化翻译引擎...",
         "startTime": time.time(),
     })
-    
+
     # 启动 pdf2zh_next 进程
     proc = subprocess.Popen(
         cmd,
@@ -211,13 +212,13 @@ def main():
         encoding='utf-8',
         errors='replace',
     )
-    
+
     # 实时解析 stdout 中的进度
     for line in proc.stdout:
         line = line.strip()
         if not line:
             continue
-        
+
         # 解析进度模式 (pdf2zh_next 输出类似 "Translating: 100%|████| 8/19")
         match = re.search(r'(\d+)/(\d+)', line)
         if match:
@@ -230,10 +231,10 @@ def main():
                 "total": total,
                 "message": f"翻译中 {current}/{total} 页...",
             })
-    
+
     # 等待进程结束
     returncode = proc.wait()
-    
+
     if returncode == 0:
         # 收集输出文件
         output_files = [f for f in os.listdir(task["outputDir"])
@@ -265,12 +266,12 @@ if __name__ == "__main__":
 
 ```json
 {
-  "status": "running",       // "running" | "done" | "error" | "cancelled"
-  "progress": 42,            // 0-100
-  "current": 8,              // 当前页
-  "total": 19,               // 总页数
+  "status": "running", // "running" | "done" | "error" | "cancelled"
+  "progress": 42, // 0-100
+  "current": 8, // 当前页
+  "total": 19, // 总页数
   "message": "翻译中 8/19 页...",
-  "outputFiles": [],          // 翻译完成后填充
+  "outputFiles": [], // 翻译完成后填充
   "startTime": 1743580000
 }
 ```
@@ -281,14 +282,14 @@ if __name__ == "__main__":
 
 ### 4.1 模块清单
 
-| 文件 | 职责 |
-|------|------|
-| `src/modules/pdfTranslator/index.ts` | **重写** — 翻译流程编排器 |
-| `src/modules/pdfTranslator/envManager.ts` | **新建** — 环境检测 + 一键安装 |
-| `src/modules/pdfTranslator/processRunner.ts` | **新建** — nsIProcess 启动和管理 |
-| `src/modules/pdfTranslator/configWriter.ts` | **新建** — 生成 config.toml + task.json |
-| `src/modules/pdfTranslator/progressPoller.ts` | **新建** — 轮询 progress.json |
-| `addon/scripts/aidea_bridge.py` | **新建** — Python 桥接脚本 |
+| 文件                                          | 职责                                    |
+| --------------------------------------------- | --------------------------------------- |
+| `src/modules/pdfTranslator/index.ts`          | **重写** — 翻译流程编排器               |
+| `src/modules/pdfTranslator/envManager.ts`     | **新建** — 环境检测 + 一键安装          |
+| `src/modules/pdfTranslator/processRunner.ts`  | **新建** — nsIProcess 启动和管理        |
+| `src/modules/pdfTranslator/configWriter.ts`   | **新建** — 生成 config.toml + task.json |
+| `src/modules/pdfTranslator/progressPoller.ts` | **新建** — 轮询 progress.json           |
+| `addon/scripts/aidea_bridge.py`               | **新建** — Python 桥接脚本              |
 
 ### 4.2 index.ts — 翻译编排器
 
@@ -296,23 +297,23 @@ if __name__ == "__main__":
 export class TranslateController {
   private process: nsIProcess | null = null;
   private poller: ProgressPoller | null = null;
-  
+
   // 开始翻译
   async start(params: TranslateParams): Promise<void> {
     // 1. 检查环境
     const env = await checkEnvironment();
     if (env.status !== "ready") throw new Error("环境未就绪");
-    
+
     // 2. 刷新 OAuth token
     const token = await refreshOAuthToken();
-    
+
     // 3. 写 config.toml（含 token）
     const configPath = await writeConfigToml({
       model: params.modelId,
       apiKey: token,
       apiUrl: getProviderEndpoint(),
     });
-    
+
     // 4. 写 task.json（翻译参数）
     const taskPath = await writeTaskJson({
       pdf2zhBin: env.pdf2zhBin,
@@ -325,26 +326,26 @@ export class TranslateController {
       noMono: !params.generateMono,
       progressFile: getProgressFilePath(),
     });
-    
+
     // 5. 启动 aidea_bridge.py
     this.process = await runProcess(env.pythonBin, [
       getBridgeScriptPath(),
       taskPath,
     ]);
-    
+
     // 6. 开始轮询进度
     this.poller = new ProgressPoller(getProgressFilePath(), (data) => {
       this.onProgress(data);
     });
     this.poller.start();
   }
-  
+
   // 暂停（取消当前进程）
   pause(): void {
     this.process?.kill();
     this.poller?.stop();
   }
-  
+
   // 清除缓存
   async clearCache(outputDir: string): Promise<void> {
     await IOUtils.remove(outputDir, { recursive: true });
@@ -357,7 +358,7 @@ export class TranslateController {
 ```typescript
 export async function checkEnvironment(): Promise<EnvStatus>;
 export async function installEnvironment(
-  onProgress: (step: string, percent: number) => void
+  onProgress: (step: string, percent: number) => void,
 ): Promise<void>;
 
 // 内部步骤：
@@ -371,6 +372,7 @@ export async function installEnvironment(
 生成两个文件：
 
 **config.toml**（pdf2zh_next 翻译配置）：
+
 ```toml
 openaicompatible = true
 
@@ -393,6 +395,7 @@ openai_compatible_api_key = "<OAuth access_token>"
 ```
 
 **task.json**（传给桥接脚本的参数）：
+
 ```json
 {
   "pdf2zhBin": "/path/to/venv/bin/pdf2zh_next",
@@ -420,12 +423,13 @@ export function killProcess(proc: nsIProcess): void;
 ```
 
 使用 Gecko `nsIProcess` API：
+
 ```typescript
 const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
 file.initWithPath(executable);
 const process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
 process.init(file);
-process.runAsync(args, args.length);  // 非阻塞
+process.runAsync(args, args.length); // 非阻塞
 ```
 
 ### 4.6 progressPoller.ts — 进度轮询
@@ -433,13 +437,13 @@ process.runAsync(args, args.length);  // 非阻塞
 ```typescript
 export class ProgressPoller {
   private timer: number | null = null;
-  
+
   constructor(
     private filePath: string,
     private callback: (data: ProgressData) => void,
     private intervalMs = 500,
   ) {}
-  
+
   start(): void {
     this.timer = setInterval(async () => {
       try {
@@ -449,10 +453,12 @@ export class ProgressPoller {
         if (data.status === "done" || data.status === "error") {
           this.stop();
         }
-      } catch { /* 文件还不存在或正在写入 */ }
+      } catch {
+        /* 文件还不存在或正在写入 */
+      }
     }, this.intervalMs);
   }
-  
+
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
@@ -497,55 +503,55 @@ export class ProgressPoller {
 
 ### 5.2 按钮状态机
 
-| 当前状态 | 环境按钮 | 开始/继续 | 暂停 | 清除 |
-|----------|---------|-----------|------|------|
-| 环境未就绪 | ⬇️ 配置环境 | 禁用 | 禁用 | 禁用 |
-| 环境安装中 | ⏳ 安装中... | 禁用 | 禁用 | 禁用 |
-| 就绪，无 PDF | ✅ 就绪 | 禁用 | 禁用 | 禁用 |
-| 就绪，空闲 | ✅ 就绪 | ▶ **开始** | 禁用 | 禁用 |
-| 就绪，有缓存 | ✅ 就绪 | ▶ **继续** | 禁用 | ✅ |
-| 翻译中 | ✅ 就绪 | 禁用 | ⏸ **暂停** | 禁用 |
-| 翻译完成 | ✅ 就绪 | 禁用 (✅) | 禁用 | ✅ |
-| 翻译出错 | ✅ 就绪 | 🔄 **重试** | 禁用 | ✅ |
+| 当前状态     | 环境按钮     | 开始/继续   | 暂停       | 清除 |
+| ------------ | ------------ | ----------- | ---------- | ---- |
+| 环境未就绪   | ⬇️ 配置环境  | 禁用        | 禁用       | 禁用 |
+| 环境安装中   | ⏳ 安装中... | 禁用        | 禁用       | 禁用 |
+| 就绪，无 PDF | ✅ 就绪      | 禁用        | 禁用       | 禁用 |
+| 就绪，空闲   | ✅ 就绪      | ▶ **开始**  | 禁用       | 禁用 |
+| 就绪，有缓存 | ✅ 就绪      | ▶ **继续**  | 禁用       | ✅   |
+| 翻译中       | ✅ 就绪      | 禁用        | ⏸ **暂停** | 禁用 |
+| 翻译完成     | ✅ 就绪      | 禁用 (✅)   | 禁用       | ✅   |
+| 翻译出错     | ✅ 就绪      | 🔄 **重试** | 禁用       | ✅   |
 
 ### 5.3 暂停/恢复逻辑
 
-| 操作 | 实现 |
-|------|------|
-| **暂停** | `nsIProcess.kill()` 终止 bridge 脚本和 pdf2zh_next 子进程。pdf2zh_next 内建缓存，中断的翻译不会丢失。 |
-| **继续** | 重新启动翻译流程。pdf2zh_next 自动检测缓存，跳过已翻译的页，从断点继续。 |
-| **清除缓存** | 删除输出目录。同时清除 pdf2zh_next 内部缓存（如有）。按钮恢复为"开始"。 |
+| 操作         | 实现                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| **暂停**     | `nsIProcess.kill()` 终止 bridge 脚本和 pdf2zh_next 子进程。pdf2zh_next 内建缓存，中断的翻译不会丢失。 |
+| **继续**     | 重新启动翻译流程。pdf2zh_next 自动检测缓存，跳过已翻译的页，从断点继续。                              |
+| **清除缓存** | 删除输出目录。同时清除 pdf2zh_next 内部缓存（如有）。按钮恢复为"开始"。                               |
 
 ---
 
 ## 6. 配置偏好汇总
 
-| 偏好键 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `aidea.translateOutputPath` | string | `""` | 输出目录路径 |
-| `aidea.translateModel` | string | `""` | 翻译专用模型 ID |
-| `aidea.translateTargetLang` | string | `zh-CN` | 目标翻译语言 |
-| `aidea.translateBilingual` | bool | `true` | 生成双语 PDF |
-| `aidea.translateMonolingual` | bool | `true` | 生成单语 PDF |
-| `aidea.translateEnvReady` | bool | `false` | 环境是否已配置 |
-| `aidea.translateVenvDir` | string | `""` | 虚拟环境路径 |
+| 偏好键                       | 类型   | 默认值  | 说明            |
+| ---------------------------- | ------ | ------- | --------------- |
+| `aidea.translateOutputPath`  | string | `""`    | 输出目录路径    |
+| `aidea.translateModel`       | string | `""`    | 翻译专用模型 ID |
+| `aidea.translateTargetLang`  | string | `zh-CN` | 目标翻译语言    |
+| `aidea.translateBilingual`   | bool   | `true`  | 生成双语 PDF    |
+| `aidea.translateMonolingual` | bool   | `true`  | 生成单语 PDF    |
+| `aidea.translateEnvReady`    | bool   | `false` | 环境是否已配置  |
+| `aidea.translateVenvDir`     | string | `""`    | 虚拟环境路径    |
 
 ---
 
 ## 7. 目标语言列表
 
-| 代码 | 显示名 |
-|------|--------|
-| `zh-CN` | 简体中文 |
-| `zh-TW` | 繁體中文 |
-| `en` | English |
-| `ja` | 日本語 |
-| `ko` | 한국어 |
-| `fr` | Français |
-| `de` | Deutsch |
-| `es` | Español |
-| `ru` | Русский |
-| `pt` | Português |
+| 代码    | 显示名    |
+| ------- | --------- |
+| `zh-CN` | 简体中文  |
+| `zh-TW` | 繁體中文  |
+| `en`    | English   |
+| `ja`    | 日本語    |
+| `ko`    | 한국어    |
+| `fr`    | Français  |
+| `de`    | Deutsch   |
+| `es`    | Español   |
+| `ru`    | Русский   |
+| `pt`    | Português |
 
 ---
 
@@ -553,12 +559,13 @@ export class ProgressPoller {
 
 pdf2zh_next 的标准输出命名规则（`--watermark-output-mode no_watermark`）：
 
-| 参数 | 输出文件名 |
-|------|-----------|
+| 参数   | 输出文件名                            |
+| ------ | ------------------------------------- |
 | `mono` | `{name}.no_watermark.{lang}.mono.pdf` |
 | `dual` | `{name}.no_watermark.{lang}.dual.pdf` |
 
 输出目录结构：
+
 ```
 {用户选择的输出路径}/
 ├── paper.no_watermark.zh-CN.mono.pdf    ← 纯中文版
@@ -571,67 +578,67 @@ pdf2zh_next 的标准输出命名规则（`--watermark-output-mode no_watermark`
 
 ### 删除（废弃旧管线）
 
-| 文件 | 说明 |
-|------|------|
-| `pdfPageExtractor.ts` | pdf.js 提取 → pdf2zh_next 内部处理 |
+| 文件                    | 说明                                |
+| ----------------------- | ----------------------------------- |
+| `pdfPageExtractor.ts`   | pdf.js 提取 → pdf2zh_next 内部处理  |
 | `translateScheduler.ts` | LLM 逐页翻译 → pdf2zh_next 内部处理 |
 | `pdfOutputGenerator.ts` | HTML→PDF → pdf2zh_next 直接生成 PDF |
 
 ### 新建
 
-| 文件 | 说明 |
-|------|------|
-| `src/modules/pdfTranslator/envManager.ts` | 环境检测 + uv + venv + pdf2zh_next 安装 |
-| `src/modules/pdfTranslator/processRunner.ts` | nsIProcess 启动/终止管理 |
-| `src/modules/pdfTranslator/configWriter.ts` | 生成 config.toml + task.json |
-| `src/modules/pdfTranslator/progressPoller.ts` | 轮询 progress.json 并回调 |
-| `addon/scripts/aidea_bridge.py` | Python 桥接脚本（随插件分发） |
+| 文件                                          | 说明                                    |
+| --------------------------------------------- | --------------------------------------- |
+| `src/modules/pdfTranslator/envManager.ts`     | 环境检测 + uv + venv + pdf2zh_next 安装 |
+| `src/modules/pdfTranslator/processRunner.ts`  | nsIProcess 启动/终止管理                |
+| `src/modules/pdfTranslator/configWriter.ts`   | 生成 config.toml + task.json            |
+| `src/modules/pdfTranslator/progressPoller.ts` | 轮询 progress.json 并回调               |
+| `addon/scripts/aidea_bridge.py`               | Python 桥接脚本（随插件分发）           |
 
 ### 修改
 
-| 文件 | 说明 |
-|------|------|
-| `src/modules/pdfTranslator/index.ts` | 重写 — 翻译流程编排 |
-| `src/modules/contextPanel/buildUI.ts` | 翻译标签页完整 UI 构建 |
-| `addon/content/zoteroPane.css` | toggle、进度条、环境状态、按钮组样式 |
-| `src/modules/contextPanel/i18n.ts` | 翻译面板文案 |
+| 文件                                  | 说明                                 |
+| ------------------------------------- | ------------------------------------ |
+| `src/modules/pdfTranslator/index.ts`  | 重写 — 翻译流程编排                  |
+| `src/modules/contextPanel/buildUI.ts` | 翻译标签页完整 UI 构建               |
+| `addon/content/zoteroPane.css`        | toggle、进度条、环境状态、按钮组样式 |
+| `src/modules/contextPanel/i18n.ts`    | 翻译面板文案                         |
 
 ---
 
 ## 10. 实施顺序
 
-| 阶段 | 内容 | 验证标准 |
-|------|------|---------|
-| **Phase 1** | `envManager.ts` — 环境检测 + 安装 | 能检测 uv / 能自动安装 pdf2zh_next |
+| 阶段        | 内容                                   | 验证标准                              |
+| ----------- | -------------------------------------- | ------------------------------------- |
+| **Phase 1** | `envManager.ts` — 环境检测 + 安装      | 能检测 uv / 能自动安装 pdf2zh_next    |
 | **Phase 2** | `aidea_bridge.py` + `processRunner.ts` | 能从 Zotero 启动 pdf2zh_next 翻译 PDF |
-| **Phase 3** | `configWriter.ts` — OAuth token 写入 | 能用 OAuth 模型完成翻译 |
-| **Phase 4** | `progressPoller.ts` — 进度轮询 | 进度条实时更新 |
-| **Phase 5** | 翻译标签页完整 UI | 可交互的完整界面 |
-| **Phase 6** | 暂停/恢复/清除缓存 | 完整任务管理 |
-| **Phase 7** | 清理旧模块 + 测试 | 发布就绪 |
+| **Phase 3** | `configWriter.ts` — OAuth token 写入   | 能用 OAuth 模型完成翻译               |
+| **Phase 4** | `progressPoller.ts` — 进度轮询         | 进度条实时更新                        |
+| **Phase 5** | 翻译标签页完整 UI                      | 可交互的完整界面                      |
+| **Phase 6** | 暂停/恢复/清除缓存                     | 完整任务管理                          |
+| **Phase 7** | 清理旧模块 + 测试                      | 发布就绪                              |
 
 ---
 
 ## 11. 风险与应对
 
-| 风险 | 应对 |
-|------|------|
-| uv 安装被杀毒软件拦截 | 提供手动安装指引页面作为 fallback |
-| 首次安装耗时长（~500MB） | 安装进度条 + 估计时间；提示走一次即可 |
+| 风险                              | 应对                                        |
+| --------------------------------- | ------------------------------------------- |
+| uv 安装被杀毒软件拦截             | 提供手动安装指引页面作为 fallback           |
+| 首次安装耗时长（~500MB）          | 安装进度条 + 估计时间；提示走一次即可       |
 | nsIProcess 不支持 stdout 实时读取 | 已通过 bridge 脚本 + progress.json 文件绕过 |
-| OAuth token 过期（1h 有效期） | 翻译前自动刷新；长翻译中途过期需处理 |
-| pdf2zh_next stdout 进度格式变化 | bridge 脚本兼容多种 regex 模式 |
-| Windows 下 Python 路径含空格 | 使用引号包裹路径 |
-| pdf2zh_next 首次运行下载字体资源 | 桥接脚本捕获资源下载阶段写入进度 |
+| OAuth token 过期（1h 有效期）     | 翻译前自动刷新；长翻译中途过期需处理        |
+| pdf2zh_next stdout 进度格式变化   | bridge 脚本兼容多种 regex 模式              |
+| Windows 下 Python 路径含空格      | 使用引号包裹路径                            |
+| pdf2zh_next 首次运行下载字体资源  | 桥接脚本捕获资源下载阶段写入进度            |
 
 ---
 
 ## 12. 与 pdf2zh 项目的关系
 
-| 维度 | 说明 |
-|------|------|
-| **使用方式** | 仅使用 `pdf2zh_next` PyPI 包作为翻译引擎 |
-| **不使用** | 不使用 `server.py`、Flask、HTTP 通信 |
-| **复用模式** | 参考 `config.toml` 格式、CLI 参数、输出命名规则 |
+| 维度         | 说明                                                                   |
+| ------------ | ---------------------------------------------------------------------- |
+| **使用方式** | 仅使用 `pdf2zh_next` PyPI 包作为翻译引擎                               |
+| **不使用**   | 不使用 `server.py`、Flask、HTTP 通信                                   |
+| **复用模式** | 参考 `config.toml` 格式、CLI 参数、输出命名规则                        |
 | **核心差异** | 我们通过 `openaicompatible` 服务传入 OAuth token，无需用户自配 API Key |
-| **许可证** | pdf2zh_next 为 GPL-3.0，我们仅调用其 CLI（非链接），符合使用条款 |
+| **许可证**   | pdf2zh_next 为 GPL-3.0，我们仅调用其 CLI（非链接），符合使用条款       |

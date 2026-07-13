@@ -1,11 +1,10 @@
-import { isGlobalPortalItem, resolveActiveLibraryID } from "../modules/contextPanel/portalScope";
+import {
+  isGlobalPortalItem,
+  resolveActiveLibraryID,
+} from "../modules/contextPanel/portalScope";
 
 export type MemoryCategory =
-  | "preference"
-  | "decision"
-  | "entity"
-  | "fact"
-  | "other";
+  "preference" | "decision" | "entity" | "fact" | "other";
 
 export type MemoryEntry = {
   id: number;
@@ -61,7 +60,10 @@ function normalizePositiveInt(value: unknown): number | null {
 
 function normalizeText(value: unknown): string {
   if (typeof value !== "string") return "";
-  return value.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeMemoryText(value: unknown): string {
@@ -69,7 +71,11 @@ function normalizeMemoryText(value: unknown): string {
 }
 
 function normalizeTextForDedup(value: string): string {
-  return value.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function tokenize(value: string): string[] {
@@ -105,7 +111,10 @@ export function shouldCaptureMemoryText(
   options?: { maxChars?: number },
 ): boolean {
   const normalized = normalizeText(text);
-  const maxChars = Math.max(50, Math.floor(options?.maxChars || MEMORY_MAX_TEXT));
+  const maxChars = Math.max(
+    50,
+    Math.floor(options?.maxChars || MEMORY_MAX_TEXT),
+  );
   if (normalized.length < 10 || normalized.length > maxChars) return false;
   if (normalized.includes("<relevant-memories>")) return false;
   if (normalized.startsWith("<") && normalized.includes("</")) return false;
@@ -115,9 +124,12 @@ export function shouldCaptureMemoryText(
 
 export function detectMemoryCategory(text: string): MemoryCategory {
   const lower = normalizeText(text).toLowerCase();
-  if (/prefer|like|love|hate|want|need|always|never/.test(lower)) return "preference";
-  if (/decided|we will use|use .* instead|plan to/.test(lower)) return "decision";
-  if (/\+\d{7,}|@[\w.-]+\.\w+|\bmy name is\b|\bis called\b/.test(lower)) return "entity";
+  if (/prefer|like|love|hate|want|need|always|never/.test(lower))
+    return "preference";
+  if (/decided|we will use|use .* instead|plan to/.test(lower))
+    return "decision";
+  if (/\+\d{7,}|@[\w.-]+\.\w+|\bmy name is\b|\bis called\b/.test(lower))
+    return "entity";
   if (/\b(is|are|has|have|works|uses|studies)\b/.test(lower)) return "fact";
   return "other";
 }
@@ -170,12 +182,16 @@ function rowToMemoryEntry(row: Record<string, unknown>): MemoryEntry | null {
       category === "fact"
         ? category
         : "other",
-    importance: Number.isFinite(importance) ? Math.min(1, Math.max(0, importance)) : 0.7,
+    importance: Number.isFinite(importance)
+      ? Math.min(1, Math.max(0, importance))
+      : 0.7,
     createdAt: Number.isFinite(createdAt) ? Math.floor(createdAt) : Date.now(),
     updatedAt: Number.isFinite(updatedAt) ? Math.floor(updatedAt) : Date.now(),
     sourceConversationKey: sourceConversationKey || undefined,
     hitCount: Number.isFinite(hitCount) ? Math.max(0, Math.floor(hitCount)) : 0,
-    lastHitAt: Number.isFinite(lastHitAtNum) ? Math.floor(lastHitAtNum) : undefined,
+    lastHitAt: Number.isFinite(lastHitAtNum)
+      ? Math.floor(lastHitAtNum)
+      : undefined,
   };
 }
 
@@ -207,8 +223,12 @@ export async function initMemoryStore(): Promise<void> {
   });
 }
 
-export function resolveMemoryLibraryID(item?: Zotero.Item | null): number | null {
-  const direct = normalizePositiveInt((item as { libraryID?: unknown } | null)?.libraryID);
+export function resolveMemoryLibraryID(
+  item?: Zotero.Item | null,
+): number | null {
+  const direct = normalizePositiveInt(
+    (item as { libraryID?: unknown } | null)?.libraryID,
+  );
   if (direct) return direct;
   if (isGlobalPortalItem(item)) {
     return normalizePositiveInt(item.libraryID) || resolveActiveLibraryID();
@@ -216,7 +236,10 @@ export function resolveMemoryLibraryID(item?: Zotero.Item | null): number | null
   return resolveActiveLibraryID();
 }
 
-async function listLibraryMemories(libraryID: number, limit = 200): Promise<MemoryEntry[]> {
+async function listLibraryMemories(
+  libraryID: number,
+  limit = 200,
+): Promise<MemoryEntry[]> {
   const normalizedLibraryID = normalizePositiveInt(libraryID);
   if (!normalizedLibraryID) return [];
   const rows = (await Zotero.DB.queryAsync(
@@ -293,7 +316,11 @@ export async function storeMemory(params: {
   category?: MemoryCategory;
   importance?: number;
   sourceConversationKey?: number;
-}): Promise<{ action: "created" | "duplicate"; entry?: MemoryEntry; duplicateOf?: MemoryEntry }>{
+}): Promise<{
+  action: "created" | "duplicate";
+  entry?: MemoryEntry;
+  duplicateOf?: MemoryEntry;
+}> {
   const libraryID = normalizePositiveInt(params.libraryID);
   const text = normalizeMemoryText(params.text);
   if (!libraryID || !text) {
@@ -338,11 +365,17 @@ function scoreMemory(query: string, entry: MemoryEntry): number {
   if (!q) return 0;
   const qLower = q.toLowerCase();
   const eLower = entry.text.toLowerCase();
-  const containsBoost = eLower.includes(qLower) || qLower.includes(eLower) ? 0.3 : 0;
+  const containsBoost =
+    eLower.includes(qLower) || qLower.includes(eLower) ? 0.3 : 0;
   const tokenScore = tokenJaccard(tokenize(q), tokenize(entry.text));
-  const ageDays = Math.max(0, (Date.now() - entry.updatedAt) / (24 * 3600 * 1000));
+  const ageDays = Math.max(
+    0,
+    (Date.now() - entry.updatedAt) / (24 * 3600 * 1000),
+  );
   const recency = 1 / (1 + ageDays / 30);
-  return tokenScore * 0.65 + containsBoost + recency * 0.15 + entry.importance * 0.2;
+  return (
+    tokenScore * 0.65 + containsBoost + recency * 0.15 + entry.importance * 0.2
+  );
 }
 
 export async function searchMemories(params: {
@@ -355,7 +388,9 @@ export async function searchMemories(params: {
   const query = normalizeText(params.query);
   if (!libraryID || !query) return [];
   const limit = Math.max(1, Math.min(10, Math.floor(params.limit || 3)));
-  const minScore = Number.isFinite(params.minScore) ? Number(params.minScore) : 0.35;
+  const minScore = Number.isFinite(params.minScore)
+    ? Number(params.minScore)
+    : 0.35;
   const candidates = await listLibraryMemories(libraryID, 120);
   const scored = candidates
     .map((entry) => ({ entry, score: scoreMemory(query, entry) }))
@@ -406,4 +441,3 @@ export async function autoCaptureUserMemories(params: {
   }
   return stored;
 }
-

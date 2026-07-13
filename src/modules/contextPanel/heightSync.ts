@@ -52,7 +52,9 @@ function hasExplicitHeight(el: HTMLElement): boolean {
   return Boolean(el.style.height);
 }
 
-export function createHeightSync(opts: HeightSyncOptions): HeightSyncController {
+export function createHeightSync(
+  opts: HeightSyncOptions,
+): HeightSyncController {
   const { contentWrapper, bottomWrapper, gap } = opts;
   const win = contentWrapper.ownerDocument?.defaultView;
   const runtimeId = Symbol("height-sync");

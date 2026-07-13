@@ -1,8 +1,5 @@
 export type SelectionTranslateColdStartAttemptId =
-  | "full"
-  | "first50"
-  | "first25"
-  | "first15";
+  "full" | "first50" | "first25" | "first15";
 
 export type SelectionTranslateColdStartAttempt = {
   id: SelectionTranslateColdStartAttemptId;

@@ -19,7 +19,7 @@ declare const IOUtils: { exists(path: string): Promise<boolean> };
  * @returns  absolute file path, or `null` if no valid PDF is found.
  */
 export async function resolveItemPdfPath(
-  item: any, /* Zotero.Item */
+  item: any /* Zotero.Item */,
 ): Promise<string | null> {
   if (!item) return null;
 

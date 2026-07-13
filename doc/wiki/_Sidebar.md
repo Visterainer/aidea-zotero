@@ -1,6 +1,7 @@
 ### AIdea Wiki
 
 English
+
 - [Home](Home)
 - [Getting Started](Getting-Started)
 - [Providers and Authentication](Providers-and-Authentication)
@@ -8,6 +9,7 @@ English
 - [FAQ](FAQ)
 
 中文
+
 - [Home zh-CN](Home-zh-CN)
 - [Getting Started zh-CN](Getting-Started-zh-CN)
 - [Providers and Authentication zh-CN](Providers-and-Authentication-zh-CN)

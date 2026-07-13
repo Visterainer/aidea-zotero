@@ -84,12 +84,12 @@ AIdea s'adresse aux chercheurs qui souhaitent conserver dans Zotero la lecture d
 
 ## Connexions prises en charge
 
-| Option | Authentification | Remarques |
-| --- | --- | --- |
-| OpenAI (ChatGPT) | OAuth via Codex CLI | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
-| Google Gemini | OAuth intégré au plugin (PKCE) | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
-| GitHub Copilot | OAuth intégré au plugin (Device Code) | Aucun bootstrap Node.js supplémentaire n'est requis |
-| Point de terminaison compatible OpenAI | URL de base API, modèle et clé API facultative | Convient aux services locaux, auto-hébergés ou tiers compatibles |
+| Option                                 | Authentification                               | Remarques                                                                      |
+| -------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| OpenAI (ChatGPT)                       | OAuth via Codex CLI                            | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
+| Google Gemini                          | OAuth intégré au plugin (PKCE)                 | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
+| GitHub Copilot                         | OAuth intégré au plugin (Device Code)          | Aucun bootstrap Node.js supplémentaire n'est requis                            |
+| Point de terminaison compatible OpenAI | URL de base API, modèle et clé API facultative | Convient aux services locaux, auto-hébergés ou tiers compatibles               |
 
 ## Installation
 

@@ -49,10 +49,7 @@ export type PanelTypographySettings = {
 };
 
 export type PanelTypographyPreset =
-  | "compact"
-  | "standard"
-  | "comfortable"
-  | "large";
+  "compact" | "standard" | "comfortable" | "large";
 
 export const PANEL_TYPOGRAPHY_PRESETS: Record<
   PanelTypographyPreset,

@@ -82,12 +82,7 @@ export type AuthorProfileResult = {
 };
 
 export type AuthorProfileStage =
-  | "metadata"
-  | "sources"
-  | "resolve"
-  | "llm"
-  | "note"
-  | "done";
+  "metadata" | "sources" | "resolve" | "llm" | "note" | "done";
 
 export type AuthorProfileProgress = {
   stage: AuthorProfileStage;

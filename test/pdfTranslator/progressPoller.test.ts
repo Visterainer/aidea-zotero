@@ -38,7 +38,8 @@ const progressFile = path.join(tmpDir, "progress.json");
 };
 
 // Import after mocks are set up
-const { ProgressPoller } = await import("../../src/modules/pdfTranslator/progressPoller");
+const { ProgressPoller } =
+  await import("../../src/modules/pdfTranslator/progressPoller");
 
 /* ── Helpers ── */
 
@@ -49,7 +50,9 @@ function writeProgress(data: ProgressData) {
 }
 
 function cleanup() {
-  try { fs.unlinkSync(progressFile); } catch {}
+  try {
+    fs.unlinkSync(progressFile);
+  } catch {}
 }
 
 /* ── Tests ── */
@@ -189,7 +192,9 @@ console.log("\n=== ProgressPoller: empty file handled ===");
 
 /* ── Cleanup ── */
 cleanup();
-try { fs.rmdirSync(tmpDir); } catch {}
+try {
+  fs.rmdirSync(tmpDir);
+} catch {}
 
 /* ── Summary ── */
 console.log(`\n${"=".repeat(40)}`);
