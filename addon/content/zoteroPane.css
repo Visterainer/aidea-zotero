@@ -8545,8 +8545,38 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 }
 
 .llm-selection-translate-wrap[data-composer-theme-surface="true"]
+  .llm-selection-translate-copy-btn {
+  color: var(--llm-theme-chat-fg, var(--fill-primary));
+  background: var(--llm-theme-chip-bg, var(--fill-quinary));
+  border-color: var(--llm-theme-border, var(--stroke-secondary));
+}
+
+.llm-selection-translate-wrap[data-composer-theme-surface="true"]
+  .llm-selection-translate-copy-btn:hover:not(:disabled) {
+  background: var(--llm-theme-chip-hover-bg, var(--fill-quaternary));
+}
+
+.llm-selection-translate-wrap[data-composer-theme-surface="true"]
   .llm-selection-translate-note-btn {
   color: #ffffff;
   background: var(--llm-theme-accent, var(--color-accent));
   border-color: var(--llm-theme-accent, var(--color-accent));
+}
+
+.llm-selection-translate-wrap
+  :is(
+    .llm-selection-translate-copy-btn,
+    .llm-selection-translate-note-btn
+  ):disabled {
+  cursor: default;
+  opacity: 0.56;
+}
+
+.llm-selection-translate-wrap
+  :is(
+    .llm-selection-translate-copy-btn,
+    .llm-selection-translate-note-btn
+  ):focus-visible {
+  outline: 2px solid var(--llm-theme-accent, var(--color-accent));
+  outline-offset: 2px;
 }

@@ -42,7 +42,7 @@ import {
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
 import { normalizeSelectedText, setStatus } from "./textUtils";
-import { zoneBSummaryCache } from "./chat";
+import { copyTextToClipboard, zoneBSummaryCache } from "./chat";
 import {
   getItemSelectionCacheKeys,
   appendSelectedTextContextForItem,
@@ -74,8 +74,20 @@ import {
 import { appendSelectionTranslationToNote } from "./notes";
 import {
   PANEL_TYPOGRAPHY_REFRESH_EVENT,
+  SELECTION_POPUP_HEIGHT_BOUNDS,
+  getPanelTypographyBounds,
   getPanelTypographySettings,
+  getSelectionTranslatePopupHeight,
+  setSelectionTranslatePopupHeight,
+  setSelectionTranslatePopupWidth,
 } from "./prefHelpers";
+import {
+  getSelectionTranslateMeasuredHeight,
+  getSelectionTranslateSingleLineHeight,
+  resolveSelectionTranslateContentHeight,
+  scheduleSelectionTranslateLayout,
+} from "./selectionTranslatePopupSize";
+import { createSelectionTranslatePopupStream } from "./selectionTranslatePopupStream";
 import { applyCurrentThemeToRoot } from "./theme";
 
 type ReaderSelectionPopupHandler =
@@ -419,14 +431,117 @@ function movePopupToViewportPoint(
   popup.style.top = `${baseTop + (top - rect.top)}px`;
 }
 
+function clampSelectionPopupToViewport(
+  doc: Document,
+  popup: HTMLElement | null,
+  margin: number = 10,
+): void {
+  if (!popup?.isConnected) return;
+  const viewport = getViewportRect(doc);
+  const rect = popup.getBoundingClientRect();
+  const popupWidth = Math.min(rect.width, viewport.width - margin * 2);
+  const popupHeight = Math.min(rect.height, viewport.height - margin * 2);
+  movePopupToViewportPoint(
+    popup,
+    clamp(
+      rect.left,
+      margin,
+      Math.max(margin, viewport.width - popupWidth - margin),
+    ),
+    clamp(
+      rect.top,
+      margin,
+      Math.max(margin, viewport.height - popupHeight - margin),
+    ),
+  );
+}
+
+function measureSelectionTranslateNaturalHeight(params: {
+  wrap: HTMLElement;
+  resultBox: HTMLElement;
+  minimumHeight: number;
+}): number {
+  const { wrap, resultBox, minimumHeight } = params;
+  const width = Math.max(
+    1,
+    resultBox.getBoundingClientRect().width || resultBox.offsetWidth,
+  );
+  const measurement = resultBox.cloneNode(true) as HTMLElement;
+  measurement.tabIndex = -1;
+  measurement.setAttribute("aria-hidden", "true");
+  measurement.style.position = "fixed";
+  measurement.style.left = "-100000px";
+  measurement.style.top = "0";
+  measurement.style.display = "block";
+  measurement.style.visibility = "hidden";
+  measurement.style.pointerEvents = "none";
+  measurement.style.width = `${width}px`;
+  measurement.style.height = "auto";
+  measurement.style.minHeight = "0";
+  measurement.style.maxHeight = "none";
+  measurement.style.overflow = "visible";
+  measurement.style.resize = "none";
+  measurement.style.outline = "none";
+  wrap.appendChild(measurement);
+  try {
+    return getSelectionTranslateMeasuredHeight({
+      boundingHeight: measurement.getBoundingClientRect().height,
+      offsetHeight: measurement.offsetHeight,
+      scrollHeight: measurement.scrollHeight,
+      minimumHeight,
+    });
+  } finally {
+    measurement.remove();
+  }
+}
+
+function getSelectionTranslateAvailableResultHeight(params: {
+  viewportHeight: number;
+  popup: HTMLElement | null;
+  resultBox: HTMLElement;
+  minimumHeight: number;
+  margin?: number;
+}): number {
+  const {
+    viewportHeight,
+    popup,
+    resultBox,
+    minimumHeight,
+    margin = 10,
+  } = params;
+  const popupHeight = popup?.getBoundingClientRect().height ?? 0;
+  const popupChromeHeight = Math.max(80, popupHeight - resultBox.offsetHeight);
+  return Math.max(
+    minimumHeight,
+    Math.min(
+      SELECTION_POPUP_HEIGHT_BOUNDS.max,
+      viewportHeight - margin * 2 - popupChromeHeight,
+    ),
+  );
+}
+
 function layoutSelectionTranslatePopup(params: {
   doc: Document;
   popup: HTMLElement | null;
   wrap: HTMLElement;
   resultBox: HTMLElement;
   selectionRect: SelectionPopupRect | null;
+  preferredWidth: number;
+  preferredHeight: number;
+  minimumHeight: number;
+  reposition?: boolean;
 }): void {
-  const { doc, popup, wrap, resultBox, selectionRect } = params;
+  const {
+    doc,
+    popup,
+    wrap,
+    resultBox,
+    selectionRect,
+    preferredWidth,
+    preferredHeight,
+    minimumHeight,
+    reposition = true,
+  } = params;
   if (!popup?.isConnected || !wrap.isConnected) return;
 
   const viewport = getViewportRect(doc);
@@ -435,8 +550,8 @@ function layoutSelectionTranslatePopup(params: {
   const typography = getPanelTypographySettings();
   const availableWidth = Math.max(180, viewport.width - margin * 2);
   const width = clamp(
-    typography.selectionPopupWidth,
-    Math.min(260, availableWidth),
+    preferredWidth,
+    Math.min(184, availableWidth),
     availableWidth,
   );
 
@@ -445,9 +560,18 @@ function layoutSelectionTranslatePopup(params: {
   resultBox.style.width = "100%";
   resultBox.style.fontSize = `${typography.selectionFontSize}px`;
   resultBox.style.lineHeight = String(typography.selectionLineHeight);
-  resultBox.style.maxHeight = `${Math.max(
-    120,
-    Math.min(320, Math.round(viewport.height * 0.42)),
+  const availableResultHeight = getSelectionTranslateAvailableResultHeight({
+    viewportHeight: viewport.height,
+    popup,
+    resultBox,
+    minimumHeight,
+    margin,
+  });
+  resultBox.style.maxHeight = `${availableResultHeight}px`;
+  resultBox.style.height = `${clamp(
+    preferredHeight,
+    minimumHeight,
+    availableResultHeight,
   )}px`;
 
   const popupRect = popup.getBoundingClientRect();
@@ -456,16 +580,12 @@ function layoutSelectionTranslatePopup(params: {
     viewport.width - 2 * margin,
   );
   const popupHeight = Math.min(
-    popupRect.height || resultBox.scrollHeight || 120,
+    popupRect.height || resultBox.scrollHeight || minimumHeight + 80,
     viewport.height - 2 * margin,
   );
 
-  if (!selectionRect) {
-    movePopupToViewportPoint(
-      popup,
-      clamp(popupRect.left, margin, viewport.width - popupWidth - margin),
-      clamp(popupRect.top, margin, viewport.height - popupHeight - margin),
-    );
+  if (!reposition || !selectionRect) {
+    clampSelectionPopupToViewport(doc, popup, margin);
     return;
   }
 
@@ -538,22 +658,6 @@ function layoutSelectionTranslatePopup(params: {
   if (best) movePopupToViewportPoint(popup, best.left, best.top);
 }
 
-function scheduleSelectionTranslatePopupLayout(params: {
-  doc: Document;
-  popup: HTMLElement | null;
-  wrap: HTMLElement;
-  resultBox: HTMLElement;
-  selectionRect: SelectionPopupRect | null;
-}): void {
-  const run = () => layoutSelectionTranslatePopup(params);
-  const win = params.doc.defaultView;
-  if (win?.requestAnimationFrame) {
-    win.requestAnimationFrame(() => run());
-  } else {
-    setTimeout(run, 0);
-  }
-}
-
 export function registerReaderSelectionTracking() {
   const readerAPI = Zotero.Reader as _ZoteroTypes.Reader & {
     __llmSelectionTrackingRegistered?: boolean;
@@ -599,14 +703,25 @@ export function registerReaderSelectionTracking() {
     const item = Zotero.Items.get(itemId) || null;
     const cacheKeys = getItemSelectionCacheKeys(item);
     const keys = cacheKeys.length ? cacheKeys : [itemId];
-    const popupPrefValue = Zotero.Prefs.get(
-      `${config.prefsPrefix}.showPopupAddText`,
-      true,
+    const isPopupOptionEnabled = (key: string): boolean => {
+      const value = Zotero.Prefs.get(`${config.prefsPrefix}.${key}`, true);
+      if (typeof value === "boolean") return value;
+      const normalized = `${value ?? ""}`.trim().toLowerCase();
+      if (!normalized) return true;
+      return normalized !== "false" && normalized !== "0";
+    };
+    const showAddTextInPopup = isPopupOptionEnabled("showPopupAddText");
+    const showCopyButton = isPopupOptionEnabled(
+      "selectionTranslate.showCopyButton",
     );
-    const showAddTextInPopup =
-      popupPrefValue !== false &&
-      `${popupPrefValue || ""}`.toLowerCase() !== "false";
+    const showAddToNoteButton = isPopupOptionEnabled(
+      "selectionTranslate.showAddToNoteButton",
+    );
+    const hasVisibleSelectionTranslateActions =
+      showCopyButton || showAddToNoteButton;
     let selectionTranslateRelayout: (() => void) | null = null;
+    let selectionTranslateContentChanged:
+      ((preservePosition?: boolean) => void) | null = null;
 
     const resolveSelectedTextForPopupAction = (): string => {
       const fromPopupDoc = getSelectionFromDocument(
@@ -995,6 +1110,8 @@ export function registerReaderSelectionTracking() {
             coldStart: i18n.selectionTranslateColdStart,
             translating: i18n.selectionTranslateTranslating,
             failed: i18n.selectionTranslateFailed,
+            copy: i18n.copy,
+            copied: i18n.copied,
           };
           const noteText = {
             addToNote: i18n.addToNote,
@@ -1012,6 +1129,17 @@ export function registerReaderSelectionTracking() {
           }
           const selectionRect = getReaderSelectionClientRect(event.doc);
           const typography = getPanelTypographySettings();
+          const calculateMinimumResultHeight = (
+            settings = getPanelTypographySettings(),
+          ) =>
+            getSelectionTranslateSingleLineHeight({
+              fontSize: settings.selectionFontSize,
+              lineHeight: settings.selectionLineHeight,
+            });
+          let minimumResultHeight = calculateMinimumResultHeight(typography);
+          let rememberedPopupHeight = getSelectionTranslatePopupHeight();
+          let currentPopupWidth = typography.selectionPopupWidth;
+          let currentPopupHeight = minimumResultHeight;
           const wrap = event.doc.createElementNS(
             "http://www.w3.org/1999/xhtml",
             "div",
@@ -1020,8 +1148,9 @@ export function registerReaderSelectionTracking() {
           wrap.style.cssText = [
             "display:flex",
             "flex-direction:column",
-            "gap:6px",
-            `width:min(${typography.selectionPopupWidth}px, calc(100vw - 20px))`,
+            "gap:10px",
+            "padding:8px 0",
+            `width:min(${currentPopupWidth}px, calc(100vw - 20px))`,
             "max-width:calc(100vw - 20px)",
             "margin:0",
             "box-sizing:border-box",
@@ -1034,31 +1163,125 @@ export function registerReaderSelectionTracking() {
             "div",
           ) as HTMLDivElement;
           resultBox.className = "llm-selection-translate-result";
+          resultBox.tabIndex = 0;
           resultBox.textContent = text.translating;
           resultBox.style.cssText = [
             "display:block",
             "width:100%",
-            "max-width:100%",
+            "min-width:184px",
+            `min-height:${minimumResultHeight}px`,
+            "max-width:calc(100vw - 20px)",
             "max-height:min(320px, 42vh)",
             "overflow:auto",
+            "resize:both",
             "box-sizing:border-box",
-            "padding:7px 8px",
+            "padding:10px 12px",
             "border:1px solid rgba(130,130,130,0.32)",
-            "border-radius:6px",
+            "border-radius:8px",
+            "outline:none",
+            "outline-offset:-2px",
             "background:rgba(127,127,127,0.08)",
             "color:inherit",
             `font-size:${typography.selectionFontSize}px`,
             `line-height:${typography.selectionLineHeight}`,
             "white-space:pre-wrap",
+            "overflow-wrap:anywhere",
+            "cursor:text",
+            "user-select:text",
+            "-moz-user-select:text",
           ].join(";");
-          const setResultText = (value: string) => {
+          const setResultBoxFocusRing = (focused: boolean) => {
+            resultBox.style.outline = focused
+              ? "2px solid var(--accent-blue8, #0a84ff)"
+              : "none";
+          };
+          resultBox.addEventListener("focus", () => {
+            setResultBoxFocusRing(true);
+          });
+          resultBox.addEventListener("blur", () => {
+            setResultBoxFocusRing(false);
+          });
+          // Zotero's native selection popup is non-selectable and owns mouse
+          // handlers on its outer rows. Keep events inside the result while
+          // preserving their default behavior so normal text selection works.
+          for (const eventName of [
+            "pointerdown",
+            "pointerup",
+            "mousedown",
+            "mouseup",
+            "click",
+            "selectstart",
+            "dragstart",
+          ]) {
+            resultBox.addEventListener(eventName, (e: Event) => {
+              e.stopPropagation();
+            });
+          }
+          resultBox.addEventListener("mousedown", (e: MouseEvent) => {
+            if (e.button !== 0) return;
+            resultBox.focus({ preventScroll: true });
+          });
+          const setResultText = (
+            value: string,
+            preservePosition: boolean = false,
+          ) => {
             try {
               resultBox.innerHTML = renderMarkdown(value);
             } catch {
               resultBox.textContent = value;
             }
-            selectionTranslateRelayout?.();
+            selectionTranslateContentChanged?.(preservePosition);
           };
+          const actionRow = event.doc.createElementNS(
+            "http://www.w3.org/1999/xhtml",
+            "div",
+          ) as HTMLDivElement;
+          actionRow.className = "llm-selection-translate-actions";
+          actionRow.style.cssText = [
+            "display:none",
+            "width:100%",
+            "align-items:center",
+            "justify-content:flex-end",
+            "flex-wrap:wrap",
+            "gap:6px",
+            "box-sizing:border-box",
+          ].join(";");
+          for (const eventName of [
+            "pointerdown",
+            "pointerup",
+            "mousedown",
+            "mouseup",
+            "click",
+          ]) {
+            actionRow.addEventListener(eventName, (e: Event) => {
+              e.stopPropagation();
+            });
+          }
+          const copyBtn = event.doc.createElementNS(
+            "http://www.w3.org/1999/xhtml",
+            "button",
+          ) as HTMLButtonElement;
+          copyBtn.className = "llm-selection-translate-copy-btn";
+          copyBtn.type = "button";
+          copyBtn.textContent = text.copy;
+          copyBtn.title = text.copy;
+          copyBtn.setAttribute("aria-label", text.copy);
+          copyBtn.disabled = true;
+          copyBtn.style.cssText = [
+            "width:fit-content",
+            "margin:0",
+            "padding:5px 10px",
+            "box-sizing:border-box",
+            "border:1px solid rgba(130,130,130,0.38)",
+            "border-radius:6px",
+            "background:rgba(127,127,127,0.08)",
+            "color:inherit",
+            `font-size:${typography.selectionFontSize}px`,
+            "line-height:1.25",
+            "text-align:center",
+            "white-space:nowrap",
+            "cursor:pointer",
+          ].join(";");
           const addToNoteBtn = event.doc.createElementNS(
             "http://www.w3.org/1999/xhtml",
             "button",
@@ -1067,34 +1290,394 @@ export function registerReaderSelectionTracking() {
           addToNoteBtn.type = "button";
           addToNoteBtn.textContent = noteText.addToNote;
           addToNoteBtn.style.cssText = [
-            "display:none",
             "width:fit-content",
-            "align-self:flex-end",
             "margin:0",
-            "padding:4px 9px",
+            "padding:5px 10px",
             "box-sizing:border-box",
             "border:1px solid rgba(130,130,130,0.38)",
-            "border-radius:5px",
+            "border-radius:6px",
             "background:rgba(255,255,255,0.04)",
             "color:inherit",
             `font-size:${typography.selectionFontSize}px`,
             "line-height:1.25",
             "text-align:center",
+            "white-space:nowrap",
             "cursor:pointer",
           ].join(";");
-          wrap.append(resultBox, addToNoteBtn);
+          const createStableButtonLabel = (
+            button: HTMLButtonElement,
+            labels: string[],
+            initialLabel: string,
+          ): ((label: string) => void) => {
+            button.textContent = "";
+            button.style.display = "inline-grid";
+            button.style.placeItems = "center";
+            for (const label of Array.from(new Set(labels))) {
+              const spacer = event.doc.createElementNS(
+                "http://www.w3.org/1999/xhtml",
+                "span",
+              ) as HTMLSpanElement;
+              spacer.textContent = label;
+              spacer.setAttribute("aria-hidden", "true");
+              spacer.style.cssText = [
+                "grid-area:1 / 1",
+                "visibility:hidden",
+                "pointer-events:none",
+              ].join(";");
+              button.appendChild(spacer);
+            }
+            const visibleLabel = event.doc.createElementNS(
+              "http://www.w3.org/1999/xhtml",
+              "span",
+            ) as HTMLSpanElement;
+            visibleLabel.style.gridArea = "1 / 1";
+            button.appendChild(visibleLabel);
+            const setLabel = (label: string) => {
+              visibleLabel.textContent = label;
+              button.title = label;
+              button.setAttribute("aria-label", label);
+            };
+            setLabel(initialLabel);
+            return setLabel;
+          };
+          const setCopyButtonLabel = createStableButtonLabel(
+            copyBtn,
+            [text.copy, text.copied],
+            text.copy,
+          );
+          const setAddToNoteButtonLabel = createStableButtonLabel(
+            addToNoteBtn,
+            [
+              noteText.addToNote,
+              noteText.addingToNote,
+              noteText.addedToNote,
+              noteText.addToNoteFailed,
+            ],
+            noteText.addToNote,
+          );
+          if (showCopyButton) actionRow.appendChild(copyBtn);
+          if (showAddToNoteButton) actionRow.appendChild(addToNoteBtn);
+          wrap.append(resultBox, actionRow);
           event.append(wrap);
           if (!popupSentinelEl) popupSentinelEl = wrap;
           stripPopupRowChrome(wrap.parentElement as HTMLElement | null);
-          selectionTranslateRelayout = () =>
-            scheduleSelectionTranslatePopupLayout({
-              doc: event.doc,
-              popup: selectionPopup,
-              wrap,
-              resultBox,
-              selectionRect,
-            });
           const popupWin = event.doc.defaultView;
+          let contentSizeRevision = 0;
+          const runOnNextPopupFrame = (callback: () => void) => {
+            if (popupWin?.requestAnimationFrame) {
+              popupWin.requestAnimationFrame(callback);
+            } else {
+              setTimeout(callback, 0);
+            }
+          };
+          selectionTranslateRelayout = () =>
+            scheduleSelectionTranslateLayout({
+              scheduleFrame: runOnNextPopupFrame,
+              readLayoutState: () => ({
+                doc: event.doc,
+                popup: selectionPopup,
+                wrap,
+                resultBox,
+                selectionRect,
+                preferredWidth: currentPopupWidth,
+                preferredHeight: currentPopupHeight,
+                minimumHeight: minimumResultHeight,
+              }),
+              applyLayout(state) {
+                if (!resizeActive) layoutSelectionTranslatePopup(state);
+              },
+            });
+          selectionTranslateContentChanged = (
+            preservePosition: boolean = false,
+          ) => {
+            const revision = ++contentSizeRevision;
+            const updatePopupSize = () => {
+              if (
+                revision !== contentSizeRevision ||
+                !wrap.isConnected ||
+                resizeActive
+              ) {
+                return;
+              }
+              layoutSelectionTranslatePopup({
+                doc: event.doc,
+                popup: selectionPopup,
+                wrap,
+                resultBox,
+                selectionRect,
+                preferredWidth: currentPopupWidth,
+                preferredHeight: currentPopupHeight,
+                minimumHeight: minimumResultHeight,
+                reposition: !preservePosition,
+              });
+
+              const naturalHeight = measureSelectionTranslateNaturalHeight({
+                wrap,
+                resultBox,
+                minimumHeight: minimumResultHeight,
+              });
+              const viewerHeight = getViewportRect(event.doc).height;
+              currentPopupHeight = resolveSelectionTranslateContentHeight({
+                contentHeight: naturalHeight,
+                viewerHeight,
+                minimumHeight: minimumResultHeight,
+                rememberedHeight: rememberedPopupHeight,
+              });
+              layoutSelectionTranslatePopup({
+                doc: event.doc,
+                popup: selectionPopup,
+                wrap,
+                resultBox,
+                selectionRect,
+                preferredWidth: currentPopupWidth,
+                preferredHeight: currentPopupHeight,
+                minimumHeight: minimumResultHeight,
+                reposition: !preservePosition,
+              });
+            };
+            runOnNextPopupFrame(updatePopupSize);
+          };
+          const getSelectedResultText = (): string => {
+            const selection = event.doc.getSelection?.();
+            if (!selection || selection.rangeCount === 0) return "";
+            const anchor = selection.anchorNode;
+            const focus = selection.focusNode;
+            const containsNode = (node: Node | null) =>
+              Boolean(node && (node === resultBox || resultBox.contains(node)));
+            if (!containsNode(anchor) || !containsNode(focus)) return "";
+            return selection.toString().trim();
+          };
+          resultBox.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            const key = e.key.toLowerCase();
+            if (key === "a") {
+              const selection = event.doc.getSelection?.();
+              if (!selection) return;
+              const range = event.doc.createRange();
+              range.selectNodeContents(resultBox);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+            if (key !== "c") return;
+            const selectedResultText = getSelectedResultText();
+            if (!selectedResultText) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void copyTextToClipboard(resultBox, selectedResultText);
+          });
+
+          let resizeActive = false;
+          let resizeWidthMoved = false;
+          let resizeHeightMoved = false;
+          let resizeStartWidth = 0;
+          let resizeStartHeight = 0;
+          let resizeOriginalWidth = currentPopupWidth;
+          let resizeOriginalHeight = currentPopupHeight;
+          let resizeObserver: ResizeObserver | null = null;
+          let resizePreviewFramePending = false;
+          let resizeFinishTimer: ReturnType<typeof setTimeout> | null = null;
+          let resizeWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+          const syncResizePreview = () => {
+            if (!resizeActive) return;
+            const width = Math.round(resultBox.offsetWidth);
+            const height = Math.round(resultBox.offsetHeight);
+            resizeWidthMoved ||= Math.abs(width - resizeStartWidth) > 1;
+            resizeHeightMoved ||= Math.abs(height - resizeStartHeight) > 1;
+            if (!resizeWidthMoved && !resizeHeightMoved) return;
+            currentPopupWidth = width;
+            currentPopupHeight = height;
+            wrap.style.width = `${width}px`;
+            clampSelectionPopupToViewport(event.doc, selectionPopup);
+          };
+          const scheduleResizePreview = () => {
+            if (!resizeActive || resizePreviewFramePending) return;
+            resizePreviewFramePending = true;
+            runOnNextPopupFrame(() => {
+              resizePreviewFramePending = false;
+              syncResizePreview();
+            });
+          };
+          const cleanupSelectionResize = () => {
+            resizeObserver?.disconnect();
+            resizeObserver = null;
+            resultBox.removeEventListener("mousemove", onSelectionResizeMove);
+            resultBox.removeEventListener(
+              "mouseup",
+              requestFinishSelectionResize,
+              true,
+            );
+            resultBox.removeEventListener(
+              "pointerup",
+              requestFinishSelectionResize,
+              true,
+            );
+            event.doc.removeEventListener("mousemove", onSelectionResizeMove);
+            event.doc.removeEventListener(
+              "mouseup",
+              requestFinishSelectionResize,
+              true,
+            );
+            event.doc.removeEventListener(
+              "pointerup",
+              requestFinishSelectionResize,
+              true,
+            );
+            popupWin?.removeEventListener(
+              "mouseup",
+              requestFinishSelectionResize,
+              true,
+            );
+            popupWin?.removeEventListener(
+              "pointerup",
+              requestFinishSelectionResize,
+              true,
+            );
+            popupWin?.removeEventListener("blur", requestFinishSelectionResize);
+            if (resizeWatchdogTimer !== null) {
+              clearTimeout(resizeWatchdogTimer);
+              resizeWatchdogTimer = null;
+            }
+          };
+          const finishSelectionResize = () => {
+            if (!resizeActive) return;
+            if (!resultBox.isConnected || !wrap.isConnected) {
+              resizeActive = false;
+              cleanupSelectionResize();
+              return;
+            }
+            syncResizePreview();
+            resizeActive = false;
+            cleanupSelectionResize();
+            if (resizeWidthMoved) {
+              currentPopupWidth = setSelectionTranslatePopupWidth(
+                resultBox.offsetWidth,
+              );
+            } else {
+              currentPopupWidth = resizeOriginalWidth;
+            }
+            if (resizeHeightMoved) {
+              rememberedPopupHeight = setSelectionTranslatePopupHeight(
+                resultBox.offsetHeight,
+                minimumResultHeight,
+              );
+              currentPopupHeight = rememberedPopupHeight;
+            } else {
+              currentPopupHeight = resizeOriginalHeight;
+            }
+            selectionTranslateContentChanged?.(true);
+          };
+          const requestFinishSelectionResize = () => {
+            if (!resizeActive || resizeFinishTimer !== null) return;
+            // Gecko can commit the final native resize after mouseup dispatch.
+            // Finish in a new task so offsetWidth/offsetHeight are final.
+            resizeFinishTimer = setTimeout(() => {
+              resizeFinishTimer = null;
+              finishSelectionResize();
+            }, 0);
+          };
+          const onSelectionResizeMove = (e: MouseEvent) => {
+            if (!resizeActive) return;
+            if ((e.buttons & 1) === 0) {
+              requestFinishSelectionResize();
+              return;
+            }
+            scheduleResizePreview();
+          };
+          const isInSelectionResizeGrip = (e: MouseEvent): boolean => {
+            const rect = resultBox.getBoundingClientRect();
+            const gripSize = 18;
+            return (
+              rect.right - e.clientX >= 0 &&
+              rect.right - e.clientX <= gripSize &&
+              rect.bottom - e.clientY >= 0 &&
+              rect.bottom - e.clientY <= gripSize
+            );
+          };
+          resultBox.addEventListener("mousemove", (e: MouseEvent) => {
+            if (resizeActive) return;
+            resultBox.style.cursor = isInSelectionResizeGrip(e)
+              ? "nwse-resize"
+              : "text";
+          });
+          resultBox.addEventListener("mouseleave", () => {
+            if (!resizeActive) resultBox.style.cursor = "text";
+          });
+          resultBox.addEventListener("mousedown", (e: MouseEvent) => {
+            if (e.button !== 0) return;
+            if (resizeActive) return;
+            if (!isInSelectionResizeGrip(e)) return;
+            contentSizeRevision += 1;
+            resizeActive = true;
+            resizeWidthMoved = false;
+            resizeHeightMoved = false;
+            resizeStartWidth = Math.round(resultBox.offsetWidth);
+            resizeStartHeight = Math.round(resultBox.offsetHeight);
+            resizeOriginalWidth = currentPopupWidth;
+            resizeOriginalHeight = currentPopupHeight;
+            resultBox.style.width = `${resizeStartWidth}px`;
+            resultBox.style.height = `${resizeStartHeight}px`;
+            const viewport = getViewportRect(event.doc);
+            const widthBounds = getPanelTypographyBounds().selectionPopupWidth;
+            resultBox.style.maxWidth = `${Math.max(
+              widthBounds.min,
+              Math.min(widthBounds.max, viewport.width - 20),
+            )}px`;
+            resultBox.style.maxHeight = `${getSelectionTranslateAvailableResultHeight(
+              {
+                viewportHeight: viewport.height,
+                popup: selectionPopup,
+                resultBox,
+                minimumHeight: minimumResultHeight,
+              },
+            )}px`;
+            const ResizeObserverCtor = popupWin?.ResizeObserver;
+            if (typeof ResizeObserverCtor === "function") {
+              const observer = new ResizeObserverCtor(scheduleResizePreview);
+              observer.observe(resultBox);
+              resizeObserver = observer;
+            }
+            resultBox.addEventListener("mousemove", onSelectionResizeMove);
+            resultBox.addEventListener(
+              "mouseup",
+              requestFinishSelectionResize,
+              true,
+            );
+            resultBox.addEventListener(
+              "pointerup",
+              requestFinishSelectionResize,
+              true,
+            );
+            event.doc.addEventListener("mousemove", onSelectionResizeMove);
+            event.doc.addEventListener(
+              "mouseup",
+              requestFinishSelectionResize,
+              true,
+            );
+            event.doc.addEventListener(
+              "pointerup",
+              requestFinishSelectionResize,
+              true,
+            );
+            popupWin?.addEventListener(
+              "mouseup",
+              requestFinishSelectionResize,
+              true,
+            );
+            popupWin?.addEventListener(
+              "pointerup",
+              requestFinishSelectionResize,
+              true,
+            );
+            popupWin?.addEventListener("blur", requestFinishSelectionResize);
+            resizeWatchdogTimer = setTimeout(
+              requestFinishSelectionResize,
+              30_000,
+            );
+          });
+
           const refreshSelectionTypography = () => {
             if (!wrap.isConnected) {
               for (const target of selectionTypographyRefreshTargets) {
@@ -1106,13 +1689,18 @@ export function registerReaderSelectionTracking() {
               return;
             }
             const nextTypography = getPanelTypographySettings();
+            currentPopupWidth = nextTypography.selectionPopupWidth;
+            minimumResultHeight = calculateMinimumResultHeight(nextTypography);
+            resultBox.style.minHeight = `${minimumResultHeight}px`;
             resultBox.style.fontSize = `${nextTypography.selectionFontSize}px`;
             resultBox.style.lineHeight = String(
               nextTypography.selectionLineHeight,
             );
+            copyBtn.style.fontSize = `${nextTypography.selectionFontSize}px`;
+            copyBtn.style.lineHeight = "1.25";
             addToNoteBtn.style.fontSize = `${nextTypography.selectionFontSize}px`;
             addToNoteBtn.style.lineHeight = "1.25";
-            selectionTranslateRelayout?.();
+            selectionTranslateContentChanged?.();
           };
           const selectionTypographyRefreshTargets: Window[] = [];
           const addSelectionTypographyRefreshTarget = (
@@ -1142,7 +1730,7 @@ export function registerReaderSelectionTracking() {
           } catch {
             /* ignore */
           }
-          selectionTranslateRelayout();
+          selectionTranslateContentChanged();
 
           let latestSelectionTranslation: {
             selectedText: string;
@@ -1151,41 +1739,79 @@ export function registerReaderSelectionTracking() {
             provider?: string;
           } | null = null;
           let translateRunning = false;
-          addToNoteBtn.addEventListener("click", async () => {
+          let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+          const resetCopyFeedback = () => {
+            if (copyFeedbackTimer !== null) {
+              clearTimeout(copyFeedbackTimer);
+              copyFeedbackTimer = null;
+            }
+            setCopyButtonLabel(text.copy);
+            copyBtn.disabled = !latestSelectionTranslation;
+          };
+          copyBtn.addEventListener("click", async (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const current = latestSelectionTranslation;
+            if (!current?.translation.trim()) return;
+            copyBtn.disabled = true;
+            await copyTextToClipboard(wrap, current.translation);
+            setCopyButtonLabel(text.copied);
+            copyFeedbackTimer = setTimeout(() => {
+              copyFeedbackTimer = null;
+              if (!wrap.isConnected) return;
+              setCopyButtonLabel(text.copy);
+              copyBtn.disabled = !latestSelectionTranslation;
+            }, 1400);
+          });
+          addToNoteBtn.addEventListener("click", async (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
             if (!item || !latestSelectionTranslation) return;
             addToNoteBtn.disabled = true;
-            addToNoteBtn.textContent = noteText.addingToNote;
+            setAddToNoteButtonLabel(noteText.addingToNote);
             try {
               await appendSelectionTranslationToNote(item, {
                 ...latestSelectionTranslation,
                 pageLabel: resolveSelectionPageLabel(),
               });
-              addToNoteBtn.textContent = noteText.addedToNote;
+              setAddToNoteButtonLabel(noteText.addedToNote);
             } catch (err) {
               ztoolkit.log(
                 "LLM: add selection translation to note failed",
                 err,
               );
               addToNoteBtn.disabled = false;
-              addToNoteBtn.textContent = noteText.addToNoteFailed;
+              setAddToNoteButtonLabel(noteText.addToNoteFailed);
             }
           });
           const runSelectionTranslate = async () => {
             if (translateRunning) return;
             translateRunning = true;
+            let popupStream: ReturnType<
+              typeof createSelectionTranslatePopupStream
+            > | null = null;
+            let receivedStreamingContent = false;
             latestSelectionTranslation = null;
-            addToNoteBtn.style.display = "none";
+            resetCopyFeedback();
+            actionRow.style.display = "none";
             addToNoteBtn.disabled = true;
-            addToNoteBtn.textContent = noteText.addToNote;
+            setAddToNoteButtonLabel(noteText.addToNote);
             try {
               const effectiveSelectedText =
                 normalizeSelectedText(selectedText) ||
                 resolveSelectedTextForPopupAction();
               if (!item || !effectiveSelectedText) {
                 resultBox.textContent = text.failed;
-                selectionTranslateRelayout?.();
+                selectionTranslateContentChanged?.();
                 return;
               }
+              popupStream = createSelectionTranslatePopupStream({
+                scheduleFrame: runOnNextPopupFrame,
+                render(value) {
+                  if (!wrap.isConnected) return;
+                  setResultText(value, true);
+                },
+              });
               const result = await translateSelectedTextForReader({
                 item,
                 selectedText: effectiveSelectedText,
@@ -1195,28 +1821,45 @@ export function registerReaderSelectionTracking() {
                       stage === "cold-start"
                         ? text.coldStart
                         : text.translating;
-                    selectionTranslateRelayout?.();
+                    selectionTranslateContentChanged?.();
+                  },
+                  onDelta(delta) {
+                    if (!delta) return;
+                    receivedStreamingContent = true;
+                    popupStream?.push(delta);
                   },
                 },
               });
-              setResultText(result.translation);
+              popupStream.invalidate();
+              popupStream = null;
+              if (!result.translation.trim()) {
+                resultBox.textContent = text.failed;
+                selectionTranslateContentChanged?.(receivedStreamingContent);
+                return;
+              }
               latestSelectionTranslation = {
                 selectedText: effectiveSelectedText,
                 translation: result.translation,
                 model: result.model,
                 provider: result.provider,
               };
+              copyBtn.disabled = false;
               addToNoteBtn.disabled = false;
-              addToNoteBtn.textContent = noteText.addToNote;
-              addToNoteBtn.style.display = "block";
-              selectionTranslateRelayout?.();
+              setAddToNoteButtonLabel(noteText.addToNote);
+              actionRow.style.display = hasVisibleSelectionTranslateActions
+                ? "flex"
+                : "none";
+              setResultText(result.translation, receivedStreamingContent);
             } catch (err) {
+              popupStream?.invalidate();
+              popupStream = null;
               ztoolkit.log("LLM: selection translation failed", err);
               resultBox.textContent = `${text.failed}: ${
                 err instanceof Error ? err.message : String(err)
               }`;
-              selectionTranslateRelayout?.();
+              selectionTranslateContentChanged?.(receivedStreamingContent);
             } finally {
+              popupStream?.invalidate();
               translateRunning = false;
             }
           };

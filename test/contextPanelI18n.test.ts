@@ -16,6 +16,15 @@ const PLACEHOLDER_TIP_KEYS = [
   "placeholderPaperTips",
 ] as const;
 
+const SELECTION_TRANSLATE_ACTION_KEYS = [
+  "copy",
+  "copied",
+  "addToNote",
+  "addingToNote",
+  "addedToNote",
+  "addToNoteFailed",
+] as const;
+
 describe("context panel i18n", function () {
   let uiLanguage = "en-US";
   let previousZotero: unknown;
@@ -92,6 +101,17 @@ describe("context panel i18n", function () {
         if (uiCode !== "en-US") {
           assert.notDeepEqual(value, english[key], `${uiCode}.${key}`);
         }
+      }
+    }
+  });
+
+  it("provides selection translate action labels for every supported language", function () {
+    for (const { uiCode } of UI_LANGUAGE_OPTIONS) {
+      uiLanguage = uiCode;
+      const labels = getPanelI18n();
+      for (const key of SELECTION_TRANSLATE_ACTION_KEYS) {
+        assert.isString(labels[key], `${uiCode}.${key}`);
+        assert.isAbove(labels[key].trim().length, 0, `${uiCode}.${key}`);
       }
     }
   });

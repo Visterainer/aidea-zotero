@@ -1,4 +1,4 @@
-import { callLLM } from "../../utils/llmClient";
+import { callLLM, callLLMStream } from "../../utils/llmClient";
 import {
   loadSelectionTranslateColdStartCache,
   saveSelectionTranslateColdStartCache,
@@ -47,6 +47,7 @@ export type SelectionTranslateStage = "cold-start" | "translate";
 
 export type SelectionTranslateCallbacks = {
   onStage?: (stage: SelectionTranslateStage) => void;
+  onDelta?: (delta: string) => void;
 };
 
 export type SelectionTranslateResult = {
@@ -486,19 +487,24 @@ export async function translateSelectedTextForReader(params: {
 
   params.callbacks?.onStage?.("translate");
   const translation = normalizeCacheText(
-    await callLLM({
-      prompt: buildSelectionTranslatePrompt({
-        selectedText,
-        cacheText: cache.cacheText,
-        sourceLang: prefs.sourceLang,
-        targetLang: prefs.targetLang,
-      }),
-      model: modelConfig.model,
-      apiBase: modelConfig.apiBase,
-      apiKey: modelConfig.apiKey,
-      temperature: 0.2,
-      maxTokens: 1200,
-    }),
+    await callLLMStream(
+      {
+        prompt: buildSelectionTranslatePrompt({
+          selectedText,
+          cacheText: cache.cacheText,
+          sourceLang: prefs.sourceLang,
+          targetLang: prefs.targetLang,
+        }),
+        model: modelConfig.model,
+        apiBase: modelConfig.apiBase,
+        apiKey: modelConfig.apiKey,
+        temperature: 0.2,
+        maxTokens: 1200,
+      },
+      (delta) => {
+        if (delta) params.callbacks?.onDelta?.(delta);
+      },
+    ),
   );
   if (!translation) {
     throw new Error("Selection translation returned empty content");

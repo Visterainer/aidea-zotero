@@ -136,6 +136,7 @@ type PrefKey =
   | "font.selectionSize"
   | "font.selectionLineHeight"
   | "font.selectionPopupWidth"
+  | "font.selectionPopupHeight"
   | "font.chatImageScale"
   | "selectionTranslate.model"
   | "selectionTranslate.provider"
@@ -1797,6 +1798,124 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
     },
   };
 
+const SETTINGS_I18N_SELECTION_ACTION_OVERRIDES: Record<Lang, Dict> = {
+  "en-US": {
+    selectionTranslateShowCopyButton:
+      'Show the "Copy" button in the selection translation popup',
+    selectionTranslateShowCopyButtonHint:
+      "When disabled, you can still select translated text and copy the selected part.",
+    selectionTranslateShowAddToNoteButton:
+      'Show the "Add to Note" button in the selection translation popup',
+    selectionTranslateShowAddToNoteButtonHint:
+      "When disabled, only this button is hidden; the separate Add Text entry is unaffected.",
+  },
+  "zh-CN": {
+    selectionTranslateShowCopyButton: "在划词翻译弹窗中显示 复制 按钮",
+    selectionTranslateShowCopyButtonHint:
+      "关闭后仍可划选翻译内容，并复制选中的部分。",
+    selectionTranslateShowAddToNoteButton:
+      "在划词翻译弹窗中显示 添加到笔记 按钮",
+    selectionTranslateShowAddToNoteButtonHint:
+      "关闭后只隐藏此按钮，不影响独立的 添加文本 入口。",
+  },
+  "zh-TW": {
+    selectionTranslateShowCopyButton: "在劃詞翻譯彈窗中顯示 複製 按鈕",
+    selectionTranslateShowCopyButtonHint:
+      "關閉後仍可選取翻譯內容，並複製選取的部分。",
+    selectionTranslateShowAddToNoteButton:
+      "在劃詞翻譯彈窗中顯示 新增至筆記 按鈕",
+    selectionTranslateShowAddToNoteButtonHint:
+      "關閉後只會隱藏此按鈕，不影響獨立的 Add Text 入口。",
+  },
+  "ja-JP": {
+    selectionTranslateShowCopyButton:
+      "選択範囲翻訳ポップアップにコピーボタンを表示",
+    selectionTranslateShowCopyButtonHint:
+      "オフにしても翻訳文を選択し、選択した部分をコピーできます。",
+    selectionTranslateShowAddToNoteButton:
+      "選択範囲翻訳ポップアップにノートへ追加ボタンを表示",
+    selectionTranslateShowAddToNoteButtonHint:
+      "オフにするとこのボタンだけが非表示になり、独立した Add Text 項目には影響しません。",
+  },
+  "ko-KR": {
+    selectionTranslateShowCopyButton: "선택 번역 팝업에 복사 버튼 표시",
+    selectionTranslateShowCopyButtonHint:
+      "꺼도 번역문을 선택해 선택한 부분을 복사할 수 있습니다.",
+    selectionTranslateShowAddToNoteButton:
+      "선택 번역 팝업에 노트에 추가 버튼 표시",
+    selectionTranslateShowAddToNoteButtonHint:
+      "끄면 이 버튼만 숨겨지며 별도의 Add Text 항목에는 영향을 주지 않습니다.",
+  },
+  "fr-FR": {
+    selectionTranslateShowCopyButton:
+      "Afficher le bouton Copier dans la fenêtre de traduction de sélection",
+    selectionTranslateShowCopyButtonHint:
+      "Même désactivé, le texte traduit peut être sélectionné et copié en partie.",
+    selectionTranslateShowAddToNoteButton:
+      "Afficher le bouton Ajouter à la note dans la fenêtre de traduction de sélection",
+    selectionTranslateShowAddToNoteButtonHint:
+      "Seul ce bouton est masqué ; l'entrée Add Text séparée reste disponible.",
+  },
+  "de-DE": {
+    selectionTranslateShowCopyButton:
+      "Schaltfläche Kopieren im Übersetzungs-Popup anzeigen",
+    selectionTranslateShowCopyButtonHint:
+      "Auch bei deaktivierter Option kann Übersetzungstext markiert und teilweise kopiert werden.",
+    selectionTranslateShowAddToNoteButton:
+      "Schaltfläche Zu Notiz hinzufügen im Übersetzungs-Popup anzeigen",
+    selectionTranslateShowAddToNoteButtonHint:
+      "Nur diese Schaltfläche wird ausgeblendet; der separate Add-Text-Eintrag bleibt unverändert.",
+  },
+  "es-ES": {
+    selectionTranslateShowCopyButton:
+      "Mostrar el botón Copiar en la ventana de traducción de selección",
+    selectionTranslateShowCopyButtonHint:
+      "Aunque esté desactivado, puedes seleccionar y copiar una parte de la traducción.",
+    selectionTranslateShowAddToNoteButton:
+      "Mostrar el botón Añadir a la nota en la ventana de traducción de selección",
+    selectionTranslateShowAddToNoteButtonHint:
+      "Solo se oculta este botón; la entrada Add Text independiente no cambia.",
+  },
+  "ru-RU": {
+    selectionTranslateShowCopyButton:
+      "Показывать кнопку Копировать в окне перевода выделения",
+    selectionTranslateShowCopyButtonHint:
+      "Даже если отключено, можно выделить часть перевода и скопировать её.",
+    selectionTranslateShowAddToNoteButton:
+      "Показывать кнопку Добавить в заметку в окне перевода выделения",
+    selectionTranslateShowAddToNoteButtonHint:
+      "Скрывается только эта кнопка; отдельный пункт Add Text не изменяется.",
+  },
+  "pt-BR": {
+    selectionTranslateShowCopyButton:
+      "Mostrar o botão Copiar no popup de tradução da seleção",
+    selectionTranslateShowCopyButtonHint:
+      "Mesmo desativado, você pode selecionar e copiar parte do texto traduzido.",
+    selectionTranslateShowAddToNoteButton:
+      "Mostrar o botão Adicionar à nota no popup de tradução da seleção",
+    selectionTranslateShowAddToNoteButtonHint:
+      "Somente este botão é ocultado; a entrada Add Text separada não é afetada.",
+  },
+  "ar-SA": {
+    selectionTranslateShowCopyButton: "إظهار زر النسخ في نافذة ترجمة التحديد",
+    selectionTranslateShowCopyButtonHint:
+      "عند إيقافه، يظل بإمكانك تحديد جزء من الترجمة ونسخه.",
+    selectionTranslateShowAddToNoteButton:
+      "إظهار زر الإضافة إلى الملاحظة في نافذة ترجمة التحديد",
+    selectionTranslateShowAddToNoteButtonHint:
+      "يتم إخفاء هذا الزر فقط، ولا يتأثر خيار Add Text المنفصل.",
+  },
+  "hi-IN": {
+    selectionTranslateShowCopyButton: "चयन अनुवाद पॉपअप में कॉपी बटन दिखाएँ",
+    selectionTranslateShowCopyButtonHint:
+      "बंद होने पर भी अनुवाद का भाग चुनकर कॉपी किया जा सकता है।",
+    selectionTranslateShowAddToNoteButton:
+      "चयन अनुवाद पॉपअप में नोट में जोड़ें बटन दिखाएँ",
+    selectionTranslateShowAddToNoteButtonHint:
+      "केवल यह बटन छिपेगा; अलग Add Text विकल्प प्रभावित नहीं होगा।",
+  },
+};
+
 const SETTINGS_I18N_CONSOLE_OVERRIDES: Partial<Record<Lang, Dict>> = {
   "en-US": {
     consoleIssuePrefix: "Having trouble?",
@@ -2336,6 +2455,7 @@ const tt = (l: Lang): Dict =>
     ...(SETTINGS_I18N_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_CONSOLE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES[l] || {}),
+    ...SETTINGS_I18N_SELECTION_ACTION_OVERRIDES[l],
     ...(SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES[l] || {}),
     ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES["en-US"] || {}),
     ...(SETTINGS_I18N_COMPOSER_THEME_OVERRIDES[l] || {}),
@@ -4780,6 +4900,31 @@ export async function bootstrapSettingTab(
       `#${config.addonRef}-selection-translate-target-label`,
     );
     if (stTarget) stTarget.textContent = L.selectionTranslateTargetLang;
+    const stShowCopy = doc.querySelector(
+      `#${config.addonRef}-selection-translate-show-copy-label`,
+    );
+    if (stShowCopy) {
+      stShowCopy.textContent = L.selectionTranslateShowCopyButton;
+    }
+    const stShowCopyHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-show-copy-hint`,
+    );
+    if (stShowCopyHint) {
+      stShowCopyHint.textContent = L.selectionTranslateShowCopyButtonHint;
+    }
+    const stShowAddToNote = doc.querySelector(
+      `#${config.addonRef}-selection-translate-show-add-to-note-label`,
+    );
+    if (stShowAddToNote) {
+      stShowAddToNote.textContent = L.selectionTranslateShowAddToNoteButton;
+    }
+    const stShowAddToNoteHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-show-add-to-note-hint`,
+    );
+    if (stShowAddToNoteHint) {
+      stShowAddToNoteHint.textContent =
+        L.selectionTranslateShowAddToNoteButtonHint;
+    }
     const stColdStartHint = doc.querySelector(
       `#${config.addonRef}-selection-translate-cold-start-hint`,
     );
@@ -4835,8 +4980,7 @@ export async function bootstrapSettingTab(
     }
   };
   const previousOauthEnvLogHandler = (win as any).__aideaOauthEnvLogHandler as
-    | EventListener
-    | undefined;
+    EventListener | undefined;
   if (previousOauthEnvLogHandler) {
     win.removeEventListener(
       OAUTH_ENV_UPDATE_LOG_EVENT,
@@ -6020,6 +6164,7 @@ export async function bootstrapSettingTab(
       "font.selectionSize": "14",
       "font.selectionLineHeight": "1.55",
       "font.selectionPopupWidth": "480",
+      "font.selectionPopupHeight": "0",
       "font.chatImageScale": "1",
       "selectionTranslate.model": "",
       "selectionTranslate.provider": "",
@@ -6057,6 +6202,8 @@ export async function bootstrapSettingTab(
     setBoolPref("authorProfiles.contextMenuEnabled", false);
     setBoolPref("selectionTranslate.enabled", true);
     setBoolPref("selectionTranslate.auto", true);
+    setBoolPref("selectionTranslate.showCopyButton", true);
+    setBoolPref("selectionTranslate.showAddToNoteButton", true);
     setBoolPref("translate.outputMono", true);
     setBoolPref("translate.outputDual", true);
     setBoolPref("translate.skipReferencesAuto", true);
@@ -6119,6 +6266,12 @@ export async function bootstrapSettingTab(
     }
     if (selectionTranslateAutoInput) {
       selectionTranslateAutoInput.checked = true;
+    }
+    if (selectionTranslateShowCopyInput) {
+      selectionTranslateShowCopyInput.checked = true;
+    }
+    if (selectionTranslateShowAddToNoteInput) {
+      selectionTranslateShowAddToNoteInput.checked = true;
     }
     if (selectionTranslateSourceInput) {
       selectionTranslateSourceInput.dataset.value = "auto";
@@ -6653,6 +6806,7 @@ export async function bootstrapSettingTab(
     );
   });
   const selectionTranslateWrap = createEl(doc, "div", "llm-tr-section-body");
+  const selectionTranslateEnableField = createEl(doc, "div", "llm-set-field");
 
   const selectionTranslateEnableLabel = createEl(
     doc,
@@ -6687,6 +6841,10 @@ export async function bootstrapSettingTab(
     L.selectionTranslateEnableHint,
   );
   selectionTranslateEnableHint.id = `${config.addonRef}-selection-translate-enable-hint`;
+  selectionTranslateEnableField.append(
+    selectionTranslateEnableLabel,
+    selectionTranslateEnableHint,
+  );
 
   const selectionTranslateAutoLabel = createEl(
     doc,
@@ -6725,7 +6883,7 @@ export async function bootstrapSettingTab(
   const selectionTranslateModelField = createEl(
     doc,
     "div",
-    "llm-tr-path-block",
+    "llm-tr-path-block llm-set-subsection",
   );
   const selectionTranslateModelLabel = createEl(
     doc,
@@ -6751,7 +6909,11 @@ export async function bootstrapSettingTab(
     selectionTranslateModelHint,
   );
 
-  const languageRow = createEl(doc, "div", "llm-tr-lang-row");
+  const languageRow = createEl(
+    doc,
+    "div",
+    "llm-tr-lang-row llm-set-subsection",
+  );
   const selectionTranslateSourceField = createEl(
     doc,
     "div",
@@ -6797,6 +6959,100 @@ export async function bootstrapSettingTab(
     selectionTranslateTargetField,
   );
 
+  const selectionTranslateShowCopyField = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-subsection",
+  );
+  const selectionTranslateShowCopyLabel = createEl(
+    doc,
+    "label",
+    "llm-set-radio-label",
+  );
+  const selectionTranslateShowCopyInput = createEl(
+    doc,
+    "input",
+    "llm-set-checkbox",
+  ) as HTMLInputElement;
+  selectionTranslateShowCopyInput.type = "checkbox";
+  selectionTranslateShowCopyInput.id = `${config.addonRef}-selection-translate-show-copy`;
+  selectionTranslateShowCopyInput.checked = getBoolPref(
+    "selectionTranslate.showCopyButton",
+    true,
+  );
+  const selectionTranslateShowCopyText = createEl(
+    doc,
+    "span",
+    "",
+    L.selectionTranslateShowCopyButton,
+  );
+  selectionTranslateShowCopyText.id = `${config.addonRef}-selection-translate-show-copy-label`;
+  selectionTranslateShowCopyLabel.append(
+    selectionTranslateShowCopyInput,
+    selectionTranslateShowCopyText,
+  );
+  const selectionTranslateShowCopyHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.selectionTranslateShowCopyButtonHint,
+  );
+  selectionTranslateShowCopyHint.id = `${config.addonRef}-selection-translate-show-copy-hint`;
+  selectionTranslateShowCopyField.append(
+    selectionTranslateShowCopyLabel,
+    selectionTranslateShowCopyHint,
+  );
+
+  const selectionTranslateShowAddToNoteField = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-subsection",
+  );
+  const selectionTranslateShowAddToNoteLabel = createEl(
+    doc,
+    "label",
+    "llm-set-radio-label",
+  );
+  const selectionTranslateShowAddToNoteInput = createEl(
+    doc,
+    "input",
+    "llm-set-checkbox",
+  ) as HTMLInputElement;
+  selectionTranslateShowAddToNoteInput.type = "checkbox";
+  selectionTranslateShowAddToNoteInput.id = `${config.addonRef}-selection-translate-show-add-to-note`;
+  selectionTranslateShowAddToNoteInput.checked = getBoolPref(
+    "selectionTranslate.showAddToNoteButton",
+    true,
+  );
+  const selectionTranslateShowAddToNoteText = createEl(
+    doc,
+    "span",
+    "",
+    L.selectionTranslateShowAddToNoteButton,
+  );
+  selectionTranslateShowAddToNoteText.id = `${config.addonRef}-selection-translate-show-add-to-note-label`;
+  selectionTranslateShowAddToNoteLabel.append(
+    selectionTranslateShowAddToNoteInput,
+    selectionTranslateShowAddToNoteText,
+  );
+  const selectionTranslateShowAddToNoteHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.selectionTranslateShowAddToNoteButtonHint,
+  );
+  selectionTranslateShowAddToNoteHint.id = `${config.addonRef}-selection-translate-show-add-to-note-hint`;
+  selectionTranslateShowAddToNoteField.append(
+    selectionTranslateShowAddToNoteLabel,
+    selectionTranslateShowAddToNoteHint,
+  );
+
+  const selectionTranslateColdStartField = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-subsection",
+  );
+
   const selectionTranslateColdStartHint = createEl(
     doc,
     "div",
@@ -6827,14 +7083,18 @@ export async function bootstrapSettingTab(
     selectionTranslateClearBtn,
     selectionTranslateClearStatus,
   );
-
-  selectionTranslateWrap.append(
-    selectionTranslateEnableLabel,
-    selectionTranslateEnableHint,
-    selectionTranslateModelField,
-    languageRow,
+  selectionTranslateColdStartField.append(
     selectionTranslateColdStartHint,
     selectionTranslateClearRow,
+  );
+
+  selectionTranslateWrap.append(
+    selectionTranslateEnableField,
+    selectionTranslateModelField,
+    languageRow,
+    selectionTranslateShowCopyField,
+    selectionTranslateShowAddToNoteField,
+    selectionTranslateColdStartField,
   );
   selectionTranslateBody.appendChild(selectionTranslateWrap);
   selectionTranslateGroup.append(
@@ -6850,6 +7110,18 @@ export async function bootstrapSettingTab(
   });
   selectionTranslateAutoInput.addEventListener("change", () => {
     setBoolPref("selectionTranslate.auto", selectionTranslateAutoInput.checked);
+  });
+  selectionTranslateShowCopyInput.addEventListener("change", () => {
+    setBoolPref(
+      "selectionTranslate.showCopyButton",
+      selectionTranslateShowCopyInput.checked,
+    );
+  });
+  selectionTranslateShowAddToNoteInput.addEventListener("change", () => {
+    setBoolPref(
+      "selectionTranslate.showAddToNoteButton",
+      selectionTranslateShowAddToNoteInput.checked,
+    );
   });
   selectionTranslateClearBtn.addEventListener("click", async () => {
     selectionTranslateClearBtn.disabled = true;
