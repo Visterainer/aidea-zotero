@@ -203,9 +203,7 @@ function showCopiedToast(lang: OAuthUiLang): void {
 }
 
 export type OAuthProviderId =
-  | "openai-codex"
-  | "google-gemini-cli"
-  | "github-copilot";
+  "openai-codex" | "google-gemini-cli" | "github-copilot";
 
 export type OAuthCredential = {
   provider: OAuthProviderId;
@@ -717,8 +715,7 @@ function getZoteroProxySnapshot(prefSvc: any): ZoteroProxySnapshot {
     socksHost: getChar("network.proxy.socks") || undefined,
     socksPort: getInt("network.proxy.socks_port", 0) || undefined,
     socksVersion: (getInt("network.proxy.socks_version", 5) === 4 ? 4 : 5) as
-      | 4
-      | 5,
+      4 | 5,
     noProxy: getChar("network.proxy.no_proxies_on") || undefined,
   };
 }
@@ -2441,9 +2438,7 @@ const COPILOT_SUPPRESSED_MODEL_IDS = new Set([
 ]);
 
 type OAuthParameterSource =
-  | "explicit-task"
-  | "omitted-provider-default"
-  | "provider-required-fallback";
+  "explicit-task" | "omitted-provider-default" | "provider-required-fallback";
 
 function getPayloadTokenParam(payload: Record<string, unknown>):
   | {
@@ -2755,9 +2750,7 @@ function getCachedCopilotModelOption(
 }
 
 type CopilotTransportKind =
-  | "anthropic-messages"
-  | "responses"
-  | "chat-completions";
+  "anthropic-messages" | "responses" | "chat-completions";
 
 function resolveCopilotTransportKind(modelId: string): CopilotTransportKind {
   if (isCopilotClaudeModel(modelId)) {
@@ -2927,9 +2920,54 @@ export async function checkOAuthCliEnvironmentUpdates(
   return results;
 }
 
+const CODEX_OAUTH_USER_AGENT = "codex_cli_rs/0.0.0 (AIdea)";
+
+function getCodexAccountIdFromAccessToken(accessToken: string): string {
+  try {
+    const payload = accessToken.split(".")[1];
+    if (!payload) return "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+    const claims = JSON.parse(globalThis.atob(padded)) as {
+      "https://api.openai.com/auth"?: {
+        chatgpt_account_id?: unknown;
+      };
+    };
+    const accountId = claims["https://api.openai.com/auth"]?.chatgpt_account_id;
+    return typeof accountId === "string" ? accountId.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+export function buildCodexOAuthHeaders(
+  cred: Pick<OAuthCredential, "accessToken" | "accountId">,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${cred.accessToken}`,
+    // Match the first-party Codex CLI identity. The Codex backend uses this
+    // client identity when routing newly released subscription models.
+    "User-Agent": CODEX_OAUTH_USER_AGENT,
+    originator: "codex_cli_rs",
+  };
+  const accountId =
+    cred.accountId?.trim() ||
+    getCodexAccountIdFromAccessToken(cred.accessToken);
+  if (accountId) {
+    headers["ChatGPT-Account-ID"] = accountId;
+  }
+  return headers;
+}
+
 function ensureProviderAuthHeaderInit(
   cred: OAuthCredential,
 ): Record<string, string> {
+  if (cred.provider === "openai-codex") {
+    return buildCodexOAuthHeaders(cred);
+  }
   const headers: Record<string, string> = {
     Authorization: `Bearer ${cred.accessToken}`,
   };
@@ -2997,14 +3035,10 @@ export async function fetchAvailableModels(
       const buildHeaders = (
         credential: OAuthCredential,
       ): Record<string, string> => {
-        const headers: Record<string, string> = {
+        return {
           ...ensureProviderAuthHeaderInit(credential),
           Accept: "application/json",
         };
-        if (credential.accountId) {
-          headers["ChatGPT-Account-Id"] = credential.accountId;
-        }
-        return headers;
       };
 
       const fetchDynamicModels = async (
@@ -4539,9 +4573,6 @@ export async function getProviderAuthStatus(
         ...ensureProviderAuthHeaderInit(cred),
         Accept: "application/json",
       };
-      if (cred.accountId) {
-        headers["ChatGPT-Account-Id"] = cred.accountId;
-      }
       const res = await getFetch()(
         "https://chatgpt.com/backend-api/wham/usage",
         {
@@ -5578,9 +5609,6 @@ export async function chatWithProviderOAuth(params: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     };
-    if (cred.accountId) {
-      codexHeaders["ChatGPT-Account-Id"] = cred.accountId;
-    }
     const res = await fetchWithTransientRetry(
       getFetch(),
       "https://chatgpt.com/backend-api/codex/responses",
@@ -5946,7 +5974,6 @@ export async function getOAuthProviderPingInfo(
       headers: {
         ...ensureProviderAuthHeaderInit(cred),
         "Content-Type": "application/json",
-        ...(cred.accountId ? { "ChatGPT-Account-Id": cred.accountId } : {}),
       },
     };
   }
@@ -6064,11 +6091,6 @@ export async function pingCodexModel(
           ...headers,
           ...ensureProviderAuthHeaderInit(refreshed),
         };
-        if (refreshed.accountId) {
-          retryHeaders["ChatGPT-Account-Id"] = refreshed.accountId;
-        } else {
-          delete retryHeaders["ChatGPT-Account-Id"];
-        }
         res = await runPing(retryHeaders);
       }
     }

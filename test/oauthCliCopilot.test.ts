@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  buildCodexOAuthHeaders,
   chatWithProviderOAuth,
   parseCopilotModelsResponse,
 } from "../src/utils/oauthCli";
@@ -63,6 +64,40 @@ function buildAnthropicSseResponse(text: string): Response {
 }
 
 describe("oauthCli Copilot model parsing", function () {
+  it("uses the first-party Codex client identity", function () {
+    const headers = buildCodexOAuthHeaders({
+      accessToken: "test-token",
+      accountId: "account-1",
+    });
+
+    assert.equal(headers.originator, "codex_cli_rs");
+    assert.match(headers["User-Agent"], /^codex_cli_rs\//);
+    assert.equal(headers["ChatGPT-Account-ID"], "account-1");
+    assert.notProperty(headers, "ChatGPT-Account-Id");
+  });
+
+  it("reads the account id from the OAuth JWT when auth.json omits it", function () {
+    const encode = (value: unknown) =>
+      Buffer.from(JSON.stringify(value)).toString("base64url");
+    const accessToken = `${encode({ alg: "none" })}.${encode({
+      "https://api.openai.com/auth": {
+        chatgpt_account_id: "account-from-jwt",
+      },
+    })}.signature`;
+
+    const headers = buildCodexOAuthHeaders({ accessToken });
+
+    assert.equal(headers["ChatGPT-Account-ID"], "account-from-jwt");
+  });
+
+  it("keeps the base Codex client headers for a malformed token", function () {
+    const headers = buildCodexOAuthHeaders({ accessToken: "not-a-jwt" });
+
+    assert.equal(headers.originator, "codex_cli_rs");
+    assert.match(headers["User-Agent"], /^codex_cli_rs\//);
+    assert.notProperty(headers, "ChatGPT-Account-ID");
+  });
+
   it("should parse the OpenAI-style data array returned by Copilot", function () {
     const models = parseCopilotModelsResponse({
       data: [
@@ -209,6 +244,8 @@ describe("oauthCli Copilot model parsing", function () {
   });
 });
 
+// Keep transport hooks isolated from the pure model/header parsing tests.
+// eslint-disable-next-line mocha/max-top-level-suites
 describe("oauthCli Copilot temperature handling", function () {
   let prefStore: Map<string, unknown>;
   let originalFetch: typeof globalThis.fetch | undefined;
@@ -602,6 +639,7 @@ describe("oauthCli Copilot temperature handling", function () {
     };
 
     let seenPayload: Record<string, unknown> | null = null;
+    let seenHeaders: Headers | null = null;
     globalThis.fetch = (async (
       _url: string | URL | Request,
       init?: RequestInit,
@@ -610,17 +648,22 @@ describe("oauthCli Copilot temperature handling", function () {
         string,
         unknown
       >;
+      seenHeaders = new Headers(init?.headers);
       return buildCopilotSseResponse("Normal answer");
     }) as typeof globalThis.fetch;
 
     const result = await chatWithProviderOAuth({
       provider: "openai-codex",
-      model: "gpt-5.3-codex",
+      model: "gpt-5.6-luna",
       prompt: "Hello",
     });
 
     assert.equal(result, "Normal answer");
+    assert.equal(seenPayload?.model, "gpt-5.6-luna");
     assert.deepEqual(seenPayload?.tools, [{ type: "image_generation" }]);
+    assert.equal(seenHeaders?.get("originator"), "codex_cli_rs");
+    assert.match(seenHeaders?.get("User-Agent") || "", /^codex_cli_rs\//);
+    assert.equal(seenHeaders?.get("ChatGPT-Account-ID"), "account-1");
     assert.notProperty(seenPayload, "temperature");
     assert.notProperty(seenPayload, "max_output_tokens");
     assert.include(

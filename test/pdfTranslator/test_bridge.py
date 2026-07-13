@@ -5,6 +5,7 @@ Tests for aidea_bridge.py helpers.
 Run: python test/pdfTranslator/test_bridge.py
 """
 
+import base64
 import json
 import os
 import sys
@@ -18,6 +19,7 @@ import aidea_bridge as bridge  # noqa: E402
 from aidea_bridge import (  # noqa: E402
     OAuthCompatProxyServer,
     _as_bool,
+    _build_codex_oauth_headers,
     _build_copilot_dynamic_headers,
     _build_overlay_textbox_kwargs,
     _collect_output_files,
@@ -272,6 +274,81 @@ try:
     assert_eq(captured["headers"]["Authorization"], "Bearer sk-test", "passes bearer API key to proxied upstream")
 finally:
     bridge._http_post_json = orig_post
+
+print("\n=== Codex OAuth request headers ===")
+headers = _build_codex_oauth_headers("test-token", "account-1")
+assert_eq(headers.get("originator"), "codex_cli_rs", "uses Codex originator")
+assert_eq(
+    headers.get("User-Agent"),
+    "codex_cli_rs/0.0.0 (AIdea)",
+    "uses Codex-shaped user agent",
+)
+assert_eq(
+    headers.get("ChatGPT-Account-ID"),
+    "account-1",
+    "uses canonical Codex account header",
+)
+assert_eq(
+    headers.get("ChatGPT-Account-Id"),
+    None,
+    "does not emit the legacy account header spelling",
+)
+
+jwt_payload = base64.urlsafe_b64encode(
+    json.dumps({
+        "https://api.openai.com/auth": {
+            "chatgpt_account_id": "account-from-jwt",
+        }
+    }).encode("utf-8")
+).decode("ascii").rstrip("=")
+headers = _build_codex_oauth_headers(f"header.{jwt_payload}.signature")
+assert_eq(
+    headers.get("ChatGPT-Account-ID"),
+    "account-from-jwt",
+    "reads Codex account id from the OAuth JWT",
+)
+
+orig_post_with_retry = bridge._http_post_json_with_retry
+captured_codex = {}
+
+
+def capture_codex_post(url, payload, headers, timeout=180):
+    captured_codex["url"] = url
+    captured_codex["payload"] = payload
+    captured_codex["headers"] = headers
+    return json.dumps({"output_text": "translated text"})
+
+
+try:
+    bridge._http_post_json_with_retry = capture_codex_post
+    proxy = OAuthCompatProxyServer({
+        "provider": "openai-codex",
+        "accessToken": "test-token",
+        "accountId": "account-1",
+    })
+    text = proxy.handle_chat_completion({
+        "model": "gpt-5.6-luna",
+        "messages": [{"role": "user", "content": "hello"}],
+        "stream": False,
+    })
+    assert_eq(text, "translated text", "forwards Codex OAuth responses")
+    assert_eq(
+        captured_codex["payload"].get("model"),
+        "gpt-5.6-luna",
+        "keeps the Luna model slug unchanged",
+    )
+    assert_eq(
+        captured_codex["headers"].get("originator"),
+        "codex_cli_rs",
+        "forwards the Codex originator",
+    )
+    assert_eq(
+        captured_codex["headers"].get("User-Agent"),
+        "codex_cli_rs/0.0.0 (AIdea)",
+        "forwards the Codex-shaped user agent",
+    )
+finally:
+    bridge._http_post_json_with_retry = orig_post_with_retry
 
 print("\n=== Copilot retry helpers ===")
 assert_eq(
