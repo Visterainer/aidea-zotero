@@ -98,13 +98,19 @@ export function patchStreamingBubble(
   text: string,
 ): void {
   if (!bubble || !bubble.parentNode) return;
-  if (!bubble.classList.contains("streaming")) return;
+
+  // An empty streaming response is initially rendered as a skeleton. Treat
+  // that skeleton as an authoritative streaming marker too, so the first
+  // delta can recover even if the CSS state class was briefly out of sync.
+  // Finalized bubbles have neither marker and must ignore late queued patches.
+  const skeleton = bubble.querySelector(".llm-streaming-skeleton");
+  if (!bubble.classList.contains("streaming") && !skeleton) return;
+  bubble.classList.add("streaming");
 
   const safeText = sanitizeText(text);
   if (!safeText) return;
 
   // Remove skeleton on first real content
-  const skeleton = bubble.querySelector(".llm-streaming-skeleton");
   if (skeleton) {
     skeleton.remove();
   }

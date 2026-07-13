@@ -3182,6 +3182,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
     const bubble = doc.createElement("div") as HTMLDivElement;
     bubble.className = `llm-bubble ${isUser ? "user" : "assistant"}`;
+    if (!isUser && msg.streaming) {
+      // Mark the empty skeleton as streaming before the first delta arrives.
+      // Late queued patches are still rejected after finalization removes it.
+      bubble.classList.add("streaming");
+    }
     bubble.lang = bubbleLanguage.htmlLang;
     bubble.dir = bubbleLanguage.dir === "rtl" ? "rtl" : "auto";
 
@@ -3868,7 +3873,6 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           }
         };
         if (msg.streaming) {
-          bubble.classList.add("streaming");
           const streamingContent = doc.createElement("div") as HTMLDivElement;
           streamingContent.setAttribute("data-streaming-content", "true");
           renderAssistantMarkdown(streamingContent);

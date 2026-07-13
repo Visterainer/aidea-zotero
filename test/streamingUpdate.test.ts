@@ -303,6 +303,25 @@ describe("streamingUpdate", function () {
       );
     });
 
+    it("should recover the initial skeleton when the streaming class is missing", function () {
+      const chatBox = createMockDiv();
+      const wrapper = createMockDiv("llm-message-wrapper assistant");
+      const bubble = createMockDiv("llm-bubble assistant");
+      const skeleton = createMockDiv("llm-streaming-skeleton");
+      bubble.appendChild(skeleton);
+      wrapper.appendChild(bubble);
+      chatBox.appendChild(wrapper);
+
+      patchStreamingBubble(bubble, "First delta");
+
+      assert.isTrue(bubble.classList.contains("streaming"));
+      assert.isNull(bubble.querySelector(".llm-streaming-skeleton"));
+      assert.include(
+        bubble.querySelector("[data-streaming-content]")!.innerHTML,
+        "First delta",
+      );
+    });
+
     it("should create a data-streaming-content element", function () {
       const { assistantBubble } = buildChatBoxWithMessages();
       patchStreamingBubble(assistantBubble, "Hello world");
@@ -322,6 +341,28 @@ describe("streamingUpdate", function () {
       assert.isNull(
         assistantBubble.querySelector("[data-streaming-content]"),
         "late queued patches should not recreate streamed content",
+      );
+    });
+
+    it("should not duplicate or mutate streamed content after finalization", function () {
+      const { assistantBubble } = buildChatBoxWithMessages();
+      patchStreamingBubble(assistantBubble, "Completed answer");
+      const contentEl = assistantBubble.querySelector(
+        "[data-streaming-content]",
+      )!;
+      const completedHtml = contentEl.innerHTML;
+
+      finalizeStreamingBubble(assistantBubble);
+      patchStreamingBubble(assistantBubble, "Completed answer plus late delta");
+
+      assert.strictEqual(
+        assistantBubble.querySelector("[data-streaming-content]"),
+        contentEl,
+      );
+      assert.equal(contentEl.innerHTML, completedHtml);
+      assert.lengthOf(
+        assistantBubble.querySelectorAll("[data-streaming-content]"),
+        1,
       );
     });
 
