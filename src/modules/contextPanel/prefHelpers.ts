@@ -28,6 +28,8 @@ const PRIMARY_CONNECTION_MODE_PREF_KEY = "primaryConnectionMode";
 const OAUTH_MARKER_PREFIX = "oauth://";
 const DEFAULT_PRIMARY_MODEL = "gpt-4o-mini";
 export const PANEL_TYPOGRAPHY_REFRESH_EVENT = "aidea-panel-typography-refresh";
+const SELECTION_POPUP_HEIGHT_PREF_KEY = "font.selectionPopupHeight";
+export const SELECTION_POPUP_HEIGHT_BOUNDS = { min: 30, max: 720 } as const;
 
 export type PanelTypographySettings = {
   chatFontSize: number;
@@ -159,7 +161,7 @@ const PANEL_TYPOGRAPHY_BOUNDS: Record<
   composerGap: { min: 4, max: 24, step: 1 },
   selectionFontSize: { min: 10, max: 26, step: 1 },
   selectionLineHeight: { min: 1.2, max: 2.2, step: 0.05 },
-  selectionPopupWidth: { min: 320, max: 900, step: 10 },
+  selectionPopupWidth: { min: 184, max: 900, step: 10 },
   chatImageScale: { min: 0.6, max: 1.4, step: 0.05 },
 };
 
@@ -224,8 +226,65 @@ export function setPanelTypographySettings(
   return next;
 }
 
+export function getSelectionTranslatePopupHeight(): number | null {
+  const raw = Zotero.Prefs.get(
+    `${config.prefsPrefix}.${SELECTION_POPUP_HEIGHT_PREF_KEY}`,
+    true,
+  );
+  const parsed = Number.parseFloat(String(raw ?? ""));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(
+    clampNumber(
+      parsed,
+      SELECTION_POPUP_HEIGHT_BOUNDS.min,
+      SELECTION_POPUP_HEIGHT_BOUNDS.max,
+    ),
+  );
+}
+
+export function setSelectionTranslatePopupWidth(width: number): number {
+  return setPanelTypographySettings({ selectionPopupWidth: width })
+    .selectionPopupWidth;
+}
+
+export function setSelectionTranslatePopupHeight(
+  height: number,
+  minimumHeight: number = SELECTION_POPUP_HEIGHT_BOUNDS.min,
+): number {
+  const normalizedHeight = Math.round(
+    clampNumber(
+      height,
+      Math.max(SELECTION_POPUP_HEIGHT_BOUNDS.min, minimumHeight),
+      SELECTION_POPUP_HEIGHT_BOUNDS.max,
+    ),
+  );
+  Zotero.Prefs.set(
+    `${config.prefsPrefix}.${SELECTION_POPUP_HEIGHT_PREF_KEY}`,
+    String(normalizedHeight),
+    true,
+  );
+  return normalizedHeight;
+}
+
+export function setSelectionTranslatePopupSize(
+  width: number,
+  height: number,
+  minimumHeight: number = SELECTION_POPUP_HEIGHT_BOUNDS.min,
+): { width: number; height: number } {
+  return {
+    width: setSelectionTranslatePopupWidth(width),
+    height: setSelectionTranslatePopupHeight(height, minimumHeight),
+  };
+}
+
 export function resetPanelTypographySettings(): PanelTypographySettings {
-  return setPanelTypographySettings(PANEL_TYPOGRAPHY_DEFAULTS);
+  const next = setPanelTypographySettings(PANEL_TYPOGRAPHY_DEFAULTS);
+  Zotero.Prefs.set(
+    `${config.prefsPrefix}.${SELECTION_POPUP_HEIGHT_PREF_KEY}`,
+    "0",
+    true,
+  );
+  return next;
 }
 
 const LAST_MODEL_PROFILE_PREF_KEY = "lastUsedModelProfile";

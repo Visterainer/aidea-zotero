@@ -5,6 +5,7 @@ aidea_bridge.py - bridge between AIdea Zotero plugin and pdf2zh_next CLI
 Usage: python aidea_bridge.py <task.json>
 """
 
+import base64
 import json
 import os
 import re
@@ -1225,6 +1226,37 @@ def _build_codex_input(messages):
     return out
 
 
+CODEX_OAUTH_USER_AGENT = "codex_cli_rs/0.0.0 (AIdea)"
+
+
+def _extract_codex_account_id(access_token):
+    try:
+        encoded_payload = str(access_token or "").split(".")[1]
+        encoded_payload += "=" * (-len(encoded_payload) % 4)
+        payload = base64.urlsafe_b64decode(encoded_payload.encode("ascii"))
+        claims = json.loads(payload.decode("utf-8"))
+        auth_claims = claims.get("https://api.openai.com/auth")
+        if not isinstance(auth_claims, dict):
+            return ""
+        return str(auth_claims.get("chatgpt_account_id") or "").strip()
+    except Exception:
+        return ""
+
+
+def _build_codex_oauth_headers(access_token, account_id=""):
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "User-Agent": CODEX_OAUTH_USER_AGENT,
+        "originator": "codex_cli_rs",
+    }
+    resolved_account_id = str(account_id or "").strip()
+    if not resolved_account_id:
+        resolved_account_id = _extract_codex_account_id(access_token)
+    if resolved_account_id:
+        headers["ChatGPT-Account-ID"] = resolved_account_id
+    return headers
+
+
 def _extract_codex_output_text(data):
     def normalize_image_mime_type(value):
         raw = str(value or "").strip().lower()
@@ -1955,13 +1987,13 @@ class OAuthCompatProxyServer:
                 "skipped Codex json_object response format for JSON-array batch request"
             )
         headers = {
-            "Authorization": f"Bearer {access_token}",
+            **_build_codex_oauth_headers(
+                access_token,
+                self.proxy_cfg.get("accountId", ""),
+            ),
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
         }
-        account_id = str(self.proxy_cfg.get("accountId", "")).strip()
-        if account_id:
-            headers["ChatGPT-Account-Id"] = account_id
 
         raw = _http_post_json_with_retry(self.CODEX_URL, req_body, headers, timeout=300)
         text = _extract_codex_output_text_from_sse(raw).strip()

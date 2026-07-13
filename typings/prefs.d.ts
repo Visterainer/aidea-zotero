@@ -45,6 +45,8 @@ declare namespace _ZoteroTypes {
       "authorProfiles.language": string;
       "selectionTranslate.enabled": boolean;
       "selectionTranslate.auto": boolean;
+      "selectionTranslate.showCopyButton": boolean;
+      "selectionTranslate.showAddToNoteButton": boolean;
       "selectionTranslate.model": string;
       "selectionTranslate.provider": string;
       "selectionTranslate.sourceLang": string;
@@ -102,6 +104,7 @@ declare namespace _ZoteroTypes {
       "font.selectionSize": string;
       "font.selectionLineHeight": string;
       "font.selectionPopupWidth": string;
+      "font.selectionPopupHeight": string;
       "font.chatImageScale": string;
     };
   }

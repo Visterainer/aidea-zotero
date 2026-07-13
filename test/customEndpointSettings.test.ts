@@ -840,4 +840,112 @@ describe("custom endpoint settings UI", function () {
     assert.equal(panelRoot.style["--llm-theme-accent"], "#654321");
     assert.equal(panelRoot.style["--llm-theme-chat-fg"], "#123456");
   });
+
+  it("renders and persists selection translation action visibility options", async function () {
+    setPluginPref("selectionTranslate.showCopyButton", false);
+    setPluginPref("selectionTranslate.showAddToNoteButton", true);
+
+    const win = createMockWindow();
+    await preferenceScript.bootstrapSettingTab(
+      win.document as unknown as Document,
+      win.document.body as unknown as HTMLElement,
+      win.document.body as unknown as HTMLElement,
+    );
+
+    const copyInput = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-show-copy`,
+    ) as unknown as MockElement;
+    const addToNoteInput = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-show-add-to-note`,
+    ) as unknown as MockElement;
+    const modelLabel = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-model-label`,
+    ) as unknown as MockElement;
+    const sourceLabel = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-source-label`,
+    ) as unknown as MockElement;
+    const coldStartHint = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-cold-start-hint`,
+    ) as unknown as MockElement;
+
+    assert.equal(copyInput.checked, false);
+    assert.equal(addToNoteInput.checked, true);
+    assert.exists(copyInput.closest(".llm-set-subsection"));
+    assert.exists(addToNoteInput.closest(".llm-set-subsection"));
+    assert.exists(modelLabel.closest(".llm-set-subsection"));
+    assert.exists(sourceLabel.closest(".llm-set-subsection"));
+    assert.exists(coldStartHint.closest(".llm-set-subsection"));
+
+    copyInput.checked = true;
+    copyInput.emit("change");
+    addToNoteInput.checked = false;
+    addToNoteInput.emit("change");
+
+    assert.equal(getPluginPref("selectionTranslate.showCopyButton"), true);
+    assert.equal(
+      getPluginPref("selectionTranslate.showAddToNoteButton"),
+      false,
+    );
+  });
+
+  it("localizes selection translation action settings in all UI languages", async function () {
+    const languages = [
+      "en-US",
+      "zh-CN",
+      "zh-TW",
+      "ja-JP",
+      "ko-KR",
+      "fr-FR",
+      "de-DE",
+      "es-ES",
+      "ru-RU",
+      "pt-BR",
+      "ar-SA",
+      "hi-IN",
+    ];
+    let englishCopyLabel = "";
+    let englishAddToNoteLabel = "";
+
+    for (const language of languages) {
+      prefStore.clear();
+      setPluginPref("uiLanguage", language);
+      const win = createMockWindow();
+      await preferenceScript.bootstrapSettingTab(
+        win.document as unknown as Document,
+        win.document.body as unknown as HTMLElement,
+        win.document.body as unknown as HTMLElement,
+      );
+
+      const copyLabel = win.document.querySelector(
+        `#${ADDON_REF}-selection-translate-show-copy-label`,
+      ) as unknown as MockElement;
+      const copyHint = win.document.querySelector(
+        `#${ADDON_REF}-selection-translate-show-copy-hint`,
+      ) as unknown as MockElement;
+      const addToNoteLabel = win.document.querySelector(
+        `#${ADDON_REF}-selection-translate-show-add-to-note-label`,
+      ) as unknown as MockElement;
+      const addToNoteHint = win.document.querySelector(
+        `#${ADDON_REF}-selection-translate-show-add-to-note-hint`,
+      ) as unknown as MockElement;
+
+      assert.isNotEmpty(copyLabel.textContent, `${language} copy label`);
+      assert.isNotEmpty(copyHint.textContent, `${language} copy hint`);
+      assert.isNotEmpty(
+        addToNoteLabel.textContent,
+        `${language} add-to-note label`,
+      );
+      assert.isNotEmpty(
+        addToNoteHint.textContent,
+        `${language} add-to-note hint`,
+      );
+      if (language === "en-US") {
+        englishCopyLabel = copyLabel.textContent;
+        englishAddToNoteLabel = addToNoteLabel.textContent;
+      } else {
+        assert.notEqual(copyLabel.textContent, englishCopyLabel);
+        assert.notEqual(addToNoteLabel.textContent, englishAddToNoteLabel);
+      }
+    }
+  });
 });
