@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-const NOTICE_ID = "v3.2.3-duplicate-chat-output-fix-v1";
+const NOTICE_ID = "v3.2.4-selection-translation-and-codex-models-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -491,30 +491,417 @@ for (const lang of Object.keys(OAUTH_ENV_UPDATE_COPIES) as PanelLang[]) {
   }
 }
 
-const CURRENT_UPDATE_NOTICE_COPIES: Partial<
-  Record<PanelLang, UpdateNoticeCopy>
-> = {
-  "en-US": {
-    eyebrow: "Update",
-    title: "AIdea has been updated",
-    lead: "Fixed an issue where assistant replies could occasionally appear twice in the current chat window.",
-    note: "Restart Zotero after updating. Chat history itself is not saved twice, and future replies should display normally as a single response.",
-    exampleLabel: "",
-    examplePrompt: "",
-    confirm: "OK",
-    close: "Close update notice",
-  },
-  "zh-CN": {
-    eyebrow: "更新提示",
-    title: "AIdea 已更新",
-    lead: "修复了对话功能中，助手回复偶尔重复显示两份的问题。",
-    note: "更新后请重启 Zotero。历史记录本身不会重复保存，后续对话会按一条回复正常显示。",
-    exampleLabel: "",
-    examplePrompt: "",
-    confirm: "知道了",
-    close: "关闭更新提示",
-  },
-};
+export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
+  {
+    "en-US": {
+      eyebrow: "Update",
+      title: "Selection translation and Codex model updates",
+      lead: "This update further improves selection translation and expands Codex OAuth model support.",
+      note: "Restart Zotero after updating the plugin. The new models may not work correctly until the Codex OAuth environment is updated.",
+      alsoLabel: "This update includes",
+      alsoItems: [
+        {
+          label: "Streaming translation",
+          text: "Selection translations now appear in real time as they are generated.",
+        },
+        {
+          label: "Copy and notes",
+          text: "Copy the complete translation or add it directly to a Zotero note.",
+        },
+        {
+          label: "Popup size",
+          text: "Drag to resize the popup; its height adapts dynamically to the translated content.",
+        },
+        {
+          label: "Stable position",
+          text: "Fixed the popup moving after Copy or Add to Note is clicked.",
+        },
+        {
+          label: "New models",
+          text: "Added support for gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna.",
+        },
+      ],
+      exampleLabel: "Before using the new models",
+      examplePrompt:
+        "Setting → Model Config → OAuth Providers → ChatGPT (Codex OAuth) → Install/Update Env. Once the environment update finishes, the new models are ready to use.",
+      confirm: "Got it",
+      close: "Close update notice",
+    },
+    "zh-CN": {
+      eyebrow: "更新提示",
+      title: "划词翻译与 Codex 模型更新",
+      lead: "本次更新进一步优化了划词翻译体验，并扩展了 Codex OAuth 模型支持。",
+      note: "更新插件后请重启 Zotero。若未更新 Codex OAuth 环境，新模型可能无法正常调用。",
+      alsoLabel: "本次更新包括",
+      alsoItems: [
+        {
+          label: "流式翻译",
+          text: "划词翻译内容支持实时流式显示。",
+        },
+        {
+          label: "复制与笔记",
+          text: "支持复制完整译文，并可直接添加到 Zotero 笔记。",
+        },
+        {
+          label: "弹窗尺寸",
+          text: "可拖动调整弹窗大小，并根据内容动态适配高度。",
+        },
+        {
+          label: "位置稳定",
+          text: "修复点击“复制”或“添加到笔记”后弹窗位置跳动的问题。",
+        },
+        {
+          label: "新增模型",
+          text: "现已支持 gpt-5.6-sol、gpt-5.6-terra 和 gpt-5.6-luna。",
+        },
+      ],
+      exampleLabel: "使用新模型前",
+      examplePrompt:
+        "设置 → 模型配置 → OAuth 提供商 → ChatGPT (Codex OAuth) → 安装/更新环境。完成后即可使用新模型。",
+      confirm: "知道了",
+      close: "关闭更新提示",
+    },
+    "zh-TW": {
+      eyebrow: "更新提示",
+      title: "劃詞翻譯與 Codex 模型更新",
+      lead: "本次更新進一步改善了劃詞翻譯體驗，並擴充了 Codex OAuth 模型支援。",
+      note: "更新外掛後請重新啟動 Zotero。若未更新 Codex OAuth 環境，新模型可能無法正常使用。",
+      alsoLabel: "本次更新包括",
+      alsoItems: [
+        {
+          label: "串流翻譯",
+          text: "劃詞翻譯內容支援即時串流顯示。",
+        },
+        {
+          label: "複製與筆記",
+          text: "支援複製完整譯文，並可直接加入 Zotero 筆記。",
+        },
+        {
+          label: "彈窗尺寸",
+          text: "可拖曳調整彈窗大小，並依內容動態調整高度。",
+        },
+        {
+          label: "位置穩定",
+          text: "修正點擊「複製」或「加入筆記」後彈窗位置跳動的問題。",
+        },
+        {
+          label: "新增模型",
+          text: "現已支援 gpt-5.6-sol、gpt-5.6-terra 和 gpt-5.6-luna。",
+        },
+      ],
+      exampleLabel: "使用新模型前",
+      examplePrompt:
+        "設定 → 模型設定 → OAuth 提供商 → ChatGPT (Codex OAuth) → 安裝/更新環境。完成後即可使用新模型。",
+      confirm: "知道了",
+      close: "關閉更新提示",
+    },
+    "ja-JP": {
+      eyebrow: "更新のお知らせ",
+      title: "選択範囲翻訳と Codex モデルのアップデート",
+      lead: "今回のアップデートでは、選択範囲翻訳をさらに改善し、Codex OAuth で利用できるモデルを拡充しました。",
+      note: "プラグインの更新後に Zotero を再起動してください。Codex OAuth 環境を更新しないと、新しいモデルが正しく動作しない場合があります。",
+      alsoLabel: "今回の更新内容",
+      alsoItems: [
+        {
+          label: "ストリーミング翻訳",
+          text: "選択範囲の翻訳結果が生成中にリアルタイムで表示されます。",
+        },
+        {
+          label: "コピーとノート",
+          text: "翻訳全文をコピーしたり、Zotero のノートに直接追加したりできます。",
+        },
+        {
+          label: "ポップアップサイズ",
+          text: "ドラッグしてサイズを変更でき、内容に合わせて高さが動的に調整されます。",
+        },
+        {
+          label: "位置の安定化",
+          text: "「コピー」または「ノートに追加」をクリックした後にポップアップが移動する問題を修正しました。",
+        },
+        {
+          label: "新しいモデル",
+          text: "gpt-5.6-sol、gpt-5.6-terra、gpt-5.6-luna に対応しました。",
+        },
+      ],
+      exampleLabel: "新しいモデルを使用する前に",
+      examplePrompt:
+        "設定 → モデル設定 → OAuth プロバイダー → ChatGPT (Codex OAuth) → 環境をインストール/更新。完了後、新しいモデルを利用できます。",
+      confirm: "了解",
+      close: "更新通知を閉じる",
+    },
+    "ko-KR": {
+      eyebrow: "업데이트 안내",
+      title: "선택 번역 및 Codex 모델 업데이트",
+      lead: "이번 업데이트에서는 선택 번역 환경을 더욱 개선하고 Codex OAuth 모델 지원을 확대했습니다.",
+      note: "플러그인 업데이트 후 Zotero를 다시 시작하세요. Codex OAuth 환경을 업데이트하지 않으면 새 모델이 정상적으로 작동하지 않을 수 있습니다.",
+      alsoLabel: "이번 업데이트 내용",
+      alsoItems: [
+        {
+          label: "스트리밍 번역",
+          text: "선택 번역 결과가 생성되는 즉시 실시간으로 표시됩니다.",
+        },
+        {
+          label: "복사 및 노트",
+          text: "전체 번역을 복사하거나 Zotero 노트에 바로 추가할 수 있습니다.",
+        },
+        {
+          label: "팝업 크기",
+          text: "드래그하여 팝업 크기를 조절할 수 있으며 내용에 따라 높이가 동적으로 맞춰집니다.",
+        },
+        {
+          label: "위치 안정화",
+          text: "복사 또는 노트에 추가를 클릭한 뒤 팝업 위치가 이동하는 문제를 수정했습니다.",
+        },
+        {
+          label: "새 모델",
+          text: "gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna 지원을 추가했습니다.",
+        },
+      ],
+      exampleLabel: "새 모델을 사용하기 전에",
+      examplePrompt:
+        "설정 → 모델 설정 → OAuth 제공자 → ChatGPT (Codex OAuth) → 환경 설치/업데이트. 완료되면 새 모델을 사용할 수 있습니다.",
+      confirm: "확인",
+      close: "업데이트 안내 닫기",
+    },
+    "fr-FR": {
+      eyebrow: "Mise à jour",
+      title: "Traduction de sélection et modèles Codex",
+      lead: "Cette mise à jour améliore encore la traduction de sélection et étend la prise en charge des modèles Codex OAuth.",
+      note: "Redémarrez Zotero après la mise à jour du plugin. Les nouveaux modèles risquent de ne pas fonctionner correctement tant que l’environnement Codex OAuth n’a pas été mis à jour.",
+      alsoLabel: "Cette mise à jour comprend",
+      alsoItems: [
+        {
+          label: "Traduction en continu",
+          text: "La traduction de la sélection s’affiche en temps réel pendant sa génération.",
+        },
+        {
+          label: "Copie et notes",
+          text: "Copiez la traduction complète ou ajoutez-la directement à une note Zotero.",
+        },
+        {
+          label: "Taille de la fenêtre",
+          text: "Redimensionnez la fenêtre par glisser-déposer ; sa hauteur s’adapte dynamiquement au contenu traduit.",
+        },
+        {
+          label: "Position stable",
+          text: "Correction du déplacement de la fenêtre après un clic sur Copier ou Ajouter à la note.",
+        },
+        {
+          label: "Nouveaux modèles",
+          text: "Prise en charge de gpt-5.6-sol, gpt-5.6-terra et gpt-5.6-luna.",
+        },
+      ],
+      exampleLabel: "Avant d’utiliser les nouveaux modèles",
+      examplePrompt:
+        "Paramètres → Configuration du modèle → Fournisseurs OAuth → ChatGPT (Codex OAuth) → Installer/mettre à jour l’environnement. Une fois la mise à jour terminée, les nouveaux modèles sont disponibles.",
+      confirm: "Compris",
+      close: "Fermer l’avis de mise à jour",
+    },
+    "de-DE": {
+      eyebrow: "Update",
+      title: "Auswahlübersetzung und Codex-Modellupdate",
+      lead: "Dieses Update verbessert die Auswahlübersetzung weiter und erweitert die Unterstützung für Codex-OAuth-Modelle.",
+      note: "Starten Sie Zotero nach dem Plugin-Update neu. Ohne Aktualisierung der Codex-OAuth-Umgebung funktionieren die neuen Modelle möglicherweise nicht korrekt.",
+      alsoLabel: "Dieses Update enthält",
+      alsoItems: [
+        {
+          label: "Streaming-Übersetzung",
+          text: "Die Übersetzung der Auswahl wird während der Generierung in Echtzeit angezeigt.",
+        },
+        {
+          label: "Kopieren und Notizen",
+          text: "Kopieren Sie die vollständige Übersetzung oder fügen Sie sie direkt zu einer Zotero-Notiz hinzu.",
+        },
+        {
+          label: "Popup-Größe",
+          text: "Ziehen Sie zum Ändern der Popup-Größe; die Höhe passt sich dynamisch an den übersetzten Inhalt an.",
+        },
+        {
+          label: "Stabile Position",
+          text: "Das Verschieben des Popups nach einem Klick auf Kopieren oder Zu Notiz hinzufügen wurde behoben.",
+        },
+        {
+          label: "Neue Modelle",
+          text: "Unterstützung für gpt-5.6-sol, gpt-5.6-terra und gpt-5.6-luna hinzugefügt.",
+        },
+      ],
+      exampleLabel: "Vor der Verwendung der neuen Modelle",
+      examplePrompt:
+        "Einstellungen → Modellkonfiguration → OAuth-Anbieter → ChatGPT (Codex OAuth) → Umgebung installieren/aktualisieren. Nach Abschluss können die neuen Modelle verwendet werden.",
+      confirm: "Verstanden",
+      close: "Update-Hinweis schließen",
+    },
+    "es-ES": {
+      eyebrow: "Actualización",
+      title: "Traducción de selección y modelos Codex",
+      lead: "Esta actualización mejora aún más la traducción de selección y amplía la compatibilidad con modelos Codex OAuth.",
+      note: "Reinicia Zotero después de actualizar el complemento. Es posible que los nuevos modelos no funcionen correctamente hasta que se actualice el entorno Codex OAuth.",
+      alsoLabel: "Esta actualización incluye",
+      alsoItems: [
+        {
+          label: "Traducción en tiempo real",
+          text: "La traducción de la selección se muestra en tiempo real mientras se genera.",
+        },
+        {
+          label: "Copia y notas",
+          text: "Copia la traducción completa o añádela directamente a una nota de Zotero.",
+        },
+        {
+          label: "Tamaño de la ventana",
+          text: "Arrastra para cambiar el tamaño de la ventana; su altura se adapta dinámicamente al contenido traducido.",
+        },
+        {
+          label: "Posición estable",
+          text: "Se corrigió el desplazamiento de la ventana tras pulsar Copiar o Añadir a la nota.",
+        },
+        {
+          label: "Nuevos modelos",
+          text: "Se añadió compatibilidad con gpt-5.6-sol, gpt-5.6-terra y gpt-5.6-luna.",
+        },
+      ],
+      exampleLabel: "Antes de usar los nuevos modelos",
+      examplePrompt:
+        "Configuración → Configuración del modelo → Proveedores OAuth → ChatGPT (Codex OAuth) → Instalar/actualizar entorno. Cuando termine la actualización, podrás usar los nuevos modelos.",
+      confirm: "Entendido",
+      close: "Cerrar aviso de actualización",
+    },
+    "ru-RU": {
+      eyebrow: "Обновление",
+      title: "Перевод выделенного текста и модели Codex",
+      lead: "Это обновление дополнительно улучшает перевод выделенного текста и расширяет поддержку моделей Codex OAuth.",
+      note: "Перезапустите Zotero после обновления плагина. Новые модели могут работать некорректно, пока среда Codex OAuth не будет обновлена.",
+      alsoLabel: "В это обновление входит",
+      alsoItems: [
+        {
+          label: "Потоковый перевод",
+          text: "Перевод выделенного текста отображается в реальном времени по мере создания.",
+        },
+        {
+          label: "Копирование и заметки",
+          text: "Скопируйте перевод целиком или добавьте его непосредственно в заметку Zotero.",
+        },
+        {
+          label: "Размер окна",
+          text: "Изменяйте размер окна перетаскиванием; его высота динамически подстраивается под переведенный текст.",
+        },
+        {
+          label: "Стабильное положение",
+          text: "Исправлено перемещение окна после нажатия Копировать или Добавить в заметку.",
+        },
+        {
+          label: "Новые модели",
+          text: "Добавлена поддержка gpt-5.6-sol, gpt-5.6-terra и gpt-5.6-luna.",
+        },
+      ],
+      exampleLabel: "Перед использованием новых моделей",
+      examplePrompt:
+        "Настройки → Настройка модели → Поставщики OAuth → ChatGPT (Codex OAuth) → Установить/обновить среду. После завершения новые модели будут доступны.",
+      confirm: "Понятно",
+      close: "Закрыть уведомление об обновлении",
+    },
+    "pt-BR": {
+      eyebrow: "Atualização",
+      title: "Tradução de seleção e modelos Codex",
+      lead: "Esta atualização aprimora ainda mais a tradução de seleção e amplia o suporte aos modelos Codex OAuth.",
+      note: "Reinicie o Zotero após atualizar o plugin. Os novos modelos podem não funcionar corretamente até que o ambiente Codex OAuth seja atualizado.",
+      alsoLabel: "Esta atualização inclui",
+      alsoItems: [
+        {
+          label: "Tradução em tempo real",
+          text: "A tradução da seleção aparece em tempo real enquanto é gerada.",
+        },
+        {
+          label: "Cópia e notas",
+          text: "Copie a tradução completa ou adicione-a diretamente a uma nota do Zotero.",
+        },
+        {
+          label: "Tamanho da janela",
+          text: "Arraste para redimensionar a janela; a altura se adapta dinamicamente ao conteúdo traduzido.",
+        },
+        {
+          label: "Posição estável",
+          text: "Foi corrigido o deslocamento da janela após clicar em Copiar ou Adicionar à nota.",
+        },
+        {
+          label: "Novos modelos",
+          text: "Adicionado suporte a gpt-5.6-sol, gpt-5.6-terra e gpt-5.6-luna.",
+        },
+      ],
+      exampleLabel: "Antes de usar os novos modelos",
+      examplePrompt:
+        "Configurações → Configuração do modelo → Provedores OAuth → ChatGPT (Codex OAuth) → Instalar/atualizar ambiente. Depois da atualização, os novos modelos estarão disponíveis.",
+      confirm: "Entendido",
+      close: "Fechar aviso de atualização",
+    },
+    "ar-SA": {
+      eyebrow: "تحديث",
+      title: "تحديث ترجمة النص المحدد ونماذج Codex",
+      lead: "يحسن هذا التحديث تجربة ترجمة النص المحدد ويوسع دعم نماذج Codex OAuth.",
+      note: "أعد تشغيل Zotero بعد تحديث الإضافة. قد لا تعمل النماذج الجديدة بصورة صحيحة قبل تحديث بيئة Codex OAuth.",
+      alsoLabel: "يتضمن هذا التحديث",
+      alsoItems: [
+        {
+          label: "الترجمة المتدفقة",
+          text: "تظهر ترجمة النص المحدد لحظيا أثناء إنشائها.",
+        },
+        {
+          label: "النسخ والملاحظات",
+          text: "انسخ الترجمة كاملة أو أضفها مباشرة إلى ملاحظة في Zotero.",
+        },
+        {
+          label: "حجم النافذة",
+          text: "اسحب لتغيير حجم النافذة؛ ويتكيف ارتفاعها تلقائيا مع المحتوى المترجم.",
+        },
+        {
+          label: "ثبات الموضع",
+          text: "تم إصلاح انتقال النافذة بعد النقر على نسخ أو إضافة إلى الملاحظة.",
+        },
+        {
+          label: "نماذج جديدة",
+          text: "تمت إضافة دعم \u2068gpt-5.6-sol\u2069 و\u2068gpt-5.6-terra\u2069 و\u2068gpt-5.6-luna\u2069.",
+        },
+      ],
+      exampleLabel: "قبل استخدام النماذج الجديدة",
+      examplePrompt:
+        "الإعدادات ← إعدادات النموذج ← موفرو OAuth ← \u2068ChatGPT (Codex OAuth)\u2069 ← تثبيت/تحديث البيئة. بعد اكتمال التحديث، يمكنك استخدام النماذج الجديدة.",
+      confirm: "فهمت",
+      close: "إغلاق إشعار التحديث",
+    },
+    "hi-IN": {
+      eyebrow: "अपडेट",
+      title: "चयनित टेक्स्ट अनुवाद और Codex मॉडल अपडेट",
+      lead: "यह अपडेट चयनित टेक्स्ट के अनुवाद को बेहतर बनाता है और Codex OAuth मॉडल समर्थन का विस्तार करता है।",
+      note: "प्लगइन अपडेट करने के बाद Zotero को पुनः शुरू करें। Codex OAuth environment अपडेट किए बिना नए मॉडल ठीक से काम नहीं कर सकते।",
+      alsoLabel: "इस अपडेट में शामिल है",
+      alsoItems: [
+        {
+          label: "स्ट्रीमिंग अनुवाद",
+          text: "चयनित टेक्स्ट का अनुवाद बनते समय रीयल टाइम में दिखाई देता है।",
+        },
+        {
+          label: "कॉपी और नोट्स",
+          text: "पूरा अनुवाद कॉपी करें या उसे सीधे Zotero नोट में जोड़ें।",
+        },
+        {
+          label: "पॉपअप का आकार",
+          text: "खींचकर पॉपअप का आकार बदलें; उसकी ऊंचाई अनुवादित सामग्री के अनुसार अपने आप बदलती है।",
+        },
+        {
+          label: "स्थिर स्थान",
+          text: "कॉपी या नोट में जोड़ें पर क्लिक करने के बाद पॉपअप के खिसकने की समस्या ठीक की गई।",
+        },
+        {
+          label: "नए मॉडल",
+          text: "gpt-5.6-sol, gpt-5.6-terra और gpt-5.6-luna के लिए समर्थन जोड़ा गया।",
+        },
+      ],
+      exampleLabel: "नए मॉडल इस्तेमाल करने से पहले",
+      examplePrompt:
+        "सेटिंग्स → मॉडल कॉन्फ़िगरेशन → OAuth प्रदाता → ChatGPT (Codex OAuth) → Environment इंस्टॉल/अपडेट करें। पूरा होने के बाद नए मॉडल इस्तेमाल किए जा सकते हैं।",
+      confirm: "समझ गया",
+      close: "अपडेट सूचना बंद करें",
+    },
+  };
 
 let noticeShowingOrSeen = false;
 const NOTICE_DIALOG_WIDTH = 760;
@@ -551,7 +938,7 @@ function getNoticeLabelSeparator(
   ) {
     return "：";
   }
-  return /[A-Za-z]/.test(label) ? ": " : "：";
+  return ": ";
 }
 
 function createNoticeBody(
