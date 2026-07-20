@@ -4284,6 +4284,12 @@
   animation-delay: 0.3s;
 }
 
+/* Markdown rendering joins blocks with newline text nodes. Do not preserve
+ * those separators while a streamed answer is still inside its wrapper. */
+.llm-bubble.assistant.streaming [data-streaming-content] {
+  white-space: normal;
+}
+
 /* Streaming cursor — blinking block cursor while content is arriving */
 .llm-bubble.assistant.streaming [data-streaming-content]::after {
   content: "▊";
