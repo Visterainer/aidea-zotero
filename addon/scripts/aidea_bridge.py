@@ -28,6 +28,26 @@ except Exception:
     fitz = None
 
 
+def _ensure_loopback_no_proxy(env):
+    entries = []
+    seen = set()
+    for key in ("NO_PROXY", "no_proxy"):
+        for entry in re.split(r"[,;\s]+", str(env.get(key, "") or "")):
+            value = entry.strip()
+            normalized = value.lower()
+            if value and normalized not in seen:
+                entries.append(value)
+                seen.add(normalized)
+    for value in ("localhost", "127.0.0.1", "::1"):
+        if value.lower() not in seen:
+            entries.append(value)
+            seen.add(value.lower())
+    bypass = ",".join(entries)
+    env["NO_PROXY"] = bypass
+    env["no_proxy"] = bypass
+    return env
+
+
 def _prepare_pdf2zh_runtime_env():
     """
     Build a subprocess env for pdf2zh_next that injects a sitecustomize patch.
@@ -82,7 +102,7 @@ def _prepare_pdf2zh_runtime_env():
     with open(sitecustomize_path, "w", encoding="utf-8") as f:
         f.write(patch_code)
 
-    env = dict(os.environ)
+    env = _ensure_loopback_no_proxy(dict(os.environ))
     existing = env.get("PYTHONPATH", "").strip()
     env["PYTHONPATH"] = (
         patch_dir if not existing else f"{patch_dir}{os.pathsep}{existing}"
@@ -124,6 +144,9 @@ PROGRESS_PATTERNS = [
     re.compile(r"(\d+)/(\d+)"),
     re.compile(r"(\d+)%"),
 ]
+RICH_TIMESTAMP_RE = re.compile(
+    r"\[\d{1,2}/\d{1,2}/\d{2,4}\s+\d{1,2}:\d{2}:\d{2}\]\s*"
+)
 
 TRANSLATION_STATS_RE = re.compile(
     r"Total:\s*(\d+),\s*Successful:\s*(\d+),\s*Fallback:\s*(\d+)",
@@ -132,14 +155,19 @@ TRANSLATION_STATS_RE = re.compile(
 
 
 def parse_progress(line):
-    m = PROGRESS_PATTERNS[0].search(line)
+    # Rich log lines start with dates such as ``[07/21/26 10:08:04]``.
+    # Strip that prefix before looking for N/M progress so the date is not
+    # misreported as page 7/21. Any real progress later on the line is kept.
+    progress_text = RICH_TIMESTAMP_RE.sub("", str(line or ""))
+
+    m = PROGRESS_PATTERNS[0].search(progress_text)
     if m:
         current, total = int(m.group(1)), int(m.group(2))
         if total > 0:
             pct = min(round(current / total * 100), 100)
             return current, total, pct
 
-    m = PROGRESS_PATTERNS[1].search(line)
+    m = PROGRESS_PATTERNS[1].search(progress_text)
     if m:
         pct = min(int(m.group(1)), 100)
         return None, None, pct
@@ -332,6 +360,18 @@ def _prompt_requests_json_array(messages):
         or "json array of the same length" in prompt
         or '"layout_label"' in prompt
     )
+
+
+def _codex_input_mentions_json(messages):
+    input_parts = []
+    if isinstance(messages, list):
+        for msg in messages:
+            if not isinstance(msg, dict) or msg.get("role") not in ("user", "assistant"):
+                continue
+            text = _extract_text_from_openai_content(msg.get("content")).strip()
+            if text:
+                input_parts.append(text)
+    return bool(re.search(r"\bjson\b", "\n\n".join(input_parts), re.IGNORECASE))
 
 
 def _unique_keep_order(items):
@@ -972,7 +1012,7 @@ def _paint_overlay_translation(page, bbox, translated_text, align=0):
     return False
 
 
-def _collect_output_files(output_dir, pdf_path):
+def _collect_output_files(output_dir, pdf_path, baseline=None):
     if not os.path.isdir(output_dir):
         return []
     source_stem = os.path.splitext(os.path.basename(pdf_path))[0]
@@ -985,8 +1025,70 @@ def _collect_output_files(output_dir, pdf_path):
             continue
         if source_stem and not fn.startswith(source_stem):
             continue
+        if baseline is not None:
+            try:
+                stat = os.stat(os.path.join(output_dir, fn))
+                signature = (int(stat.st_size), int(stat.st_mtime_ns))
+            except OSError:
+                continue
+            if baseline.get(fn) == signature:
+                continue
         out.append(fn)
     return out
+
+
+def _snapshot_output_files(output_dir, pdf_path):
+    snapshot = {}
+    for fn in _collect_output_files(output_dir, pdf_path):
+        try:
+            stat = os.stat(os.path.join(output_dir, fn))
+            snapshot[fn] = (int(stat.st_size), int(stat.st_mtime_ns))
+        except OSError:
+            continue
+    return snapshot
+
+
+def _extract_engine_error_summary(lines):
+    text = " ".join(_sanitize_log_line(line, max_len=1000) for line in lines)
+    compact = re.sub(r"\s+", " ", text).strip()
+    if not compact:
+        return ""
+
+    status_match = re.search(
+        r"(?:\bHTTP\s+|\bError\s+code:\s*)(\d{3})\b",
+        compact,
+        re.IGNORECASE,
+    )
+    initialization_failed = bool(
+        re.search(r"(?:subprocess|engine)\s+initialization\s+error", compact, re.IGNORECASE)
+    )
+    if status_match:
+        status_code = status_match.group(1)
+        if initialization_failed:
+            return f"translation engine initialization failed (HTTP {status_code})"
+        return f"translation service returned HTTP {status_code}"
+    if initialization_failed:
+        return "translation engine initialization failed"
+    return ""
+
+
+def _make_no_output_error_progress(last_pct, tail_lines, log_file):
+    summary = _extract_engine_error_summary(tail_lines)
+    message = "Translation failed: no translated PDF was generated"
+    if summary:
+        message = f"{message} ({summary})"
+    detail = "\n".join(
+        _sanitize_log_line(line, max_len=500) for line in tail_lines
+    ).strip()
+    return make_progress(
+        "error",
+        last_pct,
+        message,
+        error="no_output_generated",
+        errorDetail=detail,
+        logFile=log_file,
+        stage="error",
+    )
 
 
 def _postprocess_mono_pdf(
@@ -1972,6 +2074,7 @@ class OAuthCompatProxyServer:
             and str(response_format.get("type", "")).strip().lower() == "json_object"
         )
         prompt_requests_json_array = _prompt_requests_json_array(messages)
+        input_mentions_json = _codex_input_mentions_json(messages)
 
         req_body = {
             "model": model,
@@ -1980,12 +2083,26 @@ class OAuthCompatProxyServer:
             "store": False,
             "stream": True,
         }
-        if request_json_mode and not prompt_requests_json_array:
+        if request_json_mode and input_mentions_json and not prompt_requests_json_array:
             req_body["text"] = {"format": {"type": "json_object"}}
-        elif request_json_mode and prompt_requests_json_array:
-            self._debug(
-                "skipped Codex json_object response format for JSON-array batch request"
+        elif request_json_mode:
+            reason = (
+                "JSON-array batch request"
+                if prompt_requests_json_array
+                else "prompt does not request JSON"
             )
+            self._debug(
+                f"skipped Codex json_object response format because {reason}"
+            )
+        self._debug(
+            "Codex request model={model} json_mode={json_mode} "
+            "input_mentions_json={input_json} json_array={json_array}".format(
+                model=model,
+                json_mode=request_json_mode,
+                input_json=input_mentions_json,
+                json_array=prompt_requests_json_array,
+            )
+        )
         headers = {
             **_build_codex_oauth_headers(
                 access_token,
@@ -1995,7 +2112,13 @@ class OAuthCompatProxyServer:
             "Accept": "text/event-stream",
         }
 
-        raw = _http_post_json_with_retry(self.CODEX_URL, req_body, headers, timeout=300)
+        raw = _http_post_json_with_retry(
+            self.CODEX_URL,
+            req_body,
+            headers,
+            timeout=300,
+            max_attempts=6,
+        )
         text = _extract_codex_output_text_from_sse(raw).strip()
         if not text:
             try:
@@ -2393,6 +2516,7 @@ def main():
             stage="initializing",
         ))
 
+        output_snapshot = _snapshot_output_files(output_dir, pdf_path)
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -2524,6 +2648,21 @@ def main():
 
         returncode = proc.wait()
         if returncode == 0:
+            output_files = _collect_output_files(
+                output_dir,
+                pdf_path,
+                baseline=output_snapshot,
+            )
+            if not output_files:
+                no_output_data = _make_no_output_error_progress(
+                    last_pct,
+                    tail_lines,
+                    log_file,
+                )
+                log_line(no_output_data["message"])
+                write_progress(progress_file, no_output_data)
+                sys.exit(1)
+
             nonzero_warning_stats = {
                 key: value for key, value in warning_stats.items() if value
             }
@@ -2535,7 +2674,6 @@ def main():
                 warningStats=nonzero_warning_stats,
                 translationStats=translation_stats or None,
             ))
-            output_files = _collect_output_files(output_dir, pdf_path)
             overlay_changes = 0
             if output_files:
                 try:

@@ -27,14 +27,17 @@ from aidea_bridge import (  # noqa: E402
     _group_overlay_words_into_lines,
     _group_overlay_words_into_regions,
     _derive_copilot_api_base_url,
+    _ensure_loopback_no_proxy,
     _http_post_json_with_retry,
     _is_figure_overlay_page_text,
     _is_benign_pdf2zh_cleanup_trace_line,
     _is_retryable_transport_error,
+    _make_no_output_error_progress,
     _should_translate_overlay_line,
     _resolve_copilot_transport_kind,
     _rewrite_translation_custom_prompt,
     _sanitize_multiline_prompt,
+    _snapshot_output_files,
     build_author_protection_prompt,
     build_pages_spec,
     make_progress,
@@ -82,6 +85,15 @@ assert_eq(result, None, "empty string = None")
 result = parse_progress("Using BabelDOC v1.2.3")
 assert_eq(result, None, "version string not matched as progress")
 
+result = parse_progress("[07/21/26 10:08:04] INFO pdf2zh_next initialized")
+assert_eq(result, None, "Rich timestamp is not treated as page progress")
+
+result = parse_progress("[07/21/26 10:08:04] Processing page 3/10")
+assert_eq(result, (3, 10, 30), "keeps real progress after a Rich timestamp")
+
+result = parse_progress("trace output [07/21/26 10:08:04] INFO initialized")
+assert_eq(result, None, "interleaved Rich timestamp is not treated as page progress")
+
 print("\n=== make_progress ===")
 p = make_progress("running", 50, "test", current=5, total=10)
 assert_eq(p["status"], "running", "status")
@@ -100,6 +112,18 @@ assert_eq(_as_bool(True), True, "bool true")
 assert_eq(_as_bool("true"), True, "string true")
 assert_eq(_as_bool("0"), False, "string false")
 assert_eq(_as_bool(None, True), True, "default value")
+
+print("\n=== local OAuth proxy bypass ===")
+proxy_env = _ensure_loopback_no_proxy({
+    "NO_PROXY": "example.com,localhost",
+    "no_proxy": "internal.test",
+})
+assert_eq(
+    proxy_env["NO_PROXY"],
+    "example.com,localhost,internal.test,127.0.0.1,::1",
+    "preserves existing bypasses and adds loopback hosts",
+)
+assert_eq(proxy_env["no_proxy"], proxy_env["NO_PROXY"], "keeps both env spellings aligned")
 
 print("\n=== build_author_protection_prompt ===")
 prompt = build_author_protection_prompt(["Alice A.", "alice@example.com", "University of Example"])
@@ -312,10 +336,18 @@ orig_post_with_retry = bridge._http_post_json_with_retry
 captured_codex = {}
 
 
-def capture_codex_post(url, payload, headers, timeout=180):
+def capture_codex_post(
+    url,
+    payload,
+    headers,
+    timeout=180,
+    max_attempts=4,
+    base_delay_sec=1.0,
+):
     captured_codex["url"] = url
     captured_codex["payload"] = payload
     captured_codex["headers"] = headers
+    captured_codex["max_attempts"] = max_attempts
     return json.dumps({"output_text": "translated text"})
 
 
@@ -346,6 +378,47 @@ try:
         captured_codex["headers"].get("User-Agent"),
         "codex_cli_rs/0.0.0 (AIdea)",
         "forwards the Codex-shaped user agent",
+    )
+    assert_eq(
+        captured_codex["max_attempts"],
+        6,
+        "uses the extended retry window for Codex OAuth",
+    )
+    proxy.handle_chat_completion({
+        "model": "gpt-5.6-sol",
+        "messages": [
+            {"role": "system", "content": "Use JSON mode when requested."},
+            {"role": "user", "content": "Hello"},
+        ],
+        "response_format": {"type": "json_object"},
+        "stream": False,
+    })
+    assert_eq(
+        "text" in captured_codex["payload"],
+        False,
+        "does not force Codex JSON mode when only system instructions mention JSON",
+    )
+    proxy.handle_chat_completion({
+        "model": "gpt-5.6-sol",
+        "messages": [{"role": "user", "content": "Return a JSON object."}],
+        "response_format": {"type": "json_object"},
+        "stream": False,
+    })
+    assert_eq(
+        captured_codex["payload"].get("text"),
+        {"format": {"type": "json_object"}},
+        "keeps Codex JSON-object mode when the prompt explicitly requests JSON",
+    )
+    proxy.handle_chat_completion({
+        "model": "gpt-5.6-sol",
+        "messages": [{"role": "user", "content": "Return a JSON array of the same length."}],
+        "response_format": {"type": "json_object"},
+        "stream": False,
+    })
+    assert_eq(
+        "text" in captured_codex["payload"],
+        False,
+        "does not force JSON-object mode for PDF translation array batches",
     )
 finally:
     bridge._http_post_json_with_retry = orig_post_with_retry
@@ -410,6 +483,37 @@ try:
     )
     assert_eq(raw, '{"ok": true}', "retries transient upstream failures until success")
     assert_eq(attempts["count"], 3, "stops retry loop after upstream recovers")
+finally:
+    bridge._http_post_json = orig_post
+    bridge.time.sleep = orig_sleep
+    bridge.random.uniform = orig_uniform
+
+orig_post = bridge._http_post_json
+orig_sleep = bridge.time.sleep
+orig_uniform = bridge.random.uniform
+attempts = {"count": 0}
+
+
+def persistent_502_post(url, payload, headers, timeout=180):
+    attempts["count"] += 1
+    raise RuntimeError("HTTP 502 from https://example.test: upstream unavailable")
+
+
+try:
+    bridge._http_post_json = persistent_502_post
+    bridge.time.sleep = lambda _delay: None
+    bridge.random.uniform = lambda _a, _b: 0.0
+    try:
+        _http_post_json_with_retry(
+            "https://example.test/chat/completions",
+            {"model": "gpt-5.6-sol"},
+            {"Authorization": "Bearer test"},
+            max_attempts=6,
+        )
+        assert_eq(True, False, "raises after the extended retry window is exhausted")
+    except RuntimeError as exc:
+        assert_eq("HTTP 502" in str(exc), True, "preserves the final upstream status")
+        assert_eq(attempts["count"], 6, "Codex retry window performs six attempts")
 finally:
     bridge._http_post_json = orig_post
     bridge.time.sleep = orig_sleep
@@ -491,6 +595,48 @@ with tempfile.TemporaryDirectory() as out_dir:
         ["Paper A.no_watermark.zh-CN.dual.pdf", "Paper A.no_watermark.zh-CN.mono.pdf"],
         "lists only outputs for the current source PDF",
     )
+
+print("\n=== fresh output detection ===")
+with tempfile.TemporaryDirectory() as out_dir:
+    source_pdf = os.path.join(out_dir, "Paper A.pdf")
+    mono_name = "Paper A.no_watermark.zh-CN.mono.pdf"
+    dual_name = "Paper A.no_watermark.zh-CN.dual.pdf"
+    mono_path = os.path.join(out_dir, mono_name)
+    dual_path = os.path.join(out_dir, dual_name)
+
+    with open(mono_path, "wb") as f:
+        f.write(b"old")
+    baseline = _snapshot_output_files(out_dir, source_pdf)
+    assert_eq(
+        _collect_output_files(out_dir, source_pdf, baseline=baseline),
+        [],
+        "unchanged output from an earlier run is not fresh",
+    )
+
+    with open(mono_path, "ab") as f:
+        f.write(b"-updated")
+    with open(dual_path, "wb") as f:
+        f.write(b"new")
+    assert_eq(
+        _collect_output_files(out_dir, source_pdf, baseline=baseline),
+        [dual_name, mono_name],
+        "new and updated outputs are fresh",
+    )
+
+print("\n=== no-output failure progress ===")
+no_output = _make_no_output_error_progress(
+    38,
+    [
+        "Translation subprocess",
+        "initialization error: Error",
+        "code: 502",
+    ],
+    r"C:\temp\bridge.log",
+)
+assert_eq(no_output["status"], "error", "no output is a failed task")
+assert_eq(no_output["error"], "no_output_generated", "uses stable no-output error code")
+assert_eq("HTTP 502" in no_output["message"], True, "surfaces wrapped upstream status")
+assert_eq(no_output["logFile"], r"C:\temp\bridge.log", "keeps the diagnostic log path")
 
 print(f"\n{'=' * 40}")
 print(f"Results: {passed} passed, {failed} failed")

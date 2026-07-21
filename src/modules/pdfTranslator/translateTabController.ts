@@ -1782,7 +1782,7 @@ async function startTranslation(body: Element): Promise<void> {
         // Log errors with full detail
         if (status === "error") {
           const errMsg =
-            event.data.error || event.data.message || i18n.trLogUnknownError;
+            event.data.message || event.data.error || i18n.trLogUnknownError;
           consoleLog(body, `❌ ${i18n.trLogBridgeError(errMsg)}`, "error");
           if (event.data.errorDetail) {
             const lines = event.data.errorDetail.split("\n").slice(-10);
