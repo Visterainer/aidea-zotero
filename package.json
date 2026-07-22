@@ -31,18 +31,18 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "katex": "^0.17.0",
-    "zotero-plugin-toolkit": "^5.1.4"
+    "katex": "^0.18.1",
+    "zotero-plugin-toolkit": "^5.2.0"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.1.1",
-    "@zotero-plugin/eslint-config": "^0.6.9",
+    "@zotero-plugin/eslint-config": "^0.6.10",
     "chai": "^6.2.2",
     "eslint": "^10.7.0",
     "mocha": "^11.7.6",
-    "prettier": "^3.9.5",
+    "prettier": "^3.9.6",
     "tsx": "^4.23.1",
     "typescript": "^6.0.3",
     "zotero-plugin-scaffold": "^0.8.7",
