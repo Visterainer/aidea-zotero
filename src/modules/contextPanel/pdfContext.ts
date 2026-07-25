@@ -15,6 +15,29 @@ import {
 import { pdfTextCache, pdfTextLoadingTasks } from "./state";
 import type { PdfContext, ChunkStat } from "./types";
 
+export function cacheExtractedDocumentText(
+  item: Zotero.Item,
+  title: string,
+  documentText: string,
+): PdfContext {
+  const sourceText = String(documentText || "");
+  const chunks = sourceText
+    ? splitIntoChunks(sourceText, CHUNK_TARGET_LENGTH)
+    : [];
+  const { chunkStats, docFreq, avgChunkLength } = buildChunkIndex(chunks);
+  const context: PdfContext = {
+    title,
+    chunks,
+    chunkStats,
+    docFreq,
+    avgChunkLength,
+    fullLength: sourceText.length,
+    embeddingFailed: false,
+  };
+  pdfTextCache.set(item.id, context);
+  return context;
+}
+
 async function cachePDFText(item: Zotero.Item) {
   if (pdfTextCache.has(item.id)) return;
 
@@ -43,40 +66,10 @@ async function cachePDFText(item: Zotero.Item) {
       }
     }
 
-    if (pdfText) {
-      const chunks = splitIntoChunks(pdfText, CHUNK_TARGET_LENGTH);
-      const { chunkStats, docFreq, avgChunkLength } = buildChunkIndex(chunks);
-      pdfTextCache.set(item.id, {
-        title,
-        chunks,
-        chunkStats,
-        docFreq,
-        avgChunkLength,
-        fullLength: pdfText.length,
-        embeddingFailed: false,
-      });
-    } else {
-      pdfTextCache.set(item.id, {
-        title,
-        chunks: [],
-        chunkStats: [],
-        docFreq: {},
-        avgChunkLength: 0,
-        fullLength: 0,
-        embeddingFailed: false,
-      });
-    }
+    cacheExtractedDocumentText(item, title, pdfText);
   } catch (e) {
     ztoolkit.log("Error caching PDF:", e);
-    pdfTextCache.set(item.id, {
-      title: "",
-      chunks: [],
-      chunkStats: [],
-      docFreq: {},
-      avgChunkLength: 0,
-      fullLength: 0,
-      embeddingFailed: false,
-    });
+    cacheExtractedDocumentText(item, "", "");
   }
 }
 
@@ -416,7 +409,6 @@ export async function buildContext(
     if (remaining <= 0) break;
     if (block.length > remaining) {
       excerpts.push(block.slice(0, Math.max(0, remaining)));
-      remaining = 0;
       break;
     }
     excerpts.push(block);

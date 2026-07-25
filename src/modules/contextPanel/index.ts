@@ -41,7 +41,7 @@ import {
   clearOwnerAttachmentRefs,
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
-import { normalizeSelectedText, setStatus } from "./textUtils";
+import { normalizeSelectedText, sanitizeText, setStatus } from "./textUtils";
 import { copyTextToClipboard, zoneBSummaryCache } from "./chat";
 import {
   getItemSelectionCacheKeys,
@@ -71,6 +71,7 @@ import {
   isSelectionTranslateEnabled,
   translateSelectedTextForReader,
 } from "./selectionTranslate";
+import { EPUB_CONTENT_TYPE } from "./documentContext";
 import { appendSelectionTranslationToNote } from "./notes";
 import {
   PANEL_TYPOGRAPHY_REFRESH_EVENT,
@@ -760,11 +761,33 @@ export function registerReaderSelectionTracking() {
         pageIndex?: unknown;
         page?: unknown;
         annotation?: {
+          pageLabel?: unknown;
           pageIndex?: unknown;
           page?: unknown;
           position?: { pageIndex?: unknown; page?: unknown };
         };
       };
+      if (item?.attachmentContentType === EPUB_CONTENT_TYPE) {
+        const parent = item.parentID
+          ? Zotero.Items.get(item.parentID) || null
+          : null;
+        const title = sanitizeText(
+          parent?.getField?.("title") ||
+            item.getField?.("title") ||
+            (
+              item as Zotero.Item & {
+                attachmentFilename?: string;
+              }
+            ).attachmentFilename ||
+            "EPUB",
+        ).trim();
+        const pageLabel = sanitizeText(
+          typeof params?.annotation?.pageLabel === "string"
+            ? params.annotation.pageLabel
+            : "",
+        ).trim();
+        return [title || "EPUB", pageLabel].filter(Boolean).join(", ");
+      }
       const rawPageIndex =
         params?.annotation?.position?.pageIndex ??
         params?.annotation?.pageIndex ??

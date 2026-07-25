@@ -11,7 +11,10 @@ import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 import { ensureConversationLoaded, refreshChat } from "./chat";
 import { renderShortcuts } from "./shortcuts";
-import { ensurePDFTextCached } from "./pdfContext";
+import {
+  ensureDocumentContext,
+  resolveReaderDocument,
+} from "./documentContext";
 import {
   isSelectionTranslateEnabled,
   warmSelectionTranslateColdStartForReader,
@@ -101,7 +104,7 @@ export async function bootstrapSharedReaderPanel(
     // Each PDF item can have multiple conversations. Resolve the active one
     // (or create it if none exists) and store in activePaperConversationByItem.
     if (!activePaperConversationByItem.has(item.id)) {
-      let latest = await getLatestPaperConversation(item.id);
+      const latest = await getLatestPaperConversation(item.id);
       if (!latest) {
         // First time opening this PDF — create the initial conversation.
         const newKey = await createPaperConversation(item.id);
@@ -119,14 +122,12 @@ export async function bootstrapSharedReaderPanel(
     setupHandlers(host, item);
     refreshChat(host, item);
 
-    // Defer PDF extraction so the panel becomes interactive sooner.
+    // Defer document extraction so the panel becomes interactive sooner.
     // Use the panel's own item directly — getActiveContextAttachmentFromTabs()
-    // queries global tab state which may return a different reader's PDF.
-    if (
-      item.isAttachment?.() &&
-      item.attachmentContentType === "application/pdf"
-    ) {
-      void ensurePDFTextCached(item);
+    // queries global tab state which may return a different reader document.
+    const readerDocument = resolveReaderDocument(item);
+    if (readerDocument) {
+      void ensureDocumentContext(readerDocument);
       if (isSelectionTranslateEnabled()) {
         const status = host.querySelector("#llm-status") as HTMLElement | null;
         const i18n = getPanelI18n();
