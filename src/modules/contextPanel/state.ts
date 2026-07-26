@@ -51,6 +51,7 @@ export const selectedModelProviderCache = new Map<number, string>();
 
 export const pdfTextCache = new Map<number, PdfContext>();
 export const pdfTextLoadingTasks = new Map<number, Promise<void>>();
+export const epubTextRetryAfterByItem = new Map<number, number>();
 export const shortcutTextCache = new Map<string, string>();
 export const shortcutMoveModeState = new WeakMap<Element, boolean>();
 export const shortcutRenderItemState = new WeakMap<
