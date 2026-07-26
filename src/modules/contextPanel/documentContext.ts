@@ -1,16 +1,25 @@
 import { cacheExtractedDocumentText, ensurePDFTextCached } from "./pdfContext";
-import { pdfTextCache, pdfTextLoadingTasks } from "./state";
+import {
+  epubTextRetryAfterByItem,
+  pdfTextCache,
+  pdfTextLoadingTasks,
+} from "./state";
 import type { PdfContext } from "./types";
 
 export const PDF_CONTENT_TYPE = "application/pdf";
 export const EPUB_CONTENT_TYPE = "application/epub+zip";
+export const EPUB_CONTEXT_RETRY_DELAY_MS = 60_000;
 
 export type ReaderDocumentKind = "pdf" | "epub";
 
 export type ReaderDocument = {
   item: Zotero.Item;
   kind: ReaderDocumentKind;
-  contentType: string;
+};
+
+export type ResolveReaderDocumentOptions = {
+  preferredItemID?: number;
+  preferredKind?: ReaderDocumentKind;
 };
 
 // Compatibility alias: existing PDF chat callers can keep PdfContext while
@@ -50,12 +59,12 @@ function asReaderDocument(
   return {
     item,
     kind,
-    contentType: getAttachmentContentType(item),
   };
 }
 
 export function resolveReaderDocument(
   item: Zotero.Item | null | undefined,
+  options: ResolveReaderDocumentOptions = {},
 ): ReaderDocument | null {
   if (!item) return null;
 
@@ -67,11 +76,30 @@ export function resolveReaderDocument(
   if (!item.isRegularItem?.()) return null;
 
   const attachmentIDs = item.getAttachments();
+  const documents: ReaderDocument[] = [];
   for (const id of attachmentIDs) {
     const document = asReaderDocument(Zotero.Items.get(id) || null);
-    if (document) return document;
+    if (document) documents.push(document);
   }
-  return null;
+  if (!documents.length) return null;
+
+  if (options.preferredItemID !== undefined) {
+    const preferredItem = documents.find(
+      (document) => document.item.id === options.preferredItemID,
+    );
+    if (preferredItem) return preferredItem;
+  }
+  if (options.preferredKind) {
+    const preferredKind = documents.find(
+      (document) => document.kind === options.preferredKind,
+    );
+    if (preferredKind) return preferredKind;
+  }
+
+  // Preserve the previous PDF-only resolver's behavior for callers that only
+  // have a regular parent item. Reader code should pass the actual attachment
+  // whenever the active tab makes it available.
+  return documents.find((document) => document.kind === "pdf") || documents[0];
 }
 
 function getFulltextAPI(): ZoteroFulltext | null {
@@ -94,9 +122,9 @@ async function readFulltextCache(
   item: Zotero.Item,
 ): Promise<string> {
   if (typeof fulltext.getItemCacheFile !== "function") return "";
-  const cachePath = getCacheFilePath(fulltext.getItemCacheFile(item));
-  if (!cachePath) return "";
   try {
+    const cachePath = getCacheFilePath(fulltext.getItemCacheFile(item));
+    if (!cachePath) return "";
     return String((await Zotero.File.getContentsAsync(cachePath)) || "").trim();
   } catch {
     return "";
@@ -153,7 +181,17 @@ function getDocumentTitle(item: Zotero.Item): string {
 }
 
 async function ensureEpubTextCached(item: Zotero.Item): Promise<void> {
-  if (pdfTextCache.has(item.id)) return;
+  const cached = pdfTextCache.get(item.id);
+  if (cached?.chunks.length) {
+    epubTextRetryAfterByItem.delete(item.id);
+    return;
+  }
+  if (cached) {
+    const retryAfter = epubTextRetryAfterByItem.get(item.id) || 0;
+    if (retryAfter > Date.now()) return;
+    pdfTextCache.delete(item.id);
+  }
+
   const existingTask = pdfTextLoadingTasks.get(item.id);
   if (existingTask) {
     await existingTask;
@@ -164,9 +202,21 @@ async function ensureEpubTextCached(item: Zotero.Item): Promise<void> {
     try {
       const text = await extractEpubTextFromAttachment(item);
       cacheExtractedDocumentText(item, getDocumentTitle(item), text);
+      if (text) {
+        epubTextRetryAfterByItem.delete(item.id);
+      } else {
+        epubTextRetryAfterByItem.set(
+          item.id,
+          Date.now() + EPUB_CONTEXT_RETRY_DELAY_MS,
+        );
+      }
     } catch (err) {
       ztoolkit.log("LLM: EPUB context extraction failed", err);
       cacheExtractedDocumentText(item, getDocumentTitle(item), "");
+      epubTextRetryAfterByItem.set(
+        item.id,
+        Date.now() + EPUB_CONTEXT_RETRY_DELAY_MS,
+      );
     } finally {
       pdfTextLoadingTasks.delete(item.id);
     }

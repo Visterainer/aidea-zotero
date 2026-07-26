@@ -32,6 +32,7 @@ import {
   getSelectionFromDocument,
 } from "./readerSelection";
 import { getPanelI18n } from "./i18n";
+import { getReaderDocumentKind } from "./documentContext";
 
 const SELECTED_TEXT_GROUP_EXPANDED_INDEX = -2;
 
@@ -190,7 +191,9 @@ function collectCandidateItemIDsFromObject(source: any): number[] {
   return out;
 }
 
-export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
+function getActiveReaderAttachmentFromTabs(
+  isSupported: (item: Zotero.Item | null | undefined) => boolean,
+): Zotero.Item | null {
   const tabs = getZoteroTabsState();
   if (!tabs) return null;
   const selectedType = `${tabs.selectedType || ""}`.toLowerCase();
@@ -211,7 +214,7 @@ export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
   const candidateIDs = collectCandidateItemIDsFromObject(data);
   for (const itemId of candidateIDs) {
     const item = Zotero.Items.get(itemId);
-    if (isSupportedContextAttachment(item)) return item;
+    if (isSupported(item)) return item;
   }
 
   // Fallback: map selected tab id to reader instance if available.
@@ -223,10 +226,20 @@ export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
   const readerItemId = parseItemID(reader?._item?.id ?? reader?.itemID);
   if (readerItemId !== null) {
     const readerItem = Zotero.Items.get(readerItemId);
-    if (isSupportedContextAttachment(readerItem)) return readerItem;
+    if (isSupported(readerItem)) return readerItem;
   }
 
   return null;
+}
+
+export function getActiveReaderDocumentAttachmentFromTabs(): Zotero.Item | null {
+  return getActiveReaderAttachmentFromTabs(
+    (item) => getReaderDocumentKind(item) !== null,
+  );
+}
+
+export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
+  return getActiveReaderAttachmentFromTabs(isSupportedContextAttachment);
 }
 
 function isSupportedContextAttachment(

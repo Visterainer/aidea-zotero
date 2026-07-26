@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  EPUB_CONTEXT_RETRY_DELAY_MS,
   EPUB_CONTENT_TYPE,
   PDF_CONTENT_TYPE,
   ensureDocumentContext,
@@ -8,12 +9,18 @@ import {
   resolveReaderDocument,
 } from "../src/modules/contextPanel/documentContext";
 import {
+  epubTextRetryAfterByItem,
   pdfTextCache,
   pdfTextLoadingTasks,
 } from "../src/modules/contextPanel/state";
+import {
+  getActiveContextAttachmentFromTabs,
+  getActiveReaderDocumentAttachmentFromTabs,
+} from "../src/modules/contextPanel/contextResolution";
 
 const originalZotero = (globalThis as Record<string, unknown>).Zotero;
 const originalZtoolkit = (globalThis as Record<string, unknown>).ztoolkit;
+const originalDateNow = Date.now;
 
 function makeAttachment(params: {
   id: number;
@@ -43,6 +50,7 @@ describe("documentContext", function () {
   beforeEach(function () {
     pdfTextCache.clear();
     pdfTextLoadingTasks.clear();
+    epubTextRetryAfterByItem.clear();
     (globalThis as Record<string, unknown>).ztoolkit = {
       log: () => undefined,
     };
@@ -51,6 +59,8 @@ describe("documentContext", function () {
   afterEach(function () {
     pdfTextCache.clear();
     pdfTextLoadingTasks.clear();
+    epubTextRetryAfterByItem.clear();
+    Date.now = originalDateNow;
     (globalThis as Record<string, unknown>).Zotero = originalZotero;
     (globalThis as Record<string, unknown>).ztoolkit = originalZtoolkit;
   });
@@ -116,6 +126,92 @@ describe("documentContext", function () {
     assert.strictEqual(document?.kind, "epub");
   });
 
+  it("preserves PDF fallback for mixed-format parent items", function () {
+    const epub = makeAttachment({
+      id: 22,
+      contentType: EPUB_CONTENT_TYPE,
+    });
+    const pdf = makeAttachment({
+      id: 23,
+      contentType: PDF_CONTENT_TYPE,
+    });
+    const parent = {
+      id: 20,
+      isAttachment: () => false,
+      isRegularItem: () => true,
+      getAttachments: () => [22, 23],
+    } as unknown as Zotero.Item;
+    (globalThis as Record<string, unknown>).Zotero = {
+      Items: {
+        get: (id: number) => (id === 22 ? epub : id === 23 ? pdf : null),
+      },
+    };
+
+    const document = resolveReaderDocument(parent);
+
+    assert.strictEqual(document?.item, pdf);
+    assert.strictEqual(document?.kind, "pdf");
+  });
+
+  it("honors the preferred attachment for mixed-format parent items", function () {
+    const epub = makeAttachment({
+      id: 24,
+      contentType: EPUB_CONTENT_TYPE,
+    });
+    const pdf = makeAttachment({
+      id: 25,
+      contentType: PDF_CONTENT_TYPE,
+    });
+    const parent = {
+      id: 20,
+      isAttachment: () => false,
+      isRegularItem: () => true,
+      getAttachments: () => [25, 24],
+    } as unknown as Zotero.Item;
+    (globalThis as Record<string, unknown>).Zotero = {
+      Items: {
+        get: (id: number) => (id === 24 ? epub : id === 25 ? pdf : null),
+      },
+    };
+
+    const document = resolveReaderDocument(parent, {
+      preferredItemID: epub.id,
+      preferredKind: "epub",
+    });
+
+    assert.strictEqual(document?.item, epub);
+    assert.strictEqual(document?.kind, "epub");
+  });
+
+  it("resolves the active EPUB attachment without changing PDF chat context", function () {
+    const epub = makeAttachment({
+      id: 26,
+      contentType: EPUB_CONTENT_TYPE,
+    });
+    (globalThis as Record<string, unknown>).Zotero = {
+      Tabs: {
+        selectedID: "reader-tab",
+        selectedType: "reader",
+        _tabs: [
+          {
+            id: "reader-tab",
+            type: "reader",
+            data: { itemID: 20 },
+          },
+        ],
+      },
+      Items: {
+        get: (id: number) => (id === epub.id ? epub : null),
+      },
+      Reader: {
+        getByTabID: () => ({ _item: { id: epub.id } }),
+      },
+    };
+
+    assert.strictEqual(getActiveReaderDocumentAttachmentFromTabs(), epub);
+    assert.isNull(getActiveContextAttachmentFromTabs());
+  });
+
   it("reads an existing Zotero EPUB full-text cache without reindexing", async function () {
     const epub = makeAttachment({
       id: 31,
@@ -169,17 +265,20 @@ describe("documentContext", function () {
     assert.deepEqual(indexArguments, [[41], { ignoreErrors: false }]);
   });
 
-  it("caches an empty context when EPUB text is unavailable", async function () {
+  it("temporarily reuses an empty EPUB context during retry cooldown", async function () {
     const epub = makeAttachment({
       id: 51,
       contentType: EPUB_CONTENT_TYPE,
       title: "Unavailable book",
       attachmentText: Promise.resolve(""),
     });
+    let indexCalls = 0;
     (globalThis as Record<string, unknown>).Zotero = {
       Fulltext: {
         getItemCacheFile: () => ({ path: "/tmp/missing-cache" }),
-        indexItems: async () => undefined,
+        indexItems: async () => {
+          indexCalls += 1;
+        },
       },
       File: {
         getContentsAsync: async () => {
@@ -194,10 +293,63 @@ describe("documentContext", function () {
     const context = await ensureDocumentContext({
       item: epub,
       kind: "epub",
-      contentType: EPUB_CONTENT_TYPE,
+    });
+    const cachedContext = await ensureDocumentContext({
+      item: epub,
+      kind: "epub",
     });
 
     assert.strictEqual(context?.title, "Unavailable book");
     assert.deepEqual(context?.chunks, []);
+    assert.strictEqual(cachedContext, context);
+    assert.strictEqual(indexCalls, 1);
+  });
+
+  it("rechecks EPUB text after the empty-context cooldown", async function () {
+    const epub = makeAttachment({
+      id: 61,
+      contentType: EPUB_CONTENT_TYPE,
+      title: "Recoverable book",
+      attachmentText: Promise.resolve(""),
+    });
+    let now = 1_000;
+    let indexCalls = 0;
+    let cacheReadCalls = 0;
+    let indexedText = "";
+    Date.now = () => now;
+    (globalThis as Record<string, unknown>).Zotero = {
+      Fulltext: {
+        getItemCacheFile: () => ({ path: "/tmp/recoverable-cache" }),
+        indexItems: async () => {
+          indexCalls += 1;
+        },
+      },
+      File: {
+        getContentsAsync: async () => {
+          cacheReadCalls += 1;
+          if (!indexedText) throw new Error("cache missing");
+          return indexedText;
+        },
+      },
+      Items: {
+        get: () => null,
+      },
+    };
+
+    const first = await ensureDocumentContext({
+      item: epub,
+      kind: "epub",
+    });
+    indexedText = "Recovered EPUB text";
+    now += EPUB_CONTEXT_RETRY_DELAY_MS + 1;
+    const recovered = await ensureDocumentContext({
+      item: epub,
+      kind: "epub",
+    });
+
+    assert.deepEqual(first?.chunks, []);
+    assert.strictEqual(indexCalls, 1);
+    assert.strictEqual(cacheReadCalls, 3);
+    assert.include(recovered?.chunks.join("\n") || "", indexedText);
   });
 });
