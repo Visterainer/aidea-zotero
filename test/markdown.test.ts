@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import { readFileSync } from "node:fs";
 import { renderMarkdown, renderMarkdownForNote } from "../src/utils/markdown";
 
 describe("markdown renderer", function () {
@@ -101,6 +102,18 @@ describe("markdown renderer", function () {
       const html = renderMarkdown("The formula is $x^2$.");
       // Should contain rendered math (KaTeX span) or a math-inline wrapper
       assert.include(html, "math-inline");
+    });
+
+    it("should keep bundled KaTeX CSS aligned with rendered markup", function () {
+      const html = renderMarkdown("The formula is $x^2$.");
+      const css = readFileSync(
+        new URL("../addon/content/vendor/katex/katex.min.css", import.meta.url),
+        "utf8",
+      );
+
+      assert.include(html, "katex-base");
+      assert.include(css, ".katex-base");
+      assert.include(css, 'content: "0.18.1"');
     });
 
     it("should handle display math with $$...$$", function () {
