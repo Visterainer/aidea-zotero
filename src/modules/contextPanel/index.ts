@@ -41,13 +41,14 @@ import {
   clearOwnerAttachmentRefs,
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
-import { normalizeSelectedText, setStatus } from "./textUtils";
+import { normalizeSelectedText, sanitizeText, setStatus } from "./textUtils";
 import { copyTextToClipboard, zoneBSummaryCache } from "./chat";
 import {
   getItemSelectionCacheKeys,
   appendSelectedTextContextForItem,
   applySelectedTextPreview,
   getActiveContextAttachmentFromTabs,
+  getActiveReaderDocumentAttachmentFromTabs,
 } from "./contextResolution";
 import {
   getFirstSelectionFromReader,
@@ -71,6 +72,7 @@ import {
   isSelectionTranslateEnabled,
   translateSelectedTextForReader,
 } from "./selectionTranslate";
+import { EPUB_CONTENT_TYPE, getReaderDocumentKind } from "./documentContext";
 import { appendSelectionTranslationToNote } from "./notes";
 import {
   PANEL_TYPOGRAPHY_REFRESH_EVENT,
@@ -213,15 +215,15 @@ export function registerReaderContextPanel() {
           const doc = body.ownerDocument;
           const win = doc?.defaultView;
           if (win) {
-            // Resolve actual PDF attachment (Zotero may pass parent item)
+            // Zotero may pass a parent item. Prefer the attachment owned by
+            // the active reader so mixed PDF/EPUB parents cannot pick the
+            // wrong document by attachment order.
             let renderItem = item;
-            if (
-              !item.isAttachment?.() ||
-              item.attachmentContentType !== "application/pdf"
-            ) {
-              const pdfFromTab = getActiveContextAttachmentFromTabs();
-              if (pdfFromTab) {
-                renderItem = pdfFromTab;
+            if (!getReaderDocumentKind(item)) {
+              const documentFromTab =
+                getActiveReaderDocumentAttachmentFromTabs();
+              if (documentFromTab) {
+                renderItem = documentFromTab;
               }
             }
             const host = getSharedReaderPanelHostForItem(win, renderItem);
@@ -273,17 +275,14 @@ export function registerReaderContextPanel() {
       const win = doc.defaultView;
       if (!win) return;
 
-      // Zotero sometimes passes the parent item instead of the PDF
-      // attachment to the Reader tab's section. Resolve the actual PDF
-      // from the active reader tab so panels can correctly auto-attach it.
+      // Zotero sometimes passes the parent item instead of the attachment.
+      // Resolve the active reader attachment before bootstrapping so mixed
+      // PDF/EPUB parents cannot warm the wrong document.
       let readerItem = item;
-      if (
-        !item.isAttachment?.() ||
-        item.attachmentContentType !== "application/pdf"
-      ) {
-        const pdfFromTab = getActiveContextAttachmentFromTabs();
-        if (pdfFromTab) {
-          readerItem = pdfFromTab;
+      if (!getReaderDocumentKind(item)) {
+        const documentFromTab = getActiveReaderDocumentAttachmentFromTabs();
+        if (documentFromTab) {
+          readerItem = documentFromTab;
         }
       }
 
@@ -760,11 +759,33 @@ export function registerReaderSelectionTracking() {
         pageIndex?: unknown;
         page?: unknown;
         annotation?: {
+          pageLabel?: unknown;
           pageIndex?: unknown;
           page?: unknown;
           position?: { pageIndex?: unknown; page?: unknown };
         };
       };
+      if (item?.attachmentContentType === EPUB_CONTENT_TYPE) {
+        const parent = item.parentID
+          ? Zotero.Items.get(item.parentID) || null
+          : null;
+        const title = sanitizeText(
+          parent?.getField?.("title") ||
+            item.getField?.("title") ||
+            (
+              item as Zotero.Item & {
+                attachmentFilename?: string;
+              }
+            ).attachmentFilename ||
+            "EPUB",
+        ).trim();
+        const pageLabel = sanitizeText(
+          typeof params?.annotation?.pageLabel === "string"
+            ? params.annotation.pageLabel
+            : "",
+        ).trim();
+        return [title || "EPUB", pageLabel].filter(Boolean).join(", ");
+      }
       const rawPageIndex =
         params?.annotation?.position?.pageIndex ??
         params?.annotation?.pageIndex ??
