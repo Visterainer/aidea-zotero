@@ -31,11 +31,14 @@ function normalizeNonNegativeInt(value: unknown): number {
 
 function normalizeText(value: unknown, maxLength: number): string {
   if (typeof value !== "string") return "";
-  return value
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLength);
+  return (
+    value
+      // eslint-disable-next-line no-control-regex -- strips unsafe cached characters
+      .replace(/[\u0000-\u001F\u007F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, maxLength)
+  );
 }
 
 function rowToCache(

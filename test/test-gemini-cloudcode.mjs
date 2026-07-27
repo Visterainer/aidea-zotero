@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 
 // ============================================================================
 // GEMINI CLOUD CODE (OAUTH) TEST & DEMONSTRATION
@@ -77,7 +76,9 @@ function getZoteroPrefsToken() {
         }
       }
     }
-  } catch (err) {}
+  } catch {
+    // This manual probe should quietly skip unreadable local Zotero profiles.
+  }
   return null;
 }
 

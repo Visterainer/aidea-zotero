@@ -21,15 +21,18 @@ function normalizeText(value: unknown): string {
 }
 
 function normalizeSearchToken(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/[\p{P}\p{S}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    value
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .normalize("NFKC")
+      .toLocaleLowerCase()
+      // eslint-disable-next-line no-control-regex -- strips unsafe search characters
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/[\p{P}\p{S}]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function normalizeSearchCompact(value: string): string {
@@ -311,7 +314,7 @@ export async function searchPaperCandidates(
   const normalizedLimit = Number.isFinite(limit)
     ? Math.max(1, Math.floor(limit))
     : 20;
-  let items: Zotero.Item[] = [];
+  let items: Zotero.Item[];
   try {
     items = await Zotero.Items.getAll(libraryID, true, false, false);
   } catch (err) {

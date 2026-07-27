@@ -40,7 +40,7 @@ export async function resolveItemPdfPath(
   if (!attachItem) return null;
 
   // Get file path from the attachment
-  let filepath: string | null = null;
+  let filepath: string | null;
   try {
     const raw = attachItem.getFilePath?.();
     filepath = raw ? String(raw) : null;

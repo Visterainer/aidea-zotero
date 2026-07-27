@@ -94,7 +94,7 @@ function shellWrap(
   const platform = getPlatform();
   if (platform === "windows") {
     const script =
-      `& { ${command} } 1> \"${stdoutPath}\" 2> \"${stderrPath}\"; ` +
+      `& { ${command} } 1> "${stdoutPath}" 2> "${stderrPath}"; ` +
       "$exitCode = if ($null -ne $global:LASTEXITCODE) { $global:LASTEXITCODE } elseif ($?) { 0 } else { 1 }; " +
       "exit $exitCode";
     return {

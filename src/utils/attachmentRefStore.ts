@@ -78,7 +78,7 @@ function extractManagedBlobHashesFromNoteHtml(noteHtml: string): string[] {
   if (!noteHtml.trim()) return [];
   const hashes = new Set<string>();
   const hrefPattern = /href\s*=\s*(["'])(.*?)\1/gi;
-  let match: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
   while ((match = hrefPattern.exec(noteHtml))) {
     const href = (match[2] || "").trim();
     if (!href) continue;
@@ -150,7 +150,7 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
   for (const row of rows) {
     const ownerId = Number(row.ownerId);
     if (!Number.isFinite(ownerId) || ownerId <= 0) continue;
-    let note: Zotero.Item | null = null;
+    let note: Zotero.Item | null;
     try {
       note = Zotero.Items.get(ownerId) || null;
     } catch (_err) {
@@ -160,7 +160,7 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
       await clearOwnerAttachmentRefs("note", ownerId);
       continue;
     }
-    let noteHtml = "";
+    let noteHtml: string;
     try {
       noteHtml = typeof note.getNote === "function" ? note.getNote() || "" : "";
     } catch (_err) {

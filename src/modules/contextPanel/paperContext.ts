@@ -136,7 +136,6 @@ export async function buildSupplementalPaperContext(
     if (!block) continue;
     if (block.length > remaining) {
       blocks.push(block.slice(0, Math.max(0, remaining)));
-      remaining = 0;
       break;
     }
     blocks.push(block);

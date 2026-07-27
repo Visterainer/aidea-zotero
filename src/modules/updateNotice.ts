@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.2.5-pdf-translation-and-streaming-fixes-v1";
+export const NOTICE_ID = "v3.3.0-epub-selection-translation-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -491,416 +491,827 @@ for (const lang of Object.keys(OAUTH_ENV_UPDATE_COPIES) as PanelLang[]) {
   }
 }
 
+const PDF_TRANSLATION_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
+  "en-US": {
+    eyebrow: "Update",
+    title: "Full-document translation reliability and streaming display fixes",
+    lead: "This update fixes Codex OAuth full-document PDF translation failures and incorrect completion states, while improving streaming response layout stability.",
+    note: "Restart Zotero after installing this update. The full-document translation environment does not need to be reinstalled or updated.",
+    alsoLabel: "This update includes",
+    alsoItems: [
+      {
+        label: "More reliable full-document translation",
+        text: "Temporary HTTP 502 errors, SSL EOF failures, and Windows system-proxy interference are handled more reliably.",
+      },
+      {
+        label: "Accurate completion status",
+        text: "A task is marked complete only when a translated PDF is created or updated during the current run.",
+      },
+      {
+        label: "Old outputs cannot hide failures",
+        text: "Unchanged PDF files from earlier runs are no longer treated as output from the current task.",
+      },
+      {
+        label: "Clearer errors and progress",
+        text: "AIdea shows a readable failure reason and log location, and timestamps are no longer misidentified as page progress.",
+      },
+      {
+        label: "Streaming response layout fix",
+        text: "Extra blank lines no longer appear between Markdown paragraphs while an answer is being generated.",
+      },
+    ],
+    exampleLabel: "After updating",
+    examplePrompt:
+      "Restart Zotero, then retry full-document translation directly. No translation-environment reinstall is required.",
+    confirm: "Got it",
+    close: "Close update notice",
+  },
+  "zh-CN": {
+    eyebrow: "更新提示",
+    title: "全文翻译可靠性与流式显示修复",
+    lead: "本次更新修复 Codex OAuth 全文 PDF 翻译失败及错误完成状态，并改善流式回答的显示稳定性。",
+    note: "更新插件后请重启 Zotero。本次修复不需要重新安装或更新全文翻译环境。",
+    alsoLabel: "本次更新包括",
+    alsoItems: [
+      {
+        label: "全文翻译更稳定",
+        text: "更好地处理临时 HTTP 502、SSL EOF 和 Windows 系统代理干扰。",
+      },
+      {
+        label: "完成状态更准确",
+        text: "只有本次确实生成或更新了翻译 PDF，任务才会显示完成。",
+      },
+      {
+        label: "旧输出不再掩盖失败",
+        text: "之前任务留下且未变化的 PDF 不再被当作本次翻译产物。",
+      },
+      {
+        label: "错误与进度更清晰",
+        text: "未生成 PDF 时会显示明确原因和日志位置；日志时间不再被误识别为页码进度。",
+      },
+      {
+        label: "流式回答排版修复",
+        text: "回答生成过程中不再出现额外段间空行，生成中和完成后的排版保持一致。",
+      },
+    ],
+    exampleLabel: "更新后",
+    examplePrompt:
+      "重启 Zotero 后可直接重新运行全文翻译，无需重新安装翻译环境。",
+    confirm: "知道了",
+    close: "关闭更新提示",
+  },
+  "zh-TW": {
+    eyebrow: "更新提示",
+    title: "全文翻譯可靠性與串流顯示修正",
+    lead: "本次更新修正 Codex OAuth 全文 PDF 翻譯失敗與錯誤完成狀態，並改善串流回答的版面穩定性。",
+    note: "安裝更新後請重新啟動 Zotero。無需重新安裝或更新全文翻譯環境。",
+    alsoLabel: "本次更新包括",
+    alsoItems: [
+      {
+        label: "全文翻譯更穩定",
+        text: "能更可靠地處理暫時性 HTTP 502、SSL EOF 與 Windows 系統代理干擾。",
+      },
+      {
+        label: "完成狀態更準確",
+        text: "只有本次確實建立或更新翻譯 PDF，工作才會顯示完成。",
+      },
+      {
+        label: "舊輸出不再掩蓋失敗",
+        text: "先前工作留下且未變更的 PDF 不再被視為本次翻譯產物。",
+      },
+      {
+        label: "錯誤與進度更清楚",
+        text: "未產生 PDF 時會顯示可讀原因與日誌位置，時間戳記不再被誤認為頁碼進度。",
+      },
+      {
+        label: "串流回答版面修正",
+        text: "回答產生期間，Markdown 段落之間不再出現額外空行。",
+      },
+    ],
+    exampleLabel: "更新後",
+    examplePrompt:
+      "重新啟動 Zotero 後可直接重試全文翻譯，無需重新安裝翻譯環境。",
+    confirm: "知道了",
+    close: "關閉更新提示",
+  },
+  "ja-JP": {
+    eyebrow: "更新のお知らせ",
+    title: "文書全体翻訳の信頼性とストリーミング表示の修正",
+    lead: "Codex OAuth による PDF 全体翻訳の失敗と誤った完了表示を修正し、ストリーミング回答のレイアウトを安定させました。",
+    note: "更新後に Zotero を再起動してください。文書全体翻訳環境の再インストールや更新は不要です。",
+    alsoLabel: "今回の更新内容",
+    alsoItems: [
+      {
+        label: "文書全体翻訳の安定性",
+        text: "一時的な HTTP 502、SSL EOF、Windows のシステムプロキシ干渉をより確実に処理します。",
+      },
+      {
+        label: "正確な完了状態",
+        text: "今回の実行で翻訳 PDF が作成または更新された場合のみ完了と表示します。",
+      },
+      {
+        label: "古い出力による誤判定を防止",
+        text: "以前の実行から残った未変更の PDF を今回の成果物として扱いません。",
+      },
+      {
+        label: "明確なエラーと進捗",
+        text: "PDF が生成されない場合は原因とログの場所を表示し、時刻をページ進捗として誤認しません。",
+      },
+      {
+        label: "ストリーミング表示の修正",
+        text: "回答生成中に Markdown 段落間へ余分な空行が表示されなくなりました。",
+      },
+    ],
+    exampleLabel: "更新後",
+    examplePrompt:
+      "Zotero を再起動してから文書全体翻訳を再試行してください。翻訳環境の再インストールは不要です。",
+    confirm: "了解",
+    close: "更新通知を閉じる",
+  },
+  "ko-KR": {
+    eyebrow: "업데이트 안내",
+    title: "문서 전체 번역 안정성 및 스트리밍 표시 수정",
+    lead: "Codex OAuth PDF 전체 번역 실패와 잘못된 완료 상태를 수정하고 스트리밍 응답 레이아웃을 안정화했습니다.",
+    note: "업데이트 설치 후 Zotero를 다시 시작하세요. 문서 전체 번역 환경을 다시 설치하거나 업데이트할 필요는 없습니다.",
+    alsoLabel: "이번 업데이트 내용",
+    alsoItems: [
+      {
+        label: "안정적인 문서 전체 번역",
+        text: "일시적인 HTTP 502, SSL EOF 및 Windows 시스템 프록시 간섭을 더 안정적으로 처리합니다.",
+      },
+      {
+        label: "정확한 완료 상태",
+        text: "현재 실행에서 번역 PDF가 생성되거나 업데이트된 경우에만 완료로 표시됩니다.",
+      },
+      {
+        label: "이전 출력으로 인한 오판 방지",
+        text: "이전 실행에서 남은 변경되지 않은 PDF를 현재 작업의 결과로 처리하지 않습니다.",
+      },
+      {
+        label: "명확한 오류 및 진행률",
+        text: "PDF가 생성되지 않으면 원인과 로그 위치를 표시하며 타임스탬프를 페이지 진행률로 잘못 인식하지 않습니다.",
+      },
+      {
+        label: "스트리밍 응답 레이아웃 수정",
+        text: "응답 생성 중 Markdown 단락 사이에 불필요한 빈 줄이 더 이상 나타나지 않습니다.",
+      },
+    ],
+    exampleLabel: "업데이트 후",
+    examplePrompt:
+      "Zotero를 다시 시작한 뒤 문서 전체 번역을 바로 다시 시도하세요. 번역 환경 재설치는 필요하지 않습니다.",
+    confirm: "확인",
+    close: "업데이트 안내 닫기",
+  },
+  "fr-FR": {
+    eyebrow: "Mise à jour",
+    title: "Fiabilité de la traduction intégrale et affichage en continu",
+    lead: "Cette mise à jour corrige les échecs de traduction intégrale PDF avec Codex OAuth, les états de réussite incorrects et la mise en page des réponses en continu.",
+    note: "Redémarrez Zotero après l’installation. Il n’est pas nécessaire de réinstaller ou de mettre à jour l’environnement de traduction intégrale.",
+    alsoLabel: "Cette mise à jour comprend",
+    alsoItems: [
+      {
+        label: "Traduction intégrale plus fiable",
+        text: "Les erreurs HTTP 502 temporaires, SSL EOF et les interférences du proxy système Windows sont mieux gérées.",
+      },
+      {
+        label: "État de réussite exact",
+        text: "La tâche est terminée uniquement si un PDF traduit est créé ou mis à jour pendant l’exécution actuelle.",
+      },
+      {
+        label: "Les anciens fichiers ne masquent plus les échecs",
+        text: "Les PDF inchangés provenant d’exécutions précédentes ne sont plus considérés comme de nouveaux résultats.",
+      },
+      {
+        label: "Erreurs et progression plus claires",
+        text: "AIdea affiche la cause et l’emplacement du journal, et ne confond plus les horodatages avec la progression des pages.",
+      },
+      {
+        label: "Mise en page du streaming corrigée",
+        text: "Les lignes vides superflues entre les paragraphes Markdown ont été supprimées pendant la génération.",
+      },
+    ],
+    exampleLabel: "Après la mise à jour",
+    examplePrompt:
+      "Redémarrez Zotero, puis relancez directement la traduction intégrale. Aucune réinstallation de l’environnement n’est requise.",
+    confirm: "Compris",
+    close: "Fermer l’avis de mise à jour",
+  },
+  "de-DE": {
+    eyebrow: "Update",
+    title: "Zuverlässige Volltextübersetzung und Streaming-Anzeige",
+    lead: "Dieses Update behebt Fehler bei der PDF-Volltextübersetzung mit Codex OAuth, falsche Abschlussmeldungen und Probleme beim Streaming-Layout.",
+    note: "Starten Sie Zotero nach der Installation neu. Die Volltextübersetzungsumgebung muss nicht neu installiert oder aktualisiert werden.",
+    alsoLabel: "Dieses Update enthält",
+    alsoItems: [
+      {
+        label: "Zuverlässigere Volltextübersetzung",
+        text: "Temporäre HTTP-502- und SSL-EOF-Fehler sowie Störungen durch den Windows-Systemproxy werden zuverlässiger behandelt.",
+      },
+      {
+        label: "Korrekter Abschlussstatus",
+        text: "Eine Aufgabe gilt nur als abgeschlossen, wenn im aktuellen Lauf eine übersetzte PDF erstellt oder aktualisiert wurde.",
+      },
+      {
+        label: "Alte Ausgaben verdecken keine Fehler",
+        text: "Unveränderte PDF-Dateien früherer Läufe gelten nicht mehr als Ergebnis der aktuellen Aufgabe.",
+      },
+      {
+        label: "Klarere Fehler und Fortschritte",
+        text: "AIdea zeigt Ursache und Protokollpfad an; Zeitstempel werden nicht mehr als Seitenfortschritt erkannt.",
+      },
+      {
+        label: "Streaming-Layout korrigiert",
+        text: "Während der Antwortgenerierung erscheinen keine zusätzlichen Leerzeilen mehr zwischen Markdown-Absätzen.",
+      },
+    ],
+    exampleLabel: "Nach dem Update",
+    examplePrompt:
+      "Starten Sie Zotero neu und versuchen Sie die Volltextübersetzung erneut. Eine Neuinstallation der Übersetzungsumgebung ist nicht erforderlich.",
+    confirm: "Verstanden",
+    close: "Update-Hinweis schließen",
+  },
+  "es-ES": {
+    eyebrow: "Actualización",
+    title: "Fiabilidad de la traducción completa y visualización en streaming",
+    lead: "Esta actualización corrige fallos de traducción completa de PDF con Codex OAuth, estados de finalización incorrectos y el diseño de las respuestas en streaming.",
+    note: "Reinicia Zotero después de instalar la actualización. No es necesario reinstalar ni actualizar el entorno de traducción completa.",
+    alsoLabel: "Esta actualización incluye",
+    alsoItems: [
+      {
+        label: "Traducción completa más fiable",
+        text: "Los errores temporales HTTP 502, SSL EOF y la interferencia del proxy del sistema de Windows se gestionan mejor.",
+      },
+      {
+        label: "Estado de finalización preciso",
+        text: "Una tarea solo se completa si durante la ejecución actual se crea o actualiza un PDF traducido.",
+      },
+      {
+        label: "Los resultados antiguos no ocultan fallos",
+        text: "Los PDF sin cambios de ejecuciones anteriores ya no se consideran resultados de la tarea actual.",
+      },
+      {
+        label: "Errores y progreso más claros",
+        text: "AIdea muestra la causa y la ubicación del registro; las marcas de tiempo ya no se confunden con páginas.",
+      },
+      {
+        label: "Diseño de streaming corregido",
+        text: "Ya no aparecen líneas en blanco adicionales entre párrafos Markdown durante la generación.",
+      },
+    ],
+    exampleLabel: "Después de actualizar",
+    examplePrompt:
+      "Reinicia Zotero y vuelve a intentar directamente la traducción completa. No es necesario reinstalar el entorno.",
+    confirm: "Entendido",
+    close: "Cerrar aviso de actualización",
+  },
+  "ru-RU": {
+    eyebrow: "Обновление",
+    title: "Надёжность полного перевода и потокового отображения",
+    lead: "Обновление исправляет сбои полного перевода PDF через Codex OAuth, неверный статус завершения и разметку потоковых ответов.",
+    note: "Перезапустите Zotero после установки. Переустанавливать или обновлять среду полного перевода не требуется.",
+    alsoLabel: "В это обновление входит",
+    alsoItems: [
+      {
+        label: "Надёжный полный перевод",
+        text: "Временные ошибки HTTP 502, SSL EOF и влияние системного прокси Windows обрабатываются надёжнее.",
+      },
+      {
+        label: "Точный статус завершения",
+        text: "Задача завершается только при создании или обновлении переведённого PDF в текущем запуске.",
+      },
+      {
+        label: "Старые файлы не скрывают сбой",
+        text: "Неизменённые PDF от предыдущих запусков больше не считаются результатом текущей задачи.",
+      },
+      {
+        label: "Понятные ошибки и прогресс",
+        text: "AIdea показывает причину и путь к журналу, а отметки времени не принимаются за номера страниц.",
+      },
+      {
+        label: "Исправлена потоковая разметка",
+        text: "При генерации ответа между абзацами Markdown больше не появляются лишние пустые строки.",
+      },
+    ],
+    exampleLabel: "После обновления",
+    examplePrompt:
+      "Перезапустите Zotero и повторите полный перевод. Переустановка среды перевода не требуется.",
+    confirm: "Понятно",
+    close: "Закрыть уведомление об обновлении",
+  },
+  "pt-BR": {
+    eyebrow: "Atualização",
+    title: "Confiabilidade da tradução completa e exibição em streaming",
+    lead: "Esta atualização corrige falhas na tradução completa de PDF com Codex OAuth, estados de conclusão incorretos e o layout das respostas em streaming.",
+    note: "Reinicie o Zotero após instalar a atualização. Não é necessário reinstalar nem atualizar o ambiente de tradução completa.",
+    alsoLabel: "Esta atualização inclui",
+    alsoItems: [
+      {
+        label: "Tradução completa mais confiável",
+        text: "Erros temporários HTTP 502, SSL EOF e interferência do proxy do sistema Windows são tratados melhor.",
+      },
+      {
+        label: "Status de conclusão preciso",
+        text: "Uma tarefa só é concluída quando um PDF traduzido é criado ou atualizado na execução atual.",
+      },
+      {
+        label: "Saídas antigas não ocultam falhas",
+        text: "PDFs inalterados de execuções anteriores não são mais considerados resultados da tarefa atual.",
+      },
+      {
+        label: "Erros e progresso mais claros",
+        text: "AIdea mostra a causa e o local do log; horários não são mais confundidos com progresso de páginas.",
+      },
+      {
+        label: "Layout de streaming corrigido",
+        text: "Linhas em branco extras não aparecem mais entre parágrafos Markdown durante a geração.",
+      },
+    ],
+    exampleLabel: "Após atualizar",
+    examplePrompt:
+      "Reinicie o Zotero e tente novamente a tradução completa. Não é necessário reinstalar o ambiente.",
+    confirm: "Entendido",
+    close: "Fechar aviso de atualização",
+  },
+  "ar-SA": {
+    eyebrow: "تحديث",
+    title: "موثوقية ترجمة المستند بالكامل وإصلاح العرض المتدفق",
+    lead: "يصلح هذا التحديث فشل ترجمة ملفات PDF بالكامل عبر Codex OAuth وحالات الإكمال غير الصحيحة وتخطيط الردود المتدفقة.",
+    note: "أعد تشغيل Zotero بعد تثبيت التحديث. لا حاجة إلى إعادة تثبيت بيئة ترجمة المستند بالكامل أو تحديثها.",
+    alsoLabel: "يتضمن هذا التحديث",
+    alsoItems: [
+      {
+        label: "ترجمة كاملة أكثر موثوقية",
+        text: "تتم معالجة أخطاء HTTP 502 المؤقتة وSSL EOF وتداخل وكيل نظام Windows بصورة أفضل.",
+      },
+      {
+        label: "حالة إكمال دقيقة",
+        text: "لا تكتمل المهمة إلا عند إنشاء ملف PDF مترجم أو تحديثه في التشغيل الحالي.",
+      },
+      {
+        label: "المخرجات القديمة لا تخفي الفشل",
+        text: "لا تعد ملفات PDF غير المتغيرة من عمليات سابقة ناتجا للمهمة الحالية.",
+      },
+      {
+        label: "أخطاء وتقدم أوضح",
+        text: "يعرض AIdea السبب وموقع السجل، ولا يخلط الطوابع الزمنية بتقدم الصفحات.",
+      },
+      {
+        label: "إصلاح تخطيط البث",
+        text: "لم تعد تظهر أسطر فارغة إضافية بين فقرات Markdown أثناء إنشاء الرد.",
+      },
+    ],
+    exampleLabel: "بعد التحديث",
+    examplePrompt:
+      "أعد تشغيل Zotero ثم حاول ترجمة المستند بالكامل مباشرة. لا يلزم إعادة تثبيت بيئة الترجمة.",
+    confirm: "فهمت",
+    close: "إغلاق إشعار التحديث",
+  },
+  "hi-IN": {
+    eyebrow: "अपडेट",
+    title:
+      "पूरे दस्तावेज़ के अनुवाद की विश्वसनीयता और स्ट्रीमिंग डिस्प्ले सुधार",
+    lead: "यह अपडेट Codex OAuth से पूरे PDF के अनुवाद की विफलता, गलत पूर्ण स्थिति और स्ट्रीमिंग उत्तर के लेआउट को ठीक करता है।",
+    note: "अपडेट इंस्टॉल करने के बाद Zotero को पुनः शुरू करें। पूरे दस्तावेज़ के अनुवाद environment को दोबारा इंस्टॉल या अपडेट करने की आवश्यकता नहीं है।",
+    alsoLabel: "इस अपडेट में शामिल है",
+    alsoItems: [
+      {
+        label: "अधिक विश्वसनीय पूरा अनुवाद",
+        text: "अस्थायी HTTP 502, SSL EOF और Windows system proxy के हस्तक्षेप को बेहतर ढंग से संभाला जाता है।",
+      },
+      {
+        label: "सही पूर्ण स्थिति",
+        text: "कार्य तभी पूर्ण दिखता है जब वर्तमान run में अनुवादित PDF बनाया या अपडेट किया गया हो।",
+      },
+      {
+        label: "पुराने output विफलता नहीं छिपाते",
+        text: "पिछले run की बिना बदली PDF को वर्तमान कार्य का output नहीं माना जाता।",
+      },
+      {
+        label: "स्पष्ट errors और progress",
+        text: "AIdea कारण और log location दिखाता है तथा timestamps को page progress नहीं मानता।",
+      },
+      {
+        label: "स्ट्रीमिंग लेआउट सुधार",
+        text: "उत्तर बनते समय Markdown paragraphs के बीच अतिरिक्त खाली lines अब नहीं दिखतीं।",
+      },
+    ],
+    exampleLabel: "अपडेट के बाद",
+    examplePrompt:
+      "Zotero को पुनः शुरू करें और पूरे दस्तावेज़ का अनुवाद फिर से चलाएं। Translation environment को दोबारा इंस्टॉल करने की जरूरत नहीं है।",
+    confirm: "समझ गया",
+    close: "अपडेट सूचना बंद करें",
+  },
+};
+
 export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title:
-        "Full-document translation reliability and streaming display fixes",
-      lead: "This update fixes Codex OAuth full-document PDF translation failures and incorrect completion states, while improving streaming response layout stability.",
-      note: "Restart Zotero after installing this update. The full-document translation environment does not need to be reinstalled or updated.",
+      title: "EPUB selection translation and automatic format detection",
+      lead: "AIdea now supports translating selected text directly in Zotero's EPUB reader and automatically detects whether the active document is a PDF or EPUB, with no manual format selection required.",
+      note: "Restart Zotero after installing this update. EPUB support in this release applies only to selection translation. Full-document translation is unchanged, and EPUB side-panel document chat is not included.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "More reliable full-document translation",
-          text: "Temporary HTTP 502 errors, SSL EOF failures, and Windows system-proxy interference are handled more reliably.",
+          label: "EPUB selection translation",
+          text: "Select text in an EPUB and use the existing selection-translation action.",
         },
         {
-          label: "Accurate completion status",
-          text: "A task is marked complete only when a translated PDF is created or updated during the current run.",
+          label: "Automatic format detection",
+          text: "AIdea detects PDF or EPUB from the active reader without adding settings or switching steps.",
         },
         {
-          label: "Old outputs cannot hide failures",
-          text: "Unchanged PDF files from earlier runs are no longer treated as output from the current task.",
+          label: "More accurate attachment selection",
+          text: "When an item contains both PDF and EPUB attachments, AIdea uses the attachment currently open in the reader.",
         },
         {
-          label: "Clearer errors and progress",
-          text: "AIdea shows a readable failure reason and log location, and timestamps are no longer misidentified as page progress.",
+          label: "Translation remains available with empty context",
+          text: "Selection translation still works when extracted document text is unavailable, and temporarily empty EPUB caches are retried automatically.",
         },
         {
-          label: "Streaming response layout fix",
-          text: "Extra blank lines no longer appear between Markdown paragraphs while an answer is being generated.",
+          label: "Existing PDF behavior preserved",
+          text: "PDF selection translation and PDF side-panel chat remain unchanged, with related dependency compatibility updates included.",
         },
       ],
-      exampleLabel: "After updating",
+      exampleLabel: "How to use it",
       examplePrompt:
-        "Restart Zotero, then retry full-document translation directly. No translation-environment reinstall is required.",
+        "Select text in Zotero's EPUB reader and use the existing selection-translation action. AIdea will detect the document format automatically.",
       confirm: "Got it",
       close: "Close update notice",
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "全文翻译可靠性与流式显示修复",
-      lead: "本次更新修复 Codex OAuth 全文 PDF 翻译失败及错误完成状态，并改善流式回答的显示稳定性。",
-      note: "更新插件后请重启 Zotero。本次修复不需要重新安装或更新全文翻译环境。",
+      title: "EPUB 划词翻译与格式自动识别",
+      lead: "AIdea 现在支持在 Zotero EPUB 阅读器中直接翻译选中文本，并会自动识别当前阅读器中的 PDF 或 EPUB，无需手动选择文档格式。",
+      note: "更新插件后请重启 Zotero。此次 EPUB 支持仅适用于划词翻译；全文翻译功能没有变化，EPUB 侧栏文档对话暂不包含在本次更新中。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "全文翻译更稳定",
-          text: "更好地处理临时 HTTP 502、SSL EOF 和 Windows 系统代理干扰。",
+          label: "EPUB 划词翻译",
+          text: "在 EPUB 中选中文本后，可以沿用现有划词翻译入口直接翻译。",
         },
         {
-          label: "完成状态更准确",
-          text: "只有本次确实生成或更新了翻译 PDF，任务才会显示完成。",
+          label: "自动识别文档格式",
+          text: "AIdea 会根据当前阅读器自动识别 PDF 或 EPUB，不新增设置或切换操作。",
         },
         {
-          label: "旧输出不再掩盖失败",
-          text: "之前任务留下且未变化的 PDF 不再被当作本次翻译产物。",
+          label: "混合附件识别更准确",
+          text: "同一条目同时包含 PDF 和 EPUB 时，优先使用当前正在阅读的附件。",
         },
         {
-          label: "错误与进度更清晰",
-          text: "未生成 PDF 时会显示明确原因和日志位置；日志时间不再被误识别为页码进度。",
+          label: "空上下文仍可翻译",
+          text: "即使全文内容尚未提取完成或缓存暂时为空，划词翻译仍可使用，并会自动重试 EPUB 缓存。",
         },
         {
-          label: "流式回答排版修复",
-          text: "回答生成过程中不再出现额外段间空行，生成中和完成后的排版保持一致。",
+          label: "保持现有 PDF 行为",
+          text: "PDF 划词翻译和 PDF 侧栏对话保持原有行为，并同步完成相关底层依赖兼容性更新。",
         },
       ],
-      exampleLabel: "更新后",
+      exampleLabel: "使用方式",
       examplePrompt:
-        "重启 Zotero 后可直接重新运行全文翻译，无需重新安装翻译环境。",
+        "在 Zotero EPUB 阅读器中选中文本，然后使用现有划词翻译入口；AIdea 会自动识别文档格式。",
       confirm: "知道了",
       close: "关闭更新提示",
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "全文翻譯可靠性與串流顯示修正",
-      lead: "本次更新修正 Codex OAuth 全文 PDF 翻譯失敗與錯誤完成狀態，並改善串流回答的版面穩定性。",
-      note: "安裝更新後請重新啟動 Zotero。無需重新安裝或更新全文翻譯環境。",
+      title: "EPUB 劃詞翻譯與格式自動識別",
+      lead: "AIdea 現在支援在 Zotero EPUB 閱讀器中直接翻譯選取文字，並會自動識別目前閱讀器中的文件是 PDF 或 EPUB，無需手動選擇格式。",
+      note: "安裝更新後請重新啟動 Zotero。本次 EPUB 支援僅適用於劃詞翻譯；全文翻譯功能沒有變更，EPUB 側邊欄文件對話暫不包含在本次更新中。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "全文翻譯更穩定",
-          text: "能更可靠地處理暫時性 HTTP 502、SSL EOF 與 Windows 系統代理干擾。",
+          label: "EPUB 劃詞翻譯",
+          text: "在 EPUB 中選取文字後，可沿用現有的劃詞翻譯入口直接翻譯。",
         },
         {
-          label: "完成狀態更準確",
-          text: "只有本次確實建立或更新翻譯 PDF，工作才會顯示完成。",
+          label: "自動識別文件格式",
+          text: "AIdea 會根據目前的閱讀器自動識別 PDF 或 EPUB，不會新增設定或切換操作。",
         },
         {
-          label: "舊輸出不再掩蓋失敗",
-          text: "先前工作留下且未變更的 PDF 不再被視為本次翻譯產物。",
+          label: "混合附件識別更準確",
+          text: "同一個項目同時包含 PDF 與 EPUB 時，會優先使用目前正在閱讀的附件。",
         },
         {
-          label: "錯誤與進度更清楚",
-          text: "未產生 PDF 時會顯示可讀原因與日誌位置，時間戳記不再被誤認為頁碼進度。",
+          label: "空白上下文仍可翻譯",
+          text: "即使全文內容尚未擷取完成或快取暫時為空，劃詞翻譯仍可使用，並會自動重試 EPUB 快取。",
         },
         {
-          label: "串流回答版面修正",
-          text: "回答產生期間，Markdown 段落之間不再出現額外空行。",
+          label: "保持現有 PDF 行為",
+          text: "PDF 劃詞翻譯與 PDF 側邊欄對話維持原有行為，並同步完成相關底層相依套件相容性更新。",
         },
       ],
-      exampleLabel: "更新後",
+      exampleLabel: "使用方式",
       examplePrompt:
-        "重新啟動 Zotero 後可直接重試全文翻譯，無需重新安裝翻譯環境。",
+        "在 Zotero EPUB 閱讀器中選取文字，然後使用現有的劃詞翻譯入口；AIdea 會自動識別文件格式。",
       confirm: "知道了",
       close: "關閉更新提示",
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "文書全体翻訳の信頼性とストリーミング表示の修正",
-      lead: "Codex OAuth による PDF 全体翻訳の失敗と誤った完了表示を修正し、ストリーミング回答のレイアウトを安定させました。",
-      note: "更新後に Zotero を再起動してください。文書全体翻訳環境の再インストールや更新は不要です。",
+      title: "EPUB 選択翻訳と文書形式の自動判別",
+      lead: "AIdea は Zotero の EPUB リーダーで選択したテキストを直接翻訳できるようになり、現在の文書が PDF か EPUB かを自動判別します。形式を手動で選ぶ必要はありません。",
+      note: "更新後に Zotero を再起動してください。今回の EPUB 対応は選択翻訳のみです。文書全体翻訳に変更はなく、EPUB のサイドパネル文書チャットは今回の更新に含まれません。",
       alsoLabel: "今回の更新内容",
       alsoItems: [
         {
-          label: "文書全体翻訳の安定性",
-          text: "一時的な HTTP 502、SSL EOF、Windows のシステムプロキシ干渉をより確実に処理します。",
+          label: "EPUB の選択翻訳",
+          text: "EPUB 内のテキストを選択し、既存の選択翻訳操作をそのまま利用できます。",
         },
         {
-          label: "正確な完了状態",
-          text: "今回の実行で翻訳 PDF が作成または更新された場合のみ完了と表示します。",
+          label: "文書形式の自動判別",
+          text: "AIdea は現在のリーダーから PDF または EPUB を自動判別し、設定や切り替え操作を追加しません。",
         },
         {
-          label: "古い出力による誤判定を防止",
-          text: "以前の実行から残った未変更の PDF を今回の成果物として扱いません。",
+          label: "添付ファイルの選択精度を向上",
+          text: "同じアイテムに PDF と EPUB の両方がある場合、リーダーで現在開いている添付ファイルを使用します。",
         },
         {
-          label: "明確なエラーと進捗",
-          text: "PDF が生成されない場合は原因とログの場所を表示し、時刻をページ進捗として誤認しません。",
+          label: "コンテキストが空でも翻訳可能",
+          text: "抽出された文書テキストが利用できない場合も選択翻訳を利用でき、一時的に空の EPUB キャッシュは自動的に再試行されます。",
         },
         {
-          label: "ストリーミング表示の修正",
-          text: "回答生成中に Markdown 段落間へ余分な空行が表示されなくなりました。",
+          label: "既存の PDF 動作を維持",
+          text: "PDF の選択翻訳と PDF サイドパネルチャットは従来どおりで、関連する依存関係の互換性更新も含まれます。",
         },
       ],
-      exampleLabel: "更新後",
+      exampleLabel: "使い方",
       examplePrompt:
-        "Zotero を再起動してから文書全体翻訳を再試行してください。翻訳環境の再インストールは不要です。",
+        "Zotero の EPUB リーダーでテキストを選択し、既存の選択翻訳操作を使用してください。AIdea が文書形式を自動判別します。",
       confirm: "了解",
       close: "更新通知を閉じる",
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "문서 전체 번역 안정성 및 스트리밍 표시 수정",
-      lead: "Codex OAuth PDF 전체 번역 실패와 잘못된 완료 상태를 수정하고 스트리밍 응답 레이아웃을 안정화했습니다.",
-      note: "업데이트 설치 후 Zotero를 다시 시작하세요. 문서 전체 번역 환경을 다시 설치하거나 업데이트할 필요는 없습니다.",
+      title: "EPUB 선택 번역 및 문서 형식 자동 감지",
+      lead: "AIdea는 이제 Zotero EPUB 리더에서 선택한 텍스트를 바로 번역하고, 현재 문서가 PDF인지 EPUB인지 자동으로 감지하므로 형식을 직접 선택할 필요가 없습니다.",
+      note: "업데이트 설치 후 Zotero를 다시 시작하세요. 이번 EPUB 지원은 선택 번역에만 적용됩니다. 문서 전체 번역은 변경되지 않았으며 EPUB 사이드 패널 문서 채팅은 이번 업데이트에 포함되지 않습니다.",
       alsoLabel: "이번 업데이트 내용",
       alsoItems: [
         {
-          label: "안정적인 문서 전체 번역",
-          text: "일시적인 HTTP 502, SSL EOF 및 Windows 시스템 프록시 간섭을 더 안정적으로 처리합니다.",
+          label: "EPUB 선택 번역",
+          text: "EPUB에서 텍스트를 선택한 뒤 기존 선택 번역 기능을 그대로 사용할 수 있습니다.",
         },
         {
-          label: "정확한 완료 상태",
-          text: "현재 실행에서 번역 PDF가 생성되거나 업데이트된 경우에만 완료로 표시됩니다.",
+          label: "문서 형식 자동 감지",
+          text: "AIdea가 현재 리더에서 PDF 또는 EPUB을 자동으로 감지하며 별도 설정이나 전환 단계가 추가되지 않습니다.",
         },
         {
-          label: "이전 출력으로 인한 오판 방지",
-          text: "이전 실행에서 남은 변경되지 않은 PDF를 현재 작업의 결과로 처리하지 않습니다.",
+          label: "더 정확한 첨부 파일 선택",
+          text: "한 항목에 PDF와 EPUB이 모두 있으면 리더에서 현재 열려 있는 첨부 파일을 사용합니다.",
         },
         {
-          label: "명확한 오류 및 진행률",
-          text: "PDF가 생성되지 않으면 원인과 로그 위치를 표시하며 타임스탬프를 페이지 진행률로 잘못 인식하지 않습니다.",
+          label: "컨텍스트가 비어 있어도 번역 가능",
+          text: "추출된 문서 텍스트를 사용할 수 없는 경우에도 선택 번역이 작동하며, 일시적으로 비어 있는 EPUB 캐시는 자동으로 다시 시도합니다.",
         },
         {
-          label: "스트리밍 응답 레이아웃 수정",
-          text: "응답 생성 중 Markdown 단락 사이에 불필요한 빈 줄이 더 이상 나타나지 않습니다.",
+          label: "기존 PDF 동작 유지",
+          text: "PDF 선택 번역과 PDF 사이드 패널 채팅은 기존과 동일하며 관련 종속성 호환성 업데이트도 포함됩니다.",
         },
       ],
-      exampleLabel: "업데이트 후",
+      exampleLabel: "사용 방법",
       examplePrompt:
-        "Zotero를 다시 시작한 뒤 문서 전체 번역을 바로 다시 시도하세요. 번역 환경 재설치는 필요하지 않습니다.",
+        "Zotero EPUB 리더에서 텍스트를 선택한 뒤 기존 선택 번역 기능을 사용하세요. AIdea가 문서 형식을 자동으로 감지합니다.",
       confirm: "확인",
       close: "업데이트 안내 닫기",
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "Fiabilité de la traduction intégrale et affichage en continu",
-      lead: "Cette mise à jour corrige les échecs de traduction intégrale PDF avec Codex OAuth, les états de réussite incorrects et la mise en page des réponses en continu.",
-      note: "Redémarrez Zotero après l’installation. Il n’est pas nécessaire de réinstaller ou de mettre à jour l’environnement de traduction intégrale.",
+      title: "Traduction de sélection EPUB et détection automatique du format",
+      lead: "AIdea permet désormais de traduire directement le texte sélectionné dans le lecteur EPUB de Zotero et détecte automatiquement si le document actif est un PDF ou un EPUB, sans sélection manuelle du format.",
+      note: "Redémarrez Zotero après l’installation. Dans cette version, la prise en charge des EPUB concerne uniquement la traduction de sélection. La traduction intégrale reste inchangée et la discussion documentaire EPUB dans le panneau latéral n’est pas incluse.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Traduction intégrale plus fiable",
-          text: "Les erreurs HTTP 502 temporaires, SSL EOF et les interférences du proxy système Windows sont mieux gérées.",
+          label: "Traduction de sélection EPUB",
+          text: "Sélectionnez du texte dans un EPUB et utilisez l’action de traduction de sélection existante.",
         },
         {
-          label: "État de réussite exact",
-          text: "La tâche est terminée uniquement si un PDF traduit est créé ou mis à jour pendant l’exécution actuelle.",
+          label: "Détection automatique du format",
+          text: "AIdea détecte le PDF ou l’EPUB depuis le lecteur actif, sans ajouter de réglage ni d’étape de basculement.",
         },
         {
-          label: "Les anciens fichiers ne masquent plus les échecs",
-          text: "Les PDF inchangés provenant d’exécutions précédentes ne sont plus considérés comme de nouveaux résultats.",
+          label: "Sélection plus précise des pièces jointes",
+          text: "Lorsqu’un élément contient à la fois des pièces jointes PDF et EPUB, AIdea utilise celle actuellement ouverte dans le lecteur.",
         },
         {
-          label: "Erreurs et progression plus claires",
-          text: "AIdea affiche la cause et l’emplacement du journal, et ne confond plus les horodatages avec la progression des pages.",
+          label: "Traduction disponible même sans contexte",
+          text: "La traduction de sélection reste disponible si le texte extrait du document ne l’est pas, et les caches EPUB temporairement vides sont réessayés automatiquement.",
         },
         {
-          label: "Mise en page du streaming corrigée",
-          text: "Les lignes vides superflues entre les paragraphes Markdown ont été supprimées pendant la génération.",
+          label: "Comportement PDF existant préservé",
+          text: "La traduction de sélection PDF et la discussion PDF dans le panneau latéral restent inchangées, avec les mises à jour de compatibilité des dépendances associées.",
         },
       ],
-      exampleLabel: "Après la mise à jour",
+      exampleLabel: "Comment l’utiliser",
       examplePrompt:
-        "Redémarrez Zotero, puis relancez directement la traduction intégrale. Aucune réinstallation de l’environnement n’est requise.",
+        "Sélectionnez du texte dans le lecteur EPUB de Zotero, puis utilisez l’action de traduction de sélection existante. AIdea détectera automatiquement le format du document.",
       confirm: "Compris",
       close: "Fermer l’avis de mise à jour",
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "Zuverlässige Volltextübersetzung und Streaming-Anzeige",
-      lead: "Dieses Update behebt Fehler bei der PDF-Volltextübersetzung mit Codex OAuth, falsche Abschlussmeldungen und Probleme beim Streaming-Layout.",
-      note: "Starten Sie Zotero nach der Installation neu. Die Volltextübersetzungsumgebung muss nicht neu installiert oder aktualisiert werden.",
+      title: "EPUB-Auswahlübersetzung und automatische Formaterkennung",
+      lead: "AIdea kann jetzt ausgewählten Text direkt im EPUB-Reader von Zotero übersetzen und erkennt automatisch, ob das aktive Dokument eine PDF- oder EPUB-Datei ist. Eine manuelle Formatauswahl ist nicht erforderlich.",
+      note: "Starten Sie Zotero nach der Installation neu. Die EPUB-Unterstützung dieser Version gilt nur für die Auswahlübersetzung. Die Volltextübersetzung bleibt unverändert; Dokument-Chats für EPUB im Seitenbereich sind nicht enthalten.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Zuverlässigere Volltextübersetzung",
-          text: "Temporäre HTTP-502- und SSL-EOF-Fehler sowie Störungen durch den Windows-Systemproxy werden zuverlässiger behandelt.",
+          label: "EPUB-Auswahlübersetzung",
+          text: "Markieren Sie Text in einem EPUB und verwenden Sie die vorhandene Aktion zur Auswahlübersetzung.",
         },
         {
-          label: "Korrekter Abschlussstatus",
-          text: "Eine Aufgabe gilt nur als abgeschlossen, wenn im aktuellen Lauf eine übersetzte PDF erstellt oder aktualisiert wurde.",
+          label: "Automatische Formaterkennung",
+          text: "AIdea erkennt im aktiven Reader automatisch PDF oder EPUB, ohne neue Einstellungen oder Umschaltschritte.",
         },
         {
-          label: "Alte Ausgaben verdecken keine Fehler",
-          text: "Unveränderte PDF-Dateien früherer Läufe gelten nicht mehr als Ergebnis der aktuellen Aufgabe.",
+          label: "Genauere Auswahl von Anhängen",
+          text: "Enthält ein Eintrag sowohl PDF- als auch EPUB-Anhänge, verwendet AIdea den aktuell im Reader geöffneten Anhang.",
         },
         {
-          label: "Klarere Fehler und Fortschritte",
-          text: "AIdea zeigt Ursache und Protokollpfad an; Zeitstempel werden nicht mehr als Seitenfortschritt erkannt.",
+          label: "Übersetzung auch bei leerem Kontext verfügbar",
+          text: "Die Auswahlübersetzung funktioniert auch ohne extrahierten Dokumenttext; vorübergehend leere EPUB-Caches werden automatisch erneut versucht.",
         },
         {
-          label: "Streaming-Layout korrigiert",
-          text: "Während der Antwortgenerierung erscheinen keine zusätzlichen Leerzeilen mehr zwischen Markdown-Absätzen.",
+          label: "Bestehendes PDF-Verhalten bleibt erhalten",
+          text: "PDF-Auswahlübersetzung und PDF-Chat im Seitenbereich bleiben unverändert; zugehörige Kompatibilitätsupdates für Abhängigkeiten sind enthalten.",
         },
       ],
-      exampleLabel: "Nach dem Update",
+      exampleLabel: "So funktioniert es",
       examplePrompt:
-        "Starten Sie Zotero neu und versuchen Sie die Volltextübersetzung erneut. Eine Neuinstallation der Übersetzungsumgebung ist nicht erforderlich.",
+        "Markieren Sie Text im EPUB-Reader von Zotero und verwenden Sie die vorhandene Auswahlübersetzung. AIdea erkennt das Dokumentformat automatisch.",
       confirm: "Verstanden",
       close: "Update-Hinweis schließen",
     },
     "es-ES": {
       eyebrow: "Actualización",
       title:
-        "Fiabilidad de la traducción completa y visualización en streaming",
-      lead: "Esta actualización corrige fallos de traducción completa de PDF con Codex OAuth, estados de finalización incorrectos y el diseño de las respuestas en streaming.",
-      note: "Reinicia Zotero después de instalar la actualización. No es necesario reinstalar ni actualizar el entorno de traducción completa.",
+        "Traducción de selecciones en EPUB y detección automática del formato",
+      lead: "AIdea ahora permite traducir directamente el texto seleccionado en el lector EPUB de Zotero y detecta automáticamente si el documento activo es PDF o EPUB, sin elegir el formato manualmente.",
+      note: "Reinicia Zotero después de instalar la actualización. En esta versión, la compatibilidad con EPUB se limita a la traducción de selecciones. La traducción completa no cambia y el chat de documentos EPUB del panel lateral no está incluido.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Traducción completa más fiable",
-          text: "Los errores temporales HTTP 502, SSL EOF y la interferencia del proxy del sistema de Windows se gestionan mejor.",
+          label: "Traducción de selecciones en EPUB",
+          text: "Selecciona texto en un EPUB y utiliza la acción de traducción de selecciones existente.",
         },
         {
-          label: "Estado de finalización preciso",
-          text: "Una tarea solo se completa si durante la ejecución actual se crea o actualiza un PDF traducido.",
+          label: "Detección automática del formato",
+          text: "AIdea detecta PDF o EPUB desde el lector activo, sin añadir ajustes ni pasos de cambio.",
         },
         {
-          label: "Los resultados antiguos no ocultan fallos",
-          text: "Los PDF sin cambios de ejecuciones anteriores ya no se consideran resultados de la tarea actual.",
+          label: "Selección de adjuntos más precisa",
+          text: "Cuando un elemento contiene adjuntos PDF y EPUB, AIdea utiliza el que está abierto en el lector.",
         },
         {
-          label: "Errores y progreso más claros",
-          text: "AIdea muestra la causa y la ubicación del registro; las marcas de tiempo ya no se confunden con páginas.",
+          label: "Traducción disponible con contexto vacío",
+          text: "La traducción de selecciones sigue disponible cuando no hay texto extraído del documento, y las cachés EPUB temporalmente vacías se reintentan automáticamente.",
         },
         {
-          label: "Diseño de streaming corregido",
-          text: "Ya no aparecen líneas en blanco adicionales entre párrafos Markdown durante la generación.",
+          label: "Se conserva el comportamiento de PDF",
+          text: "La traducción de selecciones PDF y el chat PDF del panel lateral no cambian e incluyen las actualizaciones de compatibilidad de dependencias relacionadas.",
         },
       ],
-      exampleLabel: "Después de actualizar",
+      exampleLabel: "Cómo utilizarlo",
       examplePrompt:
-        "Reinicia Zotero y vuelve a intentar directamente la traducción completa. No es necesario reinstalar el entorno.",
+        "Selecciona texto en el lector EPUB de Zotero y utiliza la acción de traducción de selecciones existente. AIdea detectará el formato automáticamente.",
       confirm: "Entendido",
       close: "Cerrar aviso de actualización",
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "Надёжность полного перевода и потокового отображения",
-      lead: "Обновление исправляет сбои полного перевода PDF через Codex OAuth, неверный статус завершения и разметку потоковых ответов.",
-      note: "Перезапустите Zotero после установки. Переустанавливать или обновлять среду полного перевода не требуется.",
+      title:
+        "Перевод выделенного текста в EPUB и автоматическое определение формата",
+      lead: "AIdea теперь переводит выделенный текст прямо в EPUB-ридере Zotero и автоматически определяет, открыт PDF или EPUB, поэтому выбирать формат вручную не нужно.",
+      note: "После установки обновления перезапустите Zotero. Поддержка EPUB в этой версии относится только к переводу выделенного текста. Полный перевод документа не изменён, а чат по EPUB в боковой панели не включён.",
       alsoLabel: "В это обновление входит",
       alsoItems: [
         {
-          label: "Надёжный полный перевод",
-          text: "Временные ошибки HTTP 502, SSL EOF и влияние системного прокси Windows обрабатываются надёжнее.",
+          label: "Перевод выделенного текста в EPUB",
+          text: "Выделите текст в EPUB и используйте существующую команду перевода выделенного текста.",
         },
         {
-          label: "Точный статус завершения",
-          text: "Задача завершается только при создании или обновлении переведённого PDF в текущем запуске.",
+          label: "Автоматическое определение формата",
+          text: "AIdea автоматически определяет PDF или EPUB по активному ридеру, без новых настроек и переключений.",
         },
         {
-          label: "Старые файлы не скрывают сбой",
-          text: "Неизменённые PDF от предыдущих запусков больше не считаются результатом текущей задачи.",
+          label: "Более точный выбор вложения",
+          text: "Если у элемента есть вложения PDF и EPUB, AIdea использует файл, который сейчас открыт в ридере.",
         },
         {
-          label: "Понятные ошибки и прогресс",
-          text: "AIdea показывает причину и путь к журналу, а отметки времени не принимаются за номера страниц.",
+          label: "Перевод доступен и без контекста",
+          text: "Перевод выделенного текста работает, даже если извлечённый текст документа недоступен; временно пустой кэш EPUB проверяется повторно автоматически.",
         },
         {
-          label: "Исправлена потоковая разметка",
-          text: "При генерации ответа между абзацами Markdown больше не появляются лишние пустые строки.",
+          label: "Поведение PDF сохранено",
+          text: "Перевод выделенного текста в PDF и чат PDF в боковой панели не изменились; также включены связанные обновления совместимости зависимостей.",
         },
       ],
-      exampleLabel: "После обновления",
+      exampleLabel: "Как использовать",
       examplePrompt:
-        "Перезапустите Zotero и повторите полный перевод. Переустановка среды перевода не требуется.",
+        "Выделите текст в EPUB-ридере Zotero и используйте существующую команду перевода. AIdea автоматически определит формат документа.",
       confirm: "Понятно",
       close: "Закрыть уведомление об обновлении",
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title: "Confiabilidade da tradução completa e exibição em streaming",
-      lead: "Esta atualização corrige falhas na tradução completa de PDF com Codex OAuth, estados de conclusão incorretos e o layout das respostas em streaming.",
-      note: "Reinicie o Zotero após instalar a atualização. Não é necessário reinstalar nem atualizar o ambiente de tradução completa.",
+      title: "Tradução de seleção em EPUB e detecção automática de formato",
+      lead: "O AIdea agora traduz o texto selecionado diretamente no leitor de EPUB do Zotero e detecta automaticamente se o documento ativo é PDF ou EPUB, sem exigir seleção manual de formato.",
+      note: "Reinicie o Zotero após instalar a atualização. Nesta versão, o suporte a EPUB se aplica apenas à tradução de seleção. A tradução completa permanece inalterada e o chat de documentos EPUB no painel lateral não está incluído.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Tradução completa mais confiável",
-          text: "Erros temporários HTTP 502, SSL EOF e interferência do proxy do sistema Windows são tratados melhor.",
+          label: "Tradução de seleção em EPUB",
+          text: "Selecione texto em um EPUB e use a ação existente de tradução de seleção.",
         },
         {
-          label: "Status de conclusão preciso",
-          text: "Uma tarefa só é concluída quando um PDF traduzido é criado ou atualizado na execução atual.",
+          label: "Detecção automática de formato",
+          text: "O AIdea detecta PDF ou EPUB pelo leitor ativo, sem adicionar configurações ou etapas de troca.",
         },
         {
-          label: "Saídas antigas não ocultam falhas",
-          text: "PDFs inalterados de execuções anteriores não são mais considerados resultados da tarefa atual.",
+          label: "Seleção de anexo mais precisa",
+          text: "Quando um item contém anexos PDF e EPUB, o AIdea usa o anexo aberto no leitor naquele momento.",
         },
         {
-          label: "Erros e progresso mais claros",
-          text: "AIdea mostra a causa e o local do log; horários não são mais confundidos com progresso de páginas.",
+          label: "Tradução disponível mesmo sem contexto",
+          text: "A tradução de seleção continua disponível sem texto extraído do documento, e caches EPUB temporariamente vazios são tentados novamente de forma automática.",
         },
         {
-          label: "Layout de streaming corrigido",
-          text: "Linhas em branco extras não aparecem mais entre parágrafos Markdown durante a geração.",
+          label: "Comportamento existente de PDF preservado",
+          text: "A tradução de seleção em PDF e o chat de PDF no painel lateral permanecem inalterados, com as atualizações relacionadas de compatibilidade das dependências.",
         },
       ],
-      exampleLabel: "Após atualizar",
+      exampleLabel: "Como usar",
       examplePrompt:
-        "Reinicie o Zotero e tente novamente a tradução completa. Não é necessário reinstalar o ambiente.",
+        "Selecione texto no leitor de EPUB do Zotero e use a ação existente de tradução de seleção. O AIdea detectará o formato automaticamente.",
       confirm: "Entendido",
       close: "Fechar aviso de atualização",
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "موثوقية ترجمة المستند بالكامل وإصلاح العرض المتدفق",
-      lead: "يصلح هذا التحديث فشل ترجمة ملفات PDF بالكامل عبر Codex OAuth وحالات الإكمال غير الصحيحة وتخطيط الردود المتدفقة.",
-      note: "أعد تشغيل Zotero بعد تثبيت التحديث. لا حاجة إلى إعادة تثبيت بيئة ترجمة المستند بالكامل أو تحديثها.",
+      title: "ترجمة النص المحدد في EPUB والتعرّف التلقائي على التنسيق",
+      lead: "يدعم AIdea الآن ترجمة النص المحدد مباشرة في قارئ EPUB داخل Zotero، ويتعرّف تلقائيًا على ما إذا كان المستند النشط PDF أو EPUB، من دون الحاجة إلى اختيار التنسيق يدويًا.",
+      note: "أعد تشغيل Zotero بعد تثبيت التحديث. يقتصر دعم EPUB في هذا الإصدار على ترجمة النص المحدد. لم تتغير ترجمة المستند بالكامل، ولا تتضمن هذه النسخة محادثة مستندات EPUB في اللوحة الجانبية.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "ترجمة كاملة أكثر موثوقية",
-          text: "تتم معالجة أخطاء HTTP 502 المؤقتة وSSL EOF وتداخل وكيل نظام Windows بصورة أفضل.",
+          label: "ترجمة النص المحدد في EPUB",
+          text: "حدد نصًا في ملف EPUB واستخدم إجراء ترجمة النص المحدد الحالي.",
         },
         {
-          label: "حالة إكمال دقيقة",
-          text: "لا تكتمل المهمة إلا عند إنشاء ملف PDF مترجم أو تحديثه في التشغيل الحالي.",
+          label: "التعرّف التلقائي على التنسيق",
+          text: "يتعرّف AIdea على PDF أو EPUB من القارئ النشط من دون إضافة إعدادات أو خطوات تبديل.",
         },
         {
-          label: "المخرجات القديمة لا تخفي الفشل",
-          text: "لا تعد ملفات PDF غير المتغيرة من عمليات سابقة ناتجا للمهمة الحالية.",
+          label: "اختيار أدق للمرفقات",
+          text: "عندما يحتوي العنصر على مرفقات PDF وEPUB معًا، يستخدم AIdea المرفق المفتوح حاليًا في القارئ.",
         },
         {
-          label: "أخطاء وتقدم أوضح",
-          text: "يعرض AIdea السبب وموقع السجل، ولا يخلط الطوابع الزمنية بتقدم الصفحات.",
+          label: "الترجمة متاحة حتى مع سياق فارغ",
+          text: "تظل ترجمة النص المحدد متاحة عندما لا يكون نص المستند المستخرج جاهزًا، وتتم إعادة المحاولة تلقائيًا عند فراغ ذاكرة EPUB المؤقتة بشكل مؤقت.",
         },
         {
-          label: "إصلاح تخطيط البث",
-          text: "لم تعد تظهر أسطر فارغة إضافية بين فقرات Markdown أثناء إنشاء الرد.",
+          label: "الحفاظ على سلوك PDF الحالي",
+          text: "تظل ترجمة النص المحدد في PDF ومحادثة PDF في اللوحة الجانبية كما هما، مع تضمين تحديثات توافق التبعيات ذات الصلة.",
         },
       ],
-      exampleLabel: "بعد التحديث",
+      exampleLabel: "طريقة الاستخدام",
       examplePrompt:
-        "أعد تشغيل Zotero ثم حاول ترجمة المستند بالكامل مباشرة. لا يلزم إعادة تثبيت بيئة الترجمة.",
+        "حدد نصًا في قارئ EPUB داخل Zotero واستخدم إجراء ترجمة النص المحدد الحالي. سيتعرّف AIdea على تنسيق المستند تلقائيًا.",
       confirm: "فهمت",
       close: "إغلاق إشعار التحديث",
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title:
-        "पूरे दस्तावेज़ के अनुवाद की विश्वसनीयता और स्ट्रीमिंग डिस्प्ले सुधार",
-      lead: "यह अपडेट Codex OAuth से पूरे PDF के अनुवाद की विफलता, गलत पूर्ण स्थिति और स्ट्रीमिंग उत्तर के लेआउट को ठीक करता है।",
-      note: "अपडेट इंस्टॉल करने के बाद Zotero को पुनः शुरू करें। पूरे दस्तावेज़ के अनुवाद environment को दोबारा इंस्टॉल या अपडेट करने की आवश्यकता नहीं है।",
+      title: "EPUB चयन अनुवाद और दस्तावेज़ फ़ॉर्मेट की स्वचालित पहचान",
+      lead: "AIdea अब Zotero के EPUB रीडर में चुने गए टेक्स्ट का सीधे अनुवाद कर सकता है और सक्रिय दस्तावेज़ के PDF या EPUB होने की पहचान अपने आप करता है, इसलिए फ़ॉर्मेट मैन्युअल रूप से चुनने की जरूरत नहीं है।",
+      note: "अपडेट इंस्टॉल करने के बाद Zotero को पुनः शुरू करें। इस रिलीज़ में EPUB समर्थन केवल चयन अनुवाद के लिए है। पूरे दस्तावेज़ का अनुवाद बदला नहीं है और EPUB साइड-पैनल दस्तावेज़ चैट इसमें शामिल नहीं है।",
       alsoLabel: "इस अपडेट में शामिल है",
       alsoItems: [
         {
-          label: "अधिक विश्वसनीय पूरा अनुवाद",
-          text: "अस्थायी HTTP 502, SSL EOF और Windows system proxy के हस्तक्षेप को बेहतर ढंग से संभाला जाता है।",
+          label: "EPUB चयन अनुवाद",
+          text: "EPUB में टेक्स्ट चुनें और मौजूदा चयन-अनुवाद सुविधा का उपयोग करें।",
         },
         {
-          label: "सही पूर्ण स्थिति",
-          text: "कार्य तभी पूर्ण दिखता है जब वर्तमान run में अनुवादित PDF बनाया या अपडेट किया गया हो।",
+          label: "फ़ॉर्मेट की स्वचालित पहचान",
+          text: "AIdea सक्रिय रीडर से PDF या EPUB की पहचान अपने आप करता है; कोई नई सेटिंग या स्विचिंग चरण नहीं जोड़ा गया है।",
         },
         {
-          label: "पुराने output विफलता नहीं छिपाते",
-          text: "पिछले run की बिना बदली PDF को वर्तमान कार्य का output नहीं माना जाता।",
+          label: "अधिक सटीक अटैचमेंट चयन",
+          text: "जब किसी आइटम में PDF और EPUB दोनों अटैचमेंट हों, तो AIdea रीडर में वर्तमान में खुले अटैचमेंट का उपयोग करता है।",
         },
         {
-          label: "स्पष्ट errors और progress",
-          text: "AIdea कारण और log location दिखाता है तथा timestamps को page progress नहीं मानता।",
+          label: "खाली संदर्भ में भी अनुवाद उपलब्ध",
+          text: "दस्तावेज़ का निकाला गया टेक्स्ट उपलब्ध न होने पर भी चयन अनुवाद काम करता है और अस्थायी रूप से खाली EPUB कैश को अपने आप फिर से आजमाया जाता है।",
         },
         {
-          label: "स्ट्रीमिंग लेआउट सुधार",
-          text: "उत्तर बनते समय Markdown paragraphs के बीच अतिरिक्त खाली lines अब नहीं दिखतीं।",
+          label: "मौजूदा PDF व्यवहार सुरक्षित",
+          text: "PDF चयन अनुवाद और PDF साइड-पैनल चैट में कोई बदलाव नहीं है; संबंधित dependency compatibility अपडेट भी शामिल हैं।",
         },
       ],
-      exampleLabel: "अपडेट के बाद",
+      exampleLabel: "उपयोग का तरीका",
       examplePrompt:
-        "Zotero को पुनः शुरू करें और पूरे दस्तावेज़ का अनुवाद फिर से चलाएं। Translation environment को दोबारा इंस्टॉल करने की जरूरत नहीं है।",
+        "Zotero के EPUB रीडर में टेक्स्ट चुनें और मौजूदा चयन-अनुवाद सुविधा का उपयोग करें। AIdea दस्तावेज़ फ़ॉर्मेट की पहचान अपने आप करेगा।",
       confirm: "समझ गया",
       close: "अपडेट सूचना बंद करें",
     },
@@ -1183,11 +1594,14 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
   const lang = getPanelLang();
   const baseCopy =
     CURRENT_UPDATE_NOTICE_COPIES["en-US"] ||
+    PDF_TRANSLATION_UPDATE_COPIES["en-US"] ||
     OAUTH_ENV_UPDATE_COPIES["en-US"] ||
     COPIES["en-US"];
   const localizedCopy =
     CURRENT_UPDATE_NOTICE_COPIES[lang] ||
     CURRENT_UPDATE_NOTICE_COPIES["en-US"] ||
+    PDF_TRANSLATION_UPDATE_COPIES[lang] ||
+    PDF_TRANSLATION_UPDATE_COPIES["en-US"] ||
     OAUTH_ENV_UPDATE_COPIES[lang] ||
     OAUTH_ENV_UPDATE_COPIES["en-US"] ||
     COPIES["en-US"];

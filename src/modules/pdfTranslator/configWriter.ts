@@ -46,12 +46,14 @@ export function generateConfigToml(params: {
     s
       .replace(/\\/g, "\\\\")
       .replace(/"/g, '\\"')
+      // eslint-disable-next-line no-control-regex -- escapes TOML backspace
       .replace(/\u0008/g, "\\b")
       .replace(/\t/g, "\\t")
       .replace(/\n/g, "\\n")
       .replace(/\f/g, "\\f")
       .replace(/\r/g, "\\r")
       .replace(
+        // eslint-disable-next-line no-control-regex -- escapes remaining TOML controls
         /[\u0000-\u0007\u000B\u000E-\u001F\u007F]/g,
         (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`,
       );

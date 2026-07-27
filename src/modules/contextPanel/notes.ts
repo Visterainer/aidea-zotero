@@ -30,7 +30,7 @@ function buildAssistantNoteHtml(
   const response = sanitizeText(contentText || "").trim();
   const source = modelName.trim() || "unknown";
   const timestamp = getCurrentLocalTimestamp();
-  let responseHtml = "";
+  let responseHtml: string;
   try {
     // Use Zotero note-editor native math format so that note.setNote()
     // loads math correctly through ProseMirror's schema parser.

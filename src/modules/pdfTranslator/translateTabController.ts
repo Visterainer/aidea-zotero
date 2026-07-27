@@ -974,7 +974,6 @@ interface TranslationSession {
   selectedPdfPath: string;
   translationStartTime: number;
   isPaused: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   activeController: any;
   progressTimer: ReturnType<typeof setInterval> | null;
   targetProgressPct: number;

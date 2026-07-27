@@ -1017,7 +1017,7 @@ async function runCmd(exe: string, args: string[]): Promise<string> {
     const details = await readCommandLog(logFile);
     if (!details) throw err;
     const prefix = err instanceof Error ? err.message : String(err);
-    throw new Error(`${prefix}\n${details}`);
+    throw new Error(`${prefix}\n${details}`, { cause: err });
   }
 }
 

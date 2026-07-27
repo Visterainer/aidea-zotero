@@ -60,10 +60,13 @@ function normalizePositiveInt(value: unknown): number | null {
 
 function normalizeText(value: unknown): string {
   if (typeof value !== "string") return "";
-  return value
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    value
+      // eslint-disable-next-line no-control-regex -- strips unsafe stored characters
+      .replace(/[\u0000-\u001F\u007F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function normalizeMemoryText(value: unknown): string {

@@ -245,7 +245,6 @@ describe("oauthCli Copilot model parsing", function () {
 });
 
 // Keep transport hooks isolated from the pure model/header parsing tests.
-// eslint-disable-next-line mocha/max-top-level-suites
 describe("oauthCli Copilot temperature handling", function () {
   let prefStore: Map<string, unknown>;
   let originalFetch: typeof globalThis.fetch | undefined;

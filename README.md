@@ -67,7 +67,7 @@ Select text in the PDF reader and click **Add Text** to attach the selected pass
 
 ### 📝 Selection Translation
 
-Translate selected text directly in Zotero's PDF reader popup. Selection translation uses the same OAuth/API model list as the chat panel, but can be configured with its own enable switch, model, source language, and target language.
+Translate selected text directly in Zotero's PDF or EPUB reader popup. AIdea detects the active format automatically, with no manual switch required. Selection translation uses the same OAuth/API model list as the chat panel, but can be configured with its own enable switch, model, source language, and target language.
 
 The first time this feature is used for a paper, AIdea creates a local cold-start cache with a compact paper overview and terminology summary. Later selection translations reuse that local cache as context, and translated passages can be added back to Zotero notes.
 

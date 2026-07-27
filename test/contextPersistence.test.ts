@@ -962,6 +962,7 @@ describe("Zone B summary formatting", () => {
 // ---------------------------------------------------------------------------
 describe("zoneBSummaryCache lifecycle", () => {
   let cache: Map<number, string>;
+
   beforeEach(() => {
     cache = new Map();
   });

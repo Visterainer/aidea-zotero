@@ -10,8 +10,8 @@ import {
 } from "../src/modules/contextPanel/languages";
 
 describe("one-time update notice", function () {
-  it("uses the v3.2.5 notice id", function () {
-    assert.equal(NOTICE_ID, "v3.2.5-pdf-translation-and-streaming-fixes-v1");
+  it("uses the v3.3.0 notice id", function () {
+    assert.equal(NOTICE_ID, "v3.3.0-epub-selection-translation-v1");
   });
 
   it("provides complete localized copy for every panel language", function () {
@@ -46,27 +46,28 @@ describe("one-time update notice", function () {
     }
   });
 
-  it("contains the approved fixes without release-only attribution", function () {
+  it("contains the approved EPUB selection scope without release-only attribution", function () {
     for (const { uiCode } of UI_LANGUAGE_OPTIONS) {
       const copy = CURRENT_UPDATE_NOTICE_COPIES[uiCode];
       const allCopy = JSON.stringify(copy);
-      assert.include(allCopy, "Codex OAuth", `${uiCode}.provider`);
+      assert.include(allCopy, "EPUB", `${uiCode}.epub`);
+      assert.include(allCopy, "PDF", `${uiCode}.pdf`);
       assert.include(allCopy, "Zotero", `${uiCode}.restart`);
       assert.notMatch(allCopy, /@[A-Za-z0-9_-]+/, `${uiCode}.attribution`);
     }
 
     const english = JSON.stringify(CURRENT_UPDATE_NOTICE_COPIES["en-US"]);
-    assert.include(english, "HTTP 502");
-    assert.include(english, "SSL EOF");
-    assert.include(english, "created or updated");
-    assert.include(english, "timestamps");
-    assert.include(english, "blank lines");
+    assert.include(english, "automatically");
+    assert.include(english, "active reader");
+    assert.include(english, "empty EPUB caches");
+    assert.include(english, "PDF side-panel chat remain unchanged");
+    assert.include(english, "Full-document translation is unchanged");
 
     const chinese = JSON.stringify(CURRENT_UPDATE_NOTICE_COPIES["zh-CN"]);
-    assert.include(chinese, "HTTP 502");
-    assert.include(chinese, "SSL EOF");
-    assert.include(chinese, "生成或更新");
-    assert.include(chinese, "日志时间");
-    assert.include(chinese, "空行");
+    assert.include(chinese, "自动识别");
+    assert.include(chinese, "当前正在阅读的附件");
+    assert.include(chinese, "自动重试 EPUB 缓存");
+    assert.include(chinese, "PDF 侧栏对话保持原有行为");
+    assert.include(chinese, "全文翻译功能没有变化");
   });
 });

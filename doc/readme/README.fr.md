@@ -48,7 +48,7 @@ AIdea s'adresse aux chercheurs qui souhaitent conserver dans Zotero la lecture d
 - **Actions rapides** pour résumer, expliquer, traduire et exécuter d'autres tâches fréquentes
 - **Plusieurs modes de connexion**, avec OAuth ou API compatible OpenAI
 - **Traduction intégrale** exécutée dans Zotero avec export PDF
-- **Traduction par sélection** dans le menu de sélection du lecteur PDF, avec cache local de démarrage à froid et ajout possible aux notes Zotero
+- **Traduction par sélection** dans les lecteurs PDF et EPUB, avec détection automatique du format, cache local de démarrage à froid et ajout possible aux notes Zotero
 - **Historique et mémoire locale**, avec isolation par bibliothèque et export des réponses vers les notes Zotero
 - **Rendu enrichi** pour Markdown, blocs de code, tableaux, LaTeX et réponses en flux
 
@@ -119,7 +119,7 @@ Installez simplement le nouveau paquet `.xpi` par-dessus l'ancien. AIdea conserv
 
 Pour la traduction intégrale, passez à l'onglet de traduction, définissez le modèle et le chemin de sortie, puis lancez la tâche directement dans Zotero.
 
-Pour la traduction par sélection, activez l'option dans les paramètres, choisissez un modèle et sélectionnez du texte dans le lecteur PDF. Lors de la première utilisation sur un article, AIdea crée un cache local avec un résumé compact et les termes importants, puis le réutilise comme contexte pour les traductions suivantes.
+Pour la traduction par sélection, activez l'option dans les paramètres, choisissez un modèle et sélectionnez du texte dans le lecteur PDF ou EPUB ; AIdea détecte automatiquement le format actif. Lors de la première utilisation sur un article, AIdea crée un cache local avec un résumé compact et les termes importants, puis le réutilise comme contexte pour les traductions suivantes.
 
 ## Prise en charge des langues
 

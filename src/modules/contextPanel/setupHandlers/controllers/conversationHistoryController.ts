@@ -53,6 +53,7 @@ export function normalizeConversationTitleSeed(
   maxLength = GLOBAL_HISTORY_TITLE_MAX_LENGTH,
 ): string {
   const normalized = sanitizeText(String(raw || ""))
+    // eslint-disable-next-line no-control-regex -- strips unsafe history characters
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

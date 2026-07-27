@@ -88,7 +88,10 @@ describe("contextPanel normalizers", function () {
   it("normalizePaperContextRefs should support custom sanitizer", function () {
     const rows = normalizePaperContextRefs(
       [{ itemId: 2, contextItemId: 3, title: "A\u0007B" }],
-      { sanitizeText: (value) => value.replace(/\u0007/g, "") },
+      {
+        // eslint-disable-next-line no-control-regex -- verifies custom control-character cleanup
+        sanitizeText: (value) => value.replace(/\u0007/g, ""),
+      },
     );
     assert.lengthOf(rows, 1);
     assert.equal(rows[0].title, "AB");

@@ -28,7 +28,7 @@ type MockChoice = {
   apiKey?: string;
 };
 
-let mockChoices: MockChoice[] = [];
+const mockChoices: MockChoice[] = [];
 
 // We need to mock the module that modelResolver imports
 // Since modelResolver uses getModelChoices from the model selection controller,

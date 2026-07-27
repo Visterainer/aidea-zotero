@@ -83,7 +83,7 @@ function normalizeLibraryID(libraryID: number): number | null {
 function normalizeConversationTitleSeed(value: string): string {
   if (typeof value !== "string") return "";
   const normalized = value
-    // eslint-disable-next-line no-control-regex
+    // eslint-disable-next-line no-control-regex -- strips unsafe title characters
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

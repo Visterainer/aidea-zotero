@@ -52,7 +52,9 @@ function writeProgress(data: ProgressData) {
 function cleanup() {
   try {
     fs.unlinkSync(progressFile);
-  } catch {}
+  } catch {
+    // Best-effort cleanup.
+  }
 }
 
 /* ── Tests ── */
@@ -194,7 +196,9 @@ console.log("\n=== ProgressPoller: empty file handled ===");
 cleanup();
 try {
   fs.rmdirSync(tmpDir);
-} catch {}
+} catch {
+  // Best-effort cleanup.
+}
 
 /* ── Summary ── */
 console.log(`\n${"=".repeat(40)}`);
