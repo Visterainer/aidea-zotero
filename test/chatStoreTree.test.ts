@@ -356,4 +356,36 @@ describe("chatStore message tree", function () {
       ["A", "A1"],
     );
   });
+
+  it("normalizes assistant text and summaries at the persistence boundary", async function () {
+    const userId = await appendMessageNode(
+      1,
+      {
+        role: "user",
+        text: "<think>literal user text</think>Keep",
+        timestamp: 1,
+      },
+      null,
+    );
+    await appendMessageNode(
+      1,
+      {
+        role: "assistant",
+        text: "<think>private</think>Visible",
+        timestamp: 2,
+        reasoningSummary: "private summary",
+        reasoningDetails: "private details",
+        contextRefs: {
+          compactedSummary: "<thought>summary private</thought>Clean summary",
+        },
+      },
+      userId,
+    );
+    const path = await loadConversationPath(1, 20);
+    assert.equal(path[0].text, "<think>literal user text</think>Keep");
+    assert.equal(path[1].text, "Visible");
+    assert.equal(path[1].contextRefs?.compactedSummary, "Clean summary");
+    assert.isUndefined(path[1].reasoningSummary);
+    assert.isUndefined(path[1].reasoningDetails);
+  });
 });

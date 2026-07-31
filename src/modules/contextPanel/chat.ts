@@ -1717,9 +1717,10 @@ async function compactConversationHistory(params: {
   apiKey: string;
   model?: string;
 }): Promise<ChatMessage[]> {
+  const usableHistory = params.historyForLLM.filter(isUsableLLMHistoryMessage);
   const totalEstimate =
     params.combinedContext.length +
-    estimateHistoryLength(params.historyForLLM) +
+    estimateHistoryLength(usableHistory) +
     params.currentQuestion.length;
 
   // Check if we already have a cached Zone B summary.
@@ -1727,16 +1728,14 @@ async function compactConversationHistory(params: {
 
   if (totalEstimate <= CONTEXT_COMPACTION_THRESHOLD && !cachedSummary) {
     // Under threshold, no compression needed.
-    return buildLLMHistoryMessages(params.historyForLLM);
+    return buildLLMHistoryMessages(usableHistory);
   }
 
-  const { zoneBMessages, zoneCMessages } = buildZoneBCSplit(
-    params.historyForLLM,
-  );
+  const { zoneBMessages, zoneCMessages } = buildZoneBCSplit(usableHistory);
 
   // If nothing to compress (all messages are in Zone C), return as-is.
   if (!zoneBMessages.length && !cachedSummary) {
-    return buildLLMHistoryMessages(params.historyForLLM);
+    return buildLLMHistoryMessages(usableHistory);
   }
 
   let zoneBSummary = cachedSummary || "";
@@ -2012,8 +2011,17 @@ function buildHistoryMessageForLLM(message: Message): ChatMessage {
   };
 }
 
+function isUsableLLMHistoryMessage(message: Message): boolean {
+  return (
+    message.role !== "assistant" ||
+    Boolean(stripGeneratedImageMarkdown(message.text).trim())
+  );
+}
+
 function buildLLMHistoryMessages(history: Message[]): ChatMessage[] {
-  return history.map((message) => buildHistoryMessageForLLM(message));
+  return history
+    .filter(isUsableLLMHistoryMessage)
+    .map((message) => buildHistoryMessageForLLM(message));
 }
 
 function normalizeModelFileAttachments(
@@ -2182,6 +2190,7 @@ export async function editUserMessageAndRetry(
   const persistAssistantUpdate = async () => {
     if (!assistantMessage.messageId) return;
     await updateMessageNode(conversationKey, assistantMessage.messageId, {
+      role: "assistant",
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
@@ -2308,8 +2317,7 @@ export async function editUserMessageAndRetry(
         assistantMessage.messageId,
       ),
     );
-    assistantMessage.text =
-      sanitizeText(answer) || streamedAnswer || i18n.noResponse;
+    assistantMessage.text = sanitizeText(answer) || streamedAnswer;
     assistantMessage.timestamp = Date.now();
     assistantMessage.modelName = effectiveRequestConfig.model;
     assistantMessage.streaming = false;
@@ -2523,6 +2531,7 @@ export async function retryLatestAssistantResponse(
   const persistAssistantUpdate = async () => {
     if (!assistantMessage.messageId) return;
     await updateMessageNode(conversationKey, assistantMessage.messageId, {
+      role: "assistant",
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
@@ -2674,8 +2683,7 @@ export async function retryLatestAssistantResponse(
         assistantMessage.messageId,
       ),
     );
-    assistantMessage.text =
-      sanitizeText(answer) || streamedAnswer || i18n.noResponse;
+    assistantMessage.text = sanitizeText(answer) || streamedAnswer;
     assistantMessage.timestamp = Date.now();
     assistantMessage.modelName = effectiveRequestConfig.model;
     assistantMessage.streaming = false;
@@ -2925,6 +2933,7 @@ export async function sendQuestion(
   const persistAssistantUpdate = async () => {
     if (!assistantMessage.messageId) return;
     await updateMessageNode(conversationKey, assistantMessage.messageId, {
+      role: "assistant",
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
@@ -3053,8 +3062,7 @@ export async function sendQuestion(
         assistantMessage.messageId,
       ),
     );
-    assistantMessage.text =
-      sanitizeText(answer) || assistantMessage.text || i18n.noResponse;
+    assistantMessage.text = sanitizeText(answer) || assistantMessage.text;
     assistantMessage.streaming = false;
     refreshChatSafely();
     await persistAssistantUpdate();
@@ -3937,11 +3945,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           }
           bubble.appendChild(skeleton);
         } else {
-          const typing = doc.createElement("div") as HTMLDivElement;
-          typing.className = "llm-typing";
-          typing.innerHTML =
-            '<span class="llm-typing-dot"></span><span class="llm-typing-dot"></span><span class="llm-typing-dot"></span>';
-          bubble.appendChild(typing);
+          bubble.textContent = i18n.noResponse;
         }
       }
 
@@ -4068,7 +4072,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       !isUser &&
       index === latestAssistantIndex &&
       !msg.streaming &&
-      msg.text.trim()
+      msg.messageId
     ) {
       const retryBtn = doc.createElement("button") as HTMLButtonElement;
       retryBtn.type = "button";

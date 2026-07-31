@@ -1,0 +1,52 @@
+[
+  {
+    "name": "plain response",
+    "input": "A normal answer.",
+    "expected": "A normal answer."
+  },
+  {
+    "name": "whitespace only",
+    "input": " \n\t ",
+    "expected": ""
+  },
+  {
+    "name": "literal tag after normal content",
+    "input": "Use <think> as a literal tag.",
+    "expected": "Use <think> as a literal tag."
+  },
+  {
+    "name": "leading think block",
+    "input": "<think>private reasoning</think>Visible answer",
+    "expected": "Visible answer"
+  },
+  {
+    "name": "leading whitespace and thought block",
+    "input": " \n\t<thought>private reasoning</thought>\nVisible answer",
+    "expected": "\nVisible answer"
+  },
+  {
+    "name": "case insensitive tags",
+    "input": "<THINK>private</ThInK>Visible",
+    "expected": "Visible"
+  },
+  {
+    "name": "multiple reasoning blocks",
+    "input": "<think>first</think>Answer A<thought>second</thought>Answer B",
+    "expected": "Answer AAnswer B"
+  },
+  {
+    "name": "unclosed reasoning block",
+    "input": "<think>private reasoning without a close",
+    "expected": ""
+  },
+  {
+    "name": "reasoning only",
+    "input": "<thought>private reasoning</thought>",
+    "expected": ""
+  },
+  {
+    "name": "image markdown remains intact",
+    "input": "<think>private</think>![image](https://example.test/image.png)",
+    "expected": "![image](https://example.test/image.png)"
+  }
+]

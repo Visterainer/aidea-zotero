@@ -14,7 +14,7 @@ export type SelectionTranslateColdStartCache = {
 const SELECTION_TRANSLATE_CACHE_TABLE = "zotero_ai_selection_translate_cache";
 const SELECTION_TRANSLATE_CACHE_INDEX =
   "zotero_ai_selection_translate_cache_lookup_idx";
-const SCHEMA_VERSION = 1;
+export const SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION = 2;
 
 function normalizePositiveInt(value: unknown): number | null {
   const num = Number(value);
@@ -62,7 +62,9 @@ function rowToCache(
     cacheText,
     createdAt,
     updatedAt,
-    schemaVersion: normalizeNonNegativeInt(row.schemaVersion) || SCHEMA_VERSION,
+    schemaVersion:
+      normalizeNonNegativeInt(row.schemaVersion) ||
+      SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION,
   };
 }
 
@@ -80,13 +82,18 @@ export async function initSelectionTranslateCacheStore(): Promise<void> {
         cache_text TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        schema_version INTEGER NOT NULL DEFAULT ${SCHEMA_VERSION}
+        schema_version INTEGER NOT NULL DEFAULT ${SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION}
       )`,
     );
     await Zotero.DB.queryAsync(
       `CREATE UNIQUE INDEX IF NOT EXISTS ${SELECTION_TRANSLATE_CACHE_INDEX}
        ON ${SELECTION_TRANSLATE_CACHE_TABLE}
        (item_id, target_lang, source_fingerprint, schema_version)`,
+    );
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${SELECTION_TRANSLATE_CACHE_TABLE}
+       WHERE schema_version < ?`,
+      [SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION],
     );
   });
 }
@@ -118,7 +125,12 @@ export async function loadSelectionTranslateColdStartCache(params: {
        AND schema_version = ?
      ORDER BY updated_at DESC, id DESC
      LIMIT 1`,
-    [itemId, targetLang, sourceFingerprint, SCHEMA_VERSION],
+    [
+      itemId,
+      targetLang,
+      sourceFingerprint,
+      SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION,
+    ],
   )) as Array<Record<string, unknown>> | undefined;
   const first = rows?.[0];
   return first ? rowToCache(first) : null;
@@ -146,7 +158,12 @@ export async function saveSelectionTranslateColdStartCache(
          AND source_fingerprint = ?
          AND schema_version = ?
        LIMIT 1`,
-      [itemId, targetLang, sourceFingerprint, SCHEMA_VERSION],
+      [
+        itemId,
+        targetLang,
+        sourceFingerprint,
+        SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION,
+      ],
     )) as Array<{ id?: unknown }> | undefined;
     const existingId = normalizePositiveInt(existing?.[0]?.id);
     if (existingId) {
@@ -192,7 +209,7 @@ export async function saveSelectionTranslateColdStartCache(
         cacheText,
         createdAt,
         updatedAt,
-        SCHEMA_VERSION,
+        SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION,
       ],
     );
   });

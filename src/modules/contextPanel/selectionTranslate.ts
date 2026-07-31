@@ -3,6 +3,7 @@ import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   loadSelectionTranslateColdStartCache,
   saveSelectionTranslateColdStartCache,
+  SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION,
   type SelectionTranslateColdStartCache,
 } from "../../utils/selectionTranslateCacheStore";
 import { providerToMarker, type OAuthProviderId } from "../../utils/oauthCli";
@@ -442,7 +443,7 @@ async function ensureColdStartCache(params: {
       cacheText,
       createdAt: now,
       updatedAt: now,
-      schemaVersion: 1,
+      schemaVersion: SELECTION_TRANSLATE_CACHE_SCHEMA_VERSION,
     };
     await saveSelectionTranslateColdStartCache(nextCache);
     return nextCache;
