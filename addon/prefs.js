@@ -42,6 +42,7 @@ pref("selectionTranslate.model", "");
 pref("selectionTranslate.provider", "");
 pref("selectionTranslate.sourceLang", "auto");
 pref("selectionTranslate.targetLang", "zh-CN");
+pref("selectionTranslate.instructions", "");
 pref("temperaturePrimary", "0.3");
 pref("maxTokensPrimary", "4096");
 pref("temperatureSecondary", "0.3");

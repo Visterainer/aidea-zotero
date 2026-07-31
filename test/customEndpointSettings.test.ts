@@ -841,9 +841,13 @@ describe("custom endpoint settings UI", function () {
     assert.equal(panelRoot.style["--llm-theme-chat-fg"], "#123456");
   });
 
-  it("renders and persists selection translation action visibility options", async function () {
+  it("renders and persists selection translation options", async function () {
     setPluginPref("selectionTranslate.showCopyButton", false);
     setPluginPref("selectionTranslate.showAddToNoteButton", true);
+    setPluginPref(
+      "selectionTranslate.instructions",
+      "Translate idiomatically and explain ambiguous terms.",
+    );
 
     const win = createMockWindow();
     await preferenceScript.bootstrapSettingTab(
@@ -867,6 +871,12 @@ describe("custom endpoint settings UI", function () {
     const coldStartHint = win.document.querySelector(
       `#${ADDON_REF}-selection-translate-cold-start-hint`,
     ) as unknown as MockElement;
+    const instructionsInput = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-instructions`,
+    ) as unknown as MockElement;
+    const instructionsHint = win.document.querySelector(
+      `#${ADDON_REF}-selection-translate-instructions-hint`,
+    ) as unknown as MockElement;
 
     assert.equal(copyInput.checked, false);
     assert.equal(addToNoteInput.checked, true);
@@ -875,16 +885,29 @@ describe("custom endpoint settings UI", function () {
     assert.exists(modelLabel.closest(".llm-set-subsection"));
     assert.exists(sourceLabel.closest(".llm-set-subsection"));
     assert.exists(coldStartHint.closest(".llm-set-subsection"));
+    assert.equal(
+      instructionsInput.value,
+      "Translate idiomatically and explain ambiguous terms.",
+    );
+    assert.isNotEmpty(instructionsInput.placeholder);
+    assert.exists(instructionsHint.closest(".llm-set-subsection"));
 
     copyInput.checked = true;
     copyInput.emit("change");
     addToNoteInput.checked = false;
     addToNoteInput.emit("change");
+    instructionsInput.value =
+      "Prefer a natural translation and add one sentence of context.";
+    instructionsInput.emit("input");
 
     assert.equal(getPluginPref("selectionTranslate.showCopyButton"), true);
     assert.equal(
       getPluginPref("selectionTranslate.showAddToNoteButton"),
       false,
+    );
+    assert.equal(
+      getPluginPref("selectionTranslate.instructions"),
+      "Prefer a natural translation and add one sentence of context.",
     );
   });
 
@@ -905,6 +928,7 @@ describe("custom endpoint settings UI", function () {
     ];
     let englishCopyLabel = "";
     let englishAddToNoteLabel = "";
+    let englishInstructionsLabel = "";
 
     for (const language of languages) {
       prefStore.clear();
@@ -928,6 +952,12 @@ describe("custom endpoint settings UI", function () {
       const addToNoteHint = win.document.querySelector(
         `#${ADDON_REF}-selection-translate-show-add-to-note-hint`,
       ) as unknown as MockElement;
+      const instructionsLabel = win.document.querySelector(
+        `#${ADDON_REF}-selection-translate-instructions-label`,
+      ) as unknown as MockElement;
+      const instructionsInput = win.document.querySelector(
+        `#${ADDON_REF}-selection-translate-instructions`,
+      ) as unknown as MockElement;
 
       assert.isNotEmpty(copyLabel.textContent, `${language} copy label`);
       assert.isNotEmpty(copyHint.textContent, `${language} copy hint`);
@@ -939,12 +969,25 @@ describe("custom endpoint settings UI", function () {
         addToNoteHint.textContent,
         `${language} add-to-note hint`,
       );
+      assert.isNotEmpty(
+        instructionsLabel.textContent,
+        `${language} instructions label`,
+      );
+      assert.isNotEmpty(
+        instructionsInput.placeholder,
+        `${language} instructions placeholder`,
+      );
       if (language === "en-US") {
         englishCopyLabel = copyLabel.textContent;
         englishAddToNoteLabel = addToNoteLabel.textContent;
+        englishInstructionsLabel = instructionsLabel.textContent;
       } else {
         assert.notEqual(copyLabel.textContent, englishCopyLabel);
         assert.notEqual(addToNoteLabel.textContent, englishAddToNoteLabel);
+        assert.notEqual(
+          instructionsLabel.textContent,
+          englishInstructionsLabel,
+        );
       }
     }
   });

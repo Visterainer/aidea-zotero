@@ -38,6 +38,7 @@ type SelectionTranslatePrefs = {
   provider: string;
   sourceLang: string;
   targetLang: string;
+  instructions: string;
 };
 
 type SelectionTranslateModelConfig = {
@@ -125,6 +126,7 @@ function getSelectionTranslatePrefs(): SelectionTranslatePrefs {
     targetLang:
       getStringPref("selectionTranslate.targetLang").trim() ||
       DEFAULT_TARGET_LANG,
+    instructions: getStringPref("selectionTranslate.instructions").trim(),
   };
 }
 
@@ -322,6 +324,7 @@ function buildSelectionTranslatePrompt(params: {
   cacheText: string;
   sourceLang: string;
   targetLang: string;
+  instructions: string;
 }): string {
   const sourceLabel = getSelectionTranslateLanguageLabel(params.sourceLang);
   const targetLabel = getSelectionTranslateLanguageLabel(params.targetLang);
@@ -332,14 +335,24 @@ function buildSelectionTranslatePrompt(params: {
     `Target language: ${targetLabel} (${params.targetLang}).`,
     "",
     "Use the cold-start cache only for context and terminology consistency.",
-    "Translate only the selected text. Preserve formulas, citations, symbols, and line breaks when helpful.",
+    ...(params.instructions
+      ? [
+          "Translation instructions:",
+          "Translate the selected text according to the user-configured instructions below.",
+          params.instructions,
+        ]
+      : [
+          "Translation instructions:",
+          "Translate only the selected text.",
+          "Return only the translation. Do not add explanations.",
+        ]),
+    "Preserve citations, symbols, and line breaks when helpful.",
     "Mathematical formatting rules:",
     "- Copy formulas and equation fragments exactly as they appear in the source text.",
     "- Do not translate, rename, normalize, or reformat variables, Greek letters, subscripts, superscripts, operators, sums, products, risk expressions, or equation numbering.",
     "- If a formula is plain Unicode text such as R∗(η) = ∑i ηiR∗i, keep it plain Unicode text; do not convert it to LaTeX or Markdown.",
     "- If the source already uses LaTeX delimiters, preserve those delimiters exactly.",
     "- Do not wrap formulas in code blocks or add bold/italic formatting.",
-    "Return only the translation. Do not add explanations.",
     "",
     "<cold-start-cache>",
     params.cacheText,
@@ -506,6 +519,7 @@ export async function translateSelectedTextForReader(params: {
           cacheText,
           sourceLang: prefs.sourceLang,
           targetLang: prefs.targetLang,
+          instructions: prefs.instructions,
         }),
         model: modelConfig.model,
         apiBase: modelConfig.apiBase,

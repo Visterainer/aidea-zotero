@@ -51,6 +51,7 @@ declare namespace _ZoteroTypes {
       "selectionTranslate.provider": string;
       "selectionTranslate.sourceLang": string;
       "selectionTranslate.targetLang": string;
+      "selectionTranslate.instructions": string;
       "temperaturePrimary": string;
       "maxTokensPrimary": string;
       "temperatureSecondary": string;

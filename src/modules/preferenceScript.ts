@@ -142,6 +142,7 @@ type PrefKey =
   | "selectionTranslate.provider"
   | "selectionTranslate.sourceLang"
   | "selectionTranslate.targetLang"
+  | "selectionTranslate.instructions"
   | "translate.sourceLang"
   | "translate.targetLang"
   | "translate.outputDir"
@@ -437,6 +438,11 @@ const I18N = {
       "Uses the same OAuth/API model list as the discussion panel.",
     selectionTranslateSourceLang: "Source language",
     selectionTranslateTargetLang: "Target language",
+    selectionTranslateInstructions: "Custom translation instructions",
+    selectionTranslateInstructionsHint:
+      "Optional. Leave empty to translate only the selected text. The document context and formula-preservation safeguards are always applied.",
+    selectionTranslateInstructionsPlaceholder:
+      "For example: Translate naturally rather than word for word. When useful, add a concise explanation of context, terminology, or ambiguity.",
     selectionTranslateAutoDetect: "Auto detect",
     selectionTranslateNoModels: "No available model",
     selectionTranslateColdStartHint:
@@ -522,6 +528,11 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "复用对话框中的 OAuth/API 模型列表和调用方式。",
     selectionTranslateSourceLang: "源语言",
     selectionTranslateTargetLang: "目标语言",
+    selectionTranslateInstructions: "自定义翻译指令",
+    selectionTranslateInstructionsHint:
+      "可选。留空时仅返回所选文本的翻译。文献上下文和公式保护规则会始终应用。",
+    selectionTranslateInstructionsPlaceholder:
+      "例如：采用自然流畅的意译，不必逐字对应；必要时补充简洁的上下文、术语或歧义说明。",
     selectionTranslateAutoDetect: "自动识别",
     selectionTranslateNoModels: "暂无可用模型",
     selectionTranslateColdStartHint:
@@ -1629,6 +1640,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
       selectionTranslateModelHint: "使用與對話面板相同的 OAuth/API 模型列表。",
       selectionTranslateSourceLang: "來源語言",
       selectionTranslateTargetLang: "目標語言",
+      selectionTranslateInstructions: "自訂翻譯指令",
+      selectionTranslateInstructionsHint:
+        "選填。留空時只回傳所選文字的翻譯。文件上下文與公式保護規則會始終套用。",
+      selectionTranslateInstructionsPlaceholder:
+        "例如：採用自然流暢的意譯，不必逐字對應；必要時補充簡短的上下文、術語或歧義說明。",
       selectionTranslateAutoDetect: "自動偵測",
       selectionTranslateNoModels: "沒有可用模型",
       selectionTranslateColdStartHint:
@@ -1647,6 +1663,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "対話パネルと同じ OAuth/API モデル一覧を使用します。",
       selectionTranslateSourceLang: "元の言語",
       selectionTranslateTargetLang: "翻訳先言語",
+      selectionTranslateInstructions: "カスタム翻訳指示",
+      selectionTranslateInstructionsHint:
+        "任意。空欄の場合は選択したテキストの翻訳のみを返します。文書コンテキストと数式保護ルールは常に適用されます。",
+      selectionTranslateInstructionsPlaceholder:
+        "例：逐語訳ではなく自然に翻訳し、必要に応じて文脈、用語、曖昧さを簡潔に説明してください。",
       selectionTranslateAutoDetect: "自動検出",
       selectionTranslateNoModels: "利用可能なモデルがありません",
       selectionTranslateColdStartHint:
@@ -1665,6 +1686,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "대화 패널과 같은 OAuth/API 모델 목록을 사용합니다.",
       selectionTranslateSourceLang: "원본 언어",
       selectionTranslateTargetLang: "대상 언어",
+      selectionTranslateInstructions: "사용자 지정 번역 지침",
+      selectionTranslateInstructionsHint:
+        "선택 사항입니다. 비워 두면 선택한 텍스트의 번역만 반환합니다. 문서 문맥과 수식 보존 규칙은 항상 적용됩니다.",
+      selectionTranslateInstructionsPlaceholder:
+        "예: 직역보다 자연스럽게 번역하고, 필요한 경우 문맥, 용어 또는 모호성을 간단히 설명하세요.",
       selectionTranslateAutoDetect: "자동 감지",
       selectionTranslateNoModels: "사용 가능한 모델 없음",
       selectionTranslateColdStartHint:
@@ -1683,6 +1709,12 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "Utilise la meme liste de modeles OAuth/API que le panneau de discussion.",
       selectionTranslateSourceLang: "Langue source",
       selectionTranslateTargetLang: "Langue cible",
+      selectionTranslateInstructions:
+        "Instructions de traduction personnalisees",
+      selectionTranslateInstructionsHint:
+        "Facultatif. Laissez vide pour renvoyer uniquement la traduction du texte selectionne. Le contexte du document et les regles de preservation des formules sont toujours appliques.",
+      selectionTranslateInstructionsPlaceholder:
+        "Exemple : traduisez naturellement plutot que mot a mot et, si utile, expliquez brievement le contexte, les termes ou les ambiguites.",
       selectionTranslateAutoDetect: "Detection automatique",
       selectionTranslateNoModels: "Aucun modele disponible",
       selectionTranslateColdStartHint:
@@ -1701,6 +1733,12 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "Verwendet dieselbe OAuth/API-Modellliste wie das Diskussionspanel.",
       selectionTranslateSourceLang: "Ausgangssprache",
       selectionTranslateTargetLang: "Zielsprache",
+      selectionTranslateInstructions:
+        "Benutzerdefinierte Uebersetzungsanweisungen",
+      selectionTranslateInstructionsHint:
+        "Optional. Leer lassen, um nur die Uebersetzung des ausgewaehlten Textes zurueckzugeben. Dokumentkontext und Regeln zum Schutz von Formeln werden immer angewendet.",
+      selectionTranslateInstructionsPlaceholder:
+        "Beispiel: Natuerlich statt Wort fuer Wort uebersetzen und bei Bedarf Kontext, Begriffe oder Mehrdeutigkeiten kurz erklaeren.",
       selectionTranslateAutoDetect: "Automatisch erkennen",
       selectionTranslateNoModels: "Kein Modell verfuegbar",
       selectionTranslateColdStartHint:
@@ -1719,6 +1757,12 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "Usa la misma lista de modelos OAuth/API que el panel de conversacion.",
       selectionTranslateSourceLang: "Idioma de origen",
       selectionTranslateTargetLang: "Idioma de destino",
+      selectionTranslateInstructions:
+        "Instrucciones de traduccion personalizadas",
+      selectionTranslateInstructionsHint:
+        "Opcional. Dejalo vacio para devolver solo la traduccion del texto seleccionado. El contexto del documento y las reglas de proteccion de formulas se aplican siempre.",
+      selectionTranslateInstructionsPlaceholder:
+        "Por ejemplo: traduce de forma natural, no palabra por palabra, y cuando sea util explica brevemente el contexto, los terminos o las ambiguedades.",
       selectionTranslateAutoDetect: "Detectar automaticamente",
       selectionTranslateNoModels: "No hay modelos disponibles",
       selectionTranslateColdStartHint:
@@ -1737,6 +1781,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "Использует тот же список моделей OAuth/API, что и панель диалога.",
       selectionTranslateSourceLang: "Исходный язык",
       selectionTranslateTargetLang: "Целевой язык",
+      selectionTranslateInstructions: "Пользовательские инструкции по переводу",
+      selectionTranslateInstructionsHint:
+        "Необязательно. Оставьте поле пустым, чтобы вернуть только перевод выделенного текста. Контекст документа и правила сохранения формул применяются всегда.",
+      selectionTranslateInstructionsPlaceholder:
+        "Например: переводите естественно, а не дословно, и при необходимости кратко поясняйте контекст, термины или неоднозначности.",
       selectionTranslateAutoDetect: "Определять автоматически",
       selectionTranslateNoModels: "Нет доступных моделей",
       selectionTranslateColdStartHint:
@@ -1755,6 +1804,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "Usa a mesma lista de modelos OAuth/API do painel de discussao.",
       selectionTranslateSourceLang: "Idioma de origem",
       selectionTranslateTargetLang: "Idioma de destino",
+      selectionTranslateInstructions: "Instrucoes de traducao personalizadas",
+      selectionTranslateInstructionsHint:
+        "Opcional. Deixe em branco para retornar apenas a traducao do texto selecionado. O contexto do documento e as regras de preservacao de formulas sempre sao aplicados.",
+      selectionTranslateInstructionsPlaceholder:
+        "Por exemplo: traduza de forma natural, em vez de palavra por palavra, e quando for util explique brevemente o contexto, os termos ou as ambiguidades.",
       selectionTranslateAutoDetect: "Detectar automaticamente",
       selectionTranslateNoModels: "Nenhum modelo disponivel",
       selectionTranslateColdStartHint:
@@ -1773,6 +1827,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "يستخدم قائمة نماذج OAuth/API نفسها المستخدمة في لوحة النقاش.",
       selectionTranslateSourceLang: "لغة المصدر",
       selectionTranslateTargetLang: "لغة الهدف",
+      selectionTranslateInstructions: "تعليمات ترجمة مخصصة",
+      selectionTranslateInstructionsHint:
+        "اختياري. اتركه فارغا لإرجاع ترجمة النص المحدد فقط. يطبق سياق المستند وقواعد الحفاظ على الصيغ دائما.",
+      selectionTranslateInstructionsPlaceholder:
+        "مثال: ترجم بأسلوب طبيعي بدلا من الترجمة الحرفية، واشرح بإيجاز السياق أو المصطلحات أو مواضع الغموض عند الحاجة.",
       selectionTranslateAutoDetect: "اكتشاف تلقائي",
       selectionTranslateNoModels: "لا توجد نماذج متاحة",
       selectionTranslateColdStartHint:
@@ -1791,6 +1850,11 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
         "चर्चा पैनल जैसी ही OAuth/API मॉडल सूची का उपयोग करता है।",
       selectionTranslateSourceLang: "स्रोत भाषा",
       selectionTranslateTargetLang: "लक्ष्य भाषा",
+      selectionTranslateInstructions: "कस्टम अनुवाद निर्देश",
+      selectionTranslateInstructionsHint:
+        "वैकल्पिक। केवल चुने हुए पाठ का अनुवाद पाने के लिए इसे खाली छोड़ें। दस्तावेज़ संदर्भ और सूत्र-संरक्षण नियम हमेशा लागू होते हैं।",
+      selectionTranslateInstructionsPlaceholder:
+        "उदाहरण: शब्दशः के बजाय स्वाभाविक अनुवाद करें और जरूरत पड़ने पर संदर्भ, शब्दावली या अस्पष्टता को संक्षेप में समझाएँ।",
       selectionTranslateAutoDetect: "अपने आप पहचानें",
       selectionTranslateNoModels: "कोई उपलब्ध मॉडल नहीं",
       selectionTranslateColdStartHint:
@@ -4900,6 +4964,25 @@ export async function bootstrapSettingTab(
       `#${config.addonRef}-selection-translate-target-label`,
     );
     if (stTarget) stTarget.textContent = L.selectionTranslateTargetLang;
+    const stInstructions = doc.querySelector(
+      `#${config.addonRef}-selection-translate-instructions-label`,
+    );
+    if (stInstructions) {
+      stInstructions.textContent = L.selectionTranslateInstructions;
+    }
+    const stInstructionsInput = doc.querySelector(
+      `#${config.addonRef}-selection-translate-instructions`,
+    ) as HTMLTextAreaElement | null;
+    if (stInstructionsInput) {
+      stInstructionsInput.placeholder =
+        L.selectionTranslateInstructionsPlaceholder;
+    }
+    const stInstructionsHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-instructions-hint`,
+    );
+    if (stInstructionsHint) {
+      stInstructionsHint.textContent = L.selectionTranslateInstructionsHint;
+    }
     const stShowCopy = doc.querySelector(
       `#${config.addonRef}-selection-translate-show-copy-label`,
     );
@@ -6170,6 +6253,7 @@ export async function bootstrapSettingTab(
       "selectionTranslate.provider": "",
       "selectionTranslate.sourceLang": "auto",
       "selectionTranslate.targetLang": "zh-CN",
+      "selectionTranslate.instructions": "",
       "authorProfiles.model": "",
       "authorProfiles.provider": "",
       "authorProfiles.language": "",
@@ -6278,6 +6362,9 @@ export async function bootstrapSettingTab(
     }
     if (selectionTranslateTargetInput) {
       selectionTranslateTargetInput.dataset.value = "zh-CN";
+    }
+    if (selectionTranslateInstructionsInput) {
+      selectionTranslateInstructionsInput.value = "";
     }
     for (const id of settingsSectionIds) sectionState[id] = id !== "basic";
     setCollapsibleState(basicTitle, basicBody, "basic", false);
@@ -6959,6 +7046,43 @@ export async function bootstrapSettingTab(
     selectionTranslateTargetField,
   );
 
+  const selectionTranslateInstructionsField = createEl(
+    doc,
+    "div",
+    "llm-set-field llm-set-subsection",
+  );
+  const selectionTranslateInstructionsLabel = createEl(
+    doc,
+    "label",
+    "llm-set-label llm-set-label--md",
+    L.selectionTranslateInstructions,
+  );
+  selectionTranslateInstructionsLabel.id = `${config.addonRef}-selection-translate-instructions-label`;
+  const selectionTranslateInstructionsInput = createEl(
+    doc,
+    "textarea",
+    "llm-set-input llm-set-textarea",
+  ) as HTMLTextAreaElement;
+  selectionTranslateInstructionsInput.id = `${config.addonRef}-selection-translate-instructions`;
+  selectionTranslateInstructionsInput.rows = 4;
+  selectionTranslateInstructionsInput.placeholder =
+    L.selectionTranslateInstructionsPlaceholder;
+  selectionTranslateInstructionsInput.value = getPref(
+    "selectionTranslate.instructions",
+  );
+  const selectionTranslateInstructionsHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint",
+    L.selectionTranslateInstructionsHint,
+  );
+  selectionTranslateInstructionsHint.id = `${config.addonRef}-selection-translate-instructions-hint`;
+  selectionTranslateInstructionsField.append(
+    selectionTranslateInstructionsLabel,
+    selectionTranslateInstructionsInput,
+    selectionTranslateInstructionsHint,
+  );
+
   const selectionTranslateShowCopyField = createEl(
     doc,
     "div",
@@ -7092,6 +7216,7 @@ export async function bootstrapSettingTab(
     selectionTranslateEnableField,
     selectionTranslateModelField,
     languageRow,
+    selectionTranslateInstructionsField,
     selectionTranslateShowCopyField,
     selectionTranslateShowAddToNoteField,
     selectionTranslateColdStartField,
@@ -7110,6 +7235,12 @@ export async function bootstrapSettingTab(
   });
   selectionTranslateAutoInput.addEventListener("change", () => {
     setBoolPref("selectionTranslate.auto", selectionTranslateAutoInput.checked);
+  });
+  selectionTranslateInstructionsInput.addEventListener("input", () => {
+    setPref(
+      "selectionTranslate.instructions",
+      selectionTranslateInstructionsInput.value,
+    );
   });
   selectionTranslateShowCopyInput.addEventListener("change", () => {
     setBoolPref(
