@@ -5112,7 +5112,7 @@ async function parseCodexSSEStream(
     reader.releaseLock();
   }
 
-  return fullText || "(No response text)";
+  return fullText;
 }
 
 function parseCodexSSERaw(
@@ -5190,7 +5190,7 @@ function parseCodexSSERaw(
       /* skip */
     }
   }
-  return fullText || "(No response text)";
+  return fullText;
 }
 
 /**
@@ -5431,7 +5431,7 @@ async function parseOpenAICompatSSEStream(
     reader.releaseLock();
   }
 
-  return fullText || "(No response text)";
+  return fullText;
 }
 
 /**
@@ -5558,7 +5558,7 @@ async function parseAnthropicSSEStream(
     reader.releaseLock();
   }
 
-  return fullText || "(No response text)";
+  return fullText;
 }
 
 export async function chatWithProviderOAuth(params: {
@@ -5713,7 +5713,10 @@ export async function chatWithProviderOAuth(params: {
       }
       // Fallback: non-streaming
       const data = (await res.json()) as any;
-      const text = data?.content?.[0]?.text || JSON.stringify(data);
+      const text =
+        typeof data?.content?.[0]?.text === "string"
+          ? data.content[0].text
+          : "";
       params.onDelta?.(text);
       return text;
     }
@@ -5769,7 +5772,10 @@ export async function chatWithProviderOAuth(params: {
         return parseOpenAICompatSSEStream(res.body, params.onDelta);
       }
       const data = (await res.json()) as any;
-      const text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
+      const text =
+        typeof data?.choices?.[0]?.message?.content === "string"
+          ? data.choices[0].message.content
+          : "";
       params.onDelta?.(text);
       return text;
     }
@@ -5936,12 +5942,12 @@ export async function chatWithProviderOAuth(params: {
   }
   if (res.body) {
     const streamed = await parseGeminiSSEStream(res.body, params.onDelta);
-    return streamed || "(No response text)";
+    return streamed;
   }
   const raw = await res.text();
   const streamed = await parseGeminiSSEText(raw, params.onDelta);
   if (streamed) return streamed;
-  return raw || "(No response text)";
+  return "";
 }
 
 export async function callProviderEmbeddingsUnsupported(): Promise<never> {

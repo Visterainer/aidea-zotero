@@ -60,6 +60,15 @@ import {
   chatWithProviderOAuth,
   markerToProvider,
 } from "./oauthCli";
+import {
+  ModelOutputStreamNormalizer,
+  normalizeModelOutput,
+} from "./modelOutputNormalizer";
+import {
+  applyProviderOutputCapabilities,
+  disableMiniMaxReasoningSplit,
+  isMiniMaxReasoningSplitRejection,
+} from "./modelProviderCapabilities";
 
 // =============================================================================
 // Types
@@ -162,6 +171,7 @@ interface StreamChoice {
   delta?: {
     content?: unknown;
     reasoning_content?: unknown;
+    reasoning_details?: unknown;
     reasoning?: unknown;
     thinking?: unknown;
     thought?: unknown;
@@ -169,6 +179,7 @@ interface StreamChoice {
   message?: {
     content?: unknown;
     reasoning_content?: unknown;
+    reasoning_details?: unknown;
     reasoning?: unknown;
     thinking?: unknown;
     thought?: unknown;
@@ -177,7 +188,14 @@ interface StreamChoice {
 
 interface CompletionResponse {
   choices?: Array<{
-    message?: { content?: string };
+    message?: {
+      content?: string;
+      reasoning_content?: unknown;
+      reasoning_details?: unknown;
+      reasoning?: unknown;
+      thinking?: unknown;
+      thought?: unknown;
+    };
     text?: string;
   }>;
 }
@@ -905,70 +923,6 @@ function normalizeStreamText(value: unknown): string {
     );
   }
   return "";
-}
-
-type ThoughtTagState = {
-  inThought: boolean;
-  buffer: string;
-};
-
-function getPartialTagTailLength(text: string, tag: string): number {
-  const textLower = text.toLowerCase();
-  const tagLower = tag.toLowerCase();
-  const max = Math.min(textLower.length, tagLower.length - 1);
-  for (let len = max; len > 0; len--) {
-    if (tagLower.startsWith(textLower.slice(-len))) {
-      return len;
-    }
-  }
-  return 0;
-}
-
-function splitThoughtTaggedText(
-  chunk: string,
-  state: ThoughtTagState,
-): { answer: string; thought: string } {
-  const OPEN_TAG = "<thought>";
-  const CLOSE_TAG = "</thought>";
-  const input = `${state.buffer}${chunk}`;
-  state.buffer = "";
-  if (!input) return { answer: "", thought: "" };
-
-  const inputLower = input.toLowerCase();
-  let answer = "";
-  let thought = "";
-  let cursor = 0;
-
-  while (cursor < input.length) {
-    if (state.inThought) {
-      const closeIdx = inputLower.indexOf(CLOSE_TAG, cursor);
-      if (closeIdx === -1) {
-        const segment = input.slice(cursor);
-        const tailLen = getPartialTagTailLength(segment, CLOSE_TAG);
-        thought += segment.slice(0, segment.length - tailLen);
-        state.buffer = segment.slice(segment.length - tailLen);
-        break;
-      }
-      thought += input.slice(cursor, closeIdx);
-      cursor = closeIdx + CLOSE_TAG.length;
-      state.inThought = false;
-      continue;
-    }
-
-    const openIdx = inputLower.indexOf(OPEN_TAG, cursor);
-    if (openIdx === -1) {
-      const segment = input.slice(cursor);
-      const tailLen = getPartialTagTailLength(segment, OPEN_TAG);
-      answer += segment.slice(0, segment.length - tailLen);
-      state.buffer = segment.slice(segment.length - tailLen);
-      break;
-    }
-    answer += input.slice(cursor, openIdx);
-    cursor = openIdx + OPEN_TAG.length;
-    state.inThought = true;
-  }
-
-  return { answer, thought };
 }
 
 type ParameterSource =
@@ -1704,8 +1658,9 @@ async function postWithReasoningFallback(params: {
 }) {
   let reasoningSelection = params.initialReasoning;
   let retries = 0;
-  const maxRetries = 2;
+  const maxRetries = 3;
   let lastError: unknown;
+  let retriedWithoutMiniMaxReasoningSplit = false;
   const attemptedSelections = new Set<string>([
     reasoningSelection
       ? `${reasoningSelection.provider}:${reasoningSelection.level}`
@@ -1713,7 +1668,11 @@ async function postWithReasoningFallback(params: {
   ]);
 
   while (retries <= maxRetries) {
-    const payload = params.buildPayload(reasoningSelection);
+    const payload = applyProviderOutputCapabilities({
+      url: params.url,
+      model: params.modelName || "",
+      payload: params.buildPayload(reasoningSelection),
+    });
     try {
       return await postWithTemperatureFallback({
         url: params.url,
@@ -1725,6 +1684,16 @@ async function postWithReasoningFallback(params: {
     } catch (err) {
       lastError = err;
       const message = err instanceof Error ? err.message : String(err);
+      if (
+        !retriedWithoutMiniMaxReasoningSplit &&
+        Object.prototype.hasOwnProperty.call(payload, "reasoning_split") &&
+        isMiniMaxReasoningSplitRejection(message)
+      ) {
+        disableMiniMaxReasoningSplit(params.url, params.modelName || "");
+        retriedWithoutMiniMaxReasoningSplit = true;
+        retries += 1;
+        continue;
+      }
       if (!isReasoningErrorMessage(message)) {
         throw err;
       }
@@ -1878,7 +1847,7 @@ function extractResponsesOutputText(data: {
   if (data?.output_text && !hasOutputContentText) {
     chunks.unshift(data.output_text);
   }
-  return chunks.filter(Boolean).join("\n\n") || JSON.stringify(data);
+  return chunks.filter(Boolean).join("\n\n");
 }
 
 // =============================================================================
@@ -1923,7 +1892,7 @@ export async function callImageGeneration(
       images: params.images,
       imageGeneration: true,
     });
-    const images = parseImageMarkdownResults(text);
+    const images = parseImageMarkdownResults(normalizeModelOutput(text).text);
     if (!images.length) {
       throw new Error(
         "The current OAuth provider did not return an image. It may not support image_generation for this model.",
@@ -2007,7 +1976,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
   });
   const oauthProvider = markerToProvider(apiBase);
   if (oauthProvider) {
-    return chatWithProviderOAuth({
+    const rawText = await chatWithProviderOAuth({
       provider: oauthProvider,
       model,
       prompt: params.prompt,
@@ -2019,6 +1988,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
       temperature: params.temperature,
       images: params.images,
     });
+    return normalizeModelOutput(rawText).text;
   }
   const messages = buildMessages(params, systemPrompt);
   const useResponses = isResponsesBase(apiBase);
@@ -2073,13 +2043,13 @@ export async function callLLM(params: ChatParams): Promise<string> {
     output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
   };
   if (useResponses) {
-    return extractResponsesOutputText(data);
+    return normalizeModelOutput(extractResponsesOutputText(data)).text;
   }
-  return (
-    data?.choices?.[0]?.message?.content ??
-    data?.choices?.[0]?.text ??
-    JSON.stringify(data)
-  );
+  return normalizeModelOutput(
+    normalizeStreamText(
+      data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? "",
+    ),
+  ).text;
 }
 
 /**
@@ -2109,7 +2079,7 @@ function xhrStream(params: {
     xhr.responseType = "text";
     let fullText = "";
     let processedLength = 0;
-    const thoughtState: ThoughtTagState = { inThought: false, buffer: "" };
+    let sseBuffer = "";
 
     // Handle abort signal
     if (signal) {
@@ -2123,58 +2093,51 @@ function xhrStream(params: {
       });
     }
 
+    const processSseLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) return;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") return;
+      try {
+        const parsed = JSON.parse(data) as { choices?: StreamChoice[] };
+        const choice = parsed?.choices?.[0];
+        const reasoningDelta = normalizeStreamText(
+          choice?.delta?.reasoning_content ??
+            choice?.delta?.reasoning_details ??
+            choice?.delta?.reasoning ??
+            choice?.delta?.thinking ??
+            choice?.delta?.thought ??
+            choice?.message?.reasoning_content ??
+            choice?.message?.reasoning_details ??
+            choice?.message?.reasoning ??
+            choice?.message?.thinking ??
+            choice?.message?.thought ??
+            "",
+        );
+        if (reasoningDelta && onReasoning) {
+          onReasoning({ details: reasoningDelta });
+        }
+        const deltaRaw = normalizeStreamText(
+          choice?.delta?.content ?? choice?.message?.content ?? "",
+        );
+        if (deltaRaw) {
+          fullText += deltaRaw;
+          onDelta(deltaRaw);
+        }
+      } catch (err) {
+        ztoolkit.log("LLM XHR stream parse error:", err);
+      }
+    };
+
     const processChunk = () => {
       const currentText = xhr.responseText || "";
       if (currentText.length <= processedLength) return;
       const newData = currentText.slice(processedLength);
       processedLength = currentText.length;
-
-      const lines = newData.split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data) as { choices?: StreamChoice[] };
-          const choice = parsed?.choices?.[0];
-
-          // Handle reasoning tokens
-          const reasoningDelta = normalizeStreamText(
-            choice?.delta?.reasoning_content ??
-              choice?.delta?.reasoning ??
-              choice?.delta?.thinking ??
-              choice?.delta?.thought ??
-              choice?.message?.reasoning_content ??
-              choice?.message?.reasoning ??
-              choice?.message?.thinking ??
-              choice?.message?.thought ??
-              "",
-          );
-          if (reasoningDelta && onReasoning) {
-            onReasoning({ details: reasoningDelta });
-          }
-
-          // Handle content tokens
-          const deltaRaw = normalizeStreamText(
-            choice?.delta?.content ?? choice?.message?.content ?? "",
-          );
-          const { answer, thought } = splitThoughtTaggedText(
-            deltaRaw,
-            thoughtState,
-          );
-          if (thought && onReasoning) {
-            onReasoning({ details: thought });
-          }
-          if (answer) {
-            fullText += answer;
-            onDelta(answer);
-          }
-        } catch (err) {
-          ztoolkit.log("LLM XHR stream parse error:", err);
-        }
-      }
+      sseBuffer += newData;
+      const lines = sseBuffer.split(/\r?\n/);
+      sseBuffer = lines.pop() || "";
+      for (const line of lines) processSseLine(line);
     };
 
     xhr.onprogress = processChunk;
@@ -2182,14 +2145,9 @@ function xhrStream(params: {
     xhr.onload = () => {
       // Process any remaining data
       processChunk();
-      // Flush thought buffer
-      if (thoughtState.buffer) {
-        if (thoughtState.inThought && onReasoning) {
-          onReasoning({ details: thoughtState.buffer });
-        } else {
-          fullText += thoughtState.buffer;
-          onDelta(thoughtState.buffer);
-        }
+      if (sseBuffer.trim()) {
+        processSseLine(sseBuffer);
+        sseBuffer = "";
       }
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(fullText);
@@ -2222,6 +2180,59 @@ export async function callLLMStream(
   onDelta: (delta: string) => void,
   onReasoning?: (event: ReasoningEvent) => void,
 ): Promise<string> {
+  const outputNormalizer = new ModelOutputStreamNormalizer();
+  let sawRawContent = false;
+  const dispatchNormalizedEvents = (
+    events: ReturnType<ModelOutputStreamNormalizer["push"]>,
+  ) => {
+    for (const event of events) {
+      if (event.type === "content") {
+        onDelta(event.text);
+      } else if (event.type === "reasoning" && onReasoning) {
+        onReasoning(
+          event.channel === "summary"
+            ? { summary: event.text }
+            : { details: event.text },
+        );
+      }
+    }
+  };
+  const rawOnDelta = (delta: string) => {
+    if (!delta) return;
+    sawRawContent = true;
+    dispatchNormalizedEvents(
+      outputNormalizer.push({ type: "content", text: delta }),
+    );
+  };
+  const rawOnReasoning = (event: ReasoningEvent) => {
+    if (event.summary) {
+      dispatchNormalizedEvents(
+        outputNormalizer.push({
+          type: "reasoning",
+          text: event.summary,
+          channel: "summary",
+        }),
+      );
+    }
+    if (event.details) {
+      dispatchNormalizedEvents(
+        outputNormalizer.push({
+          type: "reasoning",
+          text: event.details,
+          channel: "details",
+        }),
+      );
+    }
+  };
+  const finishNormalizedOutput = (rawFallback = ""): string => {
+    if (!sawRawContent && rawFallback) {
+      rawOnDelta(rawFallback);
+    }
+    const completed = outputNormalizer.finish();
+    dispatchNormalizedEvents(completed.events);
+    return completed.output.text;
+  };
+
   const { apiBase, apiKey, model, systemPrompt } = getApiConfig({
     apiBase: params.apiBase,
     apiKey: params.apiKey,
@@ -2229,7 +2240,7 @@ export async function callLLMStream(
   });
   const oauthProvider = markerToProvider(apiBase);
   if (oauthProvider) {
-    const text = await chatWithProviderOAuth({
+    const rawText = await chatWithProviderOAuth({
       provider: oauthProvider,
       model,
       prompt: params.prompt,
@@ -2240,9 +2251,9 @@ export async function callLLMStream(
       maxTokens: params.maxTokens,
       temperature: params.temperature,
       images: params.images,
-      onDelta,
+      onDelta: rawOnDelta,
     });
-    return text;
+    return finishNormalizedOutput(rawText);
   }
   const messages = buildMessages(params, systemPrompt);
   const useResponses = isResponsesBase(apiBase);
@@ -2275,6 +2286,14 @@ export async function callLLMStream(
     effectiveMaxTokens,
     stream: true,
   });
+  const buildEffectivePayload = (
+    reasoningOverride: ReasoningConfig | undefined,
+  ) =>
+    applyProviderOutputCapabilities({
+      url,
+      model,
+      payload: buildPayload(reasoningOverride),
+    });
 
   // ----- XHR-based streaming (works in Zotero Gecko) -----
   // Skip XHR for Responses API — its SSE event format is incompatible
@@ -2291,13 +2310,13 @@ export async function callLLMStream(
     // Apply cached temperature policy if available
     const policyKey = getTemperaturePolicyKey(
       url,
-      buildPayload(params.reasoning),
+      buildEffectivePayload(params.reasoning),
     );
     const cachedPolicy = temperaturePolicyCache.get(policyKey);
 
     // Build payload with reasoning and temperature policies applied
     let currentReasoning = params.reasoning;
-    let payload = buildPayload(currentReasoning);
+    let payload = buildEffectivePayload(currentReasoning);
     if (
       cachedPolicy &&
       Object.prototype.hasOwnProperty.call(payload, "temperature")
@@ -2305,8 +2324,9 @@ export async function callLLMStream(
       payload = applyTemperaturePolicy(payload, cachedPolicy);
     }
 
-    const maxRetries = 2;
+    const maxRetries = 3;
     let retries = 0;
+    let retriedWithoutMiniMaxReasoningSplit = false;
     const attemptedReasoningKeys = new Set<string>([
       currentReasoning
         ? `${currentReasoning.provider}:${currentReasoning.level}`
@@ -2322,7 +2342,7 @@ export async function callLLMStream(
           payload,
           parameterSource,
         });
-        return await withTransientRetry(
+        const rawText = await withTransientRetry(
           async () =>
             xhrStream({
               XHRCtor,
@@ -2330,8 +2350,8 @@ export async function callLLMStream(
               apiKey,
               payload,
               signal: params.signal,
-              onDelta,
-              onReasoning,
+              onDelta: rawOnDelta,
+              onReasoning: rawOnReasoning,
             }),
           {
             signal: params.signal,
@@ -2344,8 +2364,27 @@ export async function callLLMStream(
             },
           },
         );
+        return finishNormalizedOutput(rawText);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+
+        if (
+          !retriedWithoutMiniMaxReasoningSplit &&
+          Object.prototype.hasOwnProperty.call(payload, "reasoning_split") &&
+          isMiniMaxReasoningSplitRejection(message)
+        ) {
+          disableMiniMaxReasoningSplit(url, model);
+          retriedWithoutMiniMaxReasoningSplit = true;
+          payload = buildEffectivePayload(currentReasoning);
+          if (
+            cachedPolicy &&
+            Object.prototype.hasOwnProperty.call(payload, "temperature")
+          ) {
+            payload = applyTemperaturePolicy(payload, cachedPolicy);
+          }
+          retries += 1;
+          continue;
+        }
 
         // Check for recoverable reasoning errors (400/422 with reasoning keywords)
         if (isReasoningErrorMessage(message)) {
@@ -2360,7 +2399,7 @@ export async function callLLMStream(
             if (!attemptedReasoningKeys.has(nextKey)) {
               attemptedReasoningKeys.add(nextKey);
               currentReasoning = recovered;
-              payload = buildPayload(currentReasoning);
+              payload = buildEffectivePayload(currentReasoning);
               if (
                 cachedPolicy &&
                 Object.prototype.hasOwnProperty.call(payload, "temperature")
@@ -2383,7 +2422,7 @@ export async function callLLMStream(
           const recoveryPolicy = getTemperatureRecoveryPolicy(status, message);
           if (recoveryPolicy) {
             payload = applyTemperaturePolicy(
-              buildPayload(currentReasoning),
+              buildEffectivePayload(currentReasoning),
               recoveryPolicy,
             );
             temperaturePolicyCache.set(policyKey, recoveryPolicy);
@@ -2417,12 +2456,13 @@ export async function callLLMStream(
   });
 
   if (!res.body) {
-    return callLLM(params);
+    return finishNormalizedOutput(await callLLM(params));
   }
 
-  return useResponses
-    ? parseResponsesStream(res.body, onDelta, onReasoning)
-    : parseStreamResponse(res.body, onDelta, onReasoning);
+  const rawText = useResponses
+    ? await parseResponsesStream(res.body, rawOnDelta, rawOnReasoning)
+    : await parseStreamResponse(res.body, rawOnDelta, rawOnReasoning);
+  return finishNormalizedOutput(rawText);
 }
 
 /**
@@ -2473,7 +2513,6 @@ async function parseStreamResponse(
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
   let fullText = "";
-  const thoughtState: ThoughtTagState = { inThought: false, buffer: "" };
 
   try {
     while (true) {
@@ -2496,10 +2535,12 @@ async function parseStreamResponse(
           const choice = parsed?.choices?.[0];
           const reasoningDelta = normalizeStreamText(
             choice?.delta?.reasoning_content ??
+              choice?.delta?.reasoning_details ??
               choice?.delta?.reasoning ??
               choice?.delta?.thinking ??
               choice?.delta?.thought ??
               choice?.message?.reasoning_content ??
+              choice?.message?.reasoning_details ??
               choice?.message?.reasoning ??
               choice?.message?.thinking ??
               choice?.message?.thought ??
@@ -2512,17 +2553,9 @@ async function parseStreamResponse(
           const deltaRaw = normalizeStreamText(
             choice?.delta?.content ?? choice?.message?.content ?? "",
           );
-          const { answer, thought } = splitThoughtTaggedText(
-            deltaRaw,
-            thoughtState,
-          );
-          if (thought && onReasoning) {
-            onReasoning({ details: thought });
-          }
-
-          if (answer) {
-            fullText += answer;
-            onDelta(answer);
+          if (deltaRaw) {
+            fullText += deltaRaw;
+            onDelta(deltaRaw);
           }
         } catch (err) {
           ztoolkit.log("LLM stream parse error:", err);
@@ -2530,14 +2563,6 @@ async function parseStreamResponse(
       }
     }
   } finally {
-    if (thoughtState.buffer) {
-      if (thoughtState.inThought && onReasoning) {
-        onReasoning({ details: thoughtState.buffer });
-      } else {
-        fullText += thoughtState.buffer;
-        onDelta(thoughtState.buffer);
-      }
-    }
     reader.releaseLock();
   }
 
@@ -2553,7 +2578,6 @@ async function parseResponsesStream(
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
   let fullText = "";
-  const thoughtState: ThoughtTagState = { inThought: false, buffer: "" };
   let sawOutputTextDelta = false;
   let sawSummaryDelta = false;
   let sawDetailsDelta = false;
@@ -2703,17 +2727,8 @@ async function parseResponsesStream(
 
           if (parsed.type === "response.output_text.delta" && parsed.delta) {
             sawOutputTextDelta = true;
-            const { answer, thought } = splitThoughtTaggedText(
-              parsed.delta,
-              thoughtState,
-            );
-            if (thought && onReasoning) {
-              onReasoning({ details: thought });
-            }
-            if (answer) {
-              fullText += answer;
-              onDelta(answer);
-            }
+            fullText += parsed.delta;
+            onDelta(parsed.delta);
             continue;
           }
 
@@ -2723,17 +2738,8 @@ async function parseResponsesStream(
             if (sawOutputTextDelta) {
               continue;
             }
-            const { answer, thought } = splitThoughtTaggedText(
-              parsed.text,
-              thoughtState,
-            );
-            if (thought && onReasoning) {
-              onReasoning({ details: thought });
-            }
-            if (answer) {
-              fullText += answer;
-              onDelta(answer);
-            }
+            fullText += parsed.text;
+            onDelta(parsed.text);
             continue;
           }
 
@@ -2742,17 +2748,8 @@ async function parseResponsesStream(
             parsed.response?.output_text
           ) {
             if (!fullText) {
-              const { answer, thought } = splitThoughtTaggedText(
-                parsed.response.output_text,
-                thoughtState,
-              );
-              if (thought && onReasoning) {
-                onReasoning({ details: thought });
-              }
-              if (answer) {
-                fullText = answer;
-                onDelta(answer);
-              }
+              fullText = parsed.response.output_text;
+              onDelta(parsed.response.output_text);
             }
           }
 
@@ -2846,14 +2843,6 @@ async function parseResponsesStream(
       }
     }
   } finally {
-    if (thoughtState.buffer) {
-      if (thoughtState.inThought && onReasoning) {
-        onReasoning({ details: thoughtState.buffer });
-      } else {
-        fullText += thoughtState.buffer;
-        onDelta(thoughtState.buffer);
-      }
-    }
     reader.releaseLock();
   }
 

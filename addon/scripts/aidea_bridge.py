@@ -19,6 +19,7 @@ import random
 import threading
 from collections import deque
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -259,14 +260,6 @@ def _sanitize_log_line(value, max_len=4000):
     text = CONTROL_CHAR_RE.sub("", text)
     if len(text) > max_len:
         text = text[-max_len:]
-    return text
-
-
-def _compact_debug_text(value, max_len=600):
-    text = _sanitize_log_line(value, max_len=max_len)
-    text = re.sub(r"\s+", " ", text).strip()
-    if len(text) > max_len:
-        text = text[:max_len].rstrip() + "..."
     return text
 
 
@@ -1251,9 +1244,16 @@ def _http_post_json_with_retry(
                 raise
             wait_sec = min(base_delay_sec * (2 ** (attempt - 1)), 6.0)
             wait_sec += random.uniform(0.0, 0.25)
+            status_code = _extract_http_status_code(exc)
+            error_category = (
+                f"http_{status_code}"
+                if status_code is not None
+                else type(exc).__name__.lower()
+            )
             print(
                 f"[AIdea] transient upstream error from {url}; retrying "
-                f"{attempt}/{max_attempts - 1} in {wait_sec:.2f}s: {exc}",
+                f"{attempt}/{max_attempts - 1} in {wait_sec:.2f}s "
+                f"category={error_category}",
                 file=sys.stderr,
             )
             time.sleep(wait_sec)
@@ -1771,6 +1771,110 @@ def _extract_openai_chat_text(data):
     return ""
 
 
+_MODEL_REASONING_TAG_NAMES = ("think", "thought")
+
+
+def _normalize_model_output(text):
+    raw = (
+        text
+        if isinstance(text, str)
+        else str(text)
+        if isinstance(text, (int, float, bool))
+        else ""
+    )
+    first_non_whitespace = next(
+        (index for index, char in enumerate(raw) if not char.isspace()),
+        -1,
+    )
+    if first_non_whitespace < 0:
+        return {
+            "text": "",
+            "filtered_reasoning_chars": 0,
+            "warnings": [],
+        }
+
+    lower = raw.lower()
+    active_tag = None
+    open_length = 0
+    for tag_name in _MODEL_REASONING_TAG_NAMES:
+        open_tag = f"<{tag_name}>"
+        if lower.startswith(open_tag, first_non_whitespace):
+            active_tag = tag_name
+            open_length = len(open_tag)
+            break
+    if active_tag is None:
+        return {
+            "text": raw,
+            "filtered_reasoning_chars": 0,
+            "warnings": [],
+        }
+
+    filtered = first_non_whitespace + open_length
+    cursor = first_non_whitespace + open_length
+    visible_parts = []
+    warnings = []
+    while True:
+        close_tag = f"</{active_tag}>"
+        close_index = lower.find(close_tag, cursor)
+        if close_index < 0:
+            filtered += len(raw) - cursor
+            warnings.append("unclosed-reasoning-tag")
+            break
+        filtered += close_index - cursor + len(close_tag)
+        cursor = close_index + len(close_tag)
+
+        next_open = None
+        for tag_name in _MODEL_REASONING_TAG_NAMES:
+            open_tag = f"<{tag_name}>"
+            open_index = lower.find(open_tag, cursor)
+            if open_index >= 0 and (
+                next_open is None or open_index < next_open[0]
+            ):
+                next_open = (open_index, tag_name, len(open_tag))
+        if next_open is None:
+            visible_parts.append(raw[cursor:])
+            break
+        visible_parts.append(raw[cursor:next_open[0]])
+        filtered += next_open[2]
+        cursor = next_open[0] + next_open[2]
+        active_tag = next_open[1]
+
+    visible = "".join(visible_parts)
+    if not visible and filtered > 0:
+        warnings.append("reasoning-only")
+    return {
+        "text": visible,
+        "filtered_reasoning_chars": filtered,
+        "warnings": list(dict.fromkeys(warnings)),
+    }
+
+
+def _is_official_minimax_reasoning_model(base_url, model):
+    try:
+        parsed = urllib.parse.urlparse(str(base_url or ""))
+    except Exception:
+        return False
+    if str(parsed.hostname or "").lower() not in (
+        "api.minimaxi.com",
+        "api.minimax.io",
+    ):
+        return False
+    return bool(
+        re.match(
+            r"^minimax-m(?:2(?:\.\d+)?|3)(?:[-_.]|$)",
+            str(model or "").strip(),
+            re.IGNORECASE,
+        )
+    )
+
+
+def _is_minimax_reasoning_split_rejection(exc):
+    return (
+        _extract_http_status_code(exc) in (400, 422)
+        and "reasoning_split" in str(exc).lower()
+    )
+
+
 def _extract_anthropic_text(data):
     if not isinstance(data, dict):
         return ""
@@ -1854,6 +1958,7 @@ class OAuthCompatProxyServer:
         self._debug_json_error_count = 0
         self._debug_json_dedupe_count = 0
         self._debug_plain_dedupe_count = 0
+        self._unsupported_minimax_reasoning_split = set()
 
     def _debug(self, message):
         if not self.debug_enabled:
@@ -1869,7 +1974,16 @@ class OAuthCompatProxyServer:
         except Exception:
             pass
 
-    def _debug_response(self, provider, model, request_json_mode, transport, raw, text):
+    def _debug_response(
+        self,
+        provider,
+        model,
+        request_json_mode,
+        transport,
+        raw,
+        text,
+        filtered_reasoning_chars=0,
+    ):
         if not self.debug_enabled:
             return
         with self._debug_lock:
@@ -1890,7 +2004,7 @@ class OAuthCompatProxyServer:
         self._debug(
             "call={call} provider={provider} model={model} transport={transport} "
             "json_mode={json_mode} raw_len={raw_len} text_len={text_len} "
-            "text_json={text_json} text_head={head}".format(
+            "filtered_reasoning_chars={filtered} text_json={text_json}".format(
                 call=call_no,
                 provider=provider,
                 model=model,
@@ -1898,8 +2012,8 @@ class OAuthCompatProxyServer:
                 json_mode=bool(request_json_mode),
                 raw_len=len(str(raw or "")),
                 text_len=len(str(text or "")),
+                filtered=max(0, int(filtered_reasoning_chars or 0)),
                 text_json=json_status,
-                head=_compact_debug_text(text, max_len=320),
             )
         )
 
@@ -1914,12 +2028,11 @@ class OAuthCompatProxyServer:
         if dedupe_no <= 20:
             self._debug(
                 "normalized multi-value JSON response #{no} text_len={old_len} "
-                "normalized_len={new_len} normalized_json={status} normalized_head={head}".format(
+                "normalized_len={new_len} normalized_json={status}".format(
                     no=dedupe_no,
                     old_len=len(str(text or "")),
                     new_len=len(normalized),
                     status=_json_debug_status(normalized),
-                    head=_compact_debug_text(normalized, max_len=240),
                 )
             )
         return normalized
@@ -1935,11 +2048,10 @@ class OAuthCompatProxyServer:
         if dedupe_no <= 20:
             self._debug(
                 "deduped repeated plain response #{no} text_len={old_len} "
-                "normalized_len={new_len} normalized_head={head}".format(
+                "normalized_len={new_len}".format(
                     no=dedupe_no,
                     old_len=len(str(text or "")),
                     new_len=len(normalized),
-                    head=_compact_debug_text(normalized, max_len=240),
                 )
             )
         return normalized
@@ -2017,6 +2129,9 @@ class OAuthCompatProxyServer:
             return self._forward_copilot(payload)
         raise RuntimeError(f"Unsupported OAuth proxy provider: {provider}")
 
+    def _normalize_provider_output(self, text):
+        return _normalize_model_output(text)
+
     def _forward_openai_compatible(self, payload):
         base_url = str(self.proxy_cfg.get("apiBase", "")).strip().rstrip("/")
         if not base_url:
@@ -2035,28 +2150,56 @@ class OAuthCompatProxyServer:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        raw = _http_post_json_with_retry(
-            f"{base_url}/chat/completions",
-            payload,
-            headers,
-            timeout=300,
+        model = str(payload.get("model", "")).strip()
+        capability_key = (
+            (urllib.parse.urlparse(base_url).hostname or "").lower(),
+            "/chat/completions",
         )
+        request_payload = dict(payload)
+        if _is_official_minimax_reasoning_model(base_url, model):
+            if capability_key in self._unsupported_minimax_reasoning_split:
+                request_payload.pop("reasoning_split", None)
+            else:
+                request_payload["reasoning_split"] = True
+        try:
+            raw = _http_post_json_with_retry(
+                f"{base_url}/chat/completions",
+                request_payload,
+                headers,
+                timeout=300,
+            )
+        except Exception as exc:
+            if (
+                "reasoning_split" not in request_payload
+                or not _is_minimax_reasoning_split_rejection(exc)
+            ):
+                raise
+            self._unsupported_minimax_reasoning_split.add(capability_key)
+            request_payload.pop("reasoning_split", None)
+            raw = _http_post_json_with_retry(
+                f"{base_url}/chat/completions",
+                request_payload,
+                headers,
+                timeout=300,
+            )
         try:
             data = json.loads(raw)
         except Exception:
             data = {}
-        text = _extract_openai_chat_text(data).strip()
-        if not text:
-            raise RuntimeError("OpenAI-compatible response did not contain output text")
+        normalized_output = self._normalize_provider_output(
+            _extract_openai_chat_text(data)
+        )
+        text = normalized_output["text"]
         if request_json_mode:
             text = self._normalize_json_response_text(text)
         self._debug_response(
             "openai-compatible",
-            str(payload.get("model", "")).strip(),
+            model,
             request_json_mode,
             "chat-completions",
             raw,
             text,
+            normalized_output["filtered_reasoning_chars"],
         )
         return text
 
@@ -2119,15 +2262,15 @@ class OAuthCompatProxyServer:
             timeout=300,
             max_attempts=6,
         )
-        text = _extract_codex_output_text_from_sse(raw).strip()
-        if not text:
+        text = _extract_codex_output_text_from_sse(raw)
+        if not text.strip():
             try:
                 data = json.loads(raw)
             except Exception:
                 data = {}
-            text = _extract_codex_output_text(data).strip()
-        if not text:
-            raise RuntimeError("Codex OAuth response did not contain output text")
+            text = _extract_codex_output_text(data)
+        normalized_output = self._normalize_provider_output(text)
+        text = normalized_output["text"]
         if request_json_mode:
             text = self._normalize_json_response_text(text)
         else:
@@ -2139,6 +2282,7 @@ class OAuthCompatProxyServer:
             "codex-responses-sse",
             raw,
             text,
+            normalized_output["filtered_reasoning_chars"],
         )
         return text
 
@@ -2185,15 +2329,24 @@ class OAuthCompatProxyServer:
             "User-Agent": f"AIdea/1.0/{model}",
         }
         raw = _http_post_json_with_retry(self.GEMINI_STREAM_URL, req_body, headers, timeout=300)
-        text = _extract_gemini_text_from_sse(raw).strip()
-        if not text:
+        text = _extract_gemini_text_from_sse(raw)
+        if not text.strip():
             try:
                 data = json.loads(raw)
             except Exception:
                 data = {}
-            text = _extract_gemini_text_from_json(data).strip()
-        if not text:
-            raise RuntimeError("Gemini OAuth response did not contain output text")
+            text = _extract_gemini_text_from_json(data)
+        normalized_output = self._normalize_provider_output(text)
+        text = normalized_output["text"]
+        self._debug_response(
+            "google-gemini-cli",
+            model,
+            False,
+            "gemini-sse",
+            raw,
+            text,
+            normalized_output["filtered_reasoning_chars"],
+        )
         return text
 
     def _forward_copilot(self, payload):
@@ -2244,9 +2397,19 @@ class OAuthCompatProxyServer:
                 data = json.loads(raw)
             except Exception:
                 data = {}
-            text = _extract_anthropic_text(data).strip()
-            if not text:
-                raise RuntimeError("Copilot Anthropic response did not contain output text")
+            normalized_output = self._normalize_provider_output(
+                _extract_anthropic_text(data)
+            )
+            text = normalized_output["text"]
+            self._debug_response(
+                "github-copilot",
+                model,
+                False,
+                "anthropic-messages",
+                raw,
+                text,
+                normalized_output["filtered_reasoning_chars"],
+            )
             return text
 
         if transport_kind == "chat-completions":
@@ -2269,9 +2432,19 @@ class OAuthCompatProxyServer:
                 data = json.loads(raw)
             except Exception:
                 data = {}
-            text = _extract_openai_chat_text(data).strip()
-            if not text:
-                raise RuntimeError("Copilot chat/completions response did not contain output text")
+            normalized_output = self._normalize_provider_output(
+                _extract_openai_chat_text(data)
+            )
+            text = normalized_output["text"]
+            self._debug_response(
+                "github-copilot",
+                model,
+                isinstance(response_format, dict),
+                "chat-completions",
+                raw,
+                text,
+                normalized_output["filtered_reasoning_chars"],
+            )
             return text
 
         req_body = {
@@ -2299,9 +2472,19 @@ class OAuthCompatProxyServer:
             data = json.loads(raw)
         except Exception:
             data = {}
-        text = _extract_codex_output_text(data).strip()
-        if not text:
-            raise RuntimeError("Copilot Responses API response did not contain output text")
+        normalized_output = self._normalize_provider_output(
+            _extract_codex_output_text(data)
+        )
+        text = normalized_output["text"]
+        self._debug_response(
+            "github-copilot",
+            model,
+            isinstance(response_format, dict),
+            "responses",
+            raw,
+            text,
+            normalized_output["filtered_reasoning_chars"],
+        )
         return text
 
 

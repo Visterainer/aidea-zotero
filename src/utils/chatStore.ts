@@ -12,6 +12,7 @@ import {
   normalizeSelectedTextSource,
   normalizePaperContextRefs,
 } from "../modules/contextPanel/normalizers";
+import { normalizeModelOutput } from "./modelOutputNormalizer";
 
 export type ContextRefsJson = {
   basePdf?: {
@@ -54,7 +55,9 @@ export type StoredChatMessage = {
     contentHash?: string;
   }>;
   modelName?: string;
+  /** @deprecated Reasoning is request-scoped and is no longer persisted. */
   reasoningSummary?: string;
+  /** @deprecated Reasoning is request-scoped and is no longer persisted. */
   reasoningDetails?: string;
   contextRefs?: ContextRefsJson;
 };
@@ -204,6 +207,18 @@ export async function initChatStore(): Promise<void> {
          ADD COLUMN context_refs_json TEXT`,
       );
     }
+    if (!columns?.some((column) => column?.name === "reasoning_summary")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
+         ADD COLUMN reasoning_summary TEXT`,
+      );
+    }
+    if (!columns?.some((column) => column?.name === "reasoning_details")) {
+      await Zotero.DB.queryAsync(
+        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
+         ADD COLUMN reasoning_details TEXT`,
+      );
+    }
     if (!columns?.some((column) => column?.name === "parent_id")) {
       await Zotero.DB.queryAsync(
         `ALTER TABLE ${CHAT_MESSAGES_TABLE}
@@ -227,6 +242,8 @@ export async function initChatStore(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS ${CHAT_MESSAGES_INDEX}
        ON ${CHAT_MESSAGES_TABLE} (conversation_key, timestamp, id)`,
     );
+
+    await migratePersistedModelOutputs();
 
     await Zotero.DB.queryAsync(
       `CREATE TABLE IF NOT EXISTS ${CHAT_TREE_STATE_TABLE} (
@@ -284,6 +301,75 @@ export async function initChatStore(): Promise<void> {
       );
     }
   });
+}
+
+export async function migratePersistedModelOutputs(): Promise<void> {
+  const assistantCandidates = (await Zotero.DB.queryAsync(
+    `SELECT id AS messageId, text
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE role = 'assistant'
+       AND (
+         lower(text) LIKE '%<think>%'
+         OR lower(text) LIKE '%<thought>%'
+       )`,
+  )) as Array<{ messageId?: unknown; text?: unknown }> | undefined;
+  for (const row of assistantCandidates || []) {
+    const messageId = normalizeTreeId(row.messageId);
+    if (!messageId || typeof row.text !== "string") continue;
+    const normalized = normalizeModelOutput(row.text).text;
+    if (normalized === row.text) continue;
+    await Zotero.DB.queryAsync(
+      `UPDATE ${CHAT_MESSAGES_TABLE} SET text = ? WHERE id = ?`,
+      [normalized, messageId],
+    );
+  }
+
+  await Zotero.DB.queryAsync(
+    `UPDATE ${CHAT_MESSAGES_TABLE}
+     SET reasoning_summary = NULL, reasoning_details = NULL
+     WHERE reasoning_summary IS NOT NULL OR reasoning_details IS NOT NULL`,
+  );
+
+  const contextCandidates = (await Zotero.DB.queryAsync(
+    `SELECT id AS messageId, context_refs_json AS contextRefsJson
+     FROM ${CHAT_MESSAGES_TABLE}
+     WHERE context_refs_json IS NOT NULL
+       AND (
+         lower(context_refs_json) LIKE '%<think>%'
+         OR lower(context_refs_json) LIKE '%<thought>%'
+       )`,
+  )) as Array<{ messageId?: unknown; contextRefsJson?: unknown }> | undefined;
+  for (const row of contextCandidates || []) {
+    const messageId = normalizeTreeId(row.messageId);
+    if (!messageId || typeof row.contextRefsJson !== "string") continue;
+    try {
+      const refs = JSON.parse(row.contextRefsJson) as ContextRefsJson;
+      if (typeof refs.compactedSummary !== "string") continue;
+      const normalized = normalizeModelOutput(refs.compactedSummary).text;
+      if (normalized === refs.compactedSummary) continue;
+      if (normalized) refs.compactedSummary = normalized;
+      else delete refs.compactedSummary;
+      await Zotero.DB.queryAsync(
+        `UPDATE ${CHAT_MESSAGES_TABLE} SET context_refs_json = ? WHERE id = ?`,
+        [JSON.stringify(refs), messageId],
+      );
+    } catch (_err) {
+      // Leave malformed historical metadata untouched.
+    }
+  }
+}
+
+function normalizeContextRefsForStorage(
+  contextRefs: ContextRefsJson | undefined,
+): ContextRefsJson | undefined {
+  if (!contextRefs) return undefined;
+  const normalized = { ...contextRefs };
+  if (typeof normalized.compactedSummary === "string") {
+    const summary = normalizeModelOutput(normalized.compactedSummary).text;
+    if (summary) normalized.compactedSummary = summary;
+    else delete normalized.compactedSummary;
+  }
+  return normalized;
 }
 
 type StoredChatMessageRow = {
@@ -598,14 +684,8 @@ function toStoredChatMessage(
     screenshotImages,
     attachments,
     modelName: typeof row.modelName === "string" ? row.modelName : undefined,
-    reasoningSummary:
-      typeof row.reasoningSummary === "string"
-        ? row.reasoningSummary
-        : undefined,
-    reasoningDetails:
-      typeof row.reasoningDetails === "string"
-        ? row.reasoningDetails
-        : undefined,
+    reasoningSummary: undefined,
+    reasoningDetails: undefined,
     contextRefs,
   };
 }
@@ -1052,6 +1132,13 @@ export async function appendMessageNode(
   }
 
   const serialized = serializeMessageFields(message);
+  const persistedText =
+    message.role === "assistant"
+      ? normalizeModelOutput(message.text).text
+      : message.text;
+  const persistedContextRefs = normalizeContextRefsForStorage(
+    message.contextRefs,
+  );
   const branchIndex = await getSiblingBranchIndex(
     normalizedKey,
     normalizedParent,
@@ -1065,7 +1152,7 @@ export async function appendMessageNode(
       normalizedParent,
       branchIndex,
       message.role,
-      message.text,
+      persistedText,
       serialized.timestamp,
       serialized.selectedTexts[0] || message.selectedText || null,
       serialized.selectedTexts.length
@@ -1087,9 +1174,9 @@ export async function appendMessageNode(
         ? JSON.stringify(serialized.attachments)
         : null,
       message.modelName || null,
-      message.reasoningSummary || null,
-      message.reasoningDetails || null,
-      message.contextRefs ? JSON.stringify(message.contextRefs) : null,
+      null,
+      null,
+      persistedContextRefs ? JSON.stringify(persistedContextRefs) : null,
     ],
   );
   const insertedId = normalizeTreeId(
@@ -1151,7 +1238,11 @@ export async function updateMessageNode(
   const serialized = serializeMessageFields(message);
   if (typeof message.text === "string") {
     assignments.push("text = ?");
-    values.push(message.text);
+    values.push(
+      message.role === "assistant"
+        ? normalizeModelOutput(message.text).text
+        : message.text,
+    );
   }
   if (message.timestamp !== undefined) {
     assignments.push("timestamp = ?");
@@ -1212,16 +1303,18 @@ export async function updateMessageNode(
   }
   if (message.reasoningSummary !== undefined) {
     assignments.push("reasoning_summary = ?");
-    values.push(message.reasoningSummary || null);
+    values.push(null);
   }
   if (message.reasoningDetails !== undefined) {
     assignments.push("reasoning_details = ?");
-    values.push(message.reasoningDetails || null);
+    values.push(null);
   }
   if (message.contextRefs !== undefined) {
     assignments.push("context_refs_json = ?");
     values.push(
-      message.contextRefs ? JSON.stringify(message.contextRefs) : null,
+      message.contextRefs
+        ? JSON.stringify(normalizeContextRefsForStorage(message.contextRefs))
+        : null,
     );
   }
   if (!assignments.length) return;
@@ -1303,8 +1396,8 @@ function cloneStoredMessageForInsert(
       ? message.attachments.map((attachment) => ({ ...attachment }))
       : undefined,
     modelName: message.modelName,
-    reasoningSummary: message.reasoningSummary,
-    reasoningDetails: message.reasoningDetails,
+    reasoningSummary: undefined,
+    reasoningDetails: undefined,
     contextRefs: message.contextRefs,
   };
 }
@@ -1381,7 +1474,10 @@ export async function updateLatestAssistantMessage(
     .reverse()
     .find((entry) => entry.role === "assistant" && entry.messageId);
   if (!latestAssistant?.messageId) return;
-  await updateMessageNode(normalizedKey, latestAssistant.messageId, message);
+  await updateMessageNode(normalizedKey, latestAssistant.messageId, {
+    ...message,
+    role: "assistant",
+  });
 }
 
 export async function clearConversation(

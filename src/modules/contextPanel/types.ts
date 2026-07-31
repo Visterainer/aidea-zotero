@@ -31,7 +31,9 @@ export interface Message {
   screenshotExpanded?: boolean;
   screenshotActiveIndex?: number;
   modelName?: string;
+  /** @deprecated Reasoning is request-scoped and is no longer persisted. */
   reasoningSummary?: string;
+  /** @deprecated Reasoning is request-scoped and is no longer persisted. */
   reasoningDetails?: string;
   contextRefs?: {
     basePdf?: {

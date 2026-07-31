@@ -33,6 +33,7 @@ from aidea_bridge import (  # noqa: E402
     _is_benign_pdf2zh_cleanup_trace_line,
     _is_retryable_transport_error,
     _make_no_output_error_progress,
+    _normalize_model_output,
     _should_translate_overlay_line,
     _resolve_copilot_transport_kind,
     _rewrite_translation_custom_prompt,
@@ -298,6 +299,102 @@ try:
     assert_eq(captured["headers"]["Authorization"], "Bearer sk-test", "passes bearer API key to proxied upstream")
 finally:
     bridge._http_post_json = orig_post
+
+print("\n=== shared model output normalization ===")
+fixture_path = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "fixtures",
+    "model-output-normalization.json",
+)
+with open(fixture_path, "r", encoding="utf-8") as fixture_file:
+    normalization_fixtures = json.load(fixture_file)
+for fixture in normalization_fixtures:
+    assert_eq(
+        _normalize_model_output(fixture["input"])["text"],
+        fixture["expected"],
+        f"normalizes {fixture['name']}",
+    )
+
+print("\n=== MiniMax reasoning_split capability ===")
+orig_post_with_retry = bridge._http_post_json_with_retry
+minimax_payloads = []
+
+
+def capture_minimax_post(
+    url,
+    payload,
+    headers,
+    timeout=180,
+    max_attempts=4,
+    base_delay_sec=1.0,
+):
+    minimax_payloads.append(dict(payload))
+    if len(minimax_payloads) == 1:
+        raise RuntimeError(
+            "HTTP 422 from https://api.minimax.io/v1/chat/completions: "
+            "unknown parameter reasoning_split"
+        )
+    return json.dumps({
+        "choices": [{
+            "message": {
+                "reasoning_content": "private",
+                "content": "<think>private fallback</think>translated text",
+            },
+        }],
+    })
+
+
+try:
+    bridge._http_post_json_with_retry = capture_minimax_post
+    proxy = OAuthCompatProxyServer({
+        "provider": "openai-compatible",
+        "apiBase": "https://api.minimax.io/v1",
+        "apiKey": "sk-test",
+    })
+    text = proxy.handle_chat_completion({
+        "model": "MiniMax-M2.1",
+        "messages": [{"role": "user", "content": "hello"}],
+        "stream": False,
+    })
+    assert_eq(
+        minimax_payloads[0].get("reasoning_split"),
+        True,
+        "injects reasoning_split for official MiniMax reasoning models",
+    )
+    assert_eq(
+        "reasoning_split" in minimax_payloads[1],
+        False,
+        "retries once without rejected reasoning_split",
+    )
+    assert_eq(text, "translated text", "filters tagged MiniMax reasoning")
+    proxy.handle_chat_completion({
+        "model": "MiniMax-M3",
+        "messages": [{"role": "user", "content": "hello again"}],
+        "stream": False,
+    })
+    assert_eq(
+        "reasoning_split" in minimax_payloads[2],
+        False,
+        "caches unsupported MiniMax capability for the endpoint",
+    )
+    unknown_proxy = OAuthCompatProxyServer({
+        "provider": "openai-compatible",
+        "apiBase": "https://proxy.example.test/v1",
+        "apiKey": "sk-test",
+    })
+    unknown_proxy.handle_chat_completion({
+        "model": "MiniMax-M2.1",
+        "messages": [{"role": "user", "content": "proxy request"}],
+        "stream": False,
+    })
+    assert_eq(
+        "reasoning_split" in minimax_payloads[3],
+        False,
+        "does not inject MiniMax parameters into unknown proxies",
+    )
+finally:
+    bridge._http_post_json_with_retry = orig_post_with_retry
 
 print("\n=== Codex OAuth request headers ===")
 headers = _build_codex_oauth_headers("test-token", "account-1")
