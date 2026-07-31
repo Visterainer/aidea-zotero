@@ -1,4 +1,5 @@
 import { cacheExtractedDocumentText, ensurePDFTextCached } from "./pdfContext";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   epubTextRetryAfterByItem,
   pdfTextCache,
@@ -78,7 +79,7 @@ export function resolveReaderDocument(
   const attachmentIDs = item.getAttachments();
   const documents: ReaderDocument[] = [];
   for (const id of attachmentIDs) {
-    const document = asReaderDocument(Zotero.Items.get(id) || null);
+    const document = asReaderDocument(getZoteroItem(id));
     if (document) documents.push(document);
   }
   if (!documents.length) return null;
@@ -170,7 +171,7 @@ function getDocumentTitle(item: Zotero.Item): string {
   try {
     const parent =
       item.isAttachment?.() && item.parentID
-        ? Zotero.Items.get(item.parentID)
+        ? getZoteroItem(item.parentID)
         : null;
     return String(
       parent?.getField?.("title") || item.getField?.("title") || "",

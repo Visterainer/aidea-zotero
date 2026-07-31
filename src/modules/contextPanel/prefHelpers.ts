@@ -3,6 +3,7 @@ import {
   DEFAULT_TEMPERATURE,
   MAX_ALLOWED_TOKENS,
 } from "../../utils/llmDefaults";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   normalizeTemperature,
   normalizeMaxTokens,
@@ -765,7 +766,7 @@ export function getTrackedAssistantNoteForParent(
   }
   let note: Zotero.Item | null;
   try {
-    note = Zotero.Items.get(noteId) || null;
+    note = getZoteroItem(noteId);
   } catch {
     ztoolkit.log(`LLM: Failed to get note item ${noteId}`);
     removeAssistantNoteMapEntry(parentItemId);

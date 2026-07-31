@@ -3,6 +3,7 @@ import {
   SUPPLEMENTAL_PAPER_CONTEXT_MAX_LENGTH,
   SUPPLEMENTAL_PAPER_CONTEXT_TOTAL_MAX_LENGTH,
 } from "./constants";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import { ensurePDFTextCached, buildContext } from "./pdfContext";
 import { pdfTextCache } from "./state";
 import type { PaperContextRef } from "./types";
@@ -18,7 +19,7 @@ function getFirstPdfChildAttachment(
   if (!item || item.isAttachment()) return null;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
-    const attachment = Zotero.Items.get(attachmentId);
+    const attachment = getZoteroItem(attachmentId);
     if (
       attachment &&
       attachment.isAttachment() &&
@@ -31,7 +32,7 @@ function getFirstPdfChildAttachment(
 }
 
 function resolveContextItem(ref: PaperContextRef): Zotero.Item | null {
-  const direct = Zotero.Items.get(ref.contextItemId);
+  const direct = getZoteroItem(ref.contextItemId);
   if (
     direct &&
     direct.isAttachment() &&
@@ -39,7 +40,7 @@ function resolveContextItem(ref: PaperContextRef): Zotero.Item | null {
   ) {
     return direct;
   }
-  const item = Zotero.Items.get(ref.itemId);
+  const item = getZoteroItem(ref.itemId);
   return getFirstPdfChildAttachment(item);
 }
 

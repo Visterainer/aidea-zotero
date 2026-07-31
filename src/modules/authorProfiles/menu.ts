@@ -1,4 +1,5 @@
 import { config } from "../../../package.json";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   isAuthorProfileRunInProgress,
   runAuthorProfileGeneration,
@@ -15,7 +16,7 @@ function resolveProcessableItem(item: Zotero.Item): Zotero.Item | null {
   if (!item) return null;
   if (item.isRegularItem?.()) return item;
   if (item.isAttachment?.() && item.parentID) {
-    return Zotero.Items.get(item.parentID) || null;
+    return getZoteroItem(item.parentID);
   }
   return null;
 }

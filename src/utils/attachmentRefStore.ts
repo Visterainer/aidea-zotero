@@ -4,6 +4,7 @@ import {
   removeAttachmentFile,
 } from "../modules/contextPanel/attachmentStorage";
 import { fileUrlToPath } from "./pathFileUrl";
+import { getZoteroItem } from "./zoteroItems";
 
 export type AttachmentRefOwnerType = "conversation" | "note";
 
@@ -152,7 +153,7 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
     if (!Number.isFinite(ownerId) || ownerId <= 0) continue;
     let note: Zotero.Item | null;
     try {
-      note = Zotero.Items.get(ownerId) || null;
+      note = getZoteroItem(ownerId);
     } catch (_err) {
       note = null;
     }

@@ -23,6 +23,7 @@
 
 import { getLocaleID } from "../../utils/locale";
 import { renderMarkdown } from "../../utils/markdown";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import { config, GLOBAL_CONVERSATION_KEY_BASE, PANE_ID } from "./constants";
 import type { Message } from "./types";
 import {
@@ -699,7 +700,7 @@ export function registerReaderSelectionTracking() {
     })();
     const itemId = event.reader?._item?.id || event.reader?.itemID;
     if (typeof itemId !== "number") return;
-    const item = Zotero.Items.get(itemId) || null;
+    const item = getZoteroItem(itemId);
     const cacheKeys = getItemSelectionCacheKeys(item);
     const keys = cacheKeys.length ? cacheKeys : [itemId];
     const isPopupOptionEnabled = (key: string): boolean => {
@@ -766,9 +767,7 @@ export function registerReaderSelectionTracking() {
         };
       };
       if (item?.attachmentContentType === EPUB_CONTENT_TYPE) {
-        const parent = item.parentID
-          ? Zotero.Items.get(item.parentID) || null
-          : null;
+        const parent = item.parentID ? getZoteroItem(item.parentID) : null;
         const title = sanitizeText(
           parent?.getField?.("title") ||
             item.getField?.("title") ||

@@ -1,4 +1,5 @@
 import { renderMarkdown, renderMarkdownForNote } from "../../utils/markdown";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   findAssistantBubbleByMessageId,
   patchStreamingBubble,
@@ -1177,7 +1178,7 @@ async function buildCombinedContextForRequest(params: {
     // Rebuild from the stored ID instead of re-resolving from the current tab.
     params.setStatusSafely(getPanelI18n().rebuildingDocumentContext, "sending");
     try {
-      const ctxItem = Zotero.Items.get(pool.basePdfItemId);
+      const ctxItem = getZoteroItem(pool.basePdfItemId);
       if (ctxItem) {
         await ensurePDFTextCached(ctxItem);
         const cached = pdfTextCache.get(ctxItem.id);
@@ -1245,7 +1246,7 @@ async function buildCombinedContextForRequest(params: {
       pool.basePdfItemId = ctxItem.id;
       try {
         const parentItem = ctxItem.parentID
-          ? Zotero.Items.get(ctxItem.parentID)
+          ? getZoteroItem(ctxItem.parentID)
           : null;
         pool.basePdfTitle =
           (parentItem ? parentItem.getField("title") : "") ||
@@ -1345,7 +1346,7 @@ function buildContextRefsSnapshot(
     // Find the parent item ID from the PDF attachment.
     let parentItemId = pool.basePdfItemId;
     try {
-      const attachment = Zotero.Items.get(pool.basePdfItemId);
+      const attachment = getZoteroItem(pool.basePdfItemId);
       if (attachment?.parentID) {
         parentItemId = attachment.parentID;
       }
