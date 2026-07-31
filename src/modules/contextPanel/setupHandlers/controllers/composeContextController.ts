@@ -2,6 +2,7 @@ import { normalizePaperContextRefs } from "../../normalizers";
 import { sanitizeText } from "../../textUtils";
 import { resolvePaperContextDisplayMetadata as resolvePaperContextDisplayMetadataShared } from "../../paperAttribution";
 import type { PaperContextRef } from "../../types";
+import { getZoteroItem as getZoteroItemById } from "../../../../utils/zoteroItems";
 
 export function normalizePaperContextEntries(
   value: unknown,
@@ -58,7 +59,7 @@ function getZoteroItem(itemId: number): Zotero.Item | null {
     ) {
       return null;
     }
-    return Zotero.Items.get(itemId) || null;
+    return getZoteroItemById(itemId);
   } catch {
     return null;
   }

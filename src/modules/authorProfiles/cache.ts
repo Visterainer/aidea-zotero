@@ -1,4 +1,5 @@
 import { renderMarkdownForNote } from "../../utils/markdown";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import { getAllAuthorProfileNoteTitles, getAuthorProfileCopy } from "./i18n";
 import type { AuthorProfileResult } from "./types";
 import { NOTE_MARKER } from "./utils";
@@ -27,7 +28,7 @@ async function getChildNotes(parentItem: Zotero.Item): Promise<Zotero.Item[]> {
         const id = Number(rawId);
         if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue;
         seen.add(id);
-        const note = Zotero.Items.get(id) || null;
+        const note = getZoteroItem(id);
         if (note?.isNote?.()) out.push(note);
       }
     }

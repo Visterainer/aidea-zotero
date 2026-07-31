@@ -7,6 +7,7 @@ import type {
   PaperMetadata,
   SourceResult,
 } from "./types";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   fetchCrossrefAuthors,
   fetchOpenAlexAuthorMetrics,
@@ -108,7 +109,7 @@ function getPdfAttachments(item: Zotero.Item): Zotero.Item[] {
   }
   try {
     for (const id of item.getAttachments?.() || []) {
-      pushIfPdf(Zotero.Items.get(id) || null);
+      pushIfPdf(getZoteroItem(id));
     }
   } catch {
     /* no attachments */

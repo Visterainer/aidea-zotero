@@ -10,6 +10,7 @@ import {
   extractTextFromPdfPath,
   extractTextFromStoredFile,
 } from "../../../../utils/fileExtraction";
+import { getZoteroItem } from "../../../../utils/zoteroItems";
 import { getPanelI18n } from "../../i18n";
 
 type StatusLevel = "ready" | "warning" | "error";
@@ -220,16 +221,16 @@ export async function resolveZoteroItemFiles(
   const seenAttachmentIds = new Set<number>();
   for (const id of ids) {
     try {
-      const zoteroItem = Zotero.Items.get(id);
+      const zoteroItem = getZoteroItem(id);
       if (!zoteroItem) continue;
       const candidateAttachments: Zotero.Item[] = [];
       if (isReadableLocalAttachment(zoteroItem)) {
         candidateAttachments.push(zoteroItem);
-      } else if ((zoteroItem as Zotero.Item).isRegularItem()) {
+      } else if (zoteroItem.isRegularItem()) {
         const attachmentIds = zoteroItem.getAttachments();
         for (const attId of attachmentIds) {
-          const att = Zotero.Items.get(attId);
-          if (isReadableLocalAttachment(att)) {
+          const att = getZoteroItem(attId);
+          if (att && isReadableLocalAttachment(att)) {
             candidateAttachments.push(att);
           }
         }

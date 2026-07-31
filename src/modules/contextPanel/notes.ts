@@ -1,4 +1,5 @@
 import { renderMarkdownForNote } from "../../utils/markdown";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   sanitizeText,
   escapeNoteHtml,
@@ -15,7 +16,7 @@ import { getPanelLang, type PanelLang } from "./i18n";
 
 function resolveParentItemForNote(item: Zotero.Item): Zotero.Item | null {
   if (item.isAttachment() && item.parentID) {
-    const parent = Zotero.Items.get(item.parentID) || null;
+    const parent = getZoteroItem(item.parentID);
     if (parent && parent.isRegularItem()) return parent;
     return null;
   }
@@ -350,7 +351,7 @@ async function findSelectionTranslationNote(
   }
 
   for (const noteId of noteIds) {
-    const note = Zotero.Items.get(noteId) || null;
+    const note = getZoteroItem(noteId);
     if (isSelectionTranslationNote(note)) return note;
   }
 

@@ -1,4 +1,5 @@
 import { callLLM, callLLMStream } from "../../utils/llmClient";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   loadSelectionTranslateColdStartCache,
   saveSelectionTranslateColdStartCache,
@@ -258,7 +259,7 @@ function getDocumentMetadata(
 } {
   const parent =
     documentItem.isAttachment?.() && documentItem.parentID
-      ? Zotero.Items.get(documentItem.parentID)
+      ? getZoteroItem(documentItem.parentID)
       : null;
   const title =
     parent?.getField?.("title") ||

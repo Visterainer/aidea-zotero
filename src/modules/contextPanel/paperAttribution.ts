@@ -1,4 +1,5 @@
 import type { PaperContextRef } from "./types";
+import { getZoteroItem as getZoteroItemById } from "../../utils/zoteroItems";
 
 function normalizeText(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -26,7 +27,7 @@ function getZoteroItem(itemId: number): Zotero.Item | null {
     ) {
       return null;
     }
-    return Zotero.Items.get(itemId) || null;
+    return getZoteroItemById(itemId);
   } catch {
     return null;
   }

@@ -4,6 +4,7 @@ import {
   isLikelyCorruptedSelectedText,
   setStatus,
 } from "./textUtils";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   normalizePaperContextRefs,
   normalizeSelectedTextSource,
@@ -213,8 +214,8 @@ function getActiveReaderAttachmentFromTabs(
   const data = activeTab.data || {};
   const candidateIDs = collectCandidateItemIDsFromObject(data);
   for (const itemId of candidateIDs) {
-    const item = Zotero.Items.get(itemId);
-    if (isSupported(item)) return item;
+    const item = getZoteroItem(itemId);
+    if (item && isSupported(item)) return item;
   }
 
   // Fallback: map selected tab id to reader instance if available.
@@ -225,8 +226,8 @@ function getActiveReaderAttachmentFromTabs(
   ).Reader?.getByTabID?.(selectedId);
   const readerItemId = parseItemID(reader?._item?.id ?? reader?.itemID);
   if (readerItemId !== null) {
-    const readerItem = Zotero.Items.get(readerItemId);
-    if (isSupported(readerItem)) return readerItem;
+    const readerItem = getZoteroItem(readerItemId);
+    if (readerItem && isSupported(readerItem)) return readerItem;
   }
 
   return null;
@@ -264,7 +265,7 @@ function getFirstPdfChildAttachment(
   if (!item || item.isAttachment()) return null;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
-    const attachment = Zotero.Items.get(attachmentId);
+    const attachment = getZoteroItem(attachmentId);
     if (isSupportedContextAttachment(attachment)) {
       return attachment;
     }
@@ -356,7 +357,7 @@ export function getActiveReaderSelectionText(
   //    the cache entry is automatically cleared, preventing stale results.
   const itemId = reader?._item?.id || reader?.itemID;
   if (typeof itemId === "number") {
-    const readerItem = Zotero.Items.get(itemId) || null;
+    const readerItem = getZoteroItem(itemId);
     const readerKeys = getItemSelectionCacheKeys(readerItem);
     for (const key of readerKeys) {
       const fromCache = recentReaderSelectionCache.get(key) || "";

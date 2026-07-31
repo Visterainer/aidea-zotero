@@ -1,4 +1,5 @@
 import type { PaperContextRef } from "./types";
+import { getZoteroItem } from "../../utils/zoteroItems";
 
 export type PaperSearchAttachmentCandidate = {
   contextItemId: number;
@@ -102,8 +103,8 @@ function getPdfChildAttachments(item: Zotero.Item): Zotero.Item[] {
   if (!item?.isRegularItem?.()) return out;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
-    const attachment = Zotero.Items.get(attachmentId);
-    if (isPdfAttachment(attachment)) {
+    const attachment = getZoteroItem(attachmentId);
+    if (attachment && isPdfAttachment(attachment)) {
       out.push(attachment);
     }
   }
@@ -332,10 +333,7 @@ export async function searchPaperCandidates(
 
   for (const item of items) {
     if (isPdfAttachment(item)) {
-      if (
-        (item as Zotero.Item).parentID ||
-        (excludeId && item.id === excludeId)
-      ) {
+      if (item.parentID || (excludeId && item.id === excludeId)) {
         continue;
       }
       const standalone = buildStandaloneAttachmentCandidate(item);

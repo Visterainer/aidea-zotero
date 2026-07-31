@@ -1,4 +1,5 @@
 import { callEmbeddings } from "../../utils/llmClient";
+import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   CHUNK_TARGET_LENGTH,
   CHUNK_OVERLAP,
@@ -45,7 +46,7 @@ async function cachePDFText(item: Zotero.Item) {
     let pdfText = "";
     const mainItem =
       item.isAttachment() && item.parentID
-        ? Zotero.Items.get(item.parentID)
+        ? getZoteroItem(item.parentID)
         : null;
 
     const title = mainItem?.getField("title") || item.getField("title") || "";
