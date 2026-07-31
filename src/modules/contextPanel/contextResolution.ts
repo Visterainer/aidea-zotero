@@ -33,7 +33,10 @@ import {
   getSelectionFromDocument,
 } from "./readerSelection";
 import { getPanelI18n } from "./i18n";
-import { getReaderDocumentKind } from "./documentContext";
+import {
+  getReaderDocumentCapabilities,
+  getReaderDocumentKind,
+} from "./documentContext";
 
 const SELECTED_TEXT_GROUP_EXPANDED_INDEX = -2;
 
@@ -283,13 +286,9 @@ export function resolveContextSourceItem(
     };
   }
 
-  // Prefer the panel's own item so each reader tab stays isolated.
-  // Only fall back to the global active-tab query when panelItem
-  // itself doesn't resolve to a PDF.
-  if (
-    panelItem.isAttachment() &&
-    panelItem.attachmentContentType === "application/pdf"
-  ) {
+  // Prefer the panel's own item so each reader tab stays isolated. Document
+  // adapters decide which attachment formats can provide panel context.
+  if (getReaderDocumentCapabilities(panelItem)?.panelChat) {
     const label = getContextItemLabel(panelItem);
     return {
       contextItem: panelItem,
@@ -297,7 +296,7 @@ export function resolveContextSourceItem(
     };
   }
   // (Parent item fallback removed to enforce strict isolation between Library and Reader)
-  // No PDF context found for this item — return null.
+  // No supported document context found for this item — return null.
   // (Previously fell back to the globally active reader tab, but that
   // leaked reader PDF context into the library panel.)
 
@@ -314,7 +313,7 @@ export function resolveContextSourceItem(
     : [];
   return {
     contextItem: null,
-    statusText: `No active tab PDF context (tab=${selectedTab?.selectedID ?? "?"}, type=${selectedTab?.selectedType ?? "?"}, tabType=${activeTab?.type ?? "?"}, dataKeys=${dataKeys.join("|") || "-"})`,
+    statusText: `No active document context (tab=${selectedTab?.selectedID ?? "?"}, type=${selectedTab?.selectedType ?? "?"}, tabType=${activeTab?.type ?? "?"}, dataKeys=${dataKeys.join("|") || "-"})`,
   };
 }
 

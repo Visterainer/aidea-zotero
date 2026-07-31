@@ -7,9 +7,10 @@ import {
   getPanelAbortController,
   isPanelGenerating,
   isPanelRequestCancelled,
+  resetBaseDocumentState,
 } from "../src/modules/contextPanel/state";
 
-describe("contextPanel panel request state", function () {
+describe("contextPanel state", function () {
   it("does not let an older request clear a newer active request", function () {
     const panel = {} as Element;
 
@@ -49,5 +50,26 @@ describe("contextPanel panel request state", function () {
     assert.isFalse(attachPanelAbortController(panel, 10, staleController));
     assert.isTrue(staleController.signal.aborted);
     assert.isNull(getPanelAbortController(panel));
+  });
+
+  it("clears persisted retrieval scope with a missing base document", function () {
+    const entry = {
+      basePdfContext: "old context",
+      basePdfItemId: 42,
+      basePdfTitle: "Old Book",
+      basePdfRemoved: false,
+      baseDocumentKind: "epub" as const,
+      baseDocumentSegmentIds: ["epub:chapter-two.xhtml"],
+      supplementalContexts: new Map(),
+    };
+
+    resetBaseDocumentState(entry);
+
+    assert.strictEqual(entry.basePdfContext, "");
+    assert.isNull(entry.basePdfItemId);
+    assert.strictEqual(entry.basePdfTitle, "");
+    assert.isNull(entry.baseDocumentKind);
+    assert.deepEqual(entry.baseDocumentSegmentIds, []);
+    assert.isFalse(entry.basePdfRemoved);
   });
 });

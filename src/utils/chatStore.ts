@@ -3,6 +3,7 @@ import type {
   PaperContextRef,
   GlobalConversationSummary,
 } from "../modules/contextPanel/types";
+import type { DocumentContextRef } from "../modules/contextPanel/document/types";
 import {
   GLOBAL_CONVERSATION_KEY_BASE,
   PAPER_CONVERSATION_KEY_BASE,
@@ -15,6 +16,9 @@ import {
 import { normalizeModelOutput } from "./modelOutputNormalizer";
 
 export type ContextRefsJson = {
+  /** Canonical format-neutral base document reference. */
+  baseDocument?: DocumentContextRef;
+  /** Legacy PDF reference retained for persisted conversation compatibility. */
   basePdf?: {
     itemId: number;
     contextItemId: number;

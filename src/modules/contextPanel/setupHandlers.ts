@@ -116,6 +116,8 @@ import {
   setSelectedTextExpandedIndex,
 } from "./contextResolution";
 import { resolvePaperContextRefFromAttachment } from "./paperAttribution";
+import { getReaderDocumentCapabilities } from "./documentContext";
+import { getDocumentAdapterForItem } from "./document/registry";
 import { captureScreenshotSelection, optimizeImageDataUrl } from "./screenshot";
 import {
   createNoteFromAssistantText,
@@ -6491,11 +6493,11 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         pendingSelectedText ||
         getActiveReaderSelectionText(body.ownerDocument as Document, item);
       pendingSelectedText = "";
-      const activeReaderAttachment =
-        item?.isAttachment?.() &&
-        item.attachmentContentType === "application/pdf"
-          ? item
-          : getActiveContextAttachmentFromTabs();
+      const readerCapabilities = getReaderDocumentCapabilities(item);
+      const readerAdapter = getDocumentAdapterForItem(item);
+      const activeReaderAttachment = readerCapabilities?.selectionText
+        ? item
+        : getActiveContextAttachmentFromTabs();
       const resolvedPaperContext = resolvePaperContextRefFromAttachment(
         activeReaderAttachment,
       );
@@ -6506,10 +6508,15 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         // paper conversation key which lives in a different numeric range.
         const currentItemId = item?.id;
         const currentParentId = item?.parentID;
+        const acceptsUnattributedDocumentSelection = Boolean(
+          readerCapabilities?.selectionText &&
+          readerAdapter?.selectionContextPolicy.allowUnattributedSelection,
+        );
         const paperMismatch =
-          !resolvedPaperContext ||
-          (resolvedPaperContext.itemId !== currentItemId &&
-            resolvedPaperContext.itemId !== currentParentId);
+          !acceptsUnattributedDocumentSelection &&
+          (!resolvedPaperContext ||
+            (resolvedPaperContext.itemId !== currentItemId &&
+              resolvedPaperContext.itemId !== currentParentId));
         if (paperMismatch) {
           if (status) {
             setStatus(

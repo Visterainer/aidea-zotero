@@ -284,6 +284,13 @@ describe("chatStore message tree", function () {
       text: "new prompt",
       timestamp: 3,
       contextRefs: {
+        baseDocument: {
+          kind: "epub",
+          itemId: 10,
+          contextItemId: 12,
+          title: "Book",
+          retrievalSegmentIds: ["epub:chapter-two.xhtml"],
+        },
         basePdf: {
           itemId: 10,
           contextItemId: 11,
@@ -305,6 +312,10 @@ describe("chatStore message tree", function () {
     assert.strictEqual(activePath[0].siblingIndex, 2);
     assert.strictEqual(activePath[0].siblingCount, 2);
     assert.strictEqual(activePath[0].contextRefs?.basePdf?.contextItemId, 11);
+    assert.deepEqual(
+      activePath[0].contextRefs?.baseDocument?.retrievalSegmentIds,
+      ["epub:chapter-two.xhtml"],
+    );
 
     activePath = await setActiveChild(1, null, firstUser);
     assert.deepEqual(

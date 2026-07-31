@@ -1,3 +1,13 @@
+import type {
+  DocumentCapabilities,
+  DocumentCompleteness,
+  DocumentChunkMetadata,
+  DocumentContextRef,
+  DocumentKind,
+  DocumentPresentation,
+  DocumentStructure,
+} from "./document/types";
+
 export type SelectedTextSource = "pdf" | "model";
 export type SelectedTextContext = {
   text: string;
@@ -36,6 +46,7 @@ export interface Message {
   /** @deprecated Reasoning is request-scoped and is no longer persisted. */
   reasoningDetails?: string;
   contextRefs?: {
+    baseDocument?: DocumentContextRef;
     basePdf?: {
       itemId: number;
       contextItemId: number;
@@ -93,7 +104,7 @@ export type ChatAttachment = {
   processing?: boolean;
 };
 
-export type PdfContext = {
+export type DocumentTextContext = {
   title: string;
   chunks: string[];
   chunkStats: ChunkStat[];
@@ -103,7 +114,22 @@ export type PdfContext = {
   embeddings?: number[][];
   embeddingPromise?: Promise<number[][] | null>;
   embeddingFailed?: boolean;
+  /** Format-neutral metadata. Optional for legacy/test-created contexts. */
+  documentKind?: DocumentKind;
+  documentCapabilities?: DocumentCapabilities;
+  completeness?: DocumentCompleteness;
+  warnings?: string[];
+  fingerprint?: string;
+  /** Attachment revision used to invalidate stale extracted text. */
+  sourceRevision?: string;
+  documentPresentation?: DocumentPresentation;
+  chunkMetadata?: DocumentChunkMetadata[];
+  /** Publisher/author hierarchy, kept separate from non-overlapping chunks. */
+  documentStructure?: DocumentStructure;
 };
+
+/** @deprecated Use DocumentTextContext for format-neutral code. */
+export type PdfContext = DocumentTextContext;
 
 export type PaperContextRef = {
   itemId: number;

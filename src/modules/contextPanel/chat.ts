@@ -61,6 +61,7 @@ import {
   pdfTextCache,
   conversationContextPool,
   ConversationContextPoolEntry,
+  resetBaseDocumentState,
   selectedFileAttachmentCache,
   selectedPaperContextCache,
   selectedImageCache,
@@ -105,7 +106,18 @@ import {
   getStringPref,
   loadPersistedFileAttachmentIds,
 } from "./prefHelpers";
-import { buildContext, ensurePDFTextCached } from "./pdfContext";
+import {
+  buildReaderDocumentContext,
+  ensureDocumentContext,
+  getReaderDocumentKind,
+  isDocumentContextQueryDependent,
+  resolveReaderDocument,
+} from "./documentContext";
+import {
+  createLlmSectionPlanner,
+  SECTION_PLANNER_MAX_TOKENS,
+  SECTION_PLANNER_TEMPERATURE,
+} from "./document/sectionPlanner";
 import {
   buildSupplementalPaperContext,
   buildSinglePaperContext,
@@ -139,6 +151,24 @@ function getAbortController(): new () => AbortController {
       }
     ).AbortController
   );
+}
+
+function attachNewRequestAbortController(
+  body: Element,
+  requestId: number,
+): AbortController | null {
+  const AbortControllerCtor = getAbortController();
+  const controller = new AbortControllerCtor();
+  return attachPanelAbortController(body, requestId, controller)
+    ? controller
+    : null;
+}
+
+function throwIfRequestAborted(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return;
+  const error = new Error("Request cancelled");
+  error.name = "AbortError";
+  throw error;
 }
 
 function setHistoryControlsDisabled(body: Element, disabled: boolean): void {
@@ -242,16 +272,24 @@ function normalizePaperContexts(paperContexts: unknown): PaperContextRef[] {
   return normalizePaperContextRefs(paperContexts, { sanitizeText });
 }
 
+function getBaseDocumentRef(
+  contextRefs: ContextRefsJson | Message["contextRefs"] | undefined,
+) {
+  if (contextRefs?.baseDocument) return contextRefs.baseDocument;
+  const legacyPdf = contextRefs?.basePdf;
+  return legacyPdf ? { ...legacyPdf, kind: "pdf" as const } : undefined;
+}
+
 function getVisibleHistoryPaperContexts(msg: Message): PaperContextRef[] {
   const paperContexts = normalizePaperContexts(msg.paperContexts);
-  const basePdf = msg.contextRefs?.basePdf;
-  if (!basePdf || basePdf.removed) return paperContexts;
+  const baseDocument = getBaseDocumentRef(msg.contextRefs);
+  if (!baseDocument || baseDocument.removed) return paperContexts;
   return paperContexts.filter(
     (ref) =>
-      ref.contextItemId !== basePdf.contextItemId &&
-      ref.itemId !== basePdf.contextItemId &&
-      ref.contextItemId !== basePdf.itemId &&
-      ref.itemId !== basePdf.itemId,
+      ref.contextItemId !== baseDocument.contextItemId &&
+      ref.itemId !== baseDocument.contextItemId &&
+      ref.contextItemId !== baseDocument.itemId &&
+      ref.itemId !== baseDocument.itemId,
   );
 }
 
@@ -679,14 +717,13 @@ export async function ensureConversationLoaded(
       // Phase 2: Restore conversation context pool from DB refs.
       restoreContextPoolFromStoredMessages(conversationKey, storedMessages);
 
-      // Fallback: if pool was NOT restored (older messages without context_refs_json)
-      // but the item is a PDF attachment (Reader mode), create a minimal pool
-      // so the base PDF chip still appears.
+      // Fallback: if the pool was not restored from older messages, create a
+      // minimal reader-document pool so its context chip still appears.
+      const readerDocumentKind = getReaderDocumentKind(item);
       if (
         !conversationContextPool.has(conversationKey) &&
         storedMessages.length > 0 &&
-        item.isAttachment?.() &&
-        item.attachmentContentType === "application/pdf"
+        readerDocumentKind
       ) {
         const parentTitle =
           (item.parentItem?.getField?.("title") as string) || "";
@@ -695,10 +732,12 @@ export async function ensureConversationLoaded(
           basePdfItemId: item.id,
           basePdfTitle: parentTitle || "Active Document",
           basePdfRemoved: false,
+          baseDocumentKind: readerDocumentKind,
+          baseDocumentSegmentIds: [],
           supplementalContexts: new Map(),
         });
         ztoolkit.log(
-          `LLM: Created fallback pool for PDF item ${item.id} (no context_refs_json in stored messages)`,
+          `LLM: Created fallback pool for ${readerDocumentKind} item ${item.id} (no context_refs_json in stored messages)`,
         );
       }
 
@@ -977,6 +1016,17 @@ function restoreRequestUIIdle(
   });
 }
 
+function finishPanelRequestUI(
+  body: Element,
+  ui: PanelRequestUI,
+  conversationKey: number,
+  requestId: number,
+): void {
+  if (!finishPanelRequest(body, requestId)) return;
+  setHistoryControlsDisabled(body, false);
+  restoreRequestUIIdle(body, ui, conversationKey, requestId);
+}
+
 function createPanelUpdateHelpers(
   body: Element,
   item: Zotero.Item,
@@ -1107,14 +1157,28 @@ async function buildCombinedContextForRequest(params: {
   question: string;
   imageCount: number;
   paperContexts: PaperContextRef[];
+  model: string;
   apiBase: string;
   apiKey: string;
   conversationKey: number;
+  signal?: AbortSignal;
   setStatusSafely: (
     text: string,
     kind: Parameters<typeof setStatus>[2],
   ) => void;
 }): Promise<string> {
+  throwIfRequestAborted(params.signal);
+  const sectionPlanner = createLlmSectionPlanner((prompt, signal) =>
+    callLLM({
+      prompt,
+      signal,
+      model: params.model,
+      apiBase: params.apiBase,
+      apiKey: params.apiKey,
+      temperature: SECTION_PLANNER_TEMPERATURE,
+      maxTokens: SECTION_PLANNER_MAX_TOKENS,
+    }),
+  );
   // ── Get or create the conversation-level context pool ──
   let pool = conversationContextPool.get(params.conversationKey);
   if (!pool) {
@@ -1123,6 +1187,8 @@ async function buildCombinedContextForRequest(params: {
       basePdfItemId: null,
       basePdfTitle: "",
       basePdfRemoved: false,
+      baseDocumentKind: null,
+      baseDocumentSegmentIds: [],
       supplementalContexts: new Map(),
     };
     conversationContextPool.set(params.conversationKey, pool);
@@ -1155,6 +1221,7 @@ async function buildCombinedContextForRequest(params: {
       ztoolkit.log("LLM: Memory recall failed", err);
     }
   }
+  throwIfRequestAborted(params.signal);
 
   // ── Zone A: Base PDF context (cached after first build) ──
   const hasSupplementalPaperContexts = params.paperContexts.length > 0;
@@ -1179,11 +1246,13 @@ async function buildCombinedContextForRequest(params: {
     params.setStatusSafely(getPanelI18n().rebuildingDocumentContext, "sending");
     try {
       const ctxItem = getZoteroItem(pool.basePdfItemId);
-      if (ctxItem) {
-        await ensurePDFTextCached(ctxItem);
-        const cached = pdfTextCache.get(ctxItem.id);
-        pdfContext = await buildContext(
-          cached,
+      const readerDocument = resolveReaderDocument(ctxItem);
+      if (readerDocument) {
+        const cached = await ensureDocumentContext(readerDocument);
+        const queryDependent = isDocumentContextQueryDependent(readerDocument);
+        pdfContext = await buildReaderDocumentContext(
+          readerDocument,
+          cached || undefined,
           params.question,
           params.imageCount > 0,
           { apiBase: params.apiBase, apiKey: params.apiKey },
@@ -1195,9 +1264,20 @@ async function buildCombinedContextForRequest(params: {
             maxLength: hasSupplementalPaperContexts
               ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH
               : undefined,
+            preferredSegmentIds: queryDependent
+              ? pool.baseDocumentSegmentIds
+              : undefined,
+            onRetrievedSegments: queryDependent
+              ? (segmentIds) => {
+                  pool.baseDocumentSegmentIds = segmentIds;
+                }
+              : undefined,
+            sectionPlanner: queryDependent ? sectionPlanner : undefined,
+            signal: params.signal,
           },
         );
-        pool.basePdfContext = pdfContext;
+        pool.basePdfContext = queryDependent ? "" : pdfContext;
+        pool.baseDocumentKind = readerDocument.kind;
         ztoolkit.log(
           `LLM context: rebuilt basePdfContext from stored ID ${pool.basePdfItemId} (${pdfContext.length} chars)`,
         );
@@ -1205,11 +1285,12 @@ async function buildCombinedContextForRequest(params: {
         ztoolkit.log(
           `LLM context: stored basePdfItemId=${pool.basePdfItemId} no longer exists`,
         );
-        pool.basePdfItemId = null;
+        resetBaseDocumentState(pool);
       }
     } catch (err) {
+      throwIfRequestAborted(params.signal);
       ztoolkit.log("LLM context: failed to rebuild from stored ID", err);
-      pool.basePdfItemId = null;
+      resetBaseDocumentState(pool);
     }
   } else {
     // First turn: resolve from tab and cache.
@@ -1217,33 +1298,55 @@ async function buildCombinedContextForRequest(params: {
     params.setStatusSafely(contextSource.statusText, "sending");
     if (contextSource.contextItem) {
       const ctxItem = contextSource.contextItem;
+      const readerDocument = resolveReaderDocument(ctxItem);
+      // This branch establishes a new base document, so no structural scope
+      // from an earlier or missing attachment may carry into it.
+      pool.baseDocumentSegmentIds = [];
       ztoolkit.log(
         `LLM context: item=${ctxItem.id}, isAttachment=${ctxItem.isAttachment()}, ` +
           `contentType=${ctxItem.attachmentContentType || "N/A"}, hasCachedText=${pdfTextCache.has(ctxItem.id)}`,
       );
-      await ensurePDFTextCached(ctxItem);
-      const cached = pdfTextCache.get(ctxItem.id);
+      const cached = readerDocument
+        ? await ensureDocumentContext(readerDocument)
+        : null;
       ztoolkit.log(
         `LLM context: cached chunks=${cached?.chunks?.length ?? 0}, fullLength=${cached?.fullLength ?? 0}`,
       );
-      pdfContext = await buildContext(
-        cached,
-        params.question,
-        params.imageCount > 0,
-        { apiBase: params.apiBase, apiKey: params.apiKey },
-        {
-          forceRetrieval: hasSupplementalPaperContexts,
-          maxChunks: hasSupplementalPaperContexts
-            ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_CHUNKS
-            : undefined,
-          maxLength: hasSupplementalPaperContexts
-            ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH
-            : undefined,
-        },
-      );
+      const queryDependent = readerDocument
+        ? isDocumentContextQueryDependent(readerDocument)
+        : false;
+      pdfContext = readerDocument
+        ? await buildReaderDocumentContext(
+            readerDocument,
+            cached || undefined,
+            params.question,
+            params.imageCount > 0,
+            { apiBase: params.apiBase, apiKey: params.apiKey },
+            {
+              forceRetrieval: hasSupplementalPaperContexts,
+              maxChunks: hasSupplementalPaperContexts
+                ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_CHUNKS
+                : undefined,
+              maxLength: hasSupplementalPaperContexts
+                ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH
+                : undefined,
+              preferredSegmentIds: queryDependent
+                ? pool.baseDocumentSegmentIds
+                : undefined,
+              onRetrievedSegments: queryDependent
+                ? (segmentIds) => {
+                    pool.baseDocumentSegmentIds = segmentIds;
+                  }
+                : undefined,
+              sectionPlanner: queryDependent ? sectionPlanner : undefined,
+              signal: params.signal,
+            },
+          )
+        : "";
       // Lock into the pool.
-      pool.basePdfContext = pdfContext;
+      pool.basePdfContext = readerDocument && !queryDependent ? pdfContext : "";
       pool.basePdfItemId = ctxItem.id;
+      pool.baseDocumentKind = readerDocument?.kind || null;
       try {
         const parentItem = ctxItem.parentID
           ? getZoteroItem(ctxItem.parentID)
@@ -1325,6 +1428,7 @@ async function buildCombinedContextForRequest(params: {
     ? `Supplemental Paper Contexts:\n\n${supplementalBlocks.join("\n\n---\n\n")}`
     : "";
 
+  throwIfRequestAborted(params.signal);
   return [memoryContext, pdfContext, supplementalPaperContext]
     .map((entry) => sanitizeText(entry || "").trim())
     .filter(Boolean)
@@ -1343,22 +1447,39 @@ function buildContextRefsSnapshot(
 
   const refs: ContextRefsJson = {};
   if (pool.basePdfItemId !== null) {
-    // Find the parent item ID from the PDF attachment.
+    // Find the parent bibliographic item ID from the document attachment.
     let parentItemId = pool.basePdfItemId;
+    let documentKind = pool.baseDocumentKind;
     try {
       const attachment = getZoteroItem(pool.basePdfItemId);
       if (attachment?.parentID) {
         parentItemId = attachment.parentID;
       }
+      documentKind ||= getReaderDocumentKind(attachment);
     } catch (_e) {
       // Fallback to using the attachment ID as both.
     }
-    refs.basePdf = {
+    const baseDocument = {
+      kind: documentKind || ("pdf" as const),
       itemId: parentItemId,
       contextItemId: pool.basePdfItemId,
       title: pool.basePdfTitle || "Document",
       removed: pool.basePdfRemoved || undefined,
+      retrievalSegmentIds: pool.baseDocumentSegmentIds.length
+        ? pool.baseDocumentSegmentIds
+        : undefined,
     };
+    refs.baseDocument = baseDocument;
+    // Keep writing the legacy field for PDFs so existing installations and
+    // older plugin versions retain their exact persisted behavior.
+    if (baseDocument.kind === "pdf") {
+      refs.basePdf = {
+        itemId: baseDocument.itemId,
+        contextItemId: baseDocument.contextItemId,
+        title: baseDocument.title,
+        removed: baseDocument.removed,
+      };
+    }
   }
   if (pool.supplementalContexts.size > 0) {
     refs.supplementalPapers = [...pool.supplementalContexts.values()].map(
@@ -1403,11 +1524,19 @@ function restoreContextPoolFromStoredMessages(
     return;
   }
 
+  const baseDocumentRef = getBaseDocumentRef(latestContextRefs);
   const pool: ConversationContextPoolEntry = {
     basePdfContext: "", // Will be rebuilt lazily on next send.
-    basePdfItemId: latestContextRefs.basePdf?.contextItemId ?? null,
-    basePdfTitle: latestContextRefs.basePdf?.title ?? "",
-    basePdfRemoved: latestContextRefs.basePdf?.removed ?? false,
+    basePdfItemId: baseDocumentRef?.contextItemId ?? null,
+    basePdfTitle: baseDocumentRef?.title ?? "",
+    basePdfRemoved: baseDocumentRef?.removed ?? false,
+    baseDocumentKind: baseDocumentRef?.kind ?? null,
+    baseDocumentSegmentIds: Array.isArray(baseDocumentRef?.retrievalSegmentIds)
+      ? baseDocumentRef.retrievalSegmentIds.filter(
+          (segmentId): segmentId is string =>
+            typeof segmentId === "string" && Boolean(segmentId),
+        )
+      : [],
     supplementalContexts: new Map(),
   };
 
@@ -1716,6 +1845,7 @@ async function compactConversationHistory(params: {
   apiBase: string;
   apiKey: string;
   model?: string;
+  signal?: AbortSignal;
 }): Promise<ChatMessage[]> {
   const usableHistory = params.historyForLLM.filter(isUsableLLMHistoryMessage);
   const totalEstimate =
@@ -1757,6 +1887,7 @@ async function compactConversationHistory(params: {
         model: params.model,
         apiBase: params.apiBase,
         apiKey: params.apiKey,
+        signal: params.signal,
         temperature: 0.2,
         maxTokens: 1200,
       });
@@ -1768,6 +1899,7 @@ async function compactConversationHistory(params: {
         );
       }
     } catch (err) {
+      if (params.signal?.aborted) throw err;
       ztoolkit.log(
         "LLM: Failed to generate Zone B summary, falling back to truncation",
         err,
@@ -2137,6 +2269,11 @@ export async function editUserMessageAndRetry(
 
   const thisRequestId = nextRequestId();
   beginPanelRequest(body, thisRequestId);
+  const requestAbortController = attachNewRequestAbortController(
+    body,
+    thisRequestId,
+  );
+  if (!requestAbortController) return "stale";
   setRequestUIBusy(body, ui, conversationKey, i18n.preparingRetry);
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
@@ -2156,8 +2293,7 @@ export async function editUserMessageAndRetry(
     toStoredMessageFromPanelMessage(nextUserMessage),
   );
   if (!nextUserId) {
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setHistoryControlsDisabled(body, false);
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return "persist-failed";
   }
   nextUserMessage.messageId = nextUserId;
@@ -2176,8 +2312,7 @@ export async function editUserMessageAndRetry(
     nextUserId,
   );
   if (!assistantId) {
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setHistoryControlsDisabled(body, false);
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return "persist-failed";
   }
   assistantMessage.messageId = assistantId;
@@ -2203,10 +2338,12 @@ export async function editUserMessageAndRetry(
       question,
       imageCount: screenshotImages.length,
       paperContexts,
+      model: effectiveRequestConfig.model,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       conversationKey,
       setStatusSafely,
+      signal: requestAbortController.signal,
     });
     const refreshedContextRefs = buildContextRefsSnapshot(conversationKey);
     nextUserMessage.contextRefs = refreshedContextRefs;
@@ -2222,15 +2359,10 @@ export async function editUserMessageAndRetry(
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       model: effectiveRequestConfig.model,
+      signal: requestAbortController.signal,
     });
 
-    const AbortControllerCtor = getAbortController();
-    const attached = attachPanelAbortController(
-      body,
-      thisRequestId,
-      AbortControllerCtor ? new AbortControllerCtor() : null,
-    );
-    if (!attached) {
+    if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
       assistantMessage.streaming = false;
       refreshChatSafely();
@@ -2242,7 +2374,7 @@ export async function editUserMessageAndRetry(
       refreshChatSafely();
       return "stale";
     }
-    const panelAbortController = getPanelAbortController(body);
+    const panelAbortController = requestAbortController;
     const editAutoScroller = createStreamingAutoScroller(
       ui.chatBox as HTMLDivElement | null,
       suspendScrollUpdates,
@@ -2377,10 +2509,7 @@ export async function editUserMessageAndRetry(
     );
     return "ok";
   } finally {
-    if (finishPanelRequest(body, thisRequestId)) {
-      setHistoryControlsDisabled(body, false);
-      restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    }
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
   }
 }
 
@@ -2458,6 +2587,11 @@ export async function retryLatestAssistantResponse(
 
   const thisRequestId = nextRequestId();
   beginPanelRequest(body, thisRequestId);
+  const requestAbortController = attachNewRequestAbortController(
+    body,
+    thisRequestId,
+  );
+  if (!requestAbortController) return;
   setRequestUIBusy(body, ui, conversationKey, i18n.preparingRetry);
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
@@ -2475,8 +2609,7 @@ export async function retryLatestAssistantResponse(
     reconstructRetryPayload(retryPair.userMessage);
   if (!question.trim()) {
     setStatusSafely(i18n.nothingToRetryLatestTurn, "error");
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setHistoryControlsDisabled(body, false);
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
 
@@ -2492,8 +2625,7 @@ export async function retryLatestAssistantResponse(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     setStatusSafely(errMsg, "error");
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setHistoryControlsDisabled(body, false);
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
 
@@ -2517,8 +2649,7 @@ export async function retryLatestAssistantResponse(
   );
   if (!assistantId) {
     setStatusSafely(i18n.operationFailed("persist"), "error");
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setHistoryControlsDisabled(body, false);
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
   assistantMessage.messageId = assistantId;
@@ -2544,10 +2675,12 @@ export async function retryLatestAssistantResponse(
       question,
       imageCount: screenshotImages.length,
       paperContexts,
+      model: effectiveRequestConfig.model,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       conversationKey,
       setStatusSafely,
+      signal: requestAbortController.signal,
     });
     if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
@@ -2570,15 +2703,10 @@ export async function retryLatestAssistantResponse(
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       model: effectiveRequestConfig.model,
+      signal: requestAbortController.signal,
     });
 
-    const AbortControllerCtor = getAbortController();
-    const attached = attachPanelAbortController(
-      body,
-      thisRequestId,
-      AbortControllerCtor ? new AbortControllerCtor() : null,
-    );
-    if (!attached) {
+    if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
       assistantMessage.streaming = false;
       refreshChatSafely();
@@ -2591,7 +2719,7 @@ export async function retryLatestAssistantResponse(
       setStatusSafely(i18n.cancelled, "ready");
       return;
     }
-    const panelAbortController = getPanelAbortController(body);
+    const panelAbortController = requestAbortController;
     if (isPanelRequestCancelled(body, thisRequestId)) {
       panelAbortController?.abort();
       assistantMessage.text = `*(${i18n.cancelled})*`;
@@ -2753,10 +2881,7 @@ export async function retryLatestAssistantResponse(
       "error",
     );
   } finally {
-    if (finishPanelRequest(body, thisRequestId)) {
-      setHistoryControlsDisabled(body, false);
-      restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    }
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
   }
 }
 
@@ -2788,12 +2913,24 @@ export async function sendQuestion(
   // Track this request
   const thisRequestId = nextRequestId();
   beginPanelRequest(body, thisRequestId);
+  const requestAbortController = attachNewRequestAbortController(
+    body,
+    thisRequestId,
+  );
+  if (!requestAbortController) return;
   const initialConversationKey = getConversationKey(item);
 
   // Show cancel, hide send
   setRequestUIBusy(body, ui, initialConversationKey, i18n.preparingRequest);
 
-  await ensureConversationLoaded(item);
+  try {
+    await ensureConversationLoaded(item);
+    throwIfRequestAborted(requestAbortController.signal);
+  } catch (err) {
+    finishPanelRequestUI(body, ui, initialConversationKey, thisRequestId);
+    if ((err as { name?: string }).name === "AbortError") return;
+    throw err;
+  }
   const conversationKey = getConversationKey(item);
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
@@ -2825,8 +2962,7 @@ export async function sendQuestion(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     setStatusSafely(errMsg, "error");
-    restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    setHistoryControlsDisabled(body, false);
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
   const shownQuestion = displayQuestion || question;
@@ -2970,10 +3106,12 @@ export async function sendQuestion(
       question,
       imageCount,
       paperContexts: paperContextsForMessage,
+      model: effectiveRequestConfig.model,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       conversationKey,
       setStatusSafely,
+      signal: requestAbortController.signal,
     });
     const refreshedContextRefs = buildContextRefsSnapshot(conversationKey);
     userMessage.contextRefs = refreshedContextRefs;
@@ -2991,19 +3129,14 @@ export async function sendQuestion(
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       model: effectiveRequestConfig.model,
+      signal: requestAbortController.signal,
     });
 
-    const AbortControllerCtor = getAbortController();
-    const attached = attachPanelAbortController(
-      body,
-      thisRequestId,
-      AbortControllerCtor ? new AbortControllerCtor() : null,
-    );
-    if (!attached) {
+    if (isPanelRequestCancelled(body, thisRequestId)) {
       await markCancelled();
       return;
     }
-    const panelAbortController = getPanelAbortController(body);
+    const panelAbortController = requestAbortController;
     // Incremental DOM update: patch the concrete assistant node if it is
     // currently visible. Variant switches can hide it while streaming.
     const sendAutoScroller = createStreamingAutoScroller(
@@ -3102,10 +3235,7 @@ export async function sendQuestion(
       "error",
     );
   } finally {
-    if (finishPanelRequest(body, thisRequestId)) {
-      setHistoryControlsDisabled(body, false);
-      restoreRequestUIIdle(body, ui, conversationKey, thisRequestId);
-    }
+    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
   }
 }
 
