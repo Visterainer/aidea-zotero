@@ -1,7 +1,8 @@
 import type { ModelProfileKey } from "./constants";
+import type { DocumentKind } from "./document/types";
 import type {
   Message,
-  PdfContext,
+  DocumentTextContext,
   CustomShortcut,
   ChatAttachment,
   SelectedTextContext,
@@ -21,6 +22,10 @@ export type ConversationContextPoolEntry = {
   basePdfTitle: string;
   /** True when the user has explicitly unpinned the base PDF. */
   basePdfRemoved: boolean;
+  /** Canonical kind for the legacy-named base context fields above. */
+  baseDocumentKind: DocumentKind | null;
+  /** Most recently emitted structural segment scope for chat follow-ups. */
+  baseDocumentSegmentIds: string[];
   /** Accumulated supplemental paper contexts, keyed by contextItemId. */
   supplementalContexts: Map<
     number,
@@ -38,6 +43,17 @@ export const conversationContextPool = new Map<
   ConversationContextPoolEntry
 >();
 
+/** Clear a missing/replaced base document without carrying its derived scope. */
+export function resetBaseDocumentState(
+  entry: ConversationContextPoolEntry,
+): void {
+  entry.basePdfContext = "";
+  entry.basePdfItemId = null;
+  entry.basePdfTitle = "";
+  entry.baseDocumentKind = null;
+  entry.baseDocumentSegmentIds = [];
+}
+
 // =============================================================================
 // Module State
 // =============================================================================
@@ -49,9 +65,13 @@ export const selectedModelCache = new Map<number, string>();
 /** Parallel cache: tracks which provider label the selected model belongs to. */
 export const selectedModelProviderCache = new Map<number, string>();
 
-export const pdfTextCache = new Map<number, PdfContext>();
-export const pdfTextLoadingTasks = new Map<number, Promise<void>>();
-export const epubTextRetryAfterByItem = new Map<number, number>();
+export const documentTextCache = new Map<number, DocumentTextContext>();
+export const documentTextLoadingTasks = new Map<number, Promise<void>>();
+// Compatibility aliases for existing selection and supplemental-PDF callers.
+export const pdfTextCache = documentTextCache;
+export const pdfTextLoadingTasks = documentTextLoadingTasks;
+export const documentTextRetryAfterByItem = new Map<number, number>();
+export const epubTextRetryAfterByItem = documentTextRetryAfterByItem;
 export const shortcutTextCache = new Map<string, string>();
 export const shortcutMoveModeState = new WeakMap<Element, boolean>();
 export const shortcutRenderItemState = new WeakMap<

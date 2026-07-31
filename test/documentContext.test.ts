@@ -16,6 +16,7 @@ import {
 import {
   getActiveContextAttachmentFromTabs,
   getActiveReaderDocumentAttachmentFromTabs,
+  resolveContextSourceItem,
 } from "../src/modules/contextPanel/contextResolution";
 
 const originalZotero = (globalThis as Record<string, unknown>).Zotero;
@@ -27,6 +28,7 @@ function makeAttachment(params: {
   contentType: string;
   title?: string;
   attachmentText?: Promise<string>;
+  modificationTime?: () => number | undefined;
   getAttachments?: () => number[];
 }): Zotero.Item {
   return {
@@ -35,6 +37,9 @@ function makeAttachment(params: {
     parentID: null,
     attachmentContentType: params.contentType,
     attachmentText: params.attachmentText,
+    get attachmentModificationTime() {
+      return Promise.resolve(params.modificationTime?.());
+    },
     isAttachment: () => true,
     isRegularItem: () => false,
     getAttachments:
@@ -212,6 +217,19 @@ describe("documentContext", function () {
     assert.isNull(getActiveContextAttachmentFromTabs());
   });
 
+  it("accepts an EPUB attachment as side-panel document context", function () {
+    const epub = makeAttachment({
+      id: 27,
+      contentType: EPUB_CONTENT_TYPE,
+      title: "Panel Book",
+    });
+
+    const resolved = resolveContextSourceItem(epub);
+
+    assert.strictEqual(resolved.contextItem, epub);
+    assert.strictEqual(resolved.statusText, "Using context: Panel Book");
+  });
+
   it("reads an existing Zotero EPUB full-text cache without reindexing", async function () {
     const epub = makeAttachment({
       id: 31,
@@ -351,5 +369,35 @@ describe("documentContext", function () {
     assert.strictEqual(indexCalls, 1);
     assert.strictEqual(cacheReadCalls, 3);
     assert.include(recovered?.chunks.join("\n") || "", indexedText);
+  });
+
+  it("invalidates extracted context when the attachment file changes", async function () {
+    let modificationTime = 1_000;
+    let extractionCalls = 0;
+    const pdf = makeAttachment({
+      id: 71,
+      contentType: PDF_CONTENT_TYPE,
+      title: "Mutable paper",
+      modificationTime: () => modificationTime,
+    });
+    (globalThis as Record<string, unknown>).Zotero = {
+      PDFWorker: {
+        getFullText: async () => {
+          extractionCalls += 1;
+          return { text: `Revision ${extractionCalls}` };
+        },
+      },
+      Items: { get: () => null },
+    };
+
+    const first = await ensureDocumentContext({ item: pdf, kind: "pdf" });
+    const reused = await ensureDocumentContext({ item: pdf, kind: "pdf" });
+    modificationTime += 1;
+    const refreshed = await ensureDocumentContext({ item: pdf, kind: "pdf" });
+
+    assert.strictEqual(extractionCalls, 2);
+    assert.strictEqual(reused, first);
+    assert.notStrictEqual(refreshed, first);
+    assert.include(refreshed?.chunks.join("\n") || "", "Revision 2");
   });
 });

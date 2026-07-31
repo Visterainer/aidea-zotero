@@ -15,6 +15,7 @@ import {
   ensureDocumentContext,
   resolveReaderDocument,
 } from "./documentContext";
+import { getDocumentAdapter } from "./document/registry";
 import {
   isSelectionTranslateEnabled,
   warmSelectionTranslateColdStartForReader,
@@ -130,13 +131,14 @@ export async function bootstrapSharedReaderPanel(
     // queries global tab state which may return a different reader document.
     const readerDocument = resolveReaderDocument(item);
     if (readerDocument) {
-      // PDF context also powers reader-panel chat. EPUB context is currently
-      // only used by selection translation, so do not index EPUBs when that
-      // feature is disabled.
-      if (readerDocument.kind === "pdf") {
+      const adapter = getDocumentAdapter(readerDocument.kind);
+      if (adapter?.contextPolicy.eagerWarmup) {
         void ensureDocumentContext(readerDocument);
       }
-      if (isSelectionTranslateEnabled()) {
+      if (
+        adapter?.selectionContextPolicy.strategy === "cold-start-cache" &&
+        isSelectionTranslateEnabled()
+      ) {
         const status = host.querySelector("#llm-status") as HTMLElement | null;
         const i18n = getPanelI18n();
         void warmSelectionTranslateColdStartForReader({
