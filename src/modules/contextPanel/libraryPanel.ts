@@ -19,6 +19,7 @@ import { config } from "../../../package.json";
 import {
   createGlobalConversation,
   getLatestEmptyGlobalConversation,
+  initChatStore,
 } from "../../utils/chatStore";
 import {
   activeConversationModeByLibrary,
@@ -96,6 +97,8 @@ export async function bootstrapSharedLibraryPanel(
   state.hasBootstrapped = true;
 
   try {
+    await initChatStore();
+
     const libraryID = resolveActiveLibraryID() || 1;
     let globalKey = Number(
       activeGlobalConversationByLibrary.get(libraryID) || 0,

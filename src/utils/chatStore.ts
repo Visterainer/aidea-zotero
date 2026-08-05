@@ -99,7 +99,20 @@ function normalizeLimit(limit: number, fallback: number): number {
   return Math.max(1, Math.floor(limit));
 }
 
-export async function initChatStore(): Promise<void> {
+let chatStoreInitialization: Promise<void> | null = null;
+
+export function initChatStore(): Promise<void> {
+  if (!chatStoreInitialization) {
+    chatStoreInitialization = initializeChatStore().catch((err) => {
+      // A core-schema failure must be retryable when a panel opens later.
+      chatStoreInitialization = null;
+      throw err;
+    });
+  }
+  return chatStoreInitialization;
+}
+
+async function initializeChatStore(): Promise<void> {
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(
       `CREATE TABLE IF NOT EXISTS ${CHAT_MESSAGES_TABLE} (
@@ -253,8 +266,6 @@ export async function initChatStore(): Promise<void> {
       )`,
     );
 
-    await migrateLinearConversationsToTree();
-
     await Zotero.DB.queryAsync(
       `CREATE TABLE IF NOT EXISTS ${GLOBAL_CONVERSATIONS_TABLE} (
         conversation_key INTEGER PRIMARY KEY,
@@ -301,6 +312,25 @@ export async function initChatStore(): Promise<void> {
       );
     }
   });
+
+  // Historical cleanup must never roll back the core tables required to open
+  // the library and reader panels. Each migration gets its own transaction so
+  // one bad legacy row cannot prevent the store from becoming usable.
+  await runOptionalChatStoreMigration(
+    "linear-conversations-to-tree",
+    migrateLinearConversationsToTree,
+  );
+}
+
+async function runOptionalChatStoreMigration(
+  name: string,
+  migration: () => Promise<void>,
+): Promise<void> {
+  try {
+    await Zotero.DB.executeTransaction(migration);
+  } catch (err) {
+    ztoolkit.log(`LLM: Optional chat store migration failed (${name})`, err);
+  }
 }
 
 export async function migratePersistedModelOutputs(): Promise<void> {

@@ -28,6 +28,7 @@ import {
 import {
   createPaperConversation,
   getLatestPaperConversation,
+  initChatStore,
 } from "../../utils/chatStore";
 import { getPanelI18n } from "./i18n";
 
@@ -100,6 +101,8 @@ export async function bootstrapSharedReaderPanel(
   state.hasBootstrapped = true;
 
   try {
+    await initChatStore();
+
     // ── Resolve active paper conversation key ──
     // Each PDF item can have multiple conversations. Resolve the active one
     // (or create it if none exists) and store in activePaperConversationByItem.
