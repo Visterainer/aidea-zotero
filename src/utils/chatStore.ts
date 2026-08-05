@@ -256,8 +256,6 @@ async function initializeChatStore(): Promise<void> {
        ON ${CHAT_MESSAGES_TABLE} (conversation_key, timestamp, id)`,
     );
 
-    await migratePersistedModelOutputs();
-
     await Zotero.DB.queryAsync(
       `CREATE TABLE IF NOT EXISTS ${CHAT_TREE_STATE_TABLE} (
         conversation_key INTEGER PRIMARY KEY,
@@ -317,6 +315,10 @@ async function initializeChatStore(): Promise<void> {
   // the library and reader panels. Each migration gets its own transaction so
   // one bad legacy row cannot prevent the store from becoming usable.
   await runOptionalChatStoreMigration(
+    "model-output-normalization",
+    migratePersistedModelOutputs,
+  );
+  await runOptionalChatStoreMigration(
     "linear-conversations-to-tree",
     migrateLinearConversationsToTree,
   );
@@ -339,9 +341,10 @@ export async function migratePersistedModelOutputs(): Promise<void> {
      FROM ${CHAT_MESSAGES_TABLE}
      WHERE role = 'assistant'
        AND (
-         lower(text) LIKE '%<think>%'
-         OR lower(text) LIKE '%<thought>%'
+         lower(text) LIKE ?
+         OR lower(text) LIKE ?
        )`,
+    ["%<think>%", "%<thought>%"],
   )) as Array<{ messageId?: unknown; text?: unknown }> | undefined;
   for (const row of assistantCandidates || []) {
     const messageId = normalizeTreeId(row.messageId);
@@ -365,9 +368,10 @@ export async function migratePersistedModelOutputs(): Promise<void> {
      FROM ${CHAT_MESSAGES_TABLE}
      WHERE context_refs_json IS NOT NULL
        AND (
-         lower(context_refs_json) LIKE '%<think>%'
-         OR lower(context_refs_json) LIKE '%<thought>%'
+         lower(context_refs_json) LIKE ?
+         OR lower(context_refs_json) LIKE ?
        )`,
+    ["%<think>%", "%<thought>%"],
   )) as Array<{ messageId?: unknown; contextRefsJson?: unknown }> | undefined;
   for (const row of contextCandidates || []) {
     const messageId = normalizeTreeId(row.messageId);
