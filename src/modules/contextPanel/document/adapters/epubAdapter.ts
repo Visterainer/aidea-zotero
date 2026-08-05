@@ -19,6 +19,7 @@ import {
 
 export const EPUB_CONTENT_TYPE = "application/epub+zip";
 export const EPUB_CONTEXT_RETRY_DELAY_MS = 60_000;
+export const MAX_EPUB_NORMALIZED_TEXT_CHARS = 8_000_000;
 
 const capabilities: DocumentAdapter["capabilities"] = {
   selectionText: true,
@@ -142,6 +143,11 @@ export function buildEpubDocumentExtraction(
     .filter((segment) => segment.role !== "navigation")
     .map((segment) => segment.text)
     .join("\n\n");
+  if (text.length > MAX_EPUB_NORMALIZED_TEXT_CHARS) {
+    throw new Error(
+      `EPUB normalized text exceeds ${MAX_EPUB_NORMALIZED_TEXT_CHARS} characters`,
+    );
+  }
   return {
     text,
     segments,

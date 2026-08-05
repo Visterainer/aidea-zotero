@@ -29,17 +29,6 @@ export type SectionRetrievalPlan = {
   coverage: SectionCoverage;
 };
 
-export type SectionPlannerRequest = {
-  question: string;
-  sections: SectionCard[];
-  previousSectionIds?: string[];
-  signal?: AbortSignal;
-};
-
-export type SectionPlanner = (
-  request: SectionPlannerRequest,
-) => Promise<SectionRetrievalPlan | null>;
-
 export type SectionCatalog = {
   cards: SectionCard[];
   segmentIdsBySectionId: Map<string, string[]>;
@@ -49,6 +38,69 @@ export type SectionCatalog = {
 export type ResolvedSectionRetrievalPlan = SectionRetrievalPlan & {
   segmentIds: Set<string>;
 };
+
+const WHOLE_DOCUMENT_QUERY =
+  /\b(?:whole|entire)\s+(?:book|document|text)\b|\b(?:book|document)\s+overview\b|全书|整本(?:书)?|全文概览|整篇概览/i;
+
+function normalizeComparableText(value: unknown): string {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isUsefulLabel(value: string): boolean {
+  const compact = value.replace(/\s+/g, "");
+  return compact.length >= 2 && !/^\d+$/.test(compact);
+}
+
+/**
+ * Route explicit publisher section references locally. Ambiguous questions are
+ * intentionally left to normal retrieval; conversational follow-ups reuse the
+ * previously emitted segment IDs in the caller.
+ */
+export function buildDeterministicSectionPlan(
+  catalog: SectionCatalog,
+  question: string,
+): SectionRetrievalPlan | null {
+  if (WHOLE_DOCUMENT_QUERY.test(question)) {
+    return { scope: "document", sectionIds: [], coverage: "balanced" };
+  }
+
+  const normalizedQuestion = normalizeComparableText(question);
+  if (!normalizedQuestion) return null;
+
+  const matches = catalog.cards
+    .map((card) => {
+      const candidates = [card.label, ...card.path]
+        .map(normalizeComparableText)
+        .filter(isUsefulLabel);
+      let score = 0;
+      for (const candidate of candidates) {
+        if (normalizedQuestion === candidate) {
+          score = Math.max(score, 100);
+        } else if (normalizedQuestion.includes(candidate)) {
+          score = Math.max(score, 60 + Math.min(candidate.length, 30));
+        }
+      }
+      return { id: card.id, score };
+    })
+    .filter((entry) => entry.score >= 60)
+    .sort((left, right) => right.score - left.score);
+
+  if (!matches.length) return null;
+  const bestScore = matches[0].score;
+  return {
+    scope: "sections",
+    sectionIds: matches
+      .filter((entry) => entry.score === bestScore)
+      .slice(0, MAX_SECTION_PLAN_IDS)
+      .map((entry) => entry.id),
+    coverage: "focused",
+  };
+}
 
 function normalizeText(value: unknown): string {
   return String(value || "")

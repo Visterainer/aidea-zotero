@@ -16,8 +16,7 @@ This folder implements the reader/library side-panel chat experience.
 - `document/epub/structure.ts`: publisher hierarchy construction independent of text ownership.
 - `document/epub/contentExtractor.ts`: non-overlapping EPUB content-unit extraction and conservative structural fallbacks.
 - `document/cache.ts`: shared extracted-text cache orchestration.
-- `document/sectionRouting.ts`: logical section cards and validated section-to-content mappings.
-- `document/sectionPlanner.ts`: bounded provider-neutral LLM planning prompt, response validation, timeout, and fallback boundary.
+- `document/sectionRouting.ts`: logical section cards and deterministic publisher-label routing.
 - `document/retrieval.ts`: format-neutral chunking, BM25/embedding retrieval, and prompt context construction.
 - `pdfContext.ts`: stable compatibility exports for existing PDF callers.
 - `paperContext.ts`: supplemental paper context construction.
@@ -59,6 +58,6 @@ This folder implements the reader/library side-panel chat experience.
 - Keep publisher hierarchy separate from non-overlapping text units. A parent navigation node aggregates descendants and must not duplicate their text.
 - Do not infer chapters from filenames, TOC position, or label shape. Explicit labels can support user references, while unknown reading units remain generic sections.
 - Keep retrieval chunks below content units, retain native paths/locators on chunk metadata, and never send the whole book merely because it was extracted.
-- Let an optional LLM planner select only opaque section IDs and coverage mode from an exactly bounded catalogue; validate every ID locally and fall back to deterministic retrieval on invalid output, timeout, or provider failure. Caller cancellation must stop the request.
-- Treat a validated planner result as a retrieval priority, not an exclusive semantic filter; an exact native selection anchor is the only hard local scope.
+- Route explicit publisher section labels locally, reuse prior section IDs only for ambiguous follow-ups, and fall back to normal retrieval when no label matches.
+- Treat local section matches as retrieval priorities; an exact native selection anchor is the only hard local scope.
 - Invalidate extracted context when the adapter's source revision changes instead of retaining successful attachment text for the entire process lifetime.

@@ -29,10 +29,22 @@ export type EpubPackage = {
 
 type ZipReader = {
   close(): void;
+  findEntries(pattern: string | null): nsIUTF8StringEnumerator;
+  getEntry(entry: string): nsIZipEntry;
   getInputStream(entry: string): nsIInputStream;
   hasEntry(entry: string): boolean;
   open(file: nsIFile): void;
 };
+
+export const MAX_EPUB_ARCHIVE_ENTRIES = 5_000;
+export const MAX_EPUB_TEXT_ENTRY_BYTES = 8 * 1024 * 1024;
+export const MAX_EPUB_TOTAL_TEXT_BYTES = 64 * 1024 * 1024;
+
+export function isSafeEpubEntryPath(value: string): boolean {
+  const path = String(value || "").replace(/\\/g, "/");
+  if (!path || path.startsWith("/") || /^[a-z]:/i.test(path)) return false;
+  return !path.split("/").some((part) => part === "..");
+}
 
 function normalizeText(value: unknown): string {
   return String(value || "")
@@ -248,6 +260,7 @@ function emptyStructure(): DocumentStructure {
 
 export class EpubPackageReader {
   private readonly zipReader: ZipReader;
+  private totalTextBytesRead = 0;
 
   constructor(filePath: string) {
     const classes = Components.classes as unknown as Record<
@@ -259,6 +272,29 @@ export class EpubPackageReader {
     ].createInstance(Components.interfaces.nsIZipReader) as ZipReader;
     zipReader.open(Zotero.File.pathToFile(filePath));
     this.zipReader = zipReader;
+    try {
+      this.validateArchiveShape();
+    } catch (error) {
+      zipReader.close();
+      throw error;
+    }
+  }
+
+  private validateArchiveShape(): void {
+    const entries = this.zipReader.findEntries(null);
+    let count = 0;
+    while (entries.hasMore()) {
+      const entry = entries.getNext();
+      count += 1;
+      if (count > MAX_EPUB_ARCHIVE_ENTRIES) {
+        throw new Error(
+          `EPUB contains more than ${MAX_EPUB_ARCHIVE_ENTRIES} archive entries`,
+        );
+      }
+      if (!isSafeEpubEntryPath(entry)) {
+        throw new Error(`EPUB contains an unsafe archive path: ${entry}`);
+      }
+    }
   }
 
   close(): void {
@@ -270,9 +306,24 @@ export class EpubPackageReader {
   }
 
   async readDocument(entry: string, mediaType: string): Promise<XMLDocument> {
+    if (!isSafeEpubEntryPath(entry)) {
+      throw new Error(`EPUB contains an unsafe document path: ${entry}`);
+    }
     if (!this.zipReader.hasEntry(entry)) {
       throw new Error(`EPUB entry is missing: ${entry}`);
     }
+    const declaredSize = Number(this.zipReader.getEntry(entry).realSize || 0);
+    if (declaredSize > MAX_EPUB_TEXT_ENTRY_BYTES) {
+      throw new Error(
+        `EPUB text entry exceeds ${MAX_EPUB_TEXT_ENTRY_BYTES} bytes: ${entry}`,
+      );
+    }
+    if (this.totalTextBytesRead + declaredSize > MAX_EPUB_TOTAL_TEXT_BYTES) {
+      throw new Error(
+        `EPUB text extraction exceeds ${MAX_EPUB_TOTAL_TEXT_BYTES} bytes`,
+      );
+    }
+    this.totalTextBytesRead += declaredSize;
     const stream = this.zipReader.getInputStream(entry);
     try {
       const contents = await Zotero.File.getContentsAsync(stream);

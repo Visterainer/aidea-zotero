@@ -114,11 +114,6 @@ import {
   resolveReaderDocument,
 } from "./documentContext";
 import {
-  createLlmSectionPlanner,
-  SECTION_PLANNER_MAX_TOKENS,
-  SECTION_PLANNER_TEMPERATURE,
-} from "./document/sectionPlanner";
-import {
   buildSupplementalPaperContext,
   buildSinglePaperContext,
 } from "./paperContext";
@@ -1157,7 +1152,6 @@ async function buildCombinedContextForRequest(params: {
   question: string;
   imageCount: number;
   paperContexts: PaperContextRef[];
-  model: string;
   apiBase: string;
   apiKey: string;
   conversationKey: number;
@@ -1168,17 +1162,6 @@ async function buildCombinedContextForRequest(params: {
   ) => void;
 }): Promise<string> {
   throwIfRequestAborted(params.signal);
-  const sectionPlanner = createLlmSectionPlanner((prompt, signal) =>
-    callLLM({
-      prompt,
-      signal,
-      model: params.model,
-      apiBase: params.apiBase,
-      apiKey: params.apiKey,
-      temperature: SECTION_PLANNER_TEMPERATURE,
-      maxTokens: SECTION_PLANNER_MAX_TOKENS,
-    }),
-  );
   // ── Get or create the conversation-level context pool ──
   let pool = conversationContextPool.get(params.conversationKey);
   if (!pool) {
@@ -1272,7 +1255,6 @@ async function buildCombinedContextForRequest(params: {
                   pool.baseDocumentSegmentIds = segmentIds;
                 }
               : undefined,
-            sectionPlanner: queryDependent ? sectionPlanner : undefined,
             signal: params.signal,
           },
         );
@@ -1338,7 +1320,6 @@ async function buildCombinedContextForRequest(params: {
                     pool.baseDocumentSegmentIds = segmentIds;
                   }
                 : undefined,
-              sectionPlanner: queryDependent ? sectionPlanner : undefined,
               signal: params.signal,
             },
           )
@@ -2338,7 +2319,6 @@ export async function editUserMessageAndRetry(
       question,
       imageCount: screenshotImages.length,
       paperContexts,
-      model: effectiveRequestConfig.model,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       conversationKey,
@@ -2358,7 +2338,6 @@ export async function editUserMessageAndRetry(
       currentQuestion: question,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
-      model: effectiveRequestConfig.model,
       signal: requestAbortController.signal,
     });
 
@@ -2675,7 +2654,6 @@ export async function retryLatestAssistantResponse(
       question,
       imageCount: screenshotImages.length,
       paperContexts,
-      model: effectiveRequestConfig.model,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       conversationKey,
@@ -3106,7 +3084,6 @@ export async function sendQuestion(
       question,
       imageCount,
       paperContexts: paperContextsForMessage,
-      model: effectiveRequestConfig.model,
       apiBase: effectiveRequestConfig.apiBase,
       apiKey: effectiveRequestConfig.apiKey,
       conversationKey,

@@ -23,11 +23,10 @@ import type {
   DocumentStructure,
 } from "./types";
 import {
+  buildDeterministicSectionPlan,
   buildSectionCatalog,
-  getPreviousSectionIds,
   resolveSectionRetrievalPlan,
   type SectionCoverage,
-  type SectionPlanner,
 } from "./sectionRouting";
 
 export type CreateDocumentTextContextOptions = {
@@ -58,9 +57,7 @@ export type BuildDocumentContextOptions = {
   preferredSegmentIds?: string[];
   /** Receives the structural scope that was actually emitted. */
   onRetrievedSegments?: (segmentIds: string[]) => void;
-  /** Optional semantic planner for structured, query-dependent documents. */
-  sectionPlanner?: SectionPlanner;
-  /** Cancels provider-backed preparation such as section planning. */
+  /** Cancels context preparation and provider-backed embedding requests. */
   signal?: AbortSignal;
   maxChunks?: number;
   maxLength?: number;
@@ -526,37 +523,19 @@ export async function buildDocumentContext(
   const sectionCatalog = structuredMetadata
     ? buildSectionCatalog(context)
     : null;
-  let plannedRetrieval = null;
-  if (
-    sectionCatalog &&
-    sectionCatalog.cards.length > 1 &&
-    options?.sectionPlanner
-  ) {
-    try {
-      throwIfAborted(options.signal);
-      const plan = await options.sectionPlanner({
-        question,
-        sections: sectionCatalog.cards,
-        previousSectionIds: getPreviousSectionIds(
-          sectionCatalog,
-          options.preferredSegmentIds,
-        ),
-        signal: options.signal,
-      });
-      throwIfAborted(options.signal);
-      plannedRetrieval = resolveSectionRetrievalPlan(sectionCatalog, plan);
-    } catch (error) {
-      throwIfAborted(options.signal);
-      ztoolkit.log("LLM: section planner failed; using local retrieval", error);
-    }
-  }
-  const plannerHandledQuestion = Boolean(plannedRetrieval);
+  const plannedRetrieval = sectionCatalog
+    ? resolveSectionRetrievalPlan(
+        sectionCatalog,
+        buildDeterministicSectionPlan(sectionCatalog, question),
+      )
+    : null;
+  const routingHandledQuestion = Boolean(plannedRetrieval);
   const anchorIndex = findAnchorChunkIndex(chunks, options?.anchorText || "");
   const preferredSegmentIds = new Set(plannedRetrieval?.segmentIds || []);
   const anchorSegmentId =
     anchorIndex >= 0 ? structuredMetadata?.[anchorIndex]?.segmentId : undefined;
   let reusedPreferredSegments = false;
-  if (structuredMetadata && !plannerHandledQuestion && !anchorSegmentId) {
+  if (structuredMetadata && !routingHandledQuestion && !anchorSegmentId) {
     const availableSegmentIds = new Set(
       structuredMetadata.map((metadata) => metadata.segmentId),
     );
@@ -780,7 +759,7 @@ export async function buildDocumentContext(
       `strategy=${contextStrategy}, embeddings=${useEmbeddings}, ` +
       `routedSegments=${routedSegmentIds.size}, restrictedRoutes=${restrictedSegmentIds.size}, ` +
       `preferredRoutes=${preferredSegmentIds.size}, ` +
-      `reusedPreferred=${reusedPreferredSegments}, planner=${plannerHandledQuestion}, ` +
+      `reusedPreferred=${reusedPreferredSegments}, localRouting=${routingHandledQuestion}, ` +
       `plannedSections=${plannedRetrieval?.sectionIds.length || 0}, coverage=${coverage}`,
   );
 
