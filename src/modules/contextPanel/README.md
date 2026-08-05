@@ -9,7 +9,16 @@ This folder implements the reader/library side-panel chat experience.
 - `setupHandlers.ts`: runtime orchestration and event wiring across panel features.
 - `chat.ts`: conversation load/render/send/retry/edit and streaming orchestration.
 - `contextResolution.ts`: active context resolution and selected-text context state updates.
-- `pdfContext.ts`: PDF text extraction/caching and retrieval context building.
+- `documentContext.ts`: format-neutral reader-document resolution and compatibility facade.
+- `document/registry.ts`: adapter registry used to resolve supported attachment formats.
+- `document/adapters/`: format-specific PDF and EPUB extraction/capability policies.
+- `document/epub/packageReader.ts`: EPUB container/package, manifest, spine, EPUB 3 navigation, and EPUB 2 NCX reader.
+- `document/epub/structure.ts`: publisher hierarchy construction independent of text ownership.
+- `document/epub/contentExtractor.ts`: non-overlapping EPUB content-unit extraction and conservative structural fallbacks.
+- `document/cache.ts`: shared extracted-text cache orchestration.
+- `document/sectionRouting.ts`: logical section cards and deterministic publisher-label routing.
+- `document/retrieval.ts`: format-neutral chunking, BM25/embedding retrieval, and prompt context construction.
+- `pdfContext.ts`: stable compatibility exports for existing PDF callers.
 - `paperContext.ts`: supplemental paper context construction.
 - `notes.ts`: note export and assistant-response save flows.
 - `shortcuts.ts`: quick-action shortcut render/edit/reorder behavior.
@@ -41,3 +50,14 @@ This folder implements the reader/library side-panel chat experience.
 - Keep exported signatures stable for plugin entrypoints and persistence helpers.
 - Keep DOM IDs/class names stable to preserve CSS and event behavior.
 - Keep persistence schema/pref keys stable to avoid user data regressions.
+- Add new reader formats through a `DocumentAdapter`; panel and selection callers must not add direct MIME branches.
+- Keep format-specific presentation, warm-up, selection-context, retrieval-limit, and source-revision policies on the adapter.
+- Preserve format-native structure in adapters when it becomes available rather than flattening it in panel code.
+- Keep EPUB selection translation query-scoped and bounded; opening a book must not trigger full-text model context generation.
+- Treat the EPUB 3 navigation document or EPUB 2 NCX as authoritative structure even when it is outside the spine; use explicit semantics, headings, then spine resources as progressively weaker fallbacks.
+- Keep publisher hierarchy separate from non-overlapping text units. A parent navigation node aggregates descendants and must not duplicate their text.
+- Do not infer chapters from filenames, TOC position, or label shape. Explicit labels can support user references, while unknown reading units remain generic sections.
+- Keep retrieval chunks below content units, retain native paths/locators on chunk metadata, and never send the whole book merely because it was extracted.
+- Route explicit publisher section labels locally, reuse prior section IDs only for ambiguous follow-ups, and fall back to normal retrieval when no label matches.
+- Treat local section matches as retrieval priorities; an exact native selection anchor is the only hard local scope.
+- Invalidate extracted context when the adapter's source revision changes instead of retaining successful attachment text for the entire process lifetime.
