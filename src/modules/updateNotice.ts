@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.3.2-model-output-normalization-v1";
+export const NOTICE_ID = "v3.4.0-epub-context-chat-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -907,26 +907,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "Cleaner AI output and more reliable Zotero handling",
-      lead: "AIdea now separates hidden model reasoning from final answers before content reaches chat, translation, storage, or newly generated files. This release also improves reliability when Zotero items or attachments are unavailable.",
-      note: "Restart Zotero after updating. Existing notes or PDFs that already contain reasoning text are not modified automatically; recreate the note or translate the PDF again if needed.",
+      title: "EPUB context chat and more reliable panel startup",
+      lead: "AIdea can now use EPUB books as document context in Zotero's reader panel, with local section routing and bounded retrieval from EPUB 2/3 structure.",
+      note: "Restart Zotero after updating. Open a PDF or EPUB and use the same AIdea reader panel; no additional mode switch is required.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "Final answers only",
-          text: "Structured reasoning fields and leading <think> or <thought> blocks are removed from streaming and non-streaming API and OAuth responses.",
+          label: "EPUB side-panel chat",
+          text: "Ask about chapters or the whole book directly in the Zotero EPUB reader.",
         },
         {
-          label: "Protected across AIdea",
-          text: "Chat, selection translation, full-document translation, cold-start caches, saved context, copied results, new notes, and newly translated PDFs receive only final content.",
+          label: "Local bounded retrieval",
+          text: "Publisher structure, follow-up scope, and whole-book sampling are handled locally without an additional planning-model request.",
         },
         {
-          label: "Safer existing data",
-          text: "Contaminated assistant history and compacted summaries are cleaned automatically, while outdated selection-translation caches are removed.",
+          label: "Context-aware selection translation",
+          text: "EPUB selections use bounded book context directly, without a separate cold-start request.",
         },
         {
-          label: "Improved compatibility",
-          text: "Official MiniMax endpoints use separated reasoning output when supported, with automatic fallback. Missing or deleted Zotero items and attachments are also handled safely.",
+          label: "Reliable and safe",
+          text: "Panel initialization can recover from optional migration failures, and malformed or oversized EPUB archives are bounded.",
         },
       ],
       exampleLabel: "",
@@ -936,26 +936,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "更干净的 AI 输出与更可靠的 Zotero 条目处理",
-      lead: "AIdea 现在会在模型输出进入对话、翻译、存储或新生成文件之前，将隐藏的推理内容与最终答案分离。本次更新同时改进了 Zotero 条目或附件缺失时的稳定性。",
-      note: "更新后请重启 Zotero。已经写入笔记或生成 PDF 的历史推理内容不会被自动修改；如有需要，请重新创建笔记或重新翻译 PDF。",
+      title: "EPUB 上下文对话与更可靠的面板启动",
+      lead: "AIdea 现在可以在 Zotero EPUB 阅读器侧边栏中把图书作为文档上下文，并根据 EPUB 2/3 结构在本地完成章节路由和有界检索。",
+      note: "更新后请重启 Zotero。打开 PDF 或 EPUB 后直接使用同一个 AIdea 阅读器面板，无需切换额外模式。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "只保留最终答案",
-          text: "流式和非流式 API、OAuth 响应中的结构化推理字段，以及前置的 <think>、<thought> 推理块都会被移除。",
+          label: "EPUB 侧边栏对话",
+          text: "可以直接在 Zotero EPUB 阅读器中询问具体章节或整本图书。",
         },
         {
-          label: "覆盖 AIdea 全部输出路径",
-          text: "对话、划词翻译、全文翻译、冷启动缓存、上下文存储、复制结果、新建笔记和新生成的翻译 PDF 都只接收最终正文。",
+          label: "本地有界检索",
+          text: "出版目录结构、追问范围和全书采样均在本地处理，不会额外调用模型规划章节。",
         },
         {
-          label: "安全清理历史数据",
-          text: "启动时会自动清理受污染的助手消息和压缩摘要，并删除旧版划词翻译缓存。",
+          label: "带上下文的划词翻译",
+          text: "EPUB 划词直接使用有界图书上下文，不再执行单独的冷启动请求。",
         },
         {
-          label: "提升模型与 Zotero 兼容性",
-          text: "MiniMax 官方接口在支持时使用独立推理输出，不支持时自动降级；缺失或已删除的 Zotero 条目和附件也会被安全跳过。",
+          label: "启动可靠且处理安全",
+          text: "可选迁移失败后面板仍可恢复，异常或超大的 EPUB 压缩包也会受到明确限制。",
         },
       ],
       exampleLabel: "",
@@ -965,26 +965,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "更乾淨的 AI 輸出與更可靠的 Zotero 項目處理",
-      lead: "AIdea 現在會在模型輸出進入對話、翻譯、儲存或新產生的檔案之前，將隱藏的推理內容與最終答案分離。本次更新也改善了 Zotero 項目或附件無法取得時的穩定性。",
-      note: "更新後請重新啟動 Zotero。已經寫入筆記或產生 PDF 的歷史推理內容不會自動修改；如有需要，請重新建立筆記或再次翻譯 PDF。",
+      title: "EPUB 上下文對話與更可靠的面板啟動",
+      lead: "AIdea 現在可以在 Zotero EPUB 閱讀器側邊欄中把圖書作為文件上下文，並依 EPUB 2/3 結構在本地完成章節路由和有界檢索。",
+      note: "更新後請重新啟動 Zotero。開啟 PDF 或 EPUB 後直接使用同一個 AIdea 閱讀器面板，無需切換額外模式。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "只保留最終答案",
-          text: "串流與非串流 API、OAuth 回應中的結構化推理欄位，以及前置的 <think>、<thought> 推理區塊都會被移除。",
+          label: "EPUB 側邊欄對話",
+          text: "可以直接在 Zotero EPUB 閱讀器中詢問特定章節或整本圖書。",
         },
         {
-          label: "涵蓋 AIdea 所有輸出路徑",
-          text: "對話、劃詞翻譯、全文翻譯、冷啟動快取、上下文儲存、複製結果、新建筆記和新產生的翻譯 PDF 都只接收最終正文。",
+          label: "本地有界檢索",
+          text: "出版目錄結構、追問範圍與全書取樣均在本地處理，不會額外呼叫模型規劃章節。",
         },
         {
-          label: "安全清理歷史資料",
-          text: "啟動時會自動清理受污染的助手訊息和壓縮摘要，並刪除舊版劃詞翻譯快取。",
+          label: "帶上下文的劃詞翻譯",
+          text: "EPUB 劃詞直接使用有界圖書上下文，不再執行單獨的冷啟動請求。",
         },
         {
-          label: "提升模型與 Zotero 相容性",
-          text: "MiniMax 官方端點在支援時使用分離的推理輸出，不支援時會自動降級；缺失或已刪除的 Zotero 項目和附件也會被安全略過。",
+          label: "啟動可靠且處理安全",
+          text: "可選遷移失敗後面板仍可恢復，異常或超大的 EPUB 壓縮檔也會受到明確限制。",
         },
       ],
       exampleLabel: "",
@@ -994,26 +994,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "よりクリーンな AI 出力と安定した Zotero 項目処理",
-      lead: "AIdea は、モデルの出力がチャット、翻訳、保存先、新しく生成されるファイルへ届く前に、非表示の推論内容と最終回答を分離します。Zotero の項目や添付ファイルを取得できない場合の安定性も向上しました。",
-      note: "更新後に Zotero を再起動してください。すでに推論内容が含まれているノートや PDF は自動修正されません。必要に応じてノートを作り直すか、PDF を再翻訳してください。",
+      title: "EPUB コンテキストチャットと安定したパネル起動",
+      lead: "AIdea は Zotero の EPUB リーダーパネルで書籍を文書コンテキストとして利用し、EPUB 2/3 構造からローカルで章のルーティングと範囲を制限した検索を行えるようになりました。",
+      note: "更新後に Zotero を再起動してください。PDF または EPUB を開き、同じ AIdea リーダーパネルをそのまま利用できます。追加のモード切り替えは不要です。",
       alsoLabel: "今回の更新内容",
       alsoItems: [
         {
-          label: "最終回答のみを表示",
-          text: "ストリーミングと非ストリーミングの API、OAuth 応答から、構造化された推論フィールドと先頭の <think>、<thought> ブロックを削除します。",
+          label: "EPUB サイドパネルチャット",
+          text: "Zotero の EPUB リーダーで特定の章や書籍全体について直接質問できます。",
         },
         {
-          label: "AIdea 全体を保護",
-          text: "チャット、選択翻訳、文書全体翻訳、初期キャッシュ、保存コンテキスト、コピー結果、新規ノート、新しく翻訳した PDF には最終本文のみが渡されます。",
+          label: "ローカルで範囲を制限した検索",
+          text: "出版者構造、追質問の範囲、書籍全体のサンプリングをローカルで処理し、章の計画に追加のモデル呼び出しを行いません。",
         },
         {
-          label: "既存データを安全に整理",
-          text: "汚染されたアシスタント履歴と圧縮要約を起動時に自動で整理し、古い選択翻訳キャッシュを削除します。",
+          label: "コンテキスト付き選択翻訳",
+          text: "EPUB の選択範囲は、別のコールドスタート要求なしで範囲を制限した書籍コンテキストを直接利用します。",
         },
         {
-          label: "互換性の向上",
-          text: "MiniMax 公式エンドポイントでは対応時に推論出力を分離し、非対応時は自動的にフォールバックします。欠落または削除された Zotero 項目と添付ファイルも安全に処理します。",
+          label: "安定した起動と安全な処理",
+          text: "任意の移行に失敗してもパネルは回復でき、不正または過大な EPUB アーカイブには明確な制限が適用されます。",
         },
       ],
       exampleLabel: "",
@@ -1023,26 +1023,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "더 깔끔한 AI 출력과 안정적인 Zotero 항목 처리",
-      lead: "AIdea는 모델 출력이 채팅, 번역, 저장소 또는 새로 생성되는 파일에 도달하기 전에 숨겨진 추론과 최종 답변을 분리합니다. Zotero 항목이나 첨부 파일을 사용할 수 없을 때의 안정성도 향상되었습니다.",
-      note: "업데이트 후 Zotero를 다시 시작하세요. 이미 추론 텍스트가 포함된 노트나 PDF는 자동으로 수정되지 않습니다. 필요한 경우 노트를 다시 만들거나 PDF를 다시 번역하세요.",
+      title: "EPUB 컨텍스트 채팅과 안정적인 패널 시작",
+      lead: "AIdea는 이제 Zotero EPUB 리더 패널에서 책을 문서 컨텍스트로 사용하고 EPUB 2/3 구조를 기반으로 로컬 장 라우팅과 제한된 검색을 수행합니다.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. PDF 또는 EPUB를 열고 동일한 AIdea 리더 패널을 사용하면 되며 추가 모드 전환은 필요하지 않습니다.",
       alsoLabel: "이번 업데이트 내용",
       alsoItems: [
         {
-          label: "최종 답변만 표시",
-          text: "스트리밍 및 비스트리밍 API와 OAuth 응답에서 구조화된 추론 필드와 앞부분의 <think>, <thought> 블록을 제거합니다.",
+          label: "EPUB 사이드 패널 채팅",
+          text: "Zotero EPUB 리더에서 특정 장이나 책 전체에 대해 직접 질문할 수 있습니다.",
         },
         {
-          label: "AIdea 전체 출력 경로 보호",
-          text: "채팅, 선택 번역, 문서 전체 번역, 초기 캐시, 저장된 컨텍스트, 복사 결과, 새 노트 및 새로 번역된 PDF에는 최종 내용만 전달됩니다.",
+          label: "로컬 제한 검색",
+          text: "출판 구조, 후속 질문 범위 및 책 전체 샘플링을 로컬에서 처리하며 장 계획을 위한 추가 모델 호출이 없습니다.",
         },
         {
-          label: "기존 데이터 안전 정리",
-          text: "오염된 어시스턴트 기록과 압축 요약을 시작 시 자동으로 정리하고 오래된 선택 번역 캐시를 삭제합니다.",
+          label: "컨텍스트 기반 선택 번역",
+          text: "EPUB 선택 영역은 별도의 콜드 스타트 요청 없이 제한된 책 컨텍스트를 바로 사용합니다.",
         },
         {
-          label: "호환성 향상",
-          text: "공식 MiniMax 엔드포인트는 지원되는 경우 추론 출력을 분리하고 지원되지 않으면 자동으로 대체합니다. 누락되거나 삭제된 Zotero 항목과 첨부 파일도 안전하게 처리합니다.",
+          label: "안정적인 시작과 안전한 처리",
+          text: "선택적 마이그레이션이 실패해도 패널이 복구되며 비정상적이거나 지나치게 큰 EPUB 아카이브에는 명확한 제한이 적용됩니다.",
         },
       ],
       exampleLabel: "",
@@ -1052,26 +1052,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "Sorties IA plus propres et gestion Zotero plus fiable",
-      lead: "AIdea sépare désormais le raisonnement masqué de la réponse finale avant que le contenu n’atteigne le chat, la traduction, le stockage ou les nouveaux fichiers générés. La fiabilité est également améliorée lorsque des éléments ou pièces jointes Zotero sont indisponibles.",
-      note: "Redémarrez Zotero après la mise à jour. Les notes ou PDF contenant déjà du texte de raisonnement ne sont pas modifiés automatiquement ; recréez la note ou retraduisez le PDF si nécessaire.",
+      title: "Chat contextuel EPUB et démarrage fiable du panneau",
+      lead: "AIdea peut désormais utiliser un livre EPUB comme contexte dans le panneau du lecteur Zotero, avec routage local des sections et recherche bornée à partir des structures EPUB 2/3.",
+      note: "Redémarrez Zotero après la mise à jour. Ouvrez un PDF ou un EPUB et utilisez le même panneau AIdea, sans changer de mode.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Réponses finales uniquement",
-          text: "Les champs de raisonnement structurés et les blocs initiaux <think> ou <thought> sont supprimés des réponses API et OAuth, avec ou sans streaming.",
+          label: "Chat EPUB dans le panneau latéral",
+          text: "Interrogez directement un chapitre ou l'ensemble du livre dans le lecteur EPUB de Zotero.",
         },
         {
-          label: "Protection dans tout AIdea",
-          text: "Le chat, la traduction de sélection, la traduction intégrale, les caches initiaux, le contexte enregistré, les résultats copiés, les nouvelles notes et les nouveaux PDF traduits ne reçoivent que le contenu final.",
+          label: "Recherche locale bornée",
+          text: "La structure éditoriale, la portée des questions de suivi et l'échantillonnage du livre sont traités localement sans appel supplémentaire au modèle de planification.",
         },
         {
-          label: "Données existantes assainies",
-          text: "L’historique assistant contaminé et les résumés compactés sont nettoyés automatiquement, tandis que les anciens caches de traduction de sélection sont supprimés.",
+          label: "Traduction de sélection contextualisée",
+          text: "Les sélections EPUB utilisent directement un contexte de livre borné, sans requête distincte de démarrage à froid.",
         },
         {
-          label: "Compatibilité améliorée",
-          text: "Les points d’accès officiels MiniMax séparent le raisonnement lorsqu’ils le permettent, avec repli automatique. Les éléments et pièces jointes Zotero manquants ou supprimés sont aussi gérés sans erreur.",
+          label: "Démarrage fiable et traitement sûr",
+          text: "Le panneau récupère après l'échec d'une migration facultative et les archives EPUB malformées ou surdimensionnées sont limitées.",
         },
       ],
       exampleLabel: "",
@@ -1081,26 +1081,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "Saubere KI-Ausgaben und zuverlässigere Zotero-Verarbeitung",
-      lead: "AIdea trennt verborgenes Modell-Reasoning von der endgültigen Antwort, bevor Inhalte Chat, Übersetzung, Speicher oder neu erzeugte Dateien erreichen. Auch die Verarbeitung nicht verfügbarer Zotero-Einträge und Anhänge ist zuverlässiger.",
-      note: "Starten Sie Zotero nach dem Update neu. Bereits vorhandene Notizen oder PDFs mit Reasoning-Text werden nicht automatisch geändert; erstellen Sie die Notiz neu oder übersetzen Sie das PDF bei Bedarf erneut.",
+      title: "EPUB-Kontextchat und zuverlässiger Panel-Start",
+      lead: "AIdea kann EPUB-Bücher jetzt im Zotero-Reader-Panel als Dokumentkontext verwenden und führt lokales Abschnittsrouting sowie begrenzte Suche anhand der EPUB-2/3-Struktur aus.",
+      note: "Starten Sie Zotero nach dem Update neu. Öffnen Sie eine PDF- oder EPUB-Datei und verwenden Sie dasselbe AIdea-Reader-Panel ohne zusätzlichen Moduswechsel.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Nur endgültige Antworten",
-          text: "Strukturierte Reasoning-Felder und führende <think>- oder <thought>-Blöcke werden aus gestreamten und nicht gestreamten API- und OAuth-Antworten entfernt.",
+          label: "EPUB-Chat im Seitenbereich",
+          text: "Fragen Sie direkt im Zotero-EPUB-Reader nach Kapiteln oder dem gesamten Buch.",
         },
         {
-          label: "Schutz in ganz AIdea",
-          text: "Chat, Auswahlübersetzung, Volltextübersetzung, Start-Caches, gespeicherter Kontext, kopierte Ergebnisse, neue Notizen und neu übersetzte PDFs erhalten nur den endgültigen Inhalt.",
+          label: "Lokale begrenzte Suche",
+          text: "Verlagsstruktur, Rückfragebereich und Buchstichproben werden lokal ohne zusätzlichen Planungsmodell-Aufruf verarbeitet.",
         },
         {
-          label: "Sicherere vorhandene Daten",
-          text: "Verunreinigte Assistentenverläufe und komprimierte Zusammenfassungen werden automatisch bereinigt; veraltete Caches der Auswahlübersetzung werden gelöscht.",
+          label: "Kontextbezogene Auswahlübersetzung",
+          text: "EPUB-Auswahlen verwenden direkt begrenzten Buchkontext ohne separate Kaltstartanfrage.",
         },
         {
-          label: "Verbesserte Kompatibilität",
-          text: "Offizielle MiniMax-Endpunkte trennen Reasoning-Ausgaben, wenn unterstützt, und verwenden andernfalls automatisch einen Fallback. Fehlende oder gelöschte Zotero-Einträge und Anhänge werden sicher übersprungen.",
+          label: "Zuverlässiger Start und sichere Verarbeitung",
+          text: "Das Panel erholt sich von optionalen Migrationsfehlern; fehlerhafte oder übergroße EPUB-Archive werden begrenzt.",
         },
       ],
       exampleLabel: "",
@@ -1110,26 +1110,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title: "Resultados de IA más limpios y gestión de Zotero más fiable",
-      lead: "AIdea ahora separa el razonamiento oculto de la respuesta final antes de que el contenido llegue al chat, la traducción, el almacenamiento o los archivos recién generados. También mejora la fiabilidad cuando no hay elementos o adjuntos de Zotero disponibles.",
-      note: "Reinicia Zotero después de actualizar. Las notas o PDF que ya contengan texto de razonamiento no se modifican automáticamente; vuelve a crear la nota o a traducir el PDF si es necesario.",
+      title: "Chat contextual EPUB e inicio fiable del panel",
+      lead: "AIdea ahora puede usar libros EPUB como contexto en el panel del lector de Zotero, con enrutamiento local de secciones y recuperación limitada desde estructuras EPUB 2/3.",
+      note: "Reinicia Zotero después de actualizar. Abre un PDF o EPUB y usa el mismo panel de AIdea, sin cambiar de modo.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Solo respuestas finales",
-          text: "Los campos de razonamiento estructurado y los bloques iniciales <think> o <thought> se eliminan de las respuestas API y OAuth, tanto en streaming como sin streaming.",
+          label: "Chat EPUB en el panel lateral",
+          text: "Pregunta directamente por capítulos o por el libro completo en el lector EPUB de Zotero.",
         },
         {
-          label: "Protección en todo AIdea",
-          text: "El chat, la traducción de selecciones, la traducción completa, las cachés iniciales, el contexto guardado, los resultados copiados, las notas nuevas y los PDF recién traducidos reciben solo el contenido final.",
+          label: "Recuperación local limitada",
+          text: "La estructura editorial, el alcance de preguntas posteriores y el muestreo del libro se procesan localmente sin otra llamada al modelo de planificación.",
         },
         {
-          label: "Datos existentes más seguros",
-          text: "El historial contaminado del asistente y los resúmenes compactados se limpian automáticamente, mientras que las cachés antiguas de traducción de selecciones se eliminan.",
+          label: "Traducción de selección con contexto",
+          text: "Las selecciones EPUB usan directamente contexto limitado del libro sin una solicitud separada de inicio en frío.",
         },
         {
-          label: "Compatibilidad mejorada",
-          text: "Los endpoints oficiales de MiniMax separan el razonamiento cuando es compatible y recurren automáticamente al modo alternativo. Los elementos y adjuntos de Zotero ausentes o eliminados también se gestionan de forma segura.",
+          label: "Inicio fiable y procesamiento seguro",
+          text: "El panel se recupera de fallos de migración opcionales y los archivos EPUB dañados o demasiado grandes quedan limitados.",
         },
       ],
       exampleLabel: "",
@@ -1139,26 +1139,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "Чистые ответы ИИ и надёжная обработка данных Zotero",
-      lead: "AIdea теперь отделяет скрытые рассуждения модели от окончательного ответа до того, как содержимое попадёт в чат, перевод, хранилище или новые файлы. Также улучшена работа при отсутствии элементов или вложений Zotero.",
-      note: "После обновления перезапустите Zotero. Существующие заметки и PDF, уже содержащие рассуждения, автоматически не изменяются; при необходимости создайте заметку заново или повторите перевод PDF.",
+      title: "Контекстный чат EPUB и надёжный запуск панели",
+      lead: "AIdea теперь использует книги EPUB как контекст в панели ридера Zotero и выполняет локальную маршрутизацию разделов и ограниченный поиск по структуре EPUB 2/3.",
+      note: "После обновления перезапустите Zotero. Откройте PDF или EPUB и используйте ту же панель AIdea без переключения режима.",
       alsoLabel: "В это обновление входит",
       alsoItems: [
         {
-          label: "Только окончательные ответы",
-          text: "Структурированные поля рассуждений и начальные блоки <think> или <thought> удаляются из потоковых и обычных ответов API и OAuth.",
+          label: "Чат EPUB в боковой панели",
+          text: "Задавайте вопросы о главе или всей книге прямо в EPUB-ридере Zotero.",
         },
         {
-          label: "Защита во всех функциях AIdea",
-          text: "Чат, перевод выделенного текста, полный перевод, стартовые кэши, сохранённый контекст, скопированные результаты, новые заметки и новые переведённые PDF получают только окончательный текст.",
+          label: "Локальный ограниченный поиск",
+          text: "Структура издателя, область последующих вопросов и выборка по книге обрабатываются локально без дополнительного вызова модели планирования.",
         },
         {
-          label: "Безопасная очистка старых данных",
-          text: "Загрязнённая история ассистента и сжатые сводки очищаются автоматически, а устаревшие кэши перевода выделенного текста удаляются.",
+          label: "Перевод выделения с контекстом",
+          text: "Выделения EPUB сразу используют ограниченный контекст книги без отдельного запроса холодного запуска.",
         },
         {
-          label: "Улучшенная совместимость",
-          text: "Официальные endpoints MiniMax разделяют вывод рассуждений, когда это поддерживается, и автоматически используют резервный режим. Отсутствующие или удалённые элементы и вложения Zotero безопасно пропускаются.",
+          label: "Надёжный запуск и безопасная обработка",
+          text: "Панель восстанавливается после сбоев необязательной миграции, а повреждённые или слишком большие архивы EPUB ограничиваются.",
         },
       ],
       exampleLabel: "",
@@ -1168,26 +1168,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title: "Saídas de IA mais limpas e tratamento Zotero mais confiável",
-      lead: "O AIdea agora separa o raciocínio oculto da resposta final antes que o conteúdo chegue ao chat, à tradução, ao armazenamento ou a novos arquivos. A confiabilidade também foi aprimorada quando itens ou anexos do Zotero não estão disponíveis.",
-      note: "Reinicie o Zotero após atualizar. Notas ou PDFs que já contenham texto de raciocínio não são alterados automaticamente; recrie a nota ou traduza o PDF novamente se necessário.",
+      title: "Chat contextual EPUB e inicialização confiável do painel",
+      lead: "O AIdea agora usa livros EPUB como contexto no painel do leitor Zotero, com roteamento local de seções e recuperação limitada pelas estruturas EPUB 2/3.",
+      note: "Reinicie o Zotero após atualizar. Abra um PDF ou EPUB e use o mesmo painel AIdea, sem trocar de modo.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Somente respostas finais",
-          text: "Campos estruturados de raciocínio e blocos iniciais <think> ou <thought> são removidos de respostas API e OAuth com ou sem streaming.",
+          label: "Chat EPUB no painel lateral",
+          text: "Pergunte diretamente sobre capítulos ou o livro inteiro no leitor EPUB do Zotero.",
         },
         {
-          label: "Proteção em todo o AIdea",
-          text: "Chat, tradução de seleção, tradução completa, caches iniciais, contexto salvo, resultados copiados, novas notas e PDFs recém-traduzidos recebem apenas o conteúdo final.",
+          label: "Recuperação local limitada",
+          text: "A estrutura editorial, o escopo das perguntas seguintes e a amostragem do livro são tratados localmente sem chamada adicional ao modelo de planejamento.",
         },
         {
-          label: "Dados existentes mais seguros",
-          text: "O histórico contaminado do assistente e os resumos compactados são limpos automaticamente, enquanto caches antigos de tradução de seleção são removidos.",
+          label: "Tradução de seleção com contexto",
+          text: "Seleções EPUB usam diretamente contexto limitado do livro sem solicitação separada de inicialização a frio.",
         },
         {
-          label: "Compatibilidade aprimorada",
-          text: "Endpoints oficiais do MiniMax separam o raciocínio quando há suporte e usam fallback automático quando necessário. Itens e anexos do Zotero ausentes ou excluídos também são tratados com segurança.",
+          label: "Inicialização confiável e processamento seguro",
+          text: "O painel se recupera de falhas de migração opcionais e arquivos EPUB malformados ou grandes demais são limitados.",
         },
       ],
       exampleLabel: "",
@@ -1197,26 +1197,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "مخرجات ذكاء اصطناعي أنظف ومعالجة Zotero أكثر موثوقية",
-      lead: "يفصل AIdea الآن استدلال النموذج المخفي عن الإجابة النهائية قبل وصول المحتوى إلى المحادثة أو الترجمة أو التخزين أو الملفات الجديدة. كما تحسنت الموثوقية عند عدم توفر عناصر Zotero أو مرفقاته.",
-      note: "أعد تشغيل Zotero بعد التحديث. لا يتم تعديل الملاحظات أو ملفات PDF التي تحتوي مسبقًا على نص الاستدلال تلقائيًا؛ أعد إنشاء الملاحظة أو ترجمة ملف PDF مرة أخرى عند الحاجة.",
+      title: "محادثة EPUB بالسياق وبدء موثوق للوحة",
+      lead: "يستطيع AIdea الآن استخدام كتب EPUB كسياق للمستند في لوحة قارئ Zotero، مع توجيه محلي للأقسام واسترجاع محدود من بنية EPUB 2/3.",
+      note: "أعد تشغيل Zotero بعد التحديث. افتح PDF أو EPUB واستخدم لوحة AIdea نفسها دون تبديل وضع إضافي.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "الإجابات النهائية فقط",
-          text: "تتم إزالة حقول الاستدلال المنظمة وكتل <think> أو <thought> الموجودة في البداية من استجابات API وOAuth المتدفقة وغير المتدفقة.",
+          label: "محادثة EPUB في اللوحة الجانبية",
+          text: "اسأل عن فصل أو عن الكتاب كاملاً مباشرة في قارئ EPUB في Zotero.",
         },
         {
-          label: "حماية جميع مسارات AIdea",
-          text: "تتلقى المحادثة وترجمة النص المحدد والترجمة الكاملة وذاكرة البدء والسياق المحفوظ والنتائج المنسوخة والملاحظات الجديدة وملفات PDF المترجمة حديثًا المحتوى النهائي فقط.",
+          label: "استرجاع محلي محدود",
+          text: "تُعالج بنية الناشر ونطاق الأسئلة اللاحقة وأخذ عينات الكتاب محليًا دون استدعاء إضافي لنموذج التخطيط.",
         },
         {
-          label: "تنظيف آمن للبيانات القديمة",
-          text: "يتم تنظيف سجل المساعد المتأثر والملخصات المضغوطة تلقائيًا، كما تتم إزالة ذاكرة ترجمة النص المحدد القديمة.",
+          label: "ترجمة تحديد مدعومة بالسياق",
+          text: "تستخدم تحديدات EPUB سياقًا محدودًا للكتاب مباشرة دون طلب بدء بارد منفصل.",
         },
         {
-          label: "توافق محسن",
-          text: "تفصل نقاط MiniMax الرسمية مخرجات الاستدلال عند دعمها وتستخدم تراجعًا تلقائيًا عند الحاجة. كما تتم معالجة عناصر Zotero ومرفقاته المفقودة أو المحذوفة بأمان.",
+          label: "بدء موثوق ومعالجة آمنة",
+          text: "تتعافى اللوحة بعد فشل عمليات الترحيل الاختيارية وتُفرض حدود على أرشيفات EPUB التالفة أو الضخمة.",
         },
       ],
       exampleLabel: "",
@@ -1226,26 +1226,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "अधिक साफ AI आउटपुट और अधिक विश्वसनीय Zotero प्रबंधन",
-      lead: "AIdea अब मॉडल के छिपे reasoning को final answer से अलग करता है, इससे पहले कि सामग्री chat, translation, storage या नई files तक पहुंचे। Zotero item या attachment उपलब्ध न होने पर भी विश्वसनीयता बेहतर हुई है।",
-      note: "अपडेट के बाद Zotero को पुनः शुरू करें। जिन मौजूदा notes या PDF में reasoning text पहले से है, वे अपने आप नहीं बदलेंगे; जरूरत होने पर note फिर बनाएं या PDF का दोबारा अनुवाद करें।",
+      title: "EPUB context chat और भरोसेमंद panel startup",
+      lead: "AIdea अब Zotero EPUB reader panel में पुस्तकों को document context की तरह उपयोग करता है और EPUB 2/3 structure से local section routing तथा bounded retrieval करता है।",
+      note: "अपडेट के बाद Zotero को पुनः शुरू करें। PDF या EPUB खोलें और बिना किसी अतिरिक्त mode switch के वही AIdea reader panel उपयोग करें।",
       alsoLabel: "इस अपडेट में शामिल है",
       alsoItems: [
         {
-          label: "केवल final answers",
-          text: "Structured reasoning fields और शुरुआत के <think> या <thought> blocks को streaming और non-streaming API तथा OAuth responses से हटा दिया जाता है।",
+          label: "EPUB side-panel chat",
+          text: "Zotero EPUB reader में किसी chapter या पूरी पुस्तक के बारे में सीधे पूछें।",
         },
         {
-          label: "पूरे AIdea में सुरक्षा",
-          text: "Chat, selection translation, full-document translation, cold-start caches, saved context, copied results, नए notes और नए translated PDF को केवल final content मिलता है।",
+          label: "Local bounded retrieval",
+          text: "Publisher structure, follow-up scope और whole-book sampling local रूप से संभाले जाते हैं, planning model की अतिरिक्त call के बिना।",
         },
         {
-          label: "मौजूदा data की सुरक्षित सफाई",
-          text: "प्रभावित assistant history और compacted summaries अपने आप साफ होते हैं, और पुराने selection-translation caches हटा दिए जाते हैं।",
+          label: "Context-aware selection translation",
+          text: "EPUB selections अलग cold-start request के बिना bounded book context का सीधे उपयोग करते हैं।",
         },
         {
-          label: "बेहतर compatibility",
-          text: "Official MiniMax endpoints support होने पर reasoning output अलग करते हैं और जरूरत पड़ने पर automatic fallback करते हैं। Missing या deleted Zotero items और attachments भी सुरक्षित रूप से संभाले जाते हैं।",
+          label: "Reliable और safe",
+          text: "Optional migration failure के बाद panel recover कर सकता है और malformed या oversized EPUB archives पर स्पष्ट limits लागू होती हैं।",
         },
       ],
       exampleLabel: "",

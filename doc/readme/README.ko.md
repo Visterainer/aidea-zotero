@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/ko/">https://visterainer.github.io/aidea-zotero/ko/</a>
 </p>
 
-AIdea는 Zotero를 위한 무료 오픈소스 AI 연구 보조 플러그인입니다. 🔐 OpenAI (ChatGPT), Google Gemini, GitHub Copilot의 OAuth 로그인에 대응합니다. ⚙️ 또한 OpenAI 호환 API와 Ollama, LM Studio, vLLM 같은 환경을 통한 로컬 또는 자체 호스팅 모델 연결도 지원합니다. 여러 제공자 기반 대화, 논문 맥락 분석, 노트 내보내기, 메모리 기능, 전체 논문 번역을 Zotero 라이브러리 화면과 PDF 리더 안으로 통합합니다.
+AIdea는 Zotero를 위한 무료 오픈소스 AI 연구 보조 플러그인입니다. 🔐 OpenAI (ChatGPT), Google Gemini, GitHub Copilot의 OAuth 로그인에 대응합니다. ⚙️ 또한 OpenAI 호환 API와 Ollama, LM Studio, vLLM 같은 환경을 통한 로컬 또는 자체 호스팅 모델 연결도 지원합니다. 여러 제공자 기반 대화, 문서 맥락 분석, 노트 내보내기, 메모리 기능, 전체 논문 번역을 Zotero 라이브러리 화면과 PDF 및 EPUB 리더 안으로 통합합니다.
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -39,16 +39,16 @@ AIdea는 Zotero를 위한 무료 오픈소스 AI 연구 보조 플러그인입�
 
 ## 개요
 
-AIdea는 논문 읽기, 후속 질문, 발췌, 노트 정리, 선택 영역 번역, 전체 논문 번역을 Zotero 안에서 끝내고 싶은 연구자를 위해 설계되었습니다. Zotero 라이브러리 화면과 PDF 리더에 일관된 AI 작업 공간을 추가해 외부 도구 사이를 오가는 부담을 줄입니다.
+AIdea는 논문과 전자책 읽기, 후속 질문, 발췌, 노트 정리, 선택 영역 번역, 전체 논문 번역을 Zotero 안에서 끝내고 싶은 연구자를 위해 설계되었습니다. Zotero 라이브러리 화면과 PDF 및 EPUB 리더에 일관된 AI 작업 공간을 추가해 외부 도구 사이를 오가는 부담을 줄입니다.
 
 ## 핵심 기능
 
-- Zotero 라이브러리 화면과 PDF 리더에서 사용하는 **사이드 패널 AI 대화**
-- PDF 선택 구간, 스크린샷, 도표, 첨부 파일을 활용하는 **논문 맥락 기반 분석**
+- Zotero 라이브러리 화면과 PDF 및 EPUB 리더에서 사용하는 **사이드 패널 AI 대화**
+- PDF 선택 구간, EPUB 2/3 출판 구조, 스크린샷, 도표, 첨부 파일을 활용하는 **문서 맥락 기반 분석**
 - 요약, 설명, 번역 등에 사용할 수 있는 **빠른 작업 버튼**
 - OAuth 로그인과 OpenAI 호환 API 모드를 포함한 **다양한 연결 방식**
 - Zotero 내부에서 실행하고 PDF로 내보낼 수 있는 **전체 논문 번역**
-- PDF 또는 EPUB 리더에서 실행되며 문서 형식을 자동으로 감지하는 **선택 영역 번역**, 로컬 콜드 스타트 캐시 재사용 및 Zotero 노트 추가 지원
+- PDF 또는 EPUB 리더에서 실행되며 문서 형식을 자동으로 감지하는 **선택 영역 번역**, 제한된 문서 맥락 사용 및 Zotero 노트 추가 지원
 - 라이브러리 단위 분리, 노트 저장, 대화 지속성을 지원하는 **로컬 기록과 메모리**
 - Markdown, 코드 블록, 표, LaTeX, 스트리밍 응답을 지원하는 **풍부한 렌더링**
 
@@ -115,11 +115,11 @@ AIdea는 논문 읽기, 후속 질문, 발췌, 노트 정리, 선택 영역 번�
 1. `Tools` -> `Add-ons` -> `AIdea` -> `Settings` 를 엽니다.
 2. OAuth 로그인 또는 API 모드를 선택합니다.
 3. 사용 가능한 모델을 새로고침하고 사용할 모델을 선택합니다.
-4. Zotero 항목이나 PDF를 열고 AIdea 사이드 패널에서 작업을 시작합니다.
+4. Zotero 항목, PDF 또는 EPUB를 열고 AIdea 사이드 패널에서 작업을 시작합니다.
 
 전체 논문 번역은 번역 탭으로 이동해 모델과 출력 경로를 설정한 뒤 Zotero 안에서 바로 실행할 수 있습니다.
 
-선택 영역 번역은 설정에서 기능을 켜고 모델을 선택한 뒤 PDF 또는 EPUB 리더에서 텍스트를 선택하면 사용할 수 있으며, AIdea가 현재 문서 형식을 자동으로 감지합니다. 논문별 첫 사용 시 AIdea가 간단한 논문 개요와 전문 용어 요약을 담은 로컬 콜드 스타트 캐시를 만들고, 이후 번역에서 이 캐시를 문맥으로 재사용합니다.
+선택 영역 번역은 설정에서 기능을 켜고 모델을 선택한 뒤 PDF 또는 EPUB 리더에서 텍스트를 선택하면 사용할 수 있으며, AIdea가 현재 문서 형식을 자동으로 감지합니다. PDF는 처음 사용할 때 간단한 개요와 전문 용어 요약이 포함된 로컬 콜드 스타트 캐시를 만듭니다. EPUB는 선택한 텍스트를 기준으로 제한된 도서 맥락을 바로 사용하며 별도의 워밍업 요청을 실행하지 않습니다.
 
 ## 언어 지원
 

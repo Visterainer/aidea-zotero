@@ -55,7 +55,7 @@
 
 ### 💬 AI Chat in the Side Panel
 
-Chat with AI directly in Zotero's side panel, available in both the **Library** view and the **PDF Reader**. Ask questions, get summaries, and stay inside the same research workflow.
+Chat with AI directly in Zotero's side panel, available in the **Library** view and the **PDF or EPUB Reader**. Ask questions, get summaries, and stay inside the same research workflow. EPUB conversations use the book's EPUB 2/3 publisher structure and bounded local retrieval to select relevant sections without an additional planning-model request.
 
 <p align="center">
   <img src="doc/screenshots/chat_panel_en.png" alt="Side panel chat" width="800" />
@@ -63,13 +63,13 @@ Chat with AI directly in Zotero's side panel, available in both the **Library** 
 
 ### 📄 Paper-Aware Context
 
-Select text in the PDF reader and click **Add Text** to attach the selected passage to the context area. AIdea can then answer against the selected passage instead of relying on a generic summary.
+Select text in the PDF or EPUB reader and click **Add Text** to attach the selected passage to the context area. AIdea can then answer against the selected passage instead of relying on a generic summary.
 
 ### 📝 Selection Translation
 
 Translate selected text directly in Zotero's PDF or EPUB reader popup. AIdea detects the active format automatically, with no manual switch required. Selection translation uses the same OAuth/API model list as the chat panel, but can be configured with its own enable switch, model, source language, and target language.
 
-The first time this feature is used for a paper, AIdea creates a local cold-start cache with a compact paper overview and terminology summary. Later selection translations reuse that local cache as context, and translated passages can be added back to Zotero notes.
+For PDFs, the first selection translation creates a local cold-start cache with a compact paper overview and terminology summary. EPUB selections instead use bounded, selection-anchored book context without a separate warm-up request. Translated passages can be added back to Zotero notes.
 
 <p align="center">
   <img src="doc/screenshots/selection_translation_popup.png" alt="Selection translation popup in the PDF reader" width="800" />
@@ -224,7 +224,7 @@ In **Settings**, switch to **API Mode** and fill in:
 ### 3. Start Chatting
 
 - In the **Library Panel**, select an item and use the AIdea panel in the right sidebar
-- In the **PDF Reader**, open a PDF and use the AIdea panel in the reader sidebar
+- In the **PDF or EPUB Reader**, open a document and use the AIdea panel in the reader sidebar
 - Type your question and press **Send** or hit `Enter`
 
 ### 4. Use Quick Actions
@@ -235,15 +235,15 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 
 ## ⚙️ Configuration
 
-| Setting                         | Description                                                                    | Default                              |
-| ------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------ |
-| **UI Language**                 | Plugin interface language                                                      | Auto-detected, fallback EN           |
-| **System Prompt**               | Custom instructions for the model                                              | Empty                                |
-| **Show "Add Text"**             | Show the Add Text option in the reader selection popup                         | On                                   |
-| **Selection Translation**       | Translate selected reader text in the popup and reuse local cold-start context | On                                   |
-| **Selection Translation Model** | Dedicated model for reader selection translation                               | First available model unless changed |
-| **Show All Models**             | Show all available models instead of a curated subset                          | Off                                  |
-| **Tab Bar**                     | Show or hide the tab navigation bar                                            | Hidden                               |
+| Setting                         | Description                                                            | Default                              |
+| ------------------------------- | ---------------------------------------------------------------------- | ------------------------------------ |
+| **UI Language**                 | Plugin interface language                                              | Auto-detected, fallback EN           |
+| **System Prompt**               | Custom instructions for the model                                      | Empty                                |
+| **Show "Add Text"**             | Show the Add Text option in the reader selection popup                 | On                                   |
+| **Selection Translation**       | Translate selected reader text with automatic bounded document context | On                                   |
+| **Selection Translation Model** | Dedicated model for reader selection translation                       | First available model unless changed |
+| **Show All Models**             | Show all available models instead of a curated subset                  | Off                                  |
+| **Tab Bar**                     | Show or hide the tab navigation bar                                    | Hidden                               |
 
 ---
 

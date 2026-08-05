@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/zh-tw/">https://visterainer.github.io/aidea-zotero/zh-tw/</a>
 </p>
 
-AIdea 是一款面向 Zotero 的免費開源 AI 研究助手外掛。🔐 支援 OpenAI（ChatGPT）、Google Gemini、GitHub Copilot 的 OAuth 登入。⚙️ 也支援 OpenAI 相容 API，以及透過 Ollama、LM Studio、vLLM 等環境接入本地或自託管模型。它可將多提供商對話、論文上下文分析、筆記匯出、記憶能力與全文翻譯整合到 Zotero 的資料庫檢視與 PDF 閱讀器中。
+AIdea 是一款面向 Zotero 的免費開源 AI 研究助手外掛。🔐 支援 OpenAI（ChatGPT）、Google Gemini、GitHub Copilot 的 OAuth 登入。⚙️ 也支援 OpenAI 相容 API，以及透過 Ollama、LM Studio、vLLM 等環境接入本地或自託管模型。它可將多提供商對話、論文上下文分析、筆記匯出、記憶能力與全文翻譯整合到 Zotero 的資料庫檢視、PDF 閱讀器與 EPUB 閱讀器中。
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -39,16 +39,16 @@ AIdea 是一款面向 Zotero 的免費開源 AI 研究助手外掛。🔐 支援
 
 ## 專案概覽
 
-AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整理、劃詞翻譯與全文翻譯的研究型工作流程。它為 Zotero 的資料庫檢視與 PDF 閱讀器提供一致且可持續的 AI 工作區，減少在多個外部工具之間切換的成本。
+AIdea 面向需要在 Zotero 內完成論文與電子書閱讀、追問、摘錄、筆記整理、劃詞翻譯與全文翻譯的研究型工作流程。它為 Zotero 的資料庫檢視、PDF 閱讀器與 EPUB 閱讀器提供一致且可持續的 AI 工作區，減少在多個外部工具之間切換的成本。
 
 ## 核心能力
 
-- **側邊欄 AI 對話**，可在 Zotero 資料庫檢視與 PDF 閱讀器中使用
-- **論文感知上下文**，支援 PDF 選段、截圖、圖表與附件參與分析
+- **側邊欄 AI 對話**，可在 Zotero 資料庫檢視、PDF 閱讀器與 EPUB 閱讀器中使用
+- **文件感知上下文**，支援 PDF 選段、EPUB 2/3 出版目錄結構、截圖、圖表與附件參與分析
 - **快捷操作按鈕**，可用於總結、解釋、翻譯等常見任務
 - **多種連線方式**，支援 OAuth 登入與 OpenAI 相容 API 模式
 - **全文翻譯**，可在側邊欄內執行並匯出 PDF
-- **劃詞翻譯**，可在 PDF 或 EPUB 閱讀器選取文字後直接翻譯，自動識別目前格式，並復用本地冷啟動快取、加入 Zotero 筆記
+- **劃詞翻譯**，可在 PDF 或 EPUB 閱讀器選取文字後直接翻譯，自動識別目前格式、使用有界文件上下文並加入 Zotero 筆記
 - **本地歷史與記憶**，支援按文庫隔離、筆記回寫與持續對話
 - **豐富渲染能力**，支援 Markdown、程式碼區塊、表格、LaTeX 與串流輸出
 
@@ -115,11 +115,11 @@ AIdea 面向需要在 Zotero 內完成論文閱讀、追問、摘錄、筆記整
 1. 開啟 `工具` -> `附加元件` -> `AIdea` -> `設定`。
 2. 選擇 OAuth 登入或 API 模式。
 3. 重新整理可用模型並選擇要使用的模型。
-4. 開啟 Zotero 條目或 PDF，從 AIdea 側邊欄開始使用。
+4. 開啟 Zotero 條目、PDF 或 EPUB，從 AIdea 側邊欄開始使用。
 
 如需執行全文翻譯，可切換到翻譯分頁，設定模型與輸出路徑後直接在 Zotero 內執行任務。
 
-如需使用劃詞翻譯，可在設定中啟用此功能並選擇模型，之後在 PDF 或 EPUB 閱讀器選取文字即可，無需手動切換格式。某篇文獻首次使用時，AIdea 會在本地建立包含精簡概述與專業詞摘要的冷啟動快取，後續翻譯會復用這份上下文。
+如需使用劃詞翻譯，可在設定中啟用此功能並選擇模型，之後在 PDF 或 EPUB 閱讀器選取文字即可，無需手動切換格式。PDF 首次使用時會建立包含精簡概述與專業詞摘要的本地冷啟動快取；EPUB 則直接使用以選取文字為錨點的有界圖書上下文，不會額外執行暖機請求。
 
 ## 語言支援
 
