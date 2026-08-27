@@ -2,21 +2,43 @@ import { GLOBAL_CONVERSATION_KEY_BASE } from "./constants";
 import { normalizePositiveInt } from "./normalizers";
 import type { GlobalPortalItem } from "./types";
 
+function getSingleLibraryID(values: unknown): number | null {
+  if (!Array.isArray(values)) return null;
+  const ids = new Set(
+    values.map(normalizePositiveInt).filter((id): id is number => id !== null),
+  );
+  return ids.size === 1 ? [...ids][0] : null;
+}
+
 export function resolveActiveLibraryID(): number | null {
   try {
     const pane = Zotero.getActiveZoteroPane?.() as
       | {
+          getSelectedLibraryIDs?: () => unknown;
           getSelectedLibraryID?: () => unknown;
           getSelectedItems?: () => Zotero.Item[];
         }
       | undefined;
-    const selectedLibraryID = normalizePositiveInt(
-      pane?.getSelectedLibraryID?.(),
-    );
-    if (selectedLibraryID) return selectedLibraryID;
+    try {
+      // Zotero 10's singular getter throws, even for a single selection.
+      // Prefer the plural API and only use the old getter on older versions.
+      const selectedLibraryID = getSingleLibraryID(
+        typeof pane?.getSelectedLibraryIDs === "function"
+          ? pane.getSelectedLibraryIDs()
+          : [pane?.getSelectedLibraryID?.()],
+      );
+      if (selectedLibraryID) return selectedLibraryID;
+    } catch (_err) {
+      void _err;
+    }
+
+    // A multi-library view has no single scope. Use selected items only when
+    // they agree on a library; otherwise keep the personal-library fallback.
     const selectedItems = pane?.getSelectedItems?.() || [];
-    const firstItemLibrary = normalizePositiveInt(selectedItems[0]?.libraryID);
-    if (firstItemLibrary) return firstItemLibrary;
+    const selectedItemLibraryID = getSingleLibraryID(
+      selectedItems.map((item) => item?.libraryID),
+    );
+    if (selectedItemLibraryID) return selectedItemLibraryID;
   } catch (_err) {
     void _err;
   }
