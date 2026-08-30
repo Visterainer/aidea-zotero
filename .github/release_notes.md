@@ -8,7 +8,7 @@
 
 - 🌐 **One-time localized update notice**: Added a once-per-version Zotero 10 compatibility notice in all 12 interface languages, including restart and official update guidance without adding a new Settings or PDF/EPUB mode.
 
-- ✅ **Validation**: Passed 447 automated tests, formatting and lint checks, and a production build. Local Windows testing on Zotero 10.0.1 covered native XPI compatibility checks, installation, restart, disable/re-enable, group and multi-library selection, settings, and PDF/EPUB reader panels. These smoke tests did not send requests to a model provider.
+- ✅ **Validation**: Passed 451 TypeScript unit tests and 110 Python bridge tests, formatting and lint checks, and a production build. Full local QA on Windows with Zotero 10.0.1 covered XPI installation, restart, disable/re-enable, no/single/multi-selection scope, settings, global/PDF/EPUB chat, attachments, conversation history, notes, image generation, and a 27-page monolingual and bilingual PDF translation using the existing OpenAI Codex connection only. Translation pause/resume also verified Windows process-tree cleanup and a fresh bridge restart. No group library was available in the local profile; group-library scope is covered by automated regression tests.
 
 - 🔁 **How to update**: Install `AIdea-3.4.1.xpi` from this release, or use Zotero's plugin update check, then restart Zotero. There is no need to edit or repackage `manifest.json` manually.
 
@@ -22,6 +22,6 @@
 
 - 🌐 **一次性多语言更新提示**：新增覆盖全部 12 种界面语言、每个版本只显示一次的 Zotero 10 兼容提示，包含重启和官方更新说明，不增加新的设置或 PDF/EPUB 模式。
 
-- ✅ **验证情况**：已通过 447 项自动化测试、格式与 lint 检查及生产构建。在 Windows 的 Zotero 10.0.1 中验证了原生 XPI 兼容性检查、安装、重启、禁用后重新启用、群组与多资料库选择、设置页及 PDF/EPUB 阅读器面板。本轮冒烟测试未向模型服务商发送请求。
+- ✅ **验证情况**：已通过 451 项 TypeScript 单元测试、110 项 Python bridge 测试、格式与 lint 检查及生产构建。在 Windows 的 Zotero 10.0.1 中完成了全功能本机验收，覆盖 XPI 安装、重启、禁用后重新启用、无选择/单选/多选范围、设置页、全局/PDF/EPUB 对话、附件、会话历史、笔记、图片生成，以及仅使用现有 OpenAI Codex 连接完成的 27 页单语与双语 PDF 全文翻译；暂停与继续还验证了 Windows 进程树清理及新 bridge 重启。本机 Profile 没有群组文库，该范围由自动化回归测试覆盖。
 
 - 🔁 **更新方法**：安装本次发布的 `AIdea-3.4.1.xpi`，或使用 Zotero 的插件更新检查，然后重启 Zotero。无需手动修改或重新打包 `manifest.json`。
