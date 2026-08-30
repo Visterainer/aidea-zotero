@@ -10,6 +10,7 @@
 import { getModelChoices } from "../contextPanel/setupHandlers/controllers/modelSelectionController";
 import { getPanelI18n } from "../contextPanel/i18n";
 import type { ProgressData, TranslationStats, WarningStats } from "./types";
+import { restartPausedTranslation } from "./translationLifecycle";
 
 /* ── Per-tab model pref key ── */
 
@@ -898,12 +899,23 @@ export function initTranslateTab(body: Element): void {
       if (!session.activeController) return;
       try {
         if (session.isPaused) {
-          // Resume — re-start translation to continue from cache
-          session.isPaused = false;
+          // Resume from pdf2zh_next's cache with a fresh bridge/OAuth proxy.
           const i18n = getPanelI18n();
           pauseBtn.textContent = `⏸ ${i18n.trPause}`;
           pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
           consoleLog(body, `▶️ ${i18n.trLogResumed}`, "info");
+          restartPausedTranslation(
+            session,
+            () => startTranslation(body),
+            (err) => {
+              consoleLog(
+                body,
+                `❌ ${i18n.trLogPauseError(String(err))}`,
+                "error",
+              );
+              restoreTranslationControls(body);
+            },
+          );
         } else {
           // Pause
           session.activeController.pause();
