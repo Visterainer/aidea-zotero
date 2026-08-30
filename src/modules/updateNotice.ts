@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.4.0-epub-context-chat-v1";
+export const NOTICE_ID = "v3.4.1-zotero-10-compatibility-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -907,26 +907,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "EPUB context chat and more reliable panel startup",
-      lead: "AIdea can now use EPUB books as document context in Zotero's reader panel, with local section routing and bounded retrieval from EPUB 2/3 structure.",
-      note: "Restart Zotero after updating. Open a PDF or EPUB and use the same AIdea reader panel; no additional mode switch is required.",
+      title: "Zotero 10 compatibility",
+      lead: "AIdea can now be installed and used on Zotero 10.0.x while retaining support for Zotero 7–9.",
+      note: "Restart Zotero after updating. Install the official XPI or use automatic update; there is no need to edit manifest.json manually.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "EPUB side-panel chat",
-          text: "Ask about chapters or the whole book directly in the Zotero EPUB reader.",
+          label: "Official installation and updates",
+          text: "The official XPI and automatic-update manifest now accept Zotero 10.0.x.",
         },
         {
-          label: "Local bounded retrieval",
-          text: "Publisher structure, follow-up scope, and whole-book sampling are handled locally without an additional planning-model request.",
+          label: "Correct library scope",
+          text: "Zotero 10's plural library-selection API keeps personal, group, and multi-library conversation scope correct.",
         },
         {
-          label: "Context-aware selection translation",
-          text: "EPUB selections use bounded book context directly, without a separate cold-start request.",
+          label: "Zotero 7–9 retained",
+          text: "Older Zotero versions continue to use the existing fallback API.",
         },
         {
-          label: "Reliable and safe",
-          text: "Panel initialization can recover from optional migration failures, and malformed or oversized EPUB archives are bounded.",
+          label: "No new modes",
+          text: "Settings and the existing PDF/EPUB side panels keep the same workflow without an extra mode.",
         },
       ],
       exampleLabel: "",
@@ -936,26 +936,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "EPUB 上下文对话与更可靠的面板启动",
-      lead: "AIdea 现在可以在 Zotero EPUB 阅读器侧边栏中把图书作为文档上下文，并根据 EPUB 2/3 结构在本地完成章节路由和有界检索。",
-      note: "更新后请重启 Zotero。打开 PDF 或 EPUB 后直接使用同一个 AIdea 阅读器面板，无需切换额外模式。",
+      title: "兼容 Zotero 10",
+      lead: "AIdea 现在可以在 Zotero 10.0.x 中安装和使用，同时继续支持 Zotero 7–9。",
+      note: "更新后请重启 Zotero。请安装官方 XPI 或使用自动更新，无需手动修改 manifest.json。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "EPUB 侧边栏对话",
-          text: "可以直接在 Zotero EPUB 阅读器中询问具体章节或整本图书。",
+          label: "官方安装与自动更新兼容",
+          text: "官方 XPI 和自动更新清单现已支持 Zotero 10.0.x。",
         },
         {
-          label: "本地有界检索",
-          text: "出版目录结构、追问范围和全书采样均在本地处理，不会额外调用模型规划章节。",
+          label: "资料库范围修复",
+          text: "改用 Zotero 10 的复数资料库选择接口，确保个人、群组和多资料库会话范围正确。",
         },
         {
-          label: "带上下文的划词翻译",
-          text: "EPUB 划词直接使用有界图书上下文，不再执行单独的冷启动请求。",
+          label: "保留 Zotero 7–9 支持",
+          text: "旧版 Zotero 继续使用现有后备接口。",
         },
         {
-          label: "启动可靠且处理安全",
-          text: "可选迁移失败后面板仍可恢复，异常或超大的 EPUB 压缩包也会受到明确限制。",
+          label: "不增加新模式",
+          text: "设置页以及现有 PDF/EPUB 侧边栏继续使用原有流程，无需切换额外模式。",
         },
       ],
       exampleLabel: "",
@@ -965,26 +965,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "EPUB 上下文對話與更可靠的面板啟動",
-      lead: "AIdea 現在可以在 Zotero EPUB 閱讀器側邊欄中把圖書作為文件上下文，並依 EPUB 2/3 結構在本地完成章節路由和有界檢索。",
-      note: "更新後請重新啟動 Zotero。開啟 PDF 或 EPUB 後直接使用同一個 AIdea 閱讀器面板，無需切換額外模式。",
+      title: "相容 Zotero 10",
+      lead: "AIdea 現在可以在 Zotero 10.0.x 中安裝和使用，同時繼續支援 Zotero 7–9。",
+      note: "更新後請重新啟動 Zotero。請安裝官方 XPI 或使用自動更新，無需手動修改 manifest.json。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "EPUB 側邊欄對話",
-          text: "可以直接在 Zotero EPUB 閱讀器中詢問特定章節或整本圖書。",
+          label: "官方安裝與自動更新相容",
+          text: "官方 XPI 與自動更新清單現已支援 Zotero 10.0.x。",
         },
         {
-          label: "本地有界檢索",
-          text: "出版目錄結構、追問範圍與全書取樣均在本地處理，不會額外呼叫模型規劃章節。",
+          label: "資料庫範圍修正",
+          text: "改用 Zotero 10 的複數資料庫選取介面，確保個人、群組與多資料庫對話範圍正確。",
         },
         {
-          label: "帶上下文的劃詞翻譯",
-          text: "EPUB 劃詞直接使用有界圖書上下文，不再執行單獨的冷啟動請求。",
+          label: "保留 Zotero 7–9 支援",
+          text: "舊版 Zotero 繼續使用現有的後備介面。",
         },
         {
-          label: "啟動可靠且處理安全",
-          text: "可選遷移失敗後面板仍可恢復，異常或超大的 EPUB 壓縮檔也會受到明確限制。",
+          label: "不增加新模式",
+          text: "設定頁與現有 PDF/EPUB 側邊欄維持原有流程，無需切換額外模式。",
         },
       ],
       exampleLabel: "",
@@ -994,26 +994,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "EPUB コンテキストチャットと安定したパネル起動",
-      lead: "AIdea は Zotero の EPUB リーダーパネルで書籍を文書コンテキストとして利用し、EPUB 2/3 構造からローカルで章のルーティングと範囲を制限した検索を行えるようになりました。",
-      note: "更新後に Zotero を再起動してください。PDF または EPUB を開き、同じ AIdea リーダーパネルをそのまま利用できます。追加のモード切り替えは不要です。",
+      title: "Zotero 10 への対応",
+      lead: "AIdea を Zotero 10.0.x にインストールして利用できるようになり、Zotero 7–9 のサポートも継続します。",
+      note: "更新後に Zotero を再起動してください。公式 XPI をインストールするか自動更新を使用でき、manifest.json を手動で変更する必要はありません。",
       alsoLabel: "今回の更新内容",
       alsoItems: [
         {
-          label: "EPUB サイドパネルチャット",
-          text: "Zotero の EPUB リーダーで特定の章や書籍全体について直接質問できます。",
+          label: "公式インストールと自動更新",
+          text: "公式 XPI と自動更新マニフェストが Zotero 10.0.x に対応しました。",
         },
         {
-          label: "ローカルで範囲を制限した検索",
-          text: "出版者構造、追質問の範囲、書籍全体のサンプリングをローカルで処理し、章の計画に追加のモデル呼び出しを行いません。",
+          label: "ライブラリ範囲の修正",
+          text: "Zotero 10 の複数ライブラリ選択 API により、個人、グループ、複数ライブラリの会話範囲を正しく保ちます。",
         },
         {
-          label: "コンテキスト付き選択翻訳",
-          text: "EPUB の選択範囲は、別のコールドスタート要求なしで範囲を制限した書籍コンテキストを直接利用します。",
+          label: "Zotero 7–9 のサポートを継続",
+          text: "旧バージョンの Zotero では既存のフォールバック API を引き続き使用します。",
         },
         {
-          label: "安定した起動と安全な処理",
-          text: "任意の移行に失敗してもパネルは回復でき、不正または過大な EPUB アーカイブには明確な制限が適用されます。",
+          label: "新しいモードは不要",
+          text: "設定画面と既存の PDF/EPUB サイドパネルは、追加モードなしで従来の操作を維持します。",
         },
       ],
       exampleLabel: "",
@@ -1023,26 +1023,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "EPUB 컨텍스트 채팅과 안정적인 패널 시작",
-      lead: "AIdea는 이제 Zotero EPUB 리더 패널에서 책을 문서 컨텍스트로 사용하고 EPUB 2/3 구조를 기반으로 로컬 장 라우팅과 제한된 검색을 수행합니다.",
-      note: "업데이트 후 Zotero를 다시 시작하세요. PDF 또는 EPUB를 열고 동일한 AIdea 리더 패널을 사용하면 되며 추가 모드 전환은 필요하지 않습니다.",
+      title: "Zotero 10 호환성",
+      lead: "이제 AIdea를 Zotero 10.0.x에 설치해 사용할 수 있으며 Zotero 7–9 지원도 계속 유지됩니다.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 공식 XPI를 설치하거나 자동 업데이트를 사용하면 되며 manifest.json을 직접 수정할 필요가 없습니다.",
       alsoLabel: "이번 업데이트 내용",
       alsoItems: [
         {
-          label: "EPUB 사이드 패널 채팅",
-          text: "Zotero EPUB 리더에서 특정 장이나 책 전체에 대해 직접 질문할 수 있습니다.",
+          label: "공식 설치 및 자동 업데이트",
+          text: "공식 XPI와 자동 업데이트 매니페스트가 이제 Zotero 10.0.x를 지원합니다.",
         },
         {
-          label: "로컬 제한 검색",
-          text: "출판 구조, 후속 질문 범위 및 책 전체 샘플링을 로컬에서 처리하며 장 계획을 위한 추가 모델 호출이 없습니다.",
+          label: "라이브러리 범위 수정",
+          text: "Zotero 10의 복수 라이브러리 선택 API로 개인, 그룹 및 다중 라이브러리 대화 범위를 올바르게 유지합니다.",
         },
         {
-          label: "컨텍스트 기반 선택 번역",
-          text: "EPUB 선택 영역은 별도의 콜드 스타트 요청 없이 제한된 책 컨텍스트를 바로 사용합니다.",
+          label: "Zotero 7–9 지원 유지",
+          text: "이전 Zotero 버전은 기존 대체 API를 계속 사용합니다.",
         },
         {
-          label: "안정적인 시작과 안전한 처리",
-          text: "선택적 마이그레이션이 실패해도 패널이 복구되며 비정상적이거나 지나치게 큰 EPUB 아카이브에는 명확한 제한이 적용됩니다.",
+          label: "새 모드 없음",
+          text: "설정과 기존 PDF/EPUB 사이드 패널은 추가 모드 없이 동일한 작업 흐름을 유지합니다.",
         },
       ],
       exampleLabel: "",
@@ -1052,26 +1052,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "Chat contextuel EPUB et démarrage fiable du panneau",
-      lead: "AIdea peut désormais utiliser un livre EPUB comme contexte dans le panneau du lecteur Zotero, avec routage local des sections et recherche bornée à partir des structures EPUB 2/3.",
-      note: "Redémarrez Zotero après la mise à jour. Ouvrez un PDF ou un EPUB et utilisez le même panneau AIdea, sans changer de mode.",
+      title: "Compatibilité avec Zotero 10",
+      lead: "AIdea peut désormais être installé et utilisé avec Zotero 10.0.x, tout en conservant la prise en charge de Zotero 7–9.",
+      note: "Redémarrez Zotero après la mise à jour. Installez le XPI officiel ou utilisez la mise à jour automatique ; aucune modification manuelle de manifest.json n’est nécessaire.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Chat EPUB dans le panneau latéral",
-          text: "Interrogez directement un chapitre ou l'ensemble du livre dans le lecteur EPUB de Zotero.",
+          label: "Installation officielle et mises à jour",
+          text: "Le XPI officiel et le manifeste de mise à jour automatique acceptent maintenant Zotero 10.0.x.",
         },
         {
-          label: "Recherche locale bornée",
-          text: "La structure éditoriale, la portée des questions de suivi et l'échantillonnage du livre sont traités localement sans appel supplémentaire au modèle de planification.",
+          label: "Portée de bibliothèque corrigée",
+          text: "L’API plurielle de sélection des bibliothèques de Zotero 10 conserve la bonne portée pour les bibliothèques personnelles, de groupe et multiples.",
         },
         {
-          label: "Traduction de sélection contextualisée",
-          text: "Les sélections EPUB utilisent directement un contexte de livre borné, sans requête distincte de démarrage à froid.",
+          label: "Prise en charge de Zotero 7–9 conservée",
+          text: "Les anciennes versions de Zotero continuent d’utiliser l’API de repli existante.",
         },
         {
-          label: "Démarrage fiable et traitement sûr",
-          text: "Le panneau récupère après l'échec d'une migration facultative et les archives EPUB malformées ou surdimensionnées sont limitées.",
+          label: "Aucun nouveau mode",
+          text: "Les réglages et les panneaux latéraux PDF/EPUB existants conservent le même flux de travail sans mode supplémentaire.",
         },
       ],
       exampleLabel: "",
@@ -1081,26 +1081,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "EPUB-Kontextchat und zuverlässiger Panel-Start",
-      lead: "AIdea kann EPUB-Bücher jetzt im Zotero-Reader-Panel als Dokumentkontext verwenden und führt lokales Abschnittsrouting sowie begrenzte Suche anhand der EPUB-2/3-Struktur aus.",
-      note: "Starten Sie Zotero nach dem Update neu. Öffnen Sie eine PDF- oder EPUB-Datei und verwenden Sie dasselbe AIdea-Reader-Panel ohne zusätzlichen Moduswechsel.",
+      title: "Kompatibilität mit Zotero 10",
+      lead: "AIdea kann jetzt unter Zotero 10.0.x installiert und verwendet werden; Zotero 7–9 werden weiterhin unterstützt.",
+      note: "Starten Sie Zotero nach dem Update neu. Installieren Sie das offizielle XPI oder nutzen Sie das automatische Update; manifest.json muss nicht manuell geändert werden.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "EPUB-Chat im Seitenbereich",
-          text: "Fragen Sie direkt im Zotero-EPUB-Reader nach Kapiteln oder dem gesamten Buch.",
+          label: "Offizielle Installation und Updates",
+          text: "Das offizielle XPI und das Manifest für automatische Updates unterstützen nun Zotero 10.0.x.",
         },
         {
-          label: "Lokale begrenzte Suche",
-          text: "Verlagsstruktur, Rückfragebereich und Buchstichproben werden lokal ohne zusätzlichen Planungsmodell-Aufruf verarbeitet.",
+          label: "Korrigierter Bibliotheksumfang",
+          text: "Die Mehrfachauswahl-API von Zotero 10 hält den Gesprächsumfang für persönliche, Gruppen- und mehrere Bibliotheken korrekt.",
         },
         {
-          label: "Kontextbezogene Auswahlübersetzung",
-          text: "EPUB-Auswahlen verwenden direkt begrenzten Buchkontext ohne separate Kaltstartanfrage.",
+          label: "Zotero 7–9 bleiben unterstützt",
+          text: "Ältere Zotero-Versionen verwenden weiterhin die bestehende Fallback-API.",
         },
         {
-          label: "Zuverlässiger Start und sichere Verarbeitung",
-          text: "Das Panel erholt sich von optionalen Migrationsfehlern; fehlerhafte oder übergroße EPUB-Archive werden begrenzt.",
+          label: "Keine neuen Modi",
+          text: "Einstellungen und die vorhandenen PDF/EPUB-Seitenbereiche behalten denselben Ablauf ohne zusätzlichen Modus.",
         },
       ],
       exampleLabel: "",
@@ -1110,26 +1110,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title: "Chat contextual EPUB e inicio fiable del panel",
-      lead: "AIdea ahora puede usar libros EPUB como contexto en el panel del lector de Zotero, con enrutamiento local de secciones y recuperación limitada desde estructuras EPUB 2/3.",
-      note: "Reinicia Zotero después de actualizar. Abre un PDF o EPUB y usa el mismo panel de AIdea, sin cambiar de modo.",
+      title: "Compatibilidad con Zotero 10",
+      lead: "AIdea ya se puede instalar y usar en Zotero 10.0.x, manteniendo la compatibilidad con Zotero 7–9.",
+      note: "Reinicia Zotero después de actualizar. Instala el XPI oficial o usa la actualización automática; no hace falta modificar manifest.json manualmente.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Chat EPUB en el panel lateral",
-          text: "Pregunta directamente por capítulos o por el libro completo en el lector EPUB de Zotero.",
+          label: "Instalación oficial y actualizaciones",
+          text: "El XPI oficial y el manifiesto de actualización automática ya admiten Zotero 10.0.x.",
         },
         {
-          label: "Recuperación local limitada",
-          text: "La estructura editorial, el alcance de preguntas posteriores y el muestreo del libro se procesan localmente sin otra llamada al modelo de planificación.",
+          label: "Ámbito de biblioteca corregido",
+          text: "La API plural de selección de bibliotecas de Zotero 10 mantiene el ámbito correcto para bibliotecas personales, de grupo y múltiples.",
         },
         {
-          label: "Traducción de selección con contexto",
-          text: "Las selecciones EPUB usan directamente contexto limitado del libro sin una solicitud separada de inicio en frío.",
+          label: "Se conserva Zotero 7–9",
+          text: "Las versiones anteriores de Zotero siguen usando la API alternativa existente.",
         },
         {
-          label: "Inicio fiable y procesamiento seguro",
-          text: "El panel se recupera de fallos de migración opcionales y los archivos EPUB dañados o demasiado grandes quedan limitados.",
+          label: "Sin modos nuevos",
+          text: "Los ajustes y los paneles laterales PDF/EPUB existentes conservan el mismo flujo sin un modo adicional.",
         },
       ],
       exampleLabel: "",
@@ -1139,26 +1139,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "Контекстный чат EPUB и надёжный запуск панели",
-      lead: "AIdea теперь использует книги EPUB как контекст в панели ридера Zotero и выполняет локальную маршрутизацию разделов и ограниченный поиск по структуре EPUB 2/3.",
-      note: "После обновления перезапустите Zotero. Откройте PDF или EPUB и используйте ту же панель AIdea без переключения режима.",
+      title: "Совместимость с Zotero 10",
+      lead: "AIdea теперь можно установить и использовать в Zotero 10.0.x с сохранением поддержки Zotero 7–9.",
+      note: "После обновления перезапустите Zotero. Установите официальный XPI или используйте автообновление; вручную изменять manifest.json не нужно.",
       alsoLabel: "В это обновление входит",
       alsoItems: [
         {
-          label: "Чат EPUB в боковой панели",
-          text: "Задавайте вопросы о главе или всей книге прямо в EPUB-ридере Zotero.",
+          label: "Официальная установка и обновления",
+          text: "Официальный XPI и манифест автообновления теперь поддерживают Zotero 10.0.x.",
         },
         {
-          label: "Локальный ограниченный поиск",
-          text: "Структура издателя, область последующих вопросов и выборка по книге обрабатываются локально без дополнительного вызова модели планирования.",
+          label: "Исправленная область библиотеки",
+          text: "Множественный API выбора библиотек Zotero 10 сохраняет правильную область для личных, групповых и нескольких библиотек.",
         },
         {
-          label: "Перевод выделения с контекстом",
-          text: "Выделения EPUB сразу используют ограниченный контекст книги без отдельного запроса холодного запуска.",
+          label: "Поддержка Zotero 7–9 сохранена",
+          text: "Старые версии Zotero продолжают использовать существующий резервный API.",
         },
         {
-          label: "Надёжный запуск и безопасная обработка",
-          text: "Панель восстанавливается после сбоев необязательной миграции, а повреждённые или слишком большие архивы EPUB ограничиваются.",
+          label: "Без новых режимов",
+          text: "Настройки и существующие боковые панели PDF/EPUB работают как прежде, без дополнительного режима.",
         },
       ],
       exampleLabel: "",
@@ -1168,26 +1168,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title: "Chat contextual EPUB e inicialização confiável do painel",
-      lead: "O AIdea agora usa livros EPUB como contexto no painel do leitor Zotero, com roteamento local de seções e recuperação limitada pelas estruturas EPUB 2/3.",
-      note: "Reinicie o Zotero após atualizar. Abra um PDF ou EPUB e use o mesmo painel AIdea, sem trocar de modo.",
+      title: "Compatibilidade com o Zotero 10",
+      lead: "O AIdea agora pode ser instalado e usado no Zotero 10.0.x, mantendo o suporte ao Zotero 7–9.",
+      note: "Reinicie o Zotero após atualizar. Instale o XPI oficial ou use a atualização automática; não é necessário editar manifest.json manualmente.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Chat EPUB no painel lateral",
-          text: "Pergunte diretamente sobre capítulos ou o livro inteiro no leitor EPUB do Zotero.",
+          label: "Instalação oficial e atualizações",
+          text: "O XPI oficial e o manifesto de atualização automática agora aceitam o Zotero 10.0.x.",
         },
         {
-          label: "Recuperação local limitada",
-          text: "A estrutura editorial, o escopo das perguntas seguintes e a amostragem do livro são tratados localmente sem chamada adicional ao modelo de planejamento.",
+          label: "Escopo correto da biblioteca",
+          text: "A API plural de seleção de bibliotecas do Zotero 10 mantém o escopo correto para bibliotecas pessoais, de grupo e múltiplas.",
         },
         {
-          label: "Tradução de seleção com contexto",
-          text: "Seleções EPUB usam diretamente contexto limitado do livro sem solicitação separada de inicialização a frio.",
+          label: "Suporte ao Zotero 7–9 mantido",
+          text: "Versões anteriores do Zotero continuam usando a API alternativa existente.",
         },
         {
-          label: "Inicialização confiável e processamento seguro",
-          text: "O painel se recupera de falhas de migração opcionais e arquivos EPUB malformados ou grandes demais são limitados.",
+          label: "Sem novos modos",
+          text: "As configurações e os painéis laterais PDF/EPUB existentes mantêm o mesmo fluxo sem um modo adicional.",
         },
       ],
       exampleLabel: "",
@@ -1197,26 +1197,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "محادثة EPUB بالسياق وبدء موثوق للوحة",
-      lead: "يستطيع AIdea الآن استخدام كتب EPUB كسياق للمستند في لوحة قارئ Zotero، مع توجيه محلي للأقسام واسترجاع محدود من بنية EPUB 2/3.",
-      note: "أعد تشغيل Zotero بعد التحديث. افتح PDF أو EPUB واستخدم لوحة AIdea نفسها دون تبديل وضع إضافي.",
+      title: "التوافق مع Zotero 10",
+      lead: "يمكن الآن تثبيت AIdea واستخدامه على Zotero 10.0.x مع استمرار دعم Zotero 7–9.",
+      note: "أعد تشغيل Zotero بعد التحديث. ثبّت ملف XPI الرسمي أو استخدم التحديث التلقائي؛ لا حاجة إلى تعديل manifest.json يدويًا.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "محادثة EPUB في اللوحة الجانبية",
-          text: "اسأل عن فصل أو عن الكتاب كاملاً مباشرة في قارئ EPUB في Zotero.",
+          label: "التثبيت الرسمي والتحديثات",
+          text: "أصبح ملف XPI الرسمي وبيان التحديث التلقائي يدعمان Zotero 10.0.x.",
         },
         {
-          label: "استرجاع محلي محدود",
-          text: "تُعالج بنية الناشر ونطاق الأسئلة اللاحقة وأخذ عينات الكتاب محليًا دون استدعاء إضافي لنموذج التخطيط.",
+          label: "تصحيح نطاق المكتبة",
+          text: "تحافظ واجهة اختيار المكتبات المتعددة في Zotero 10 على النطاق الصحيح للمكتبات الشخصية والجماعية والمتعددة.",
         },
         {
-          label: "ترجمة تحديد مدعومة بالسياق",
-          text: "تستخدم تحديدات EPUB سياقًا محدودًا للكتاب مباشرة دون طلب بدء بارد منفصل.",
+          label: "استمرار دعم Zotero 7–9",
+          text: "تواصل إصدارات Zotero الأقدم استخدام واجهة الرجوع الحالية.",
         },
         {
-          label: "بدء موثوق ومعالجة آمنة",
-          text: "تتعافى اللوحة بعد فشل عمليات الترحيل الاختيارية وتُفرض حدود على أرشيفات EPUB التالفة أو الضخمة.",
+          label: "من دون أوضاع جديدة",
+          text: "تحافظ الإعدادات واللوحات الجانبية الحالية لـ PDF/EPUB على سير العمل نفسه دون وضع إضافي.",
         },
       ],
       exampleLabel: "",
@@ -1226,26 +1226,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "EPUB context chat और भरोसेमंद panel startup",
-      lead: "AIdea अब Zotero EPUB reader panel में पुस्तकों को document context की तरह उपयोग करता है और EPUB 2/3 structure से local section routing तथा bounded retrieval करता है।",
-      note: "अपडेट के बाद Zotero को पुनः शुरू करें। PDF या EPUB खोलें और बिना किसी अतिरिक्त mode switch के वही AIdea reader panel उपयोग करें।",
+      title: "Zotero 10 के साथ संगतता",
+      lead: "AIdea अब Zotero 10.0.x पर install और use किया जा सकता है, जबकि Zotero 7–9 support भी जारी है।",
+      note: "अपडेट के बाद Zotero को restart करें। Official XPI install करें या automatic update उपयोग करें; manifest.json को manually edit करने की जरूरत नहीं है।",
       alsoLabel: "इस अपडेट में शामिल है",
       alsoItems: [
         {
-          label: "EPUB side-panel chat",
-          text: "Zotero EPUB reader में किसी chapter या पूरी पुस्तक के बारे में सीधे पूछें।",
+          label: "Official installation और updates",
+          text: "Official XPI और automatic-update manifest अब Zotero 10.0.x को support करते हैं।",
         },
         {
-          label: "Local bounded retrieval",
-          text: "Publisher structure, follow-up scope और whole-book sampling local रूप से संभाले जाते हैं, planning model की अतिरिक्त call के बिना।",
+          label: "सही library scope",
+          text: "Zotero 10 का plural library-selection API personal, group और multi-library conversation scope सही रखता है।",
         },
         {
-          label: "Context-aware selection translation",
-          text: "EPUB selections अलग cold-start request के बिना bounded book context का सीधे उपयोग करते हैं।",
+          label: "Zotero 7–9 support जारी",
+          text: "पुराने Zotero versions मौजूदा fallback API का उपयोग जारी रखते हैं।",
         },
         {
-          label: "Reliable और safe",
-          text: "Optional migration failure के बाद panel recover कर सकता है और malformed या oversized EPUB archives पर स्पष्ट limits लागू होती हैं।",
+          label: "कोई नया mode नहीं",
+          text: "Settings और मौजूदा PDF/EPUB side panels बिना अतिरिक्त mode के वही workflow बनाए रखते हैं।",
         },
       ],
       exampleLabel: "",
