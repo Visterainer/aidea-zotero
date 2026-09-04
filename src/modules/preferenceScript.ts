@@ -32,6 +32,7 @@ import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n } from "./contextPanel/i18n";
 import { refreshTranslateTabI18n } from "./contextPanel/i18n";
+import { clearSelectionTranslateColdStartFallbackState } from "./contextPanel/selectionTranslateColdStart";
 import { AUTHOR_PROFILE_SETTINGS_I18N } from "./authorProfiles/i18n";
 import {
   getOAuthEnvUpdateMode,
@@ -7130,6 +7131,7 @@ export async function bootstrapSettingTab(
     selectionTranslateClearStatus.style.color = "#374151";
     try {
       await clearSelectionTranslateColdStartCache();
+      clearSelectionTranslateColdStartFallbackState();
       selectionTranslateClearStatus.textContent =
         L.selectionTranslateClearCacheDone;
       selectionTranslateClearStatus.style.color = "#065f46";

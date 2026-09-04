@@ -218,6 +218,8 @@ export type PanelI18n = {
   selectionTranslateColdStart: string;
   selectionTranslateTranslating: string;
   selectionTranslateFailed: string;
+  selectionTranslateNoContext: string;
+  selectionTranslateWriteToAnnotation: string;
   selectionTranslateColdStartStatus: string;
   selectionTranslateCacheReady: string;
   addToNote: string;
@@ -2855,6 +2857,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "冷啟動中...",
     selectionTranslateTranslating: "翻譯中...",
     selectionTranslateFailed: "翻譯失敗",
+    selectionTranslateNoContext: "上下文過長，正在進行輕量翻譯...",
+    selectionTranslateWriteToAnnotation: "將譯文寫入標註",
     selectionTranslateColdStartStatus: "選取翻譯冷啟動中...",
     selectionTranslateCacheReady: "選取翻譯快取已就緒",
     addToNote: "加入筆記",
@@ -2887,6 +2891,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "コールドスタート中...",
     selectionTranslateTranslating: "翻訳中...",
     selectionTranslateFailed: "翻訳に失敗しました",
+    selectionTranslateNoContext: "文書コンテキストなしで翻訳中...",
+    selectionTranslateWriteToAnnotation: "翻訳を注釈に書き込む",
     selectionTranslateColdStartStatus: "選択翻訳を準備中...",
     selectionTranslateCacheReady: "選択翻訳のキャッシュ準備完了",
     addToNote: "ノートに追加",
@@ -2920,6 +2926,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "콜드 스타트 중...",
     selectionTranslateTranslating: "번역 중...",
     selectionTranslateFailed: "번역 실패",
+    selectionTranslateNoContext: "문서 컨텍스트 없이 번역 중...",
+    selectionTranslateWriteToAnnotation: "번역을 주석에 쓰기",
     selectionTranslateColdStartStatus: "선택 번역 준비 중...",
     selectionTranslateCacheReady: "선택 번역 캐시 준비 완료",
     addToNote: "노트에 추가",
@@ -2953,6 +2961,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "Demarrage...",
     selectionTranslateTranslating: "Traduction...",
     selectionTranslateFailed: "Echec de la traduction",
+    selectionTranslateNoContext: "Traduction sans contexte du document...",
+    selectionTranslateWriteToAnnotation: "Ajouter la traduction a l'annotation",
     selectionTranslateColdStartStatus:
       "Demarrage de la traduction de selection...",
     selectionTranslateCacheReady: "Cache de traduction de selection pret",
@@ -2987,6 +2997,9 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "Start wird vorbereitet...",
     selectionTranslateTranslating: "Uebersetzung...",
     selectionTranslateFailed: "Uebersetzung fehlgeschlagen",
+    selectionTranslateNoContext: "Uebersetzung ohne Dokumentkontext...",
+    selectionTranslateWriteToAnnotation:
+      "Uebersetzung in die Anmerkung schreiben",
     selectionTranslateColdStartStatus:
       "Auswahluebersetzung wird vorbereitet...",
     selectionTranslateCacheReady: "Cache fuer Auswahluebersetzung bereit",
@@ -3021,6 +3034,9 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "Iniciando...",
     selectionTranslateTranslating: "Traduciendo...",
     selectionTranslateFailed: "Error de traduccion",
+    selectionTranslateNoContext: "Traduciendo sin contexto del documento...",
+    selectionTranslateWriteToAnnotation:
+      "Guardar la traduccion en la anotacion",
     selectionTranslateColdStartStatus: "Iniciando traduccion de seleccion...",
     selectionTranslateCacheReady: "Cache de traduccion de seleccion listo",
     addToNote: "Anadir a la nota",
@@ -3054,6 +3070,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "Запуск...",
     selectionTranslateTranslating: "Перевод...",
     selectionTranslateFailed: "Ошибка перевода",
+    selectionTranslateNoContext: "Перевод без контекста документа...",
+    selectionTranslateWriteToAnnotation: "Записать перевод в аннотацию",
     selectionTranslateColdStartStatus: "Запуск перевода выделения...",
     selectionTranslateCacheReady: "Кеш перевода выделения готов",
     addToNote: "Добавить в заметку",
@@ -3087,6 +3105,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "Iniciando...",
     selectionTranslateTranslating: "Traduzindo...",
     selectionTranslateFailed: "Falha na traducao",
+    selectionTranslateNoContext: "Traduzindo sem contexto do documento...",
+    selectionTranslateWriteToAnnotation: "Salvar a traducao na anotacao",
     selectionTranslateColdStartStatus: "Iniciando traducao da selecao...",
     selectionTranslateCacheReady: "Cache da traducao da selecao pronto",
     addToNote: "Adicionar a nota",
@@ -3120,6 +3140,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "جار بدء التشغيل...",
     selectionTranslateTranslating: "جار الترجمة...",
     selectionTranslateFailed: "فشلت الترجمة",
+    selectionTranslateNoContext: "جار الترجمة دون سياق المستند...",
+    selectionTranslateWriteToAnnotation: "كتابة الترجمة في التعليق التوضيحي",
     selectionTranslateColdStartStatus: "جار تجهيز ترجمة التحديد...",
     selectionTranslateCacheReady: "ذاكرة ترجمة التحديد جاهزة",
     addToNote: "إضافة إلى الملاحظة",
@@ -3152,6 +3174,8 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     selectionTranslateColdStart: "शुरू हो रहा है...",
     selectionTranslateTranslating: "अनुवाद हो रहा है...",
     selectionTranslateFailed: "अनुवाद विफल",
+    selectionTranslateNoContext: "दस्तावेज़ संदर्भ के बिना अनुवाद हो रहा है...",
+    selectionTranslateWriteToAnnotation: "अनुवाद को एनोटेशन में लिखें",
     selectionTranslateColdStartStatus: "चयन अनुवाद शुरू हो रहा है...",
     selectionTranslateCacheReady: "चयन अनुवाद कैश तैयार है",
     addToNote: "नोट में जोड़ें",
@@ -3975,6 +3999,9 @@ export function getPanelI18n(): PanelI18n {
       selectionTranslateColdStart: "Cold starting...",
       selectionTranslateTranslating: "Translating...",
       selectionTranslateFailed: "Translation failed",
+      selectionTranslateNoContext:
+        "Document context unavailable; translating selected text only...",
+      selectionTranslateWriteToAnnotation: "Write translation to annotation",
       selectionTranslateColdStartStatus:
         "Selection translation cold starting...",
       selectionTranslateCacheReady: "Selection translation cache ready",
@@ -4261,6 +4288,8 @@ export function getPanelI18n(): PanelI18n {
     selectionTranslateColdStart: "冷启动中...",
     selectionTranslateTranslating: "翻译中...",
     selectionTranslateFailed: "翻译失败",
+    selectionTranslateNoContext: "未使用文档上下文，正在翻译选中文本...",
+    selectionTranslateWriteToAnnotation: "将译文写入标注",
     selectionTranslateColdStartStatus: "划词翻译冷启动中...",
     selectionTranslateCacheReady: "划词翻译缓存已就绪",
     addToNote: "添加到笔记",

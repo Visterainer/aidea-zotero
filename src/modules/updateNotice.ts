@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.4.1-zotero-10-compatibility-v1";
+export const NOTICE_ID = "v3.5.0-selection-translation-reliability-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -903,30 +903,381 @@ const PDF_TRANSLATION_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   },
 };
 
+const ZOTERO_10_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
+  "en-US": {
+    eyebrow: "Update",
+    title: "Zotero 10 compatibility",
+    lead: "AIdea can now be installed and used on Zotero 10.0.x while retaining support for Zotero 7–9.",
+    note: "Restart Zotero after updating. Install the official XPI or use automatic update; there is no need to edit manifest.json manually.",
+    alsoLabel: "This update includes",
+    alsoItems: [
+      {
+        label: "Official installation and updates",
+        text: "The official XPI and automatic-update manifest now accept Zotero 10.0.x.",
+      },
+      {
+        label: "Correct library scope",
+        text: "Zotero 10's plural library-selection API keeps personal, group, and multi-library conversation scope correct.",
+      },
+      {
+        label: "Zotero 7–9 retained",
+        text: "Older Zotero versions continue to use the existing fallback API.",
+      },
+      {
+        label: "No new modes",
+        text: "Settings and the existing PDF/EPUB side panels keep the same workflow without an extra mode.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "Got it",
+    close: "Close update notice",
+  },
+  "zh-CN": {
+    eyebrow: "更新提示",
+    title: "兼容 Zotero 10",
+    lead: "AIdea 现在可以在 Zotero 10.0.x 中安装和使用，同时继续支持 Zotero 7–9。",
+    note: "更新后请重启 Zotero。请安装官方 XPI 或使用自动更新，无需手动修改 manifest.json。",
+    alsoLabel: "本次更新包括",
+    alsoItems: [
+      {
+        label: "官方安装与自动更新兼容",
+        text: "官方 XPI 和自动更新清单现已支持 Zotero 10.0.x。",
+      },
+      {
+        label: "资料库范围修复",
+        text: "改用 Zotero 10 的复数资料库选择接口，确保个人、群组和多资料库会话范围正确。",
+      },
+      {
+        label: "保留 Zotero 7–9 支持",
+        text: "旧版 Zotero 继续使用现有后备接口。",
+      },
+      {
+        label: "不增加新模式",
+        text: "设置页以及现有 PDF/EPUB 侧边栏继续使用原有流程，无需切换额外模式。",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "知道了",
+    close: "关闭更新提示",
+  },
+  "zh-TW": {
+    eyebrow: "更新提示",
+    title: "相容 Zotero 10",
+    lead: "AIdea 現在可以在 Zotero 10.0.x 中安裝和使用，同時繼續支援 Zotero 7–9。",
+    note: "更新後請重新啟動 Zotero。請安裝官方 XPI 或使用自動更新，無需手動修改 manifest.json。",
+    alsoLabel: "本次更新包括",
+    alsoItems: [
+      {
+        label: "官方安裝與自動更新相容",
+        text: "官方 XPI 與自動更新清單現已支援 Zotero 10.0.x。",
+      },
+      {
+        label: "資料庫範圍修正",
+        text: "改用 Zotero 10 的複數資料庫選取介面，確保個人、群組與多資料庫對話範圍正確。",
+      },
+      {
+        label: "保留 Zotero 7–9 支援",
+        text: "舊版 Zotero 繼續使用現有的後備介面。",
+      },
+      {
+        label: "不增加新模式",
+        text: "設定頁與現有 PDF/EPUB 側邊欄維持原有流程，無需切換額外模式。",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "知道了",
+    close: "關閉更新提示",
+  },
+  "ja-JP": {
+    eyebrow: "更新のお知らせ",
+    title: "Zotero 10 への対応",
+    lead: "AIdea を Zotero 10.0.x にインストールして利用できるようになり、Zotero 7–9 のサポートも継続します。",
+    note: "更新後に Zotero を再起動してください。公式 XPI をインストールするか自動更新を使用でき、manifest.json を手動で変更する必要はありません。",
+    alsoLabel: "今回の更新内容",
+    alsoItems: [
+      {
+        label: "公式インストールと自動更新",
+        text: "公式 XPI と自動更新マニフェストが Zotero 10.0.x に対応しました。",
+      },
+      {
+        label: "ライブラリ範囲の修正",
+        text: "Zotero 10 の複数ライブラリ選択 API により、個人、グループ、複数ライブラリの会話範囲を正しく保ちます。",
+      },
+      {
+        label: "Zotero 7–9 のサポートを継続",
+        text: "旧バージョンの Zotero では既存のフォールバック API を引き続き使用します。",
+      },
+      {
+        label: "新しいモードは不要",
+        text: "設定画面と既存の PDF/EPUB サイドパネルは、追加モードなしで従来の操作を維持します。",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "了解",
+    close: "更新通知を閉じる",
+  },
+  "ko-KR": {
+    eyebrow: "업데이트 안내",
+    title: "Zotero 10 호환성",
+    lead: "이제 AIdea를 Zotero 10.0.x에 설치해 사용할 수 있으며 Zotero 7–9 지원도 계속 유지됩니다.",
+    note: "업데이트 후 Zotero를 다시 시작하세요. 공식 XPI를 설치하거나 자동 업데이트를 사용하면 되며 manifest.json을 직접 수정할 필요가 없습니다.",
+    alsoLabel: "이번 업데이트 내용",
+    alsoItems: [
+      {
+        label: "공식 설치 및 자동 업데이트",
+        text: "공식 XPI와 자동 업데이트 매니페스트가 이제 Zotero 10.0.x를 지원합니다.",
+      },
+      {
+        label: "라이브러리 범위 수정",
+        text: "Zotero 10의 복수 라이브러리 선택 API로 개인, 그룹 및 다중 라이브러리 대화 범위를 올바르게 유지합니다.",
+      },
+      {
+        label: "Zotero 7–9 지원 유지",
+        text: "이전 Zotero 버전은 기존 대체 API를 계속 사용합니다.",
+      },
+      {
+        label: "새 모드 없음",
+        text: "설정과 기존 PDF/EPUB 사이드 패널은 추가 모드 없이 동일한 작업 흐름을 유지합니다.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "확인",
+    close: "업데이트 안내 닫기",
+  },
+  "fr-FR": {
+    eyebrow: "Mise à jour",
+    title: "Compatibilité avec Zotero 10",
+    lead: "AIdea peut désormais être installé et utilisé avec Zotero 10.0.x, tout en conservant la prise en charge de Zotero 7–9.",
+    note: "Redémarrez Zotero après la mise à jour. Installez le XPI officiel ou utilisez la mise à jour automatique ; aucune modification manuelle de manifest.json n’est nécessaire.",
+    alsoLabel: "Cette mise à jour comprend",
+    alsoItems: [
+      {
+        label: "Installation officielle et mises à jour",
+        text: "Le XPI officiel et le manifeste de mise à jour automatique acceptent maintenant Zotero 10.0.x.",
+      },
+      {
+        label: "Portée de bibliothèque corrigée",
+        text: "L’API plurielle de sélection des bibliothèques de Zotero 10 conserve la bonne portée pour les bibliothèques personnelles, de groupe et multiples.",
+      },
+      {
+        label: "Prise en charge de Zotero 7–9 conservée",
+        text: "Les anciennes versions de Zotero continuent d’utiliser l’API de repli existante.",
+      },
+      {
+        label: "Aucun nouveau mode",
+        text: "Les réglages et les panneaux latéraux PDF/EPUB existants conservent le même flux de travail sans mode supplémentaire.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "Compris",
+    close: "Fermer l’avis de mise à jour",
+  },
+  "de-DE": {
+    eyebrow: "Update",
+    title: "Kompatibilität mit Zotero 10",
+    lead: "AIdea kann jetzt unter Zotero 10.0.x installiert und verwendet werden; Zotero 7–9 werden weiterhin unterstützt.",
+    note: "Starten Sie Zotero nach dem Update neu. Installieren Sie das offizielle XPI oder nutzen Sie das automatische Update; manifest.json muss nicht manuell geändert werden.",
+    alsoLabel: "Dieses Update enthält",
+    alsoItems: [
+      {
+        label: "Offizielle Installation und Updates",
+        text: "Das offizielle XPI und das Manifest für automatische Updates unterstützen nun Zotero 10.0.x.",
+      },
+      {
+        label: "Korrigierter Bibliotheksumfang",
+        text: "Die Mehrfachauswahl-API von Zotero 10 hält den Gesprächsumfang für persönliche, Gruppen- und mehrere Bibliotheken korrekt.",
+      },
+      {
+        label: "Zotero 7–9 bleiben unterstützt",
+        text: "Ältere Zotero-Versionen verwenden weiterhin die bestehende Fallback-API.",
+      },
+      {
+        label: "Keine neuen Modi",
+        text: "Einstellungen und die vorhandenen PDF/EPUB-Seitenbereiche behalten denselben Ablauf ohne zusätzlichen Modus.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "Verstanden",
+    close: "Update-Hinweis schließen",
+  },
+  "es-ES": {
+    eyebrow: "Actualización",
+    title: "Compatibilidad con Zotero 10",
+    lead: "AIdea ya se puede instalar y usar en Zotero 10.0.x, manteniendo la compatibilidad con Zotero 7–9.",
+    note: "Reinicia Zotero después de actualizar. Instala el XPI oficial o usa la actualización automática; no hace falta modificar manifest.json manualmente.",
+    alsoLabel: "Esta actualización incluye",
+    alsoItems: [
+      {
+        label: "Instalación oficial y actualizaciones",
+        text: "El XPI oficial y el manifiesto de actualización automática ya admiten Zotero 10.0.x.",
+      },
+      {
+        label: "Ámbito de biblioteca corregido",
+        text: "La API plural de selección de bibliotecas de Zotero 10 mantiene el ámbito correcto para bibliotecas personales, de grupo y múltiples.",
+      },
+      {
+        label: "Se conserva Zotero 7–9",
+        text: "Las versiones anteriores de Zotero siguen usando la API alternativa existente.",
+      },
+      {
+        label: "Sin modos nuevos",
+        text: "Los ajustes y los paneles laterales PDF/EPUB existentes conservan el mismo flujo sin un modo adicional.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "Entendido",
+    close: "Cerrar aviso de actualización",
+  },
+  "ru-RU": {
+    eyebrow: "Обновление",
+    title: "Совместимость с Zotero 10",
+    lead: "AIdea теперь можно установить и использовать в Zotero 10.0.x с сохранением поддержки Zotero 7–9.",
+    note: "После обновления перезапустите Zotero. Установите официальный XPI или используйте автообновление; вручную изменять manifest.json не нужно.",
+    alsoLabel: "В это обновление входит",
+    alsoItems: [
+      {
+        label: "Официальная установка и обновления",
+        text: "Официальный XPI и манифест автообновления теперь поддерживают Zotero 10.0.x.",
+      },
+      {
+        label: "Исправленная область библиотеки",
+        text: "Множественный API выбора библиотек Zotero 10 сохраняет правильную область для личных, групповых и нескольких библиотек.",
+      },
+      {
+        label: "Поддержка Zotero 7–9 сохранена",
+        text: "Старые версии Zotero продолжают использовать существующий резервный API.",
+      },
+      {
+        label: "Без новых режимов",
+        text: "Настройки и существующие боковые панели PDF/EPUB работают как прежде, без дополнительного режима.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "Понятно",
+    close: "Закрыть уведомление об обновлении",
+  },
+  "pt-BR": {
+    eyebrow: "Atualização",
+    title: "Compatibilidade com o Zotero 10",
+    lead: "O AIdea agora pode ser instalado e usado no Zotero 10.0.x, mantendo o suporte ao Zotero 7–9.",
+    note: "Reinicie o Zotero após atualizar. Instale o XPI oficial ou use a atualização automática; não é necessário editar manifest.json manualmente.",
+    alsoLabel: "Esta atualização inclui",
+    alsoItems: [
+      {
+        label: "Instalação oficial e atualizações",
+        text: "O XPI oficial e o manifesto de atualização automática agora aceitam o Zotero 10.0.x.",
+      },
+      {
+        label: "Escopo correto da biblioteca",
+        text: "A API plural de seleção de bibliotecas do Zotero 10 mantém o escopo correto para bibliotecas pessoais, de grupo e múltiplas.",
+      },
+      {
+        label: "Suporte ao Zotero 7–9 mantido",
+        text: "Versões anteriores do Zotero continuam usando a API alternativa existente.",
+      },
+      {
+        label: "Sem novos modos",
+        text: "As configurações e os painéis laterais PDF/EPUB existentes mantêm o mesmo fluxo sem um modo adicional.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "Entendido",
+    close: "Fechar aviso de atualização",
+  },
+  "ar-SA": {
+    eyebrow: "تحديث",
+    title: "التوافق مع Zotero 10",
+    lead: "يمكن الآن تثبيت AIdea واستخدامه على Zotero 10.0.x مع استمرار دعم Zotero 7–9.",
+    note: "أعد تشغيل Zotero بعد التحديث. ثبّت ملف XPI الرسمي أو استخدم التحديث التلقائي؛ لا حاجة إلى تعديل manifest.json يدويًا.",
+    alsoLabel: "يتضمن هذا التحديث",
+    alsoItems: [
+      {
+        label: "التثبيت الرسمي والتحديثات",
+        text: "أصبح ملف XPI الرسمي وبيان التحديث التلقائي يدعمان Zotero 10.0.x.",
+      },
+      {
+        label: "تصحيح نطاق المكتبة",
+        text: "تحافظ واجهة اختيار المكتبات المتعددة في Zotero 10 على النطاق الصحيح للمكتبات الشخصية والجماعية والمتعددة.",
+      },
+      {
+        label: "استمرار دعم Zotero 7–9",
+        text: "تواصل إصدارات Zotero الأقدم استخدام واجهة الرجوع الحالية.",
+      },
+      {
+        label: "من دون أوضاع جديدة",
+        text: "تحافظ الإعدادات واللوحات الجانبية الحالية لـ PDF/EPUB على سير العمل نفسه دون وضع إضافي.",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "فهمت",
+    close: "إغلاق إشعار التحديث",
+  },
+  "hi-IN": {
+    eyebrow: "अपडेट",
+    title: "Zotero 10 के साथ संगतता",
+    lead: "AIdea अब Zotero 10.0.x पर install और use किया जा सकता है, जबकि Zotero 7–9 support भी जारी है।",
+    note: "अपडेट के बाद Zotero को restart करें। Official XPI install करें या automatic update उपयोग करें; manifest.json को manually edit करने की जरूरत नहीं है।",
+    alsoLabel: "इस अपडेट में शामिल है",
+    alsoItems: [
+      {
+        label: "Official installation और updates",
+        text: "Official XPI और automatic-update manifest अब Zotero 10.0.x को support करते हैं।",
+      },
+      {
+        label: "सही library scope",
+        text: "Zotero 10 का plural library-selection API personal, group और multi-library conversation scope सही रखता है।",
+      },
+      {
+        label: "Zotero 7–9 support जारी",
+        text: "पुराने Zotero versions मौजूदा fallback API का उपयोग जारी रखते हैं।",
+      },
+      {
+        label: "कोई नया mode नहीं",
+        text: "Settings और मौजूदा PDF/EPUB side panels बिना अतिरिक्त mode के वही workflow बनाए रखते हैं।",
+      },
+    ],
+    exampleLabel: "",
+    examplePrompt: "",
+    confirm: "समझ गया",
+    close: "अपडेट सूचना बंद करें",
+  },
+};
+
 export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "Zotero 10 compatibility",
-      lead: "AIdea can now be installed and used on Zotero 10.0.x while retaining support for Zotero 7–9.",
-      note: "Restart Zotero after updating. Install the official XPI or use automatic update; there is no need to edit manifest.json manually.",
+      title: "Reliable selection translation and bilingual annotations",
+      lead: "AIdea can now reduce document context and retry automatically when a long document exceeds the model's input limit. It can also save the generated translation directly to a new Zotero highlight annotation.",
+      note: "Restart Zotero after updating. The checkbox applies only to the current selection and must be selected before choosing a highlight color.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "Official installation and updates",
-          text: "The official XPI and automatic-update manifest now accept Zotero 10.0.x.",
+          label: "Automatic retries for long documents",
+          text: "If first-use context exceeds the input limit, AIdea progressively reduces it and retries automatically.",
         },
         {
-          label: "Correct library scope",
-          text: "Zotero 10's plural library-selection API keeps personal, group, and multi-library conversation scope correct.",
+          label: "Selection-only fallback",
+          text: "If the reduced context is still too long, AIdea translates the selected text directly instead of stopping with a cold-start error.",
         },
         {
-          label: "Zotero 7–9 retained",
-          text: "Older Zotero versions continue to use the existing fallback API.",
+          label: "Translations in highlight annotations",
+          text: 'After the translation is generated, select "Write translation to annotation" and choose a highlight color to write it into the new annotation comment.',
         },
         {
-          label: "No new modes",
-          text: "Settings and the existing PDF/EPUB side panels keep the same workflow without an extra mode.",
+          label: "Existing comments are preserved",
+          text: "If the annotation already contains a comment, AIdea appends the translation instead of replacing it.",
         },
       ],
       exampleLabel: "",
@@ -936,26 +1287,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "兼容 Zotero 10",
-      lead: "AIdea 现在可以在 Zotero 10.0.x 中安装和使用，同时继续支持 Zotero 7–9。",
-      note: "更新后请重启 Zotero。请安装官方 XPI 或使用自动更新，无需手动修改 manifest.json。",
+      title: "划词翻译自动兜底与双语标注",
+      lead: "AIdea 现在可以在长文档超过模型输入限制时自动缩减上下文并重试，还可以将生成的译文直接写入新建的 Zotero 高亮标注。",
+      note: "更新后请重启 Zotero。勾选框仅对当前选区生效，需要在选择高亮颜色前勾选。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "官方安装与自动更新兼容",
-          text: "官方 XPI 和自动更新清单现已支持 Zotero 10.0.x。",
+          label: "长文档自动重试",
+          text: "首次准备上下文遇到输入过长错误时，AIdea 会逐级缩减内容并自动重试。",
         },
         {
-          label: "资料库范围修复",
-          text: "改用 Zotero 10 的复数资料库选择接口，确保个人、群组和多资料库会话范围正确。",
+          label: "超长失败自动兜底",
+          text: "如果缩减后仍然超过限制，AIdea 会直接翻译当前选中的文本，不再因冷启动失败而中断。",
         },
         {
-          label: "保留 Zotero 7–9 支持",
-          text: "旧版 Zotero 继续使用现有后备接口。",
+          label: "译文写入高亮标注",
+          text: "译文生成后，勾选“将译文写入标注”，再选择上方的高亮颜色，即可将译文写入新标注的批注。",
         },
         {
-          label: "不增加新模式",
-          text: "设置页以及现有 PDF/EPUB 侧边栏继续使用原有流程，无需切换额外模式。",
+          label: "安全保留已有批注",
+          text: "如果标注已有批注内容，AIdea 会在其后追加译文，不会覆盖原内容。",
         },
       ],
       exampleLabel: "",
@@ -965,26 +1316,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "相容 Zotero 10",
-      lead: "AIdea 現在可以在 Zotero 10.0.x 中安裝和使用，同時繼續支援 Zotero 7–9。",
-      note: "更新後請重新啟動 Zotero。請安裝官方 XPI 或使用自動更新，無需手動修改 manifest.json。",
+      title: "選取翻譯自動備援與雙語標註",
+      lead: "AIdea 現在能在長文件超過模型輸入限制時自動縮減文件上下文並重試，也能將產生的譯文直接寫入新建立的 Zotero 高亮標註。",
+      note: "更新後請重新啟動 Zotero。勾選框只套用於目前選取範圍，並須在選擇高亮顏色前勾選。",
       alsoLabel: "本次更新包括",
       alsoItems: [
         {
-          label: "官方安裝與自動更新相容",
-          text: "官方 XPI 與自動更新清單現已支援 Zotero 10.0.x。",
+          label: "長文件自動重試",
+          text: "首次準備上下文時若超過輸入限制，AIdea 會逐步縮減內容並自動重試。",
         },
         {
-          label: "資料庫範圍修正",
-          text: "改用 Zotero 10 的複數資料庫選取介面，確保個人、群組與多資料庫對話範圍正確。",
+          label: "僅選取文字備援",
+          text: "若縮減後仍然過長，AIdea 會直接翻譯目前選取的文字，不會因冷啟動錯誤而停止。",
         },
         {
-          label: "保留 Zotero 7–9 支援",
-          text: "舊版 Zotero 繼續使用現有的後備介面。",
+          label: "譯文寫入高亮標註",
+          text: "產生譯文後，勾選「將譯文寫入標註」並選擇高亮顏色，即可把譯文寫入新標註的註解。",
         },
         {
-          label: "不增加新模式",
-          text: "設定頁與現有 PDF/EPUB 側邊欄維持原有流程，無需切換額外模式。",
+          label: "保留既有註解",
+          text: "如果標註已有註解內容，AIdea 會在其後附加譯文，而不會取代原內容。",
         },
       ],
       exampleLabel: "",
@@ -994,26 +1345,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "Zotero 10 への対応",
-      lead: "AIdea を Zotero 10.0.x にインストールして利用できるようになり、Zotero 7–9 のサポートも継続します。",
-      note: "更新後に Zotero を再起動してください。公式 XPI をインストールするか自動更新を使用でき、manifest.json を手動で変更する必要はありません。",
+      title: "選択翻訳の自動フォールバックと二言語注釈",
+      lead: "長い文書がモデルの入力上限を超えた場合、AIdea は文書コンテキストを段階的に縮小して自動的に再試行します。生成された翻訳を新しい Zotero ハイライト注釈へ直接保存することもできます。",
+      note: "更新後に Zotero を再起動してください。チェックボックスは現在の選択範囲にのみ適用され、ハイライト色を選ぶ前に有効にする必要があります。",
       alsoLabel: "今回の更新内容",
       alsoItems: [
         {
-          label: "公式インストールと自動更新",
-          text: "公式 XPI と自動更新マニフェストが Zotero 10.0.x に対応しました。",
+          label: "長い文書を自動再試行",
+          text: "初回コンテキストが入力上限を超えた場合、AIdea は内容を段階的に縮小して自動的に再試行します。",
         },
         {
-          label: "ライブラリ範囲の修正",
-          text: "Zotero 10 の複数ライブラリ選択 API により、個人、グループ、複数ライブラリの会話範囲を正しく保ちます。",
+          label: "選択テキストのみで継続",
+          text: "縮小後も長すぎる場合は、コールドスタートエラーで停止せず、選択したテキストを直接翻訳します。",
         },
         {
-          label: "Zotero 7–9 のサポートを継続",
-          text: "旧バージョンの Zotero では既存のフォールバック API を引き続き使用します。",
+          label: "ハイライト注釈へ翻訳を保存",
+          text: "翻訳後に「翻訳を注釈に書き込む」を選び、ハイライト色を選択すると、新しい注釈のコメントへ翻訳を書き込みます。",
         },
         {
-          label: "新しいモードは不要",
-          text: "設定画面と既存の PDF/EPUB サイドパネルは、追加モードなしで従来の操作を維持します。",
+          label: "既存コメントを保持",
+          text: "注釈にコメントがある場合、AIdea は内容を置き換えず、その後ろに翻訳を追加します。",
         },
       ],
       exampleLabel: "",
@@ -1023,26 +1374,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "Zotero 10 호환성",
-      lead: "이제 AIdea를 Zotero 10.0.x에 설치해 사용할 수 있으며 Zotero 7–9 지원도 계속 유지됩니다.",
-      note: "업데이트 후 Zotero를 다시 시작하세요. 공식 XPI를 설치하거나 자동 업데이트를 사용하면 되며 manifest.json을 직접 수정할 필요가 없습니다.",
+      title: "선택 번역 자동 대체 및 이중 언어 주석",
+      lead: "긴 문서가 모델의 입력 한도를 초과하면 AIdea가 문서 컨텍스트를 단계적으로 줄여 자동으로 다시 시도합니다. 생성된 번역을 새 Zotero 하이라이트 주석에 바로 저장할 수도 있습니다.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 체크박스는 현재 선택 영역에만 적용되며 하이라이트 색상을 선택하기 전에 체크해야 합니다.",
       alsoLabel: "이번 업데이트 내용",
       alsoItems: [
         {
-          label: "공식 설치 및 자동 업데이트",
-          text: "공식 XPI와 자동 업데이트 매니페스트가 이제 Zotero 10.0.x를 지원합니다.",
+          label: "긴 문서 자동 재시도",
+          text: "최초 컨텍스트가 입력 한도를 초과하면 AIdea가 내용을 단계적으로 줄이고 자동으로 다시 시도합니다.",
         },
         {
-          label: "라이브러리 범위 수정",
-          text: "Zotero 10의 복수 라이브러리 선택 API로 개인, 그룹 및 다중 라이브러리 대화 범위를 올바르게 유지합니다.",
+          label: "선택 텍스트 전용 대체",
+          text: "줄인 컨텍스트도 너무 길면 콜드 스타트 오류로 중단하지 않고 선택한 텍스트를 직접 번역합니다.",
         },
         {
-          label: "Zotero 7–9 지원 유지",
-          text: "이전 Zotero 버전은 기존 대체 API를 계속 사용합니다.",
+          label: "하이라이트 주석에 번역 저장",
+          text: "번역이 생성된 후 ‘번역을 주석에 쓰기’를 선택하고 하이라이트 색상을 고르면 새 주석의 댓글에 번역이 저장됩니다.",
         },
         {
-          label: "새 모드 없음",
-          text: "설정과 기존 PDF/EPUB 사이드 패널은 추가 모드 없이 동일한 작업 흐름을 유지합니다.",
+          label: "기존 댓글 보존",
+          text: "주석에 기존 댓글이 있으면 AIdea가 내용을 바꾸지 않고 번역을 뒤에 추가합니다.",
         },
       ],
       exampleLabel: "",
@@ -1052,26 +1403,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "Compatibilité avec Zotero 10",
-      lead: "AIdea peut désormais être installé et utilisé avec Zotero 10.0.x, tout en conservant la prise en charge de Zotero 7–9.",
-      note: "Redémarrez Zotero après la mise à jour. Installez le XPI officiel ou utilisez la mise à jour automatique ; aucune modification manuelle de manifest.json n’est nécessaire.",
+      title: "Traduction de sélection fiable et annotations bilingues",
+      lead: "AIdea peut maintenant réduire progressivement le contexte et réessayer lorsqu’un document long dépasse la limite d’entrée du modèle. La traduction générée peut aussi être enregistrée directement dans une nouvelle annotation surlignée de Zotero.",
+      note: "Redémarrez Zotero après la mise à jour. La case s’applique uniquement à la sélection actuelle et doit être cochée avant de choisir une couleur de surlignage.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Installation officielle et mises à jour",
-          text: "Le XPI officiel et le manifeste de mise à jour automatique acceptent maintenant Zotero 10.0.x.",
+          label: "Nouvelles tentatives automatiques",
+          text: "Si le contexte initial dépasse la limite d’entrée, AIdea le réduit progressivement et réessaie automatiquement.",
         },
         {
-          label: "Portée de bibliothèque corrigée",
-          text: "L’API plurielle de sélection des bibliothèques de Zotero 10 conserve la bonne portée pour les bibliothèques personnelles, de groupe et multiples.",
+          label: "Repli sur le texte sélectionné",
+          text: "Si le contexte réduit reste trop long, AIdea traduit directement le texte sélectionné au lieu de s’arrêter sur une erreur de démarrage.",
         },
         {
-          label: "Prise en charge de Zotero 7–9 conservée",
-          text: "Les anciennes versions de Zotero continuent d’utiliser l’API de repli existante.",
+          label: "Traduction dans les annotations surlignées",
+          text: "Après la traduction, cochez « Ajouter la traduction à l’annotation » puis choisissez une couleur pour écrire la traduction dans le commentaire de la nouvelle annotation.",
         },
         {
-          label: "Aucun nouveau mode",
-          text: "Les réglages et les panneaux latéraux PDF/EPUB existants conservent le même flux de travail sans mode supplémentaire.",
+          label: "Commentaires existants conservés",
+          text: "Si l’annotation contient déjà un commentaire, AIdea ajoute la traduction sans remplacer le contenu existant.",
         },
       ],
       exampleLabel: "",
@@ -1081,26 +1432,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "Kompatibilität mit Zotero 10",
-      lead: "AIdea kann jetzt unter Zotero 10.0.x installiert und verwendet werden; Zotero 7–9 werden weiterhin unterstützt.",
-      note: "Starten Sie Zotero nach dem Update neu. Installieren Sie das offizielle XPI oder nutzen Sie das automatische Update; manifest.json muss nicht manuell geändert werden.",
+      title: "Zuverlässige Auswahlübersetzung und zweisprachige Anmerkungen",
+      lead: "AIdea kann den Dokumentkontext jetzt schrittweise verkleinern und automatisch erneut versuchen, wenn ein langes Dokument das Eingabelimit des Modells überschreitet. Die erzeugte Übersetzung lässt sich außerdem direkt in einer neuen Zotero-Hervorhebung speichern.",
+      note: "Starten Sie Zotero nach dem Update neu. Das Kontrollkästchen gilt nur für die aktuelle Auswahl und muss vor der Auswahl einer Hervorhebungsfarbe aktiviert werden.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Offizielle Installation und Updates",
-          text: "Das offizielle XPI und das Manifest für automatische Updates unterstützen nun Zotero 10.0.x.",
+          label: "Automatische Versuche bei langen Dokumenten",
+          text: "Wenn der erste Kontext das Eingabelimit überschreitet, verkleinert AIdea ihn schrittweise und versucht es automatisch erneut.",
         },
         {
-          label: "Korrigierter Bibliotheksumfang",
-          text: "Die Mehrfachauswahl-API von Zotero 10 hält den Gesprächsumfang für persönliche, Gruppen- und mehrere Bibliotheken korrekt.",
+          label: "Fallback nur auf die Auswahl",
+          text: "Bleibt der verkleinerte Kontext zu lang, übersetzt AIdea den ausgewählten Text direkt, statt mit einem Kaltstartfehler abzubrechen.",
         },
         {
-          label: "Zotero 7–9 bleiben unterstützt",
-          text: "Ältere Zotero-Versionen verwenden weiterhin die bestehende Fallback-API.",
+          label: "Übersetzung in Hervorhebungen",
+          text: "Aktivieren Sie nach der Übersetzung „Uebersetzung in die Anmerkung schreiben“ und wählen Sie eine Farbe, um die Übersetzung in den Kommentar der neuen Anmerkung zu schreiben.",
         },
         {
-          label: "Keine neuen Modi",
-          text: "Einstellungen und die vorhandenen PDF/EPUB-Seitenbereiche behalten denselben Ablauf ohne zusätzlichen Modus.",
+          label: "Vorhandene Kommentare bleiben erhalten",
+          text: "Enthält die Anmerkung bereits einen Kommentar, hängt AIdea die Übersetzung an, ohne den vorhandenen Inhalt zu ersetzen.",
         },
       ],
       exampleLabel: "",
@@ -1110,26 +1461,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title: "Compatibilidad con Zotero 10",
-      lead: "AIdea ya se puede instalar y usar en Zotero 10.0.x, manteniendo la compatibilidad con Zotero 7–9.",
-      note: "Reinicia Zotero después de actualizar. Instala el XPI oficial o usa la actualización automática; no hace falta modificar manifest.json manualmente.",
+      title: "Traducción de selección fiable y anotaciones bilingües",
+      lead: "AIdea ahora puede reducir progresivamente el contexto y reintentar cuando un documento largo supera el límite de entrada del modelo. También puede guardar la traducción generada directamente en una nueva anotación resaltada de Zotero.",
+      note: "Reinicia Zotero después de actualizar. La casilla solo se aplica a la selección actual y debe marcarse antes de elegir un color de resaltado.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Instalación oficial y actualizaciones",
-          text: "El XPI oficial y el manifiesto de actualización automática ya admiten Zotero 10.0.x.",
+          label: "Reintentos automáticos para documentos largos",
+          text: "Si el contexto inicial supera el límite de entrada, AIdea lo reduce progresivamente y reintenta automáticamente.",
         },
         {
-          label: "Ámbito de biblioteca corregido",
-          text: "La API plural de selección de bibliotecas de Zotero 10 mantiene el ámbito correcto para bibliotecas personales, de grupo y múltiples.",
+          label: "Alternativa con solo la selección",
+          text: "Si el contexto reducido sigue siendo demasiado largo, AIdea traduce directamente el texto seleccionado en lugar de detenerse por un error de inicio.",
         },
         {
-          label: "Se conserva Zotero 7–9",
-          text: "Las versiones anteriores de Zotero siguen usando la API alternativa existente.",
+          label: "Traducciones en anotaciones resaltadas",
+          text: "Después de generar la traducción, marca «Guardar la traduccion en la anotacion» y elige un color para escribirla en el comentario de la nueva anotación.",
         },
         {
-          label: "Sin modos nuevos",
-          text: "Los ajustes y los paneles laterales PDF/EPUB existentes conservan el mismo flujo sin un modo adicional.",
+          label: "Se conservan los comentarios existentes",
+          text: "Si la anotación ya contiene un comentario, AIdea añade la traducción sin reemplazar el contenido existente.",
         },
       ],
       exampleLabel: "",
@@ -1139,26 +1490,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "Совместимость с Zotero 10",
-      lead: "AIdea теперь можно установить и использовать в Zotero 10.0.x с сохранением поддержки Zotero 7–9.",
-      note: "После обновления перезапустите Zotero. Установите официальный XPI или используйте автообновление; вручную изменять manifest.json не нужно.",
+      title: "Надёжный перевод выделения и двуязычные аннотации",
+      lead: "Если длинный документ превышает входной лимит модели, AIdea теперь поэтапно сокращает контекст и автоматически повторяет запрос. Готовый перевод также можно сразу сохранить в новой выделенной аннотации Zotero.",
+      note: "После обновления перезапустите Zotero. Флажок действует только для текущего выделения и должен быть установлен до выбора цвета.",
       alsoLabel: "В это обновление входит",
       alsoItems: [
         {
-          label: "Официальная установка и обновления",
-          text: "Официальный XPI и манифест автообновления теперь поддерживают Zotero 10.0.x.",
+          label: "Автоповтор для длинных документов",
+          text: "Если исходный контекст превышает входной лимит, AIdea поэтапно сокращает его и автоматически повторяет запрос.",
         },
         {
-          label: "Исправленная область библиотеки",
-          text: "Множественный API выбора библиотек Zotero 10 сохраняет правильную область для личных, групповых и нескольких библиотек.",
+          label: "Резервный перевод только выделения",
+          text: "Если сокращённый контекст всё ещё слишком длинный, AIdea переводит выделенный текст напрямую и не останавливается из-за ошибки холодного запуска.",
         },
         {
-          label: "Поддержка Zotero 7–9 сохранена",
-          text: "Старые версии Zotero продолжают использовать существующий резервный API.",
+          label: "Перевод в выделенной аннотации",
+          text: "После перевода установите «Записать перевод в аннотацию» и выберите цвет, чтобы записать перевод в комментарий новой аннотации.",
         },
         {
-          label: "Без новых режимов",
-          text: "Настройки и существующие боковые панели PDF/EPUB работают как прежде, без дополнительного режима.",
+          label: "Сохранение существующих комментариев",
+          text: "Если у аннотации уже есть комментарий, AIdea добавляет перевод после него, не заменяя существующий текст.",
         },
       ],
       exampleLabel: "",
@@ -1168,26 +1519,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title: "Compatibilidade com o Zotero 10",
-      lead: "O AIdea agora pode ser instalado e usado no Zotero 10.0.x, mantendo o suporte ao Zotero 7–9.",
-      note: "Reinicie o Zotero após atualizar. Instale o XPI oficial ou use a atualização automática; não é necessário editar manifest.json manualmente.",
+      title: "Tradução de seleção confiável e anotações bilíngues",
+      lead: "O AIdea agora reduz progressivamente o contexto e tenta novamente quando um documento longo excede o limite de entrada do modelo. A tradução gerada também pode ser salva diretamente em uma nova anotação destacada do Zotero.",
+      note: "Reinicie o Zotero após atualizar. A caixa vale apenas para a seleção atual e deve ser marcada antes de escolher uma cor de destaque.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Instalação oficial e atualizações",
-          text: "O XPI oficial e o manifesto de atualização automática agora aceitam o Zotero 10.0.x.",
+          label: "Novas tentativas automáticas",
+          text: "Se o contexto inicial exceder o limite de entrada, o AIdea o reduz progressivamente e tenta novamente de forma automática.",
         },
         {
-          label: "Escopo correto da biblioteca",
-          text: "A API plural de seleção de bibliotecas do Zotero 10 mantém o escopo correto para bibliotecas pessoais, de grupo e múltiplas.",
+          label: "Alternativa somente com a seleção",
+          text: "Se o contexto reduzido continuar longo demais, o AIdea traduz diretamente o texto selecionado em vez de parar com um erro de inicialização.",
         },
         {
-          label: "Suporte ao Zotero 7–9 mantido",
-          text: "Versões anteriores do Zotero continuam usando a API alternativa existente.",
+          label: "Tradução em anotações destacadas",
+          text: "Depois da tradução, marque “Salvar a traducao na anotacao” e escolha uma cor para gravá-la no comentário da nova anotação.",
         },
         {
-          label: "Sem novos modos",
-          text: "As configurações e os painéis laterais PDF/EPUB existentes mantêm o mesmo fluxo sem um modo adicional.",
+          label: "Comentários existentes preservados",
+          text: "Se a anotação já tiver um comentário, o AIdea acrescenta a tradução sem substituir o conteúdo existente.",
         },
       ],
       exampleLabel: "",
@@ -1197,26 +1548,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "التوافق مع Zotero 10",
-      lead: "يمكن الآن تثبيت AIdea واستخدامه على Zotero 10.0.x مع استمرار دعم Zotero 7–9.",
-      note: "أعد تشغيل Zotero بعد التحديث. ثبّت ملف XPI الرسمي أو استخدم التحديث التلقائي؛ لا حاجة إلى تعديل manifest.json يدويًا.",
+      title: "ترجمة تحديد موثوقة وتعليقات توضيحية ثنائية اللغة",
+      lead: "يستطيع AIdea الآن تقليص سياق المستند تدريجيا وإعادة المحاولة تلقائيا عندما يتجاوز مستند طويل حد إدخال النموذج. ويمكن أيضا حفظ الترجمة الناتجة مباشرة في تعليق توضيحي جديد ومميز في Zotero.",
+      note: "أعد تشغيل Zotero بعد التحديث. ينطبق مربع الاختيار على التحديد الحالي فقط ويجب تحديده قبل اختيار لون التمييز.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "التثبيت الرسمي والتحديثات",
-          text: "أصبح ملف XPI الرسمي وبيان التحديث التلقائي يدعمان Zotero 10.0.x.",
+          label: "إعادة المحاولة تلقائيا للمستندات الطويلة",
+          text: "إذا تجاوز السياق الأولي حد الإدخال، يقلصه AIdea تدريجيا ويعيد المحاولة تلقائيا.",
         },
         {
-          label: "تصحيح نطاق المكتبة",
-          text: "تحافظ واجهة اختيار المكتبات المتعددة في Zotero 10 على النطاق الصحيح للمكتبات الشخصية والجماعية والمتعددة.",
+          label: "الرجوع إلى النص المحدد فقط",
+          text: "إذا ظل السياق المختصر طويلا جدا، يترجم AIdea النص المحدد مباشرة بدلا من التوقف بسبب خطأ البدء البارد.",
         },
         {
-          label: "استمرار دعم Zotero 7–9",
-          text: "تواصل إصدارات Zotero الأقدم استخدام واجهة الرجوع الحالية.",
+          label: "الترجمة في التعليقات المميزة",
+          text: "بعد إنشاء الترجمة، حدد «كتابة الترجمة في التعليق التوضيحي» ثم اختر لونا لكتابتها في تعليق التوضيح الجديد.",
         },
         {
-          label: "من دون أوضاع جديدة",
-          text: "تحافظ الإعدادات واللوحات الجانبية الحالية لـ PDF/EPUB على سير العمل نفسه دون وضع إضافي.",
+          label: "الحفاظ على التعليقات الموجودة",
+          text: "إذا كان التعليق التوضيحي يحتوي على نص، يضيف AIdea الترجمة بعده دون استبدال المحتوى الموجود.",
         },
       ],
       exampleLabel: "",
@@ -1226,26 +1577,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "Zotero 10 के साथ संगतता",
-      lead: "AIdea अब Zotero 10.0.x पर install और use किया जा सकता है, जबकि Zotero 7–9 support भी जारी है।",
-      note: "अपडेट के बाद Zotero को restart करें। Official XPI install करें या automatic update उपयोग करें; manifest.json को manually edit करने की जरूरत नहीं है।",
+      title: "विश्वसनीय चयन अनुवाद और द्विभाषी एनोटेशन",
+      lead: "लंबा दस्तावेज़ मॉडल की input limit से बड़ा होने पर AIdea अब document context को चरणों में कम करके अपने आप फिर कोशिश करता है। तैयार अनुवाद को नए Zotero highlight annotation में सीधे सहेजा भी जा सकता है।",
+      note: "अपडेट के बाद Zotero को फिर शुरू करें। Checkbox केवल मौजूदा selection पर लागू होता है और highlight color चुनने से पहले इसे चुनना आवश्यक है।",
       alsoLabel: "इस अपडेट में शामिल है",
       alsoItems: [
         {
-          label: "Official installation और updates",
-          text: "Official XPI और automatic-update manifest अब Zotero 10.0.x को support करते हैं।",
+          label: "लंबे दस्तावेज़ों के लिए automatic retry",
+          text: "शुरुआती context input limit से बड़ा होने पर AIdea उसे चरणों में कम करता है और अपने आप फिर कोशिश करता है।",
         },
         {
-          label: "सही library scope",
-          text: "Zotero 10 का plural library-selection API personal, group और multi-library conversation scope सही रखता है।",
+          label: "केवल चुने हुए text का fallback",
+          text: "कम किया गया context भी बहुत लंबा हो तो AIdea cold-start error पर रुकने के बजाय चुने हुए text का सीधे अनुवाद करता है।",
         },
         {
-          label: "Zotero 7–9 support जारी",
-          text: "पुराने Zotero versions मौजूदा fallback API का उपयोग जारी रखते हैं।",
+          label: "Highlight annotation में अनुवाद",
+          text: "अनुवाद बनने के बाद ‘अनुवाद को एनोटेशन में लिखें’ चुनें और नया annotation comment बनाने के लिए highlight color चुनें।",
         },
         {
-          label: "कोई नया mode नहीं",
-          text: "Settings और मौजूदा PDF/EPUB side panels बिना अतिरिक्त mode के वही workflow बनाए रखते हैं।",
+          label: "मौजूदा comments सुरक्षित",
+          text: "Annotation में पहले से comment होने पर AIdea उसे बदलने के बजाय उसके बाद अनुवाद जोड़ता है।",
         },
       ],
       exampleLabel: "",
@@ -1532,12 +1883,15 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
   const lang = getPanelLang();
   const baseCopy =
     CURRENT_UPDATE_NOTICE_COPIES["en-US"] ||
+    ZOTERO_10_UPDATE_NOTICE_COPIES["en-US"] ||
     PDF_TRANSLATION_UPDATE_COPIES["en-US"] ||
     OAUTH_ENV_UPDATE_COPIES["en-US"] ||
     COPIES["en-US"];
   const localizedCopy =
     CURRENT_UPDATE_NOTICE_COPIES[lang] ||
     CURRENT_UPDATE_NOTICE_COPIES["en-US"] ||
+    ZOTERO_10_UPDATE_NOTICE_COPIES[lang] ||
+    ZOTERO_10_UPDATE_NOTICE_COPIES["en-US"] ||
     PDF_TRANSLATION_UPDATE_COPIES[lang] ||
     PDF_TRANSLATION_UPDATE_COPIES["en-US"] ||
     OAUTH_ENV_UPDATE_COPIES[lang] ||

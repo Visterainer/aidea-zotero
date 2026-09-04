@@ -76,6 +76,12 @@ import {
 import { EPUB_CONTENT_TYPE, getReaderDocumentKind } from "./documentContext";
 import { appendSelectionTranslationToNote } from "./notes";
 import {
+  applyPendingSelectionTranslationToAnnotation,
+  cancelSelectionTranslationForAnnotation,
+  clearPendingSelectionTranslationsForAnnotations,
+  queueSelectionTranslationForAnnotation,
+} from "./selectionTranslateAnnotation";
+import {
   PANEL_TYPOGRAPHY_REFRESH_EVENT,
   SELECTION_POPUP_HEIGHT_BOUNDS,
   getPanelTypographyBounds,
@@ -662,10 +668,16 @@ export function registerReaderSelectionTracking() {
   const readerAPI = Zotero.Reader as _ZoteroTypes.Reader & {
     __llmSelectionTrackingRegistered?: boolean;
     __llmSelectionTrackingHandler?: ReaderSelectionPopupHandler | null;
+    __llmSelectionAnnotationObserverID?: string | null;
   };
   if (!readerAPI) return;
-  if (readerAPI.__llmSelectionTrackingRegistered && readerSelectionPopupHandler)
+  if (
+    readerAPI.__llmSelectionTrackingRegistered &&
+    readerSelectionPopupHandler &&
+    readerAPI.__llmSelectionAnnotationObserverID
+  ) {
     return;
+  }
   if (readerAPI.__llmSelectionTrackingHandler) {
     try {
       Zotero.Reader.unregisterEventListener(
@@ -676,8 +688,39 @@ export function registerReaderSelectionTracking() {
       void _err;
     }
   }
+  if (readerAPI.__llmSelectionAnnotationObserverID) {
+    try {
+      Zotero.Notifier.unregisterObserver(
+        readerAPI.__llmSelectionAnnotationObserverID,
+      );
+    } catch (_err) {
+      void _err;
+    }
+  }
   readerAPI.__llmSelectionTrackingRegistered = false;
   readerAPI.__llmSelectionTrackingHandler = null;
+  readerAPI.__llmSelectionAnnotationObserverID =
+    Zotero.Notifier.registerObserver(
+      {
+        notify: (event, type, ids) => {
+          if (type !== "item" || event !== "add") return;
+          for (const rawId of ids) {
+            const item = getZoteroItem(Number(rawId));
+            if (!item?.isAnnotation?.()) continue;
+            void applyPendingSelectionTranslationToAnnotation(item).catch(
+              (error) => {
+                ztoolkit.log(
+                  "LLM: Failed to add selection translation to annotation",
+                  error,
+                );
+              },
+            );
+          }
+        },
+      },
+      ["item"],
+      "aidea-selection-translation-annotation",
+    );
 
   const handler: _ZoteroTypes.Reader.EventHandler<
     "renderTextSelectionPopup"
@@ -717,8 +760,19 @@ export function registerReaderSelectionTracking() {
     const showAddToNoteButton = isPopupOptionEnabled(
       "selectionTranslate.showAddToNoteButton",
     );
+    const popupAnnotationKey = String(
+      event.params?.annotation?.id || event.params?.annotation?.key || "",
+    ).trim();
+    const popupAnnotationLibraryID = Number(
+      event.params?.annotation?.libraryID || item?.libraryID || 0,
+    );
+    const canWriteTranslationToAnnotation = Boolean(
+      item &&
+      popupAnnotationLibraryID > 0 &&
+      !event.params?.annotation?.readOnly,
+    );
     const hasVisibleSelectionTranslateActions =
-      showCopyButton || showAddToNoteButton;
+      showCopyButton || showAddToNoteButton || canWriteTranslationToAnnotation;
     let selectionTranslateRelayout: (() => void) | null = null;
     let selectionTranslateContentChanged:
       ((preservePosition?: boolean) => void) | null = null;
@@ -1277,6 +1331,57 @@ export function registerReaderSelectionTracking() {
               e.stopPropagation();
             });
           }
+          let writeToAnnotationInput: HTMLInputElement | null = null;
+          let writeToAnnotationLabel: HTMLLabelElement | null = null;
+          if (canWriteTranslationToAnnotation) {
+            writeToAnnotationLabel = event.doc.createElementNS(
+              "http://www.w3.org/1999/xhtml",
+              "label",
+            ) as HTMLLabelElement;
+            writeToAnnotationLabel.className =
+              "llm-selection-translate-annotation-option";
+            writeToAnnotationLabel.style.cssText = [
+              "display:inline-flex",
+              "align-items:center",
+              "gap:6px",
+              "margin-right:auto",
+              "min-height:28px",
+              "color:inherit",
+              `font-size:${Math.max(11, typography.selectionFontSize - 1)}px`,
+              "line-height:1.25",
+              "white-space:nowrap",
+              "cursor:pointer",
+              "user-select:none",
+            ].join(";");
+            writeToAnnotationInput = event.doc.createElementNS(
+              "http://www.w3.org/1999/xhtml",
+              "input",
+            ) as HTMLInputElement;
+            writeToAnnotationInput.type = "checkbox";
+            writeToAnnotationInput.disabled = true;
+            writeToAnnotationInput.setAttribute(
+              "aria-label",
+              i18n.selectionTranslateWriteToAnnotation,
+            );
+            writeToAnnotationInput.style.cssText = [
+              "width:15px",
+              "height:15px",
+              "margin:0",
+              "accent-color:var(--accent-blue8, #0a84ff)",
+              "cursor:pointer",
+            ].join(";");
+            const writeToAnnotationText = event.doc.createElementNS(
+              "http://www.w3.org/1999/xhtml",
+              "span",
+            ) as HTMLSpanElement;
+            writeToAnnotationText.textContent =
+              i18n.selectionTranslateWriteToAnnotation;
+            writeToAnnotationLabel.append(
+              writeToAnnotationInput,
+              writeToAnnotationText,
+            );
+            actionRow.appendChild(writeToAnnotationLabel);
+          }
           const copyBtn = event.doc.createElementNS(
             "http://www.w3.org/1999/xhtml",
             "button",
@@ -1720,6 +1825,12 @@ export function registerReaderSelectionTracking() {
             copyBtn.style.lineHeight = "1.25";
             addToNoteBtn.style.fontSize = `${nextTypography.selectionFontSize}px`;
             addToNoteBtn.style.lineHeight = "1.25";
+            if (writeToAnnotationLabel) {
+              writeToAnnotationLabel.style.fontSize = `${Math.max(
+                11,
+                nextTypography.selectionFontSize - 1,
+              )}px`;
+            }
             selectionTranslateContentChanged?.();
           };
           const selectionTypographyRefreshTargets: Window[] = [];
@@ -1760,6 +1871,15 @@ export function registerReaderSelectionTracking() {
           } | null = null;
           let translateRunning = false;
           let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+          const cancelPendingAnnotationWrite = () => {
+            if (!canWriteTranslationToAnnotation) return;
+            cancelSelectionTranslationForAnnotation({
+              libraryID: popupAnnotationLibraryID,
+              annotationKey: popupAnnotationKey,
+              attachmentItemID: item?.id,
+              selectedText,
+            });
+          };
           const resetCopyFeedback = () => {
             if (copyFeedbackTimer !== null) {
               clearTimeout(copyFeedbackTimer);
@@ -1782,6 +1902,25 @@ export function registerReaderSelectionTracking() {
               setCopyButtonLabel(text.copy);
               copyBtn.disabled = !latestSelectionTranslation;
             }, 1400);
+          });
+          writeToAnnotationInput?.addEventListener("change", () => {
+            if (!writeToAnnotationInput?.checked) {
+              cancelPendingAnnotationWrite();
+              return;
+            }
+            const current = latestSelectionTranslation;
+            if (!item || !current?.translation.trim()) {
+              writeToAnnotationInput.checked = false;
+              return;
+            }
+            const queued = queueSelectionTranslationForAnnotation({
+              libraryID: popupAnnotationLibraryID,
+              attachmentItemID: item.id,
+              annotationKey: popupAnnotationKey,
+              selectedText: current.selectedText,
+              translation: current.translation,
+            });
+            if (!queued) writeToAnnotationInput.checked = false;
           });
           addToNoteBtn.addEventListener("click", async (e: Event) => {
             e.preventDefault();
@@ -1812,6 +1951,11 @@ export function registerReaderSelectionTracking() {
             > | null = null;
             let receivedStreamingContent = false;
             latestSelectionTranslation = null;
+            cancelPendingAnnotationWrite();
+            if (writeToAnnotationInput) {
+              writeToAnnotationInput.checked = false;
+              writeToAnnotationInput.disabled = true;
+            }
             resetCopyFeedback();
             actionRow.style.display = "none";
             addToNoteBtn.disabled = true;
@@ -1840,7 +1984,9 @@ export function registerReaderSelectionTracking() {
                     resultBox.textContent =
                       stage === "cold-start"
                         ? text.coldStart
-                        : text.translating;
+                        : stage === "no-context"
+                          ? i18n.selectionTranslateNoContext
+                          : text.translating;
                     selectionTranslateContentChanged?.();
                   },
                   onDelta(delta) {
@@ -1865,6 +2011,9 @@ export function registerReaderSelectionTracking() {
               };
               copyBtn.disabled = false;
               addToNoteBtn.disabled = false;
+              if (writeToAnnotationInput) {
+                writeToAnnotationInput.disabled = false;
+              }
               setAddToNoteButtonLabel(noteText.addToNote);
               actionRow.style.display = hasVisibleSelectionTranslateActions
                 ? "flex"
@@ -2026,6 +2175,7 @@ export function unregisterReaderSelectionTracking() {
     | (_ZoteroTypes.Reader & {
         __llmSelectionTrackingRegistered?: boolean;
         __llmSelectionTrackingHandler?: ReaderSelectionPopupHandler | null;
+        __llmSelectionAnnotationObserverID?: string | null;
       })
     | undefined;
   if (!readerAPI) return;
@@ -2044,6 +2194,17 @@ export function unregisterReaderSelectionTracking() {
   readerSelectionPopupHandler = null;
   readerAPI.__llmSelectionTrackingHandler = null;
   readerAPI.__llmSelectionTrackingRegistered = false;
+  if (readerAPI.__llmSelectionAnnotationObserverID) {
+    try {
+      Zotero.Notifier.unregisterObserver(
+        readerAPI.__llmSelectionAnnotationObserverID,
+      );
+    } catch (_err) {
+      void _err;
+    }
+  }
+  readerAPI.__llmSelectionAnnotationObserverID = null;
+  clearPendingSelectionTranslationsForAnnotations();
   recentReaderSelectionCache.clear();
 }
 

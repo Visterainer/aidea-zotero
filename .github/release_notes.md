@@ -1,27 +1,55 @@
 ## ✨ What's Changed
 
-- 🧩 **Zotero 10 compatibility**: Fixed the incompatible-version error when installing AIdea on Zotero 10. The XPI and automatic-update manifest now both support Zotero 10.0.x, while retaining Zotero 7–9 compatibility. Thanks @Saywhatyousay for reporting and @JorgeESantos for confirming #77.
+- 🛡️ **Automatic fallback for long PDFs**: When a PDF cold-start request is rejected because the input is too long, AIdea automatically retries with progressively smaller document context: full text, 50%, 25%, 15%, 10%, and 5%. If every tier is still too long, it translates the selected text only and skips repeated cold starts for the same document/model for 30 minutes. Thanks @Aaaanano for reporting #79.
+- 📝 **Translations in Zotero highlight annotations**: After selection translation finishes, enable **Write translation to annotation** before choosing a highlight color. AIdea writes the translation into the new annotation comment and appends it instead of overwriting existing comment text.
+- 🌐 **One-time localized update notice**: Added a once-per-version explanation of the retry and annotation workflow in all 12 interface languages.
+- 📚 **Documentation**: Updated the English and Chinese READMEs and all localized website selection-translation sections.
 
-- 🗂️ **Correct library scope**: Use Zotero 10's `getSelectedLibraryIDs()` API instead of its removed singular getter. Selecting a group library now keeps the correct conversation scope. In a multi-library view, AIdea uses the selected items' library when it is unambiguous; otherwise it falls back to the personal library. Zotero 7–9 keep their existing API fallback.
+## ✅ Compatibility and Validation
 
-- 🛡️ **Resilient selection fallback**: A library-selection API error no longer prevents AIdea from checking the selected items. Regression tests cover the new API, older Zotero versions, group libraries, and ambiguous multi-library selections.
+- Compatible with Zotero 7–10 (`strict_min_version: 6.999`, `strict_max_version: 10.0.*`).
+- Passed 460 TypeScript unit tests and 110 Python bridge tests.
+- Passed Prettier, ESLint, TypeScript/plugin build, and the 12-page website build.
+- The packaged XPI was locally installed and tested on Zotero 8.0.3, covering version display, the one-time update notice, restart non-repeat, selection translation, and translation-to-highlight annotation.
 
-- 🌐 **One-time localized update notice**: Added a once-per-version Zotero 10 compatibility notice in all 12 interface languages, including restart and official update guidance without adding a new Settings or PDF/EPUB mode.
+## 📦 Installation
 
-- ✅ **Validation**: Passed 451 TypeScript unit tests and 110 Python bridge tests, formatting and lint checks, and a production build. Full local QA on Windows with Zotero 10.0.1 covered XPI installation, restart, disable/re-enable, no/single/multi-selection scope, settings, global/PDF/EPUB chat, attachments, conversation history, notes, image generation, and a 27-page monolingual and bilingual PDF translation using the existing OpenAI Codex connection only. Translation pause/resume also verified Windows process-tree cleanup and a fresh bridge restart. No group library was available in the local profile; group-library scope is covered by automated regression tests.
+Download `AIdea-3.5.0.xpi`, then open Zotero and select:
 
-- 🔁 **How to update**: Install `AIdea-3.4.1.xpi` from this release, or use Zotero's plugin update check, then restart Zotero. There is no need to edit or repackage `manifest.json` manually.
+**Tools → Plugins → Gear icon → Install Plugin From File**
 
-## 📝 更新内容
+Restart Zotero after installation.
 
-- 🧩 **兼容 Zotero 10**：修复在 Zotero 10 中安装 AIdea 时提示版本不兼容的问题。XPI 安装包和自动更新清单现已同时支持 Zotero 10.0.x，并保留 Zotero 7–9 兼容性。感谢 @Saywhatyousay 报告问题，并感谢 @JorgeESantos 确认 #77。
+## ℹ️ Known Behavior
 
-- 🗂️ **正确识别资料库范围**：改用 Zotero 10 的 `getSelectedLibraryIDs()` 接口，不再调用已移除的单资料库接口。选择群组文库时保留正确的会话范围；同时选择多个资料库时，优先采用所选条目明确所属的资料库，范围不明确时回退到个人文库。Zotero 7–9 继续使用原有接口作为后备。
+- Context shrinking is triggered only for errors classified as input-length or request-size failures. Authentication, quota, model, parameter, and other provider errors remain visible.
+- **Write translation to annotation** applies only to the current selection and must be enabled before choosing a highlight color.
 
-- 🛡️ **更可靠的选择回退**：资料库选择接口报错时，仍会继续检查所选条目，不再直接跳过。新增回归测试覆盖新旧 Zotero 接口、群组文库和跨资料库选择。
+---
 
-- 🌐 **一次性多语言更新提示**：新增覆盖全部 12 种界面语言、每个版本只显示一次的 Zotero 10 兼容提示，包含重启和官方更新说明，不增加新的设置或 PDF/EPUB 模式。
+## ✨ 本次更新
 
-- ✅ **验证情况**：已通过 451 项 TypeScript 单元测试、110 项 Python bridge 测试、格式与 lint 检查及生产构建。在 Windows 的 Zotero 10.0.1 中完成了全功能本机验收，覆盖 XPI 安装、重启、禁用后重新启用、无选择/单选/多选范围、设置页、全局/PDF/EPUB 对话、附件、会话历史、笔记、图片生成，以及仅使用现有 OpenAI Codex 连接完成的 27 页单语与双语 PDF 全文翻译；暂停与继续还验证了 Windows 进程树清理及新 bridge 重启。本机 Profile 没有群组文库，该范围由自动化回归测试覆盖。
+- 🛡️ **长文档自动降级重试**：当 PDF 冷启动请求因输入过长而被模型拒绝时，AIdea 会依次使用全文、50%、25%、15%、10% 和 5% 的文档上下文自动重试。如果所有层级仍然过长，则直接使用划选文本完成翻译，并在接下来的 30 分钟内跳过同一文档和模型的重复冷启动。感谢 @Aaaanano 在 #79 中反馈这个问题。
+- 📝 **将译文写入 Zotero 高亮标注**：划词翻译完成后，可以先勾选“将译文写入标注”，再选择上方的高亮颜色。AIdea 会把译文写入新建标注的批注内容；如果标注已经存在批注内容，则追加译文，不会覆盖原内容。
+- 🌐 **一次性多语言更新说明**：新增覆盖全部 12 种界面语言的版本更新弹窗，每个版本仅显示一次，用于说明自动重试和译文写入标注的使用方法。
+- 📚 **文档更新**：同步更新英文、中文 README，以及网站全部语言版本中的划词翻译说明。
 
-- 🔁 **更新方法**：安装本次发布的 `AIdea-3.4.1.xpi`，或使用 Zotero 的插件更新检查，然后重启 Zotero。无需手动修改或重新打包 `manifest.json`。
+## ✅ 兼容性与验证
+
+- 支持 Zotero 7–10（`strict_min_version: 6.999`，`strict_max_version: 10.0.*`）。
+- 460 项 TypeScript 单元测试和 110 项 Python Bridge 测试全部通过。
+- Prettier、ESLint、TypeScript/插件构建以及包含 12 个页面的网站构建全部通过。
+- 已在 Zotero 8.0.3 中安装并实测候选 XPI，覆盖版本显示、一次性更新弹窗、重启后不重复显示、划词翻译以及译文自动写入高亮标注。
+
+## 📦 安装方法
+
+下载 `AIdea-3.5.0.xpi`，然后在 Zotero 中依次选择：
+
+**工具 → 插件 → 齿轮按钮 → 从文件安装插件**
+
+安装完成后重启 Zotero。
+
+## ℹ️ 使用说明
+
+- 只有被识别为输入长度或请求体过大的错误才会触发上下文缩减重试；身份验证、额度、模型、参数及其他服务商错误仍会正常显示。
+- “将译文写入标注”仅对当前这次划词有效，必须在选择高亮颜色之前勾选。

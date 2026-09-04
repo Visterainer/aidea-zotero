@@ -1,8 +1,12 @@
 import { assert } from "chai";
 import {
   buildSelectionTranslateColdStartAttempts,
+  clearSelectionTranslateColdStartFallbackState,
   isSelectionTranslateInputLengthError,
+  markSelectionTranslateColdStartBypassed,
   runSelectionTranslateColdStartAttempts,
+  shouldBypassSelectionTranslateColdStart,
+  shouldRetrySelectionTranslateColdStartWithSmallerInput,
 } from "../src/modules/contextPanel/selectionTranslateColdStart";
 import { getPdfContextFingerprint } from "../src/modules/contextPanel/selectionTranslate";
 
@@ -15,6 +19,10 @@ function textWithLateHeading(heading: string): string {
 }
 
 describe("selectionTranslateColdStart", function () {
+  afterEach(function () {
+    clearSelectionTranslateColdStartFallbackState();
+  });
+
   it("strips late References headings before building attempts", function () {
     for (const heading of [
       "References",
@@ -50,11 +58,22 @@ describe("selectionTranslateColdStart", function () {
 
     assert.deepEqual(
       result.attempts.map((attempt) => attempt.id),
-      ["full", "first50", "first25", "first15"],
+      ["full", "first50", "first25", "first15", "first10", "first5"],
     );
     assert.deepEqual(
       result.attempts.map((attempt) => attempt.selectedBodyLength),
-      [1000, 500, 250, 150],
+      [1000, 500, 250, 150, 100, 50],
+    );
+  });
+
+  it("combines proportional fallback with absolute character caps", function () {
+    const result = buildSelectionTranslateColdStartAttempts({
+      pdfText: longText("c", 400_000),
+    });
+
+    assert.deepEqual(
+      result.attempts.map((attempt) => attempt.selectedBodyLength),
+      [180_000, 90_000, 45_000, 27_000, 18_000, 9_000],
     );
   });
 
@@ -99,7 +118,47 @@ describe("selectionTranslateColdStart", function () {
         error: { message: "request too large: too many tokens" },
       }),
     );
+    assert.isTrue(
+      isSelectionTranslateInputLengthError(
+        "prompt token count of 97890 exceeds the limit of 64000",
+      ),
+    );
     assert.isFalse(isSelectionTranslateInputLengthError("401 unauthorized"));
+  });
+
+  it("retries ambiguous client input errors but not credential errors", function () {
+    assert.isTrue(
+      shouldRetrySelectionTranslateColdStartWithSmallerInput(
+        "400 Bad Request - provider-specific invalid request",
+      ),
+    );
+    assert.isTrue(
+      shouldRetrySelectionTranslateColdStartWithSmallerInput(
+        "413 Payload Too Large",
+      ),
+    );
+    assert.isFalse(
+      shouldRetrySelectionTranslateColdStartWithSmallerInput(
+        "400 Bad Request - invalid API key",
+      ),
+    );
+    assert.isFalse(
+      shouldRetrySelectionTranslateColdStartWithSmallerInput(
+        "401 Unauthorized",
+      ),
+    );
+  });
+
+  it("temporarily remembers the no-context fallback per cold-start key", function () {
+    assert.isFalse(shouldBypassSelectionTranslateColdStart("paper-model", 100));
+    markSelectionTranslateColdStartBypassed("paper-model", 100);
+    assert.isTrue(shouldBypassSelectionTranslateColdStart("paper-model", 101));
+    assert.isFalse(
+      shouldBypassSelectionTranslateColdStart(
+        "paper-model",
+        100 + 30 * 60 * 1000,
+      ),
+    );
   });
 
   it("falls back only after input-length errors", async function () {

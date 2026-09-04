@@ -1,5 +1,5 @@
 export type SelectionTranslateColdStartAttemptId =
-  "full" | "first50" | "first25" | "first15";
+  "full" | "first50" | "first25" | "first15" | "first10" | "first5";
 
 export type SelectionTranslateColdStartAttempt = {
   id: SelectionTranslateColdStartAttemptId;
@@ -19,15 +19,21 @@ export type SelectionTranslateColdStartAttemptSet = {
 export const SELECTION_TRANSLATE_COLD_START_ALGORITHM_VERSION = "v3-auto";
 
 const REFERENCES_SCAN_START_RATIO = 0.35;
+const COLD_START_BYPASS_TTL_MS = 30 * 60 * 1000;
+
+const coldStartBypassUntil = new Map<string, number>();
 
 const FALLBACK_RATIOS: Array<{
   id: SelectionTranslateColdStartAttemptId;
   ratio: number;
+  maxChars: number;
 }> = [
-  { id: "full", ratio: 1 },
-  { id: "first50", ratio: 0.5 },
-  { id: "first25", ratio: 0.25 },
-  { id: "first15", ratio: 0.15 },
+  { id: "full", ratio: 1, maxChars: 180_000 },
+  { id: "first50", ratio: 0.5, maxChars: 90_000 },
+  { id: "first25", ratio: 0.25, maxChars: 45_000 },
+  { id: "first15", ratio: 0.15, maxChars: 27_000 },
+  { id: "first10", ratio: 0.1, maxChars: 18_000 },
+  { id: "first5", ratio: 0.05, maxChars: 9_000 },
 ];
 
 const REFERENCE_HEADINGS = new Set([
@@ -100,10 +106,15 @@ function buildMetadataPrefix(params: {
   return parts.join("\n\n");
 }
 
-function getBodySliceLength(bodyLength: number, ratio: number): number {
+function getBodySliceLength(
+  bodyLength: number,
+  ratio: number,
+  maxChars: number,
+): number {
   if (bodyLength <= 0) return 0;
-  if (ratio >= 1) return bodyLength;
-  return Math.min(bodyLength, Math.max(1, Math.ceil(bodyLength * ratio)));
+  const proportionalLength =
+    ratio >= 1 ? bodyLength : Math.max(1, Math.ceil(bodyLength * ratio));
+  return Math.min(bodyLength, proportionalLength, maxChars);
 }
 
 export function buildSelectionTranslateColdStartAttempts(params: {
@@ -117,8 +128,12 @@ export function buildSelectionTranslateColdStartAttempts(params: {
     title: params.title,
     abstractNote: params.abstractNote,
   });
-  const attempts = FALLBACK_RATIOS.map(({ id, ratio }) => {
-    const selectedBodyLength = getBodySliceLength(stripped.text.length, ratio);
+  const attempts = FALLBACK_RATIOS.map(({ id, ratio, maxChars }) => {
+    const selectedBodyLength = getBodySliceLength(
+      stripped.text.length,
+      ratio,
+      maxChars,
+    );
     const selectedBody = stripped.text.slice(0, selectedBodyLength).trim();
     return {
       id,
@@ -152,20 +167,89 @@ function errorText(error: unknown): string {
 export function isSelectionTranslateInputLengthError(error: unknown): boolean {
   const text = errorText(error).toLowerCase();
   if (!text) return false;
+  if (
+    [
+      "range of input length",
+      "context length",
+      "maximum context",
+      "max context",
+      "too many tokens",
+      "input length",
+      "token limit",
+      "request too large",
+      "payload too large",
+      "context window",
+      "maximum input",
+      "tokens exceed",
+    ].some((needle) => text.includes(needle))
+  ) {
+    return true;
+  }
   return [
-    "range of input length",
-    "context length",
-    "maximum context",
-    "max context",
-    "too many tokens",
-    "input length",
-    "token limit",
-    "request too large",
-    "payload too large",
-    "context window",
-    "maximum input",
-    "tokens exceed",
+    /(?:prompt|input|context|request|payload|tokens?)[\s\S]{0,160}(?:exceed(?:s|ed)?|over(?:flow)?|too\s+(?:long|large)|(?:above|beyond)\s+(?:the\s+)?limit)/i,
+    /(?:exceed(?:s|ed)?|too\s+(?:long|large))[\s\S]{0,160}(?:prompt|input|context|request|payload|tokens?|limit)/i,
+    /\b\d+\s*(?:tokens?|characters?|chars?|bytes?)\b[\s\S]{0,100}\b(?:limit|maximum|max)\b/i,
+  ].some((pattern) => pattern.test(text));
+}
+
+function getHttpStatus(error: unknown): number | null {
+  const text = errorText(error);
+  const statusMatch = text.match(
+    /(?:^|\s|["':])(400|413|414|422)(?=\s|$|["',:}])/,
+  );
+  return statusMatch ? Number(statusMatch[1]) : null;
+}
+
+function isKnownNonLengthClientError(error: unknown): boolean {
+  const text = errorText(error).toLowerCase();
+  return [
+    "unauthorized",
+    "forbidden",
+    "authentication",
+    "invalid api key",
+    "incorrect api key",
+    "permission denied",
+    "model not found",
+    "model does not exist",
+    "unsupported model",
+    "rate limit",
+    "quota exceeded",
+    "insufficient quota",
+    "billing",
+    "temperature",
+    "reasoning",
+    "thinking",
   ].some((needle) => text.includes(needle));
+}
+
+export function shouldRetrySelectionTranslateColdStartWithSmallerInput(
+  error: unknown,
+): boolean {
+  if (isSelectionTranslateInputLengthError(error)) return true;
+  const status = getHttpStatus(error);
+  return Boolean(status && !isKnownNonLengthClientError(error));
+}
+
+export function shouldBypassSelectionTranslateColdStart(
+  key: string,
+  now: number = Date.now(),
+): boolean {
+  const until = coldStartBypassUntil.get(key) || 0;
+  if (until > now) return true;
+  if (until) coldStartBypassUntil.delete(key);
+  return false;
+}
+
+export function markSelectionTranslateColdStartBypassed(
+  key: string,
+  now: number = Date.now(),
+): void {
+  if (!key) return;
+  coldStartBypassUntil.set(key, now + COLD_START_BYPASS_TTL_MS);
+}
+
+export function clearSelectionTranslateColdStartFallbackState(): void {
+  coldStartBypassUntil.clear();
 }
 
 export async function runSelectionTranslateColdStartAttempts<T>(params: {
@@ -185,7 +269,7 @@ export async function runSelectionTranslateColdStartAttempts<T>(params: {
     } catch (error) {
       const canRetry =
         index < params.attempts.length - 1 &&
-        isSelectionTranslateInputLengthError(error);
+        shouldRetrySelectionTranslateColdStartWithSmallerInput(error);
       if (!canRetry) throw error;
     }
   }

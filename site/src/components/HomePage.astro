@@ -122,7 +122,7 @@ const selectionTranslationContent = {
   "zh-CN": {
     kicker: "划词翻译",
     heading: "选中一段文字，就能在阅读器内直接翻译。",
-    body: "启用后，在 Zotero PDF 或 EPUB 阅读器里划选文本会自动调用你指定的模型翻译，并自动识别当前文档格式。首次进入某篇文献时，AIdea 会先生成本地冷启动缓存，把文章概述和专业术语摘要作为后续划词翻译的上下文。",
+    body: "启用后，在 Zotero PDF 或 EPUB 阅读器里划选文本会自动调用你指定的模型翻译，并自动识别当前文档格式。PDF 首次使用时会生成本地冷启动缓存；如果上下文超过模型输入限制，AIdea 会逐级缩减并重试，必要时只翻译当前选中的文本。",
     points: [
       {
         title: "独立开关与模型",
@@ -130,11 +130,11 @@ const selectionTranslationContent = {
       },
       {
         title: "论文级上下文",
-        body: "冷启动缓存保存在本地，后续翻译会复用这份精简上下文，减少每次划词都重新理解全文的成本。",
+        body: "冷启动缓存保存在本地，后续翻译会复用这份精简上下文；输入过长时会自动缩减，最终可退化为只翻译选中文本。",
       },
       {
-        title: "回写 Zotero 笔记",
-        body: "弹窗里的译文可以直接添加到当前文献的 AIdea 划词翻译笔记中。",
+        title: "回写 Zotero",
+        body: "译文可以添加到 AIdea 划词翻译笔记，也可以先勾选“将译文写入标注”，再选择颜色，将译文写入新建的高亮标注。",
       },
     ],
     screenshots: {
@@ -145,7 +145,7 @@ const selectionTranslationContent = {
   "zh-TW": {
     kicker: "劃詞翻譯",
     heading: "選取一段文字，就能在閱讀器內直接翻譯。",
-    body: "啟用後，在 Zotero PDF 或 EPUB 閱讀器中選取文字會自動呼叫指定模型翻譯，並自動識別目前的文件格式。第一次進入某篇文獻時，AIdea 會先產生本機冷啟動快取，把文章概述和專業術語摘要作為後續劃詞翻譯的上下文。",
+    body: "啟用後，在 Zotero PDF 或 EPUB 閱讀器中選取文字會自動呼叫指定模型翻譯，並自動識別目前的文件格式。PDF 首次使用時會建立本機冷啟動快取；若內容超過模型輸入限制，AIdea 會逐步縮減並重試，必要時只翻譯目前選取的文字。",
     points: [
       {
         title: "獨立開關與模型",
@@ -153,11 +153,11 @@ const selectionTranslationContent = {
       },
       {
         title: "論文級上下文",
-        body: "冷啟動快取保存在本機，後續翻譯會重複使用這份精簡上下文，降低每次選取都重新理解全文的成本。",
+        body: "冷啟動快取保存在本機，後續翻譯會重複使用這份精簡上下文；輸入過長時會自動縮減，最後可退回只翻譯選取文字。",
       },
       {
-        title: "回寫 Zotero 筆記",
-        body: "彈窗中的譯文可以直接加入目前文獻的 AIdea 劃詞翻譯筆記。",
+        title: "回寫 Zotero",
+        body: "譯文可加入 AIdea 劃詞翻譯筆記，也可先勾選「將譯文寫入標註」，再選擇顏色，將譯文寫入新建立的高亮標註。",
       },
     ],
     screenshots: {
@@ -168,7 +168,7 @@ const selectionTranslationContent = {
   en: {
     kicker: "Selection Translation",
     heading: "Select a passage and translate it directly in the reader.",
-    body: "When enabled, selected text in Zotero's PDF or EPUB reader is translated automatically with the model you choose, and AIdea detects the active document format automatically. The first time a paper uses this feature, AIdea builds a local cold-start cache with a compact paper summary and terminology notes, then reuses that context for later selections.",
+    body: "When enabled, selected text in Zotero's PDF or EPUB reader is translated automatically with the model you choose. For PDFs, AIdea builds a local cold-start cache on first use; if the context exceeds the model's input limit, it progressively reduces the context and retries, then falls back to translating only the selection if needed.",
     points: [
       {
         title: "Dedicated switch and model",
@@ -176,11 +176,11 @@ const selectionTranslationContent = {
       },
       {
         title: "Paper-level context",
-        body: "The cold-start cache stays local and gives later selection translations a compact view of the paper instead of starting from scratch every time.",
+        body: "The cold-start cache stays local and gives later translations a compact view of the paper. Oversized inputs are reduced automatically, with a selection-only fallback.",
       },
       {
-        title: "Save back to Zotero notes",
-        body: "Translated passages can be added directly to the current item's AIdea selection translation note.",
+        title: "Save back to Zotero",
+        body: 'Add translations to the AIdea selection translation note, or select "Write translation to annotation" before choosing a color to save one in a new highlight annotation.',
       },
     ],
     screenshots: {
@@ -191,7 +191,7 @@ const selectionTranslationContent = {
   ja: {
     kicker: "選択範囲の翻訳",
     heading: "本文を選択するだけで、リーダー内で直接翻訳できます。",
-    body: "有効にすると、Zotero の PDF リーダーで選択したテキストを指定モデルで自動翻訳します。論文ごとに初回だけローカルのコールドスタートキャッシュを作成し、要約と専門用語メモを後続の翻訳コンテキストとして再利用します。",
+    body: "有効にすると、Zotero の PDF リーダーで選択したテキストを指定モデルで自動翻訳します。初回コンテキストがモデルの入力上限を超えた場合、AIdea は段階的に縮小して再試行し、必要に応じて選択テキストのみの翻訳へ切り替えます。",
     points: [
       {
         title: "専用スイッチとモデル",
@@ -199,11 +199,11 @@ const selectionTranslationContent = {
       },
       {
         title: "論文単位の文脈",
-        body: "コールドスタートキャッシュはローカルに保存され、毎回全文を読み直さずに精簡された文脈を使えます。",
+        body: "コールドスタートキャッシュはローカルに保存されます。入力が長すぎる場合は自動的に縮小し、最終的に選択テキストのみへフォールバックします。",
       },
       {
-        title: "Zotero ノートへ保存",
-        body: "ポップアップ内の翻訳結果を、現在の文献の AIdea 選択翻訳ノートへ直接追加できます。",
+        title: "Zotero へ保存",
+        body: "翻訳を AIdea ノートへ追加するか、色を選ぶ前に「翻訳を注釈に書き込む」を有効にして、新しいハイライト注釈へ保存できます。",
       },
     ],
     screenshots: {
@@ -214,7 +214,7 @@ const selectionTranslationContent = {
   ko: {
     kicker: "선택 번역",
     heading: "문장을 선택하면 리더 안에서 바로 번역할 수 있습니다.",
-    body: "사용하면 Zotero PDF 리더에서 선택한 텍스트가 지정한 모델로 자동 번역됩니다. 논문별 첫 사용 시 AIdea가 로컬 콜드 스타트 캐시를 만들고, 논문 요약과 전문 용어 메모를 이후 선택 번역의 문맥으로 재사용합니다.",
+    body: "사용하면 Zotero PDF 리더에서 선택한 텍스트가 지정한 모델로 자동 번역됩니다. 최초 컨텍스트가 모델 입력 한도를 넘으면 AIdea가 단계적으로 줄여 다시 시도하고, 필요하면 선택한 텍스트만 번역합니다.",
     points: [
       {
         title: "전용 스위치와 모델",
@@ -222,11 +222,11 @@ const selectionTranslationContent = {
       },
       {
         title: "논문 단위 문맥",
-        body: "콜드 스타트 캐시는 로컬에 저장되며, 이후 번역은 매번 처음부터 논문을 다시 이해하지 않아도 됩니다.",
+        body: "콜드 스타트 캐시는 로컬에 저장됩니다. 입력이 너무 길면 자동으로 줄이고 최종적으로 선택 텍스트만 번역하도록 대체합니다.",
       },
       {
-        title: "Zotero 노트로 저장",
-        body: "팝업의 번역 결과를 현재 항목의 AIdea 선택 번역 노트에 바로 추가할 수 있습니다.",
+        title: "Zotero에 저장",
+        body: "번역을 AIdea 노트에 추가하거나 색상을 고르기 전에 ‘번역을 주석에 쓰기’를 선택해 새 하이라이트 주석에 저장할 수 있습니다.",
       },
     ],
     screenshots: {
@@ -237,7 +237,7 @@ const selectionTranslationContent = {
   fr: {
     kicker: "Traduction de sélection",
     heading: "Sélectionnez un passage et traduisez-le directement dans le lecteur.",
-    body: "Une fois activée, la sélection de texte dans le lecteur PDF de Zotero déclenche automatiquement le modèle choisi. Lors de la première utilisation sur un article, AIdea crée un cache local avec un résumé compact et des notes de terminologie, puis le réutilise comme contexte.",
+    body: "Une fois activée, la sélection de texte dans le lecteur PDF de Zotero déclenche automatiquement le modèle choisi. Si le contexte initial dépasse la limite d'entrée, AIdea le réduit progressivement et réessaie, puis traduit uniquement la sélection si nécessaire.",
     points: [
       {
         title: "Interrupteur et modèle dédiés",
@@ -245,11 +245,11 @@ const selectionTranslationContent = {
       },
       {
         title: "Contexte au niveau de l'article",
-        body: "Le cache de démarrage reste local et donne aux traductions suivantes un contexte condensé de l'article.",
+        body: "Le cache de démarrage reste local. Les entrées trop longues sont réduites automatiquement, avec un repli final sur le texte sélectionné.",
       },
       {
-        title: "Ajout aux notes Zotero",
-        body: "Les passages traduits peuvent être ajoutés directement à la note AIdea de l'élément courant.",
+        title: "Enregistrement dans Zotero",
+        body: "Ajoutez la traduction à la note AIdea ou cochez « Ajouter la traduction a l'annotation » avant de choisir une couleur pour la stocker dans une nouvelle annotation surlignée.",
       },
     ],
     screenshots: {
@@ -260,7 +260,7 @@ const selectionTranslationContent = {
   de: {
     kicker: "Auswahlübersetzung",
     heading: "Markieren Sie eine Passage und übersetzen Sie sie direkt im Reader.",
-    body: "Nach dem Aktivieren übersetzt Zotero ausgewählten PDF-Text automatisch mit dem gewählten Modell. Bei der ersten Nutzung für ein Paper erstellt AIdea lokal einen Cold-Start-Cache mit Kurzüberblick und Fachbegriffen und verwendet ihn später als Kontext.",
+    body: "Nach dem Aktivieren übersetzt Zotero ausgewählten PDF-Text automatisch mit dem gewählten Modell. Überschreitet der erste Kontext das Eingabelimit, verkleinert AIdea ihn schrittweise und versucht es erneut; falls nötig, wird nur die Auswahl übersetzt.",
     points: [
       {
         title: "Eigener Schalter und eigenes Modell",
@@ -268,11 +268,11 @@ const selectionTranslationContent = {
       },
       {
         title: "Kontext pro Paper",
-        body: "Der Cold-Start-Cache bleibt lokal und liefert späteren Übersetzungen einen kompakten Paper-Kontext.",
+        body: "Der Cold-Start-Cache bleibt lokal. Zu lange Eingaben werden automatisch verkleinert, mit einem abschließenden Fallback nur auf die Auswahl.",
       },
       {
-        title: "In Zotero-Notizen speichern",
-        body: "Übersetzte Passagen können direkt zur AIdea-Notiz des aktuellen Eintrags hinzugefügt werden.",
+        title: "In Zotero speichern",
+        body: "Speichern Sie Übersetzungen in der AIdea-Notiz oder aktivieren Sie vor der Farbwahl „Übersetzung in die Anmerkung schreiben“, um sie in einer neuen Hervorhebung abzulegen.",
       },
     ],
     screenshots: {
@@ -283,7 +283,7 @@ const selectionTranslationContent = {
   es: {
     kicker: "Traducción de selección",
     heading: "Selecciona un pasaje y tradúcelo directamente en el lector.",
-    body: "Al activarla, el texto seleccionado en el lector PDF de Zotero se traduce automáticamente con el modelo elegido. La primera vez que se usa en un artículo, AIdea crea una caché local con un resumen compacto y notas de terminología para reutilizarlas como contexto.",
+    body: "Al activarla, el texto seleccionado en el lector PDF de Zotero se traduce automáticamente con el modelo elegido. Si el contexto inicial supera el límite de entrada, AIdea lo reduce progresivamente y reintenta; si hace falta, traduce solo la selección.",
     points: [
       {
         title: "Interruptor y modelo propios",
@@ -291,11 +291,11 @@ const selectionTranslationContent = {
       },
       {
         title: "Contexto por artículo",
-        body: "La caché de arranque permanece local y ofrece a las siguientes traducciones un contexto compacto del artículo.",
+        body: "La caché de arranque permanece local. Las entradas demasiado largas se reducen automáticamente, con una alternativa final que usa solo la selección.",
       },
       {
-        title: "Guardar en notas de Zotero",
-        body: "Los pasajes traducidos pueden añadirse directamente a la nota AIdea del elemento actual.",
+        title: "Guardar en Zotero",
+        body: "Añade la traducción a la nota AIdea o marca «Guardar la traduccion en la anotacion» antes de elegir un color para guardarla en un nuevo resaltado.",
       },
     ],
     screenshots: {
@@ -306,7 +306,7 @@ const selectionTranslationContent = {
   ru: {
     kicker: "Перевод выделения",
     heading: "Выделите фрагмент и переведите его прямо в ридере.",
-    body: "После включения выделенный текст в PDF-ридере Zotero автоматически переводится выбранной моделью. При первом использовании для статьи AIdea создает локальный cold-start cache с кратким обзором и терминами, а затем использует его как контекст.",
+    body: "После включения выделенный текст в PDF-ридере Zotero автоматически переводится выбранной моделью. Если исходный контекст превышает лимит модели, AIdea поэтапно сокращает его и повторяет запрос, а при необходимости переводит только выделение.",
     points: [
       {
         title: "Отдельный переключатель и модель",
@@ -314,11 +314,11 @@ const selectionTranslationContent = {
       },
       {
         title: "Контекст на уровне статьи",
-        body: "Кэш остается локальным и дает последующим переводам сжатое понимание статьи.",
+        body: "Кэш остается локальным. Слишком длинный ввод автоматически сокращается с окончательным резервным режимом только для выделения.",
       },
       {
-        title: "Сохранение в заметки Zotero",
-        body: "Переведенные фрагменты можно сразу добавить в заметку AIdea текущего элемента.",
+        title: "Сохранение в Zotero",
+        body: "Добавьте перевод в заметку AIdea или включите «Записать перевод в аннотацию» до выбора цвета, чтобы сохранить его в новой выделенной аннотации.",
       },
     ],
     screenshots: {
@@ -329,7 +329,7 @@ const selectionTranslationContent = {
   pt: {
     kicker: "Tradução de seleção",
     heading: "Selecione um trecho e traduza-o diretamente no leitor.",
-    body: "Quando ativado, o texto selecionado no leitor PDF do Zotero é traduzido automaticamente pelo modelo escolhido. Na primeira utilização em um artigo, o AIdea cria um cache local com resumo compacto e notas de terminologia para reutilizar como contexto.",
+    body: "Quando ativado, o texto selecionado no leitor PDF do Zotero é traduzido automaticamente pelo modelo escolhido. Se o contexto inicial exceder o limite do modelo, o AIdea o reduz progressivamente e tenta novamente; se necessário, traduz apenas a seleção.",
     points: [
       {
         title: "Alternador e modelo dedicados",
@@ -337,11 +337,11 @@ const selectionTranslationContent = {
       },
       {
         title: "Contexto por artigo",
-        body: "O cache de arranque permanece local e oferece às traduções seguintes uma visão compacta do artigo.",
+        body: "O cache de arranque permanece local. Entradas longas demais são reduzidas automaticamente, com uma alternativa final somente para a seleção.",
       },
       {
-        title: "Salvar em notas do Zotero",
-        body: "Os trechos traduzidos podem ser adicionados diretamente à nota AIdea do item atual.",
+        title: "Salvar no Zotero",
+        body: "Adicione a tradução à nota AIdea ou marque “Salvar a traducao na anotacao” antes de escolher uma cor para gravá-la em um novo destaque.",
       },
     ],
     screenshots: {
@@ -352,7 +352,7 @@ const selectionTranslationContent = {
   ar: {
     kicker: "ترجمة التحديد",
     heading: "حدد مقطعاً وترجمه مباشرة داخل القارئ.",
-    body: "عند التفعيل، يترجم AIdea النص المحدد في قارئ PDF داخل Zotero تلقائياً بالنموذج الذي تختاره. عند الاستخدام الأول مع ورقة ما، ينشئ ذاكرة محلية مختصرة تضم ملخصاً ومصطلحات تخصصية، ثم يعيد استخدامها كسياق للترجمات اللاحقة.",
+    body: "عند التفعيل، يترجم AIdea النص المحدد في قارئ PDF داخل Zotero تلقائياً بالنموذج الذي تختاره. إذا تجاوز السياق الأولي حد إدخال النموذج، يقلصه AIdea تدريجياً ويعيد المحاولة، ثم يترجم التحديد وحده عند الحاجة.",
     points: [
       {
         title: "مفتاح ونموذج مخصصان",
@@ -360,11 +360,11 @@ const selectionTranslationContent = {
       },
       {
         title: "سياق على مستوى الورقة",
-        body: "تبقى الذاكرة المحلية على جهازك وتمنح الترجمات التالية فهماً مختصراً للورقة.",
+        body: "تبقى الذاكرة المحلية على جهازك. يتم تقليص الإدخال الطويل تلقائياً، مع رجوع نهائي إلى النص المحدد فقط.",
       },
       {
-        title: "الحفظ في ملاحظات Zotero",
-        body: "يمكن إضافة المقاطع المترجمة مباشرة إلى ملاحظة AIdea الخاصة بالعنصر الحالي.",
+        title: "الحفظ في Zotero",
+        body: "أضف الترجمة إلى ملاحظة AIdea أو حدد «كتابة الترجمة في التعليق التوضيحي» قبل اختيار اللون لحفظها في تمييز جديد.",
       },
     ],
     screenshots: {
@@ -375,7 +375,7 @@ const selectionTranslationContent = {
   hi: {
     kicker: "चयन अनुवाद",
     heading: "किसी अंश को चुनें और उसे रीडर में ही अनुवाद करें।",
-    body: "सक्रिय होने पर Zotero PDF रीडर में चुना गया पाठ आपके चुने हुए मॉडल से अपने आप अनुवादित होता है। किसी पेपर पर पहली बार उपयोग करते समय AIdea स्थानीय कोल्ड-स्टार्ट कैश बनाता है, जिसमें संक्षिप्त सार और शब्दावली नोट होते हैं, फिर बाद के चयन अनुवादों में उसी संदर्भ का उपयोग करता है।",
+    body: "सक्रिय होने पर Zotero PDF रीडर में चुना गया पाठ आपके चुने हुए मॉडल से अपने आप अनुवादित होता है। शुरुआती संदर्भ मॉडल की इनपुट सीमा से बड़ा होने पर AIdea उसे चरणों में कम करके फिर कोशिश करता है और जरूरत पड़ने पर केवल चुने हुए पाठ का अनुवाद करता है।",
     points: [
       {
         title: "अलग स्विच और मॉडल",
@@ -383,11 +383,11 @@ const selectionTranslationContent = {
       },
       {
         title: "पेपर-स्तर संदर्भ",
-        body: "कोल्ड-स्टार्ट कैश स्थानीय रहता है और बाद के अनुवादों को पेपर का संक्षिप्त संदर्भ देता है।",
+        body: "कोल्ड-स्टार्ट कैश स्थानीय रहता है। बहुत लंबा इनपुट अपने आप कम किया जाता है और अंत में केवल चुने हुए पाठ का विकल्प इस्तेमाल होता है।",
       },
       {
-        title: "Zotero नोट में जोड़ें",
-        body: "अनुवादित अंशों को मौजूदा आइटम के AIdea चयन अनुवाद नोट में सीधे जोड़ा जा सकता है।",
+        title: "Zotero में सहेजें",
+        body: "अनुवाद को AIdea नोट में जोड़ें या रंग चुनने से पहले ‘अनुवाद को एनोटेशन में लिखें’ चुनकर उसे नए हाइलाइट एनोटेशन में सहेजें।",
       },
     ],
     screenshots: {

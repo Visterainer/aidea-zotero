@@ -6,6 +6,7 @@ import {
 } from "../src/modules/contextPanel/documentContext";
 import { pdfTextCache } from "../src/modules/contextPanel/state";
 import type { PdfContext } from "../src/modules/contextPanel/types";
+import { clearSelectionTranslateColdStartFallbackState } from "../src/modules/contextPanel/selectionTranslateColdStart";
 
 type SelectionTranslateModule =
   typeof import("../src/modules/contextPanel/selectionTranslate");
@@ -84,16 +85,9 @@ async function assertTranslatesWithEmptyContext(params: {
 
   assert.strictEqual(result.translation, "已翻译");
   assert.strictEqual(requestCount, 1);
-  assert.deepEqual(stages, ["translate"]);
-  if (params.kind === "epub") {
-    assert.include(
-      seenPrompt,
-      "<retrieved-document-context>\n\n</retrieved-document-context>",
-    );
-    assert.notInclude(seenPrompt, "<cold-start-cache>");
-  } else {
-    assert.include(seenPrompt, "<cold-start-cache>\n\n</cold-start-cache>");
-  }
+  assert.deepEqual(stages, ["no-context"]);
+  assert.notInclude(seenPrompt, "<retrieved-document-context>");
+  assert.notInclude(seenPrompt, "<cold-start-cache>");
   assert.include(seenPrompt, "Selected source text");
 }
 
@@ -137,6 +131,9 @@ describe("selection translation without document context", function () {
     delete zotero.Fulltext;
     delete zotero.File;
     delete zotero.Items;
+    delete zotero.PDFWorker;
+    delete zotero.DB;
+    clearSelectionTranslateColdStartFallbackState();
     globalThis.fetch = originalFetch;
   });
 
@@ -160,6 +157,78 @@ describe("selection translation without document context", function () {
       contentType: EPUB_CONTENT_TYPE,
       itemID: 72,
     });
+  });
+
+  it("falls back to selected-text-only translation after every cold-start size tier fails", async function () {
+    clearSelectionTranslateColdStartFallbackState();
+    const item = makeAttachment(75, PDF_CONTENT_TYPE);
+    const zotero = (globalThis as Record<string, unknown>).Zotero as Record<
+      string,
+      unknown
+    >;
+    zotero.Items = { get: () => null };
+    zotero.DB = { queryAsync: async () => [] };
+    zotero.PDFWorker = {
+      getFullText: async () => ({
+        text: "Long paper body ".repeat(15_000),
+      }),
+    };
+
+    const stages: string[] = [];
+    const coldStartPromptLengths: number[] = [];
+    let requestCount = 0;
+    let translationPrompt = "";
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      requestCount += 1;
+      const payload = JSON.parse(String(init?.body || "{}")) as {
+        stream?: boolean;
+        messages?: Array<{ content?: unknown }>;
+      };
+      const prompt = String(payload.messages?.at(-1)?.content || "");
+      if (payload.stream !== true) {
+        coldStartPromptLengths.push(prompt.length);
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: "prompt token count of 97890 exceeds the limit of 64000",
+            },
+          }),
+          { status: 400, statusText: "Bad Request" },
+        );
+      }
+      translationPrompt = prompt;
+      return buildOpenAICompatSseResponse("轻量译文");
+    }) as typeof globalThis.fetch;
+
+    const warmed =
+      await selectionTranslate.warmSelectionTranslateColdStartForReader({
+        item,
+        callbacks: { onStage: (stage) => stages.push(stage) },
+      });
+    const result = await selectionTranslate.translateSelectedTextForReader({
+      item,
+      selectedText: "Selected source text",
+      callbacks: { onStage: (stage) => stages.push(stage) },
+    });
+
+    assert.isFalse(warmed);
+    assert.equal(result.translation, "轻量译文");
+    assert.equal(
+      requestCount,
+      7,
+      JSON.stringify({ stages, coldStartPromptLengths, translationPrompt }),
+    );
+    assert.deepEqual(stages, ["cold-start", "no-context"]);
+    assert.deepEqual(
+      coldStartPromptLengths,
+      [...coldStartPromptLengths].sort((a, b) => b - a),
+    );
+    assert.notInclude(translationPrompt, "<cold-start-cache>");
+    assert.notInclude(translationPrompt, "<retrieved-document-context>");
+    assert.include(translationPrompt, "Selected source text");
   });
 
   it("uses bounded selection-anchored EPUB context without a cold-start request", async function () {

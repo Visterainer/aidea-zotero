@@ -69,7 +69,7 @@ Select text in the PDF or EPUB reader and click **Add Text** to attach the selec
 
 Translate selected text directly in Zotero's PDF or EPUB reader popup. AIdea detects the active format automatically, with no manual switch required. Selection translation uses the same OAuth/API model list as the chat panel, but can be configured with its own enable switch, model, source language, and target language.
 
-For PDFs, the first selection translation creates a local cold-start cache with a compact paper overview and terminology summary. EPUB selections instead use bounded, selection-anchored book context without a separate warm-up request. Translated passages can be added back to Zotero notes.
+For PDFs, the first selection translation creates a local cold-start cache with a compact paper overview and terminology summary. If that context exceeds the model's input limit, AIdea progressively reduces it and retries, then falls back to translating only the selected text if needed. EPUB selections instead use bounded, selection-anchored book context without a separate warm-up request. Translated passages can be added to Zotero notes or written into a new highlight annotation by selecting **Write translation to annotation** before choosing a color; existing annotation comments are preserved.
 
 <p align="center">
   <img src="doc/screenshots/selection_translation_popup.png" alt="Selection translation popup in the PDF reader" width="800" />

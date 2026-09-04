@@ -10,8 +10,8 @@ import {
 } from "../src/modules/contextPanel/languages";
 
 describe("one-time update notice", function () {
-  it("uses the v3.4.1 notice id", function () {
-    assert.equal(NOTICE_ID, "v3.4.1-zotero-10-compatibility-v1");
+  it("uses the v3.5.0 notice id", function () {
+    assert.equal(NOTICE_ID, "v3.5.0-selection-translation-reliability-v1");
   });
 
   it("provides complete localized copy for every panel language", function () {
@@ -36,33 +36,30 @@ describe("one-time update notice", function () {
     }
   });
 
-  it("contains the approved Zotero 10 scope without release-only attribution", function () {
+  it("contains the approved selection translation scope without release-only attribution", function () {
     for (const { uiCode } of UI_LANGUAGE_OPTIONS) {
       const copy = CURRENT_UPDATE_NOTICE_COPIES[uiCode];
       const allCopy = JSON.stringify(copy);
       assert.include(allCopy, "Zotero", `${uiCode}.zotero`);
-      assert.include(allCopy, "10.0.x", `${uiCode}.zotero10`);
-      assert.include(allCopy, "PDF/EPUB", `${uiCode}.panels`);
-      assert.include(allCopy, "manifest.json", `${uiCode}.manifest`);
       assert.notMatch(
         allCopy,
-        /@[A-Za-z0-9_-]+|#77|Saywhatyousay|JorgeESantos/,
+        /@[A-Za-z0-9_-]+|#79|Aaaanano/,
         `${uiCode}.attribution`,
       );
     }
 
     const english = JSON.stringify(CURRENT_UPDATE_NOTICE_COPIES["en-US"]);
-    assert.include(english, "Zotero 10 compatibility");
-    assert.include(english, "Official installation and updates");
-    assert.include(english, "Correct library scope");
-    assert.include(english, "Zotero 7–9 retained");
-    assert.include(english, "No new modes");
+    assert.include(english, "Reliable selection translation");
+    assert.include(english, "Automatic retries for long documents");
+    assert.include(english, "Selection-only fallback");
+    assert.include(english, "Write translation to annotation");
+    assert.include(english, "Existing comments are preserved");
 
     const chinese = JSON.stringify(CURRENT_UPDATE_NOTICE_COPIES["zh-CN"]);
-    assert.include(chinese, "兼容 Zotero 10");
-    assert.include(chinese, "官方安装与自动更新兼容");
-    assert.include(chinese, "资料库范围修复");
-    assert.include(chinese, "保留 Zotero 7–9 支持");
-    assert.include(chinese, "不增加新模式");
+    assert.include(chinese, "划词翻译自动兜底与双语标注");
+    assert.include(chinese, "长文档自动重试");
+    assert.include(chinese, "超长失败自动兜底");
+    assert.include(chinese, "将译文写入标注");
+    assert.include(chinese, "安全保留已有批注");
   });
 });
