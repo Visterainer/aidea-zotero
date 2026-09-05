@@ -77,9 +77,8 @@ import { EPUB_CONTENT_TYPE, getReaderDocumentKind } from "./documentContext";
 import { appendSelectionTranslationToNote } from "./notes";
 import {
   applyPendingSelectionTranslationToAnnotation,
-  cancelSelectionTranslationForAnnotation,
+  bindSelectionTranslationAnnotationOption,
   clearPendingSelectionTranslationsForAnnotations,
-  queueSelectionTranslationForAnnotation,
 } from "./selectionTranslateAnnotation";
 import {
   PANEL_TYPOGRAPHY_REFRESH_EVENT,
@@ -1871,15 +1870,17 @@ export function registerReaderSelectionTracking() {
           } | null = null;
           let translateRunning = false;
           let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
-          const cancelPendingAnnotationWrite = () => {
-            if (!canWriteTranslationToAnnotation) return;
-            cancelSelectionTranslationForAnnotation({
-              libraryID: popupAnnotationLibraryID,
-              annotationKey: popupAnnotationKey,
-              attachmentItemID: item?.id,
-              selectedText,
-            });
-          };
+          const annotationOption =
+            writeToAnnotationInput && item
+              ? bindSelectionTranslationAnnotationOption(
+                  writeToAnnotationInput,
+                  {
+                    libraryID: popupAnnotationLibraryID,
+                    annotationKey: popupAnnotationKey,
+                    attachmentItemID: item.id,
+                  },
+                )
+              : null;
           const resetCopyFeedback = () => {
             if (copyFeedbackTimer !== null) {
               clearTimeout(copyFeedbackTimer);
@@ -1902,25 +1903,6 @@ export function registerReaderSelectionTracking() {
               setCopyButtonLabel(text.copy);
               copyBtn.disabled = !latestSelectionTranslation;
             }, 1400);
-          });
-          writeToAnnotationInput?.addEventListener("change", () => {
-            if (!writeToAnnotationInput?.checked) {
-              cancelPendingAnnotationWrite();
-              return;
-            }
-            const current = latestSelectionTranslation;
-            if (!item || !current?.translation.trim()) {
-              writeToAnnotationInput.checked = false;
-              return;
-            }
-            const queued = queueSelectionTranslationForAnnotation({
-              libraryID: popupAnnotationLibraryID,
-              attachmentItemID: item.id,
-              annotationKey: popupAnnotationKey,
-              selectedText: current.selectedText,
-              translation: current.translation,
-            });
-            if (!queued) writeToAnnotationInput.checked = false;
           });
           addToNoteBtn.addEventListener("click", async (e: Event) => {
             e.preventDefault();
@@ -1951,11 +1933,7 @@ export function registerReaderSelectionTracking() {
             > | null = null;
             let receivedStreamingContent = false;
             latestSelectionTranslation = null;
-            cancelPendingAnnotationWrite();
-            if (writeToAnnotationInput) {
-              writeToAnnotationInput.checked = false;
-              writeToAnnotationInput.disabled = true;
-            }
+            annotationOption?.reset();
             resetCopyFeedback();
             actionRow.style.display = "none";
             addToNoteBtn.disabled = true;
@@ -1998,6 +1976,7 @@ export function registerReaderSelectionTracking() {
               });
               popupStream.invalidate();
               popupStream = null;
+              if (!wrap.isConnected) return;
               if (!result.translation.trim()) {
                 resultBox.textContent = text.failed;
                 selectionTranslateContentChanged?.(receivedStreamingContent);
@@ -2011,9 +1990,7 @@ export function registerReaderSelectionTracking() {
               };
               copyBtn.disabled = false;
               addToNoteBtn.disabled = false;
-              if (writeToAnnotationInput) {
-                writeToAnnotationInput.disabled = false;
-              }
+              annotationOption?.setTranslation(latestSelectionTranslation);
               setAddToNoteButtonLabel(noteText.addToNote);
               actionRow.style.display = hasVisibleSelectionTranslateActions
                 ? "flex"

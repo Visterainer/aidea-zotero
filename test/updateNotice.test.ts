@@ -10,8 +10,8 @@ import {
 } from "../src/modules/contextPanel/languages";
 
 describe("one-time update notice", function () {
-  it("uses the v3.5.0 notice id", function () {
-    assert.equal(NOTICE_ID, "v3.5.0-selection-translation-reliability-v1");
+  it("uses the v3.5.1 notice id", function () {
+    assert.equal(NOTICE_ID, "v3.5.1-selection-translation-persistence-v1");
   });
 
   it("provides complete localized copy for every panel language", function () {
@@ -29,7 +29,12 @@ describe("one-time update notice", function () {
       assert.isAbove(copy.note.trim().length, 0, `${uiCode}.note`);
       assert.isAbove(copy.confirm.trim().length, 0, `${uiCode}.confirm`);
       assert.isAbove(copy.close.trim().length, 0, `${uiCode}.close`);
-      assert.lengthOf(copy.alsoItems || [], 4, `${uiCode}.alsoItems`);
+      assert.lengthOf(copy.alsoItems || [], 5, `${uiCode}.alsoItems`);
+      assert.include(
+        copy.alsoItems?.[0].text,
+        "Zotero",
+        `${uiCode}.persistence`,
+      );
       if (uiCode !== "en-US") {
         assert.notEqual(copy.title, english.title, `${uiCode}.title`);
       }
@@ -54,6 +59,8 @@ describe("one-time update notice", function () {
     assert.include(english, "Selection-only fallback");
     assert.include(english, "Write translation to annotation");
     assert.include(english, "Existing comments are preserved");
+    assert.include(english, "Remembered checkbox state");
+    assert.notInclude(english, "applies only to the current selection");
 
     const chinese = JSON.stringify(CURRENT_UPDATE_NOTICE_COPIES["zh-CN"]);
     assert.include(chinese, "划词翻译自动兜底与双语标注");
@@ -61,5 +68,7 @@ describe("one-time update notice", function () {
     assert.include(chinese, "超长失败自动兜底");
     assert.include(chinese, "将译文写入标注");
     assert.include(chinese, "安全保留已有批注");
+    assert.include(chinese, "勾选状态自动记忆");
+    assert.notInclude(chinese, "仅对当前选区生效");
   });
 });

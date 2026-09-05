@@ -1,4 +1,7 @@
+import { config } from "../../../package.json";
+
 const PENDING_ANNOTATION_TRANSLATION_TTL_MS = 2 * 60 * 1000;
+const WRITE_TO_ANNOTATION_PREF = `${config.prefsPrefix}.selectionTranslate.writeToAnnotation`;
 
 type PendingSelectionTranslation = {
   libraryID: number;
@@ -22,6 +25,49 @@ const pendingSelectionTranslations = new Map<
   PendingSelectionTranslation
 >();
 const applyingAnnotationKeys = new Set<string>();
+
+export function bindSelectionTranslationAnnotationOption(
+  input: HTMLInputElement,
+  target: Omit<
+    QueueSelectionTranslationForAnnotationParams,
+    "selectedText" | "translation"
+  >,
+) {
+  let current: QueueSelectionTranslationForAnnotationParams | null = null;
+  const cancel = () => {
+    if (current) cancelSelectionTranslationForAnnotation(current);
+  };
+  const refresh = () => {
+    input.checked = Zotero.Prefs.get(WRITE_TO_ANNOTATION_PREF, true) === true;
+    input.disabled = !current;
+    if (current && input.checked) {
+      queueSelectionTranslationForAnnotation(current);
+    } else {
+      cancel();
+    }
+  };
+  input.addEventListener("change", () => {
+    Zotero.Prefs.set(WRITE_TO_ANNOTATION_PREF, input.checked, true);
+    refresh();
+  });
+  refresh();
+
+  return {
+    reset() {
+      cancel();
+      current = null;
+      refresh();
+    },
+    setTranslation(result: { selectedText: string; translation: string }) {
+      cancel();
+      current =
+        result.selectedText.trim() && result.translation.trim()
+          ? { ...target, ...result }
+          : null;
+      refresh();
+    },
+  };
+}
 
 function normalizePositiveInt(value: unknown): number {
   const number = Number(value);

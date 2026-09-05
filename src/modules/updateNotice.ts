@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.5.0-selection-translation-reliability-v1";
+export const NOTICE_ID = "v3.5.1-selection-translation-persistence-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -1259,10 +1259,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "en-US": {
       eyebrow: "Update",
       title: "Reliable selection translation and bilingual annotations",
-      lead: "AIdea can now reduce document context and retry automatically when a long document exceeds the model's input limit. It can also save the generated translation directly to a new Zotero highlight annotation.",
-      note: "Restart Zotero after updating. The checkbox applies only to the current selection and must be selected before choosing a highlight color.",
+      lead: 'AIdea can reduce document context and retry automatically when a long document exceeds the model\'s input limit. It can also save the generated translation directly to a new Zotero highlight annotation. The "Write translation to annotation" checkbox now remembers both enabling and disabling.',
+      note: "Restart Zotero after updating. This option is off by default and remembers both enabling and disabling. When enabled, wait for the translation to finish before choosing a highlight color.",
       alsoLabel: "This update includes",
       alsoItems: [
+        {
+          label: "Remembered checkbox state",
+          text: 'Enabling or disabling "Write translation to annotation" is remembered across selections, documents, and Zotero restarts, so there is no need to select it again each time.',
+        },
         {
           label: "Automatic retries for long documents",
           text: "If first-use context exceeds the input limit, AIdea progressively reduces it and retries automatically.",
@@ -1273,7 +1277,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Translations in highlight annotations",
-          text: 'After the translation is generated, select "Write translation to annotation" and choose a highlight color to write it into the new annotation comment.',
+          text: 'Enable "Write translation to annotation", wait for the translation, then choose a highlight color to write it into the new annotation comment.',
         },
         {
           label: "Existing comments are preserved",
@@ -1288,10 +1292,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "zh-CN": {
       eyebrow: "更新提示",
       title: "划词翻译自动兜底与双语标注",
-      lead: "AIdea 现在可以在长文档超过模型输入限制时自动缩减上下文并重试，还可以将生成的译文直接写入新建的 Zotero 高亮标注。",
-      note: "更新后请重启 Zotero。勾选框仅对当前选区生效，需要在选择高亮颜色前勾选。",
+      lead: "AIdea 可以在长文档超过模型输入限制时自动缩减上下文并重试，还可以将生成的译文直接写入新建的 Zotero 高亮标注。“将译文写入标注”现在会记住勾选和取消状态。",
+      note: "更新后请重启 Zotero。该选项默认关闭；勾选和取消状态都会记住。开启后，请等待译文生成，再选择高亮颜色。",
       alsoLabel: "本次更新包括",
       alsoItems: [
+        {
+          label: "勾选状态自动记忆",
+          text: "开启或关闭“将译文写入标注”后，后续划词、切换文献及重启 Zotero 都会保留选择，无需每次重新勾选。",
+        },
         {
           label: "长文档自动重试",
           text: "首次准备上下文遇到输入过长错误时，AIdea 会逐级缩减内容并自动重试。",
@@ -1302,7 +1310,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "译文写入高亮标注",
-          text: "译文生成后，勾选“将译文写入标注”，再选择上方的高亮颜色，即可将译文写入新标注的批注。",
+          text: "开启“将译文写入标注”后，等待译文生成，再选择上方的高亮颜色，即可将译文写入新标注的批注。",
         },
         {
           label: "安全保留已有批注",
@@ -1317,10 +1325,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "zh-TW": {
       eyebrow: "更新提示",
       title: "選取翻譯自動備援與雙語標註",
-      lead: "AIdea 現在能在長文件超過模型輸入限制時自動縮減文件上下文並重試，也能將產生的譯文直接寫入新建立的 Zotero 高亮標註。",
-      note: "更新後請重新啟動 Zotero。勾選框只套用於目前選取範圍，並須在選擇高亮顏色前勾選。",
+      lead: "AIdea 現在能在長文件超過模型輸入限制時自動縮減文件上下文並重試，也能將產生的譯文直接寫入新建立的 Zotero 高亮標註。 「將譯文寫入標註」現在會記住勾選與取消狀態。",
+      note: "更新後請重新啟動 Zotero。此選項預設關閉，勾選與取消狀態都會保留。啟用後，請等譯文產生再選擇高亮顏色。",
       alsoLabel: "本次更新包括",
       alsoItems: [
+        {
+          label: "自動記住勾選狀態",
+          text: "開啟或關閉「將譯文寫入標註」後，後續選取文字、切換文件及重新啟動 Zotero 都會保留選擇，無須每次重新勾選。",
+        },
         {
           label: "長文件自動重試",
           text: "首次準備上下文時若超過輸入限制，AIdea 會逐步縮減內容並自動重試。",
@@ -1331,7 +1343,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "譯文寫入高亮標註",
-          text: "產生譯文後，勾選「將譯文寫入標註」並選擇高亮顏色，即可把譯文寫入新標註的註解。",
+          text: "啟用「將譯文寫入標註」，等譯文產生後再選擇高亮顏色，即可將譯文寫入新標註的註解。",
         },
         {
           label: "保留既有註解",
@@ -1346,10 +1358,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "ja-JP": {
       eyebrow: "更新のお知らせ",
       title: "選択翻訳の自動フォールバックと二言語注釈",
-      lead: "長い文書がモデルの入力上限を超えた場合、AIdea は文書コンテキストを段階的に縮小して自動的に再試行します。生成された翻訳を新しい Zotero ハイライト注釈へ直接保存することもできます。",
-      note: "更新後に Zotero を再起動してください。チェックボックスは現在の選択範囲にのみ適用され、ハイライト色を選ぶ前に有効にする必要があります。",
+      lead: "長い文書がモデルの入力上限を超えた場合、AIdea は文書コンテキストを段階的に縮小して自動的に再試行します。生成された翻訳を新しい Zotero ハイライト注釈へ直接保存することもできます。 「翻訳を注釈に書き込む」の有効・無効の設定が保存されるようになりました。",
+      note: "更新後に Zotero を再起動してください。この設定は既定では無効で、有効・無効の選択が保存されます。有効な場合は翻訳が完了してからハイライト色を選んでください。",
       alsoLabel: "今回の更新内容",
       alsoItems: [
+        {
+          label: "チェック状態の保存",
+          text: "「翻訳を注釈に書き込む」の設定は、次の選択範囲や別の文書でも、Zotero を再起動しても保持されます。毎回チェックする必要はありません。",
+        },
         {
           label: "長い文書を自動再試行",
           text: "初回コンテキストが入力上限を超えた場合、AIdea は内容を段階的に縮小して自動的に再試行します。",
@@ -1360,7 +1376,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "ハイライト注釈へ翻訳を保存",
-          text: "翻訳後に「翻訳を注釈に書き込む」を選び、ハイライト色を選択すると、新しい注釈のコメントへ翻訳を書き込みます。",
+          text: "「翻訳を注釈に書き込む」を有効にして翻訳の完了を待ち、ハイライト色を選ぶと、新しい注釈のコメントに翻訳を保存できます。",
         },
         {
           label: "既存コメントを保持",
@@ -1375,10 +1391,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "ko-KR": {
       eyebrow: "업데이트 안내",
       title: "선택 번역 자동 대체 및 이중 언어 주석",
-      lead: "긴 문서가 모델의 입력 한도를 초과하면 AIdea가 문서 컨텍스트를 단계적으로 줄여 자동으로 다시 시도합니다. 생성된 번역을 새 Zotero 하이라이트 주석에 바로 저장할 수도 있습니다.",
-      note: "업데이트 후 Zotero를 다시 시작하세요. 체크박스는 현재 선택 영역에만 적용되며 하이라이트 색상을 선택하기 전에 체크해야 합니다.",
+      lead: "긴 문서가 모델의 입력 한도를 초과하면 AIdea가 문서 컨텍스트를 단계적으로 줄여 자동으로 다시 시도합니다. 생성된 번역을 새 Zotero 하이라이트 주석에 바로 저장할 수도 있습니다. 이제 ‘번역을 주석에 쓰기’의 켜짐과 꺼짐 상태가 저장됩니다.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 기본값은 꺼짐이며, 켜거나 끈 상태가 저장됩니다. 켠 경우 번역이 완료된 뒤 하이라이트 색상을 선택하세요.",
       alsoLabel: "이번 업데이트 내용",
       alsoItems: [
+        {
+          label: "체크 상태 기억",
+          text: "‘번역을 주석에 쓰기’를 켜거나 끈 상태는 다음 선택, 문서 전환 및 Zotero 재시작 후에도 유지되므로 매번 다시 선택할 필요가 없습니다.",
+        },
         {
           label: "긴 문서 자동 재시도",
           text: "최초 컨텍스트가 입력 한도를 초과하면 AIdea가 내용을 단계적으로 줄이고 자동으로 다시 시도합니다.",
@@ -1389,7 +1409,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "하이라이트 주석에 번역 저장",
-          text: "번역이 생성된 후 ‘번역을 주석에 쓰기’를 선택하고 하이라이트 색상을 고르면 새 주석의 댓글에 번역이 저장됩니다.",
+          text: "‘번역을 주석에 쓰기’를 켜고 번역이 완료된 뒤 하이라이트 색상을 선택하면 새 주석의 댓글에 번역이 저장됩니다.",
         },
         {
           label: "기존 댓글 보존",
@@ -1404,10 +1424,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "fr-FR": {
       eyebrow: "Mise à jour",
       title: "Traduction de sélection fiable et annotations bilingues",
-      lead: "AIdea peut maintenant réduire progressivement le contexte et réessayer lorsqu’un document long dépasse la limite d’entrée du modèle. La traduction générée peut aussi être enregistrée directement dans une nouvelle annotation surlignée de Zotero.",
-      note: "Redémarrez Zotero après la mise à jour. La case s’applique uniquement à la sélection actuelle et doit être cochée avant de choisir une couleur de surlignage.",
+      lead: "AIdea peut maintenant réduire progressivement le contexte et réessayer lorsqu’un document long dépasse la limite d’entrée du modèle. La traduction générée peut aussi être enregistrée directement dans une nouvelle annotation surlignée de Zotero. La case « Ajouter la traduction a l'annotation » conserve désormais son état activé ou désactivé.",
+      note: "Redémarrez Zotero après la mise à jour. Cette option est désactivée par défaut et conserve son état. Lorsqu'elle est activée, attendez la fin de la traduction avant de choisir une couleur.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
+        {
+          label: "État de la case mémorisé",
+          text: "L'activation ou la désactivation de « Ajouter la traduction a l'annotation » est conservée entre les sélections, les documents et les redémarrages de Zotero, sans avoir à recocher la case.",
+        },
         {
           label: "Nouvelles tentatives automatiques",
           text: "Si le contexte initial dépasse la limite d’entrée, AIdea le réduit progressivement et réessaie automatiquement.",
@@ -1418,7 +1442,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Traduction dans les annotations surlignées",
-          text: "Après la traduction, cochez « Ajouter la traduction à l’annotation » puis choisissez une couleur pour écrire la traduction dans le commentaire de la nouvelle annotation.",
+          text: "Activez « Ajouter la traduction a l'annotation », attendez la traduction, puis choisissez une couleur pour l'enregistrer dans le commentaire de la nouvelle annotation.",
         },
         {
           label: "Commentaires existants conservés",
@@ -1433,10 +1457,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "de-DE": {
       eyebrow: "Update",
       title: "Zuverlässige Auswahlübersetzung und zweisprachige Anmerkungen",
-      lead: "AIdea kann den Dokumentkontext jetzt schrittweise verkleinern und automatisch erneut versuchen, wenn ein langes Dokument das Eingabelimit des Modells überschreitet. Die erzeugte Übersetzung lässt sich außerdem direkt in einer neuen Zotero-Hervorhebung speichern.",
-      note: "Starten Sie Zotero nach dem Update neu. Das Kontrollkästchen gilt nur für die aktuelle Auswahl und muss vor der Auswahl einer Hervorhebungsfarbe aktiviert werden.",
+      lead: "AIdea kann den Dokumentkontext jetzt schrittweise verkleinern und automatisch erneut versuchen, wenn ein langes Dokument das Eingabelimit des Modells überschreitet. Die erzeugte Übersetzung lässt sich außerdem direkt in einer neuen Zotero-Hervorhebung speichern. „Übersetzung in die Anmerkung schreiben“ merkt sich jetzt den ein- oder ausgeschalteten Zustand.",
+      note: "Starten Sie Zotero nach dem Update neu. Die Option ist standardmäßig aus und speichert beide Zustände. Warten Sie bei aktivierter Option auf die fertige Übersetzung, bevor Sie eine Farbe wählen.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
+        {
+          label: "Gespeicherter Kontrollkästchenzustand",
+          text: "Die Einstellung „Übersetzung in die Anmerkung schreiben“ bleibt bei weiteren Auswahlen, Dokumentwechseln und Zotero-Neustarts erhalten. Erneutes Ankreuzen ist nicht erforderlich.",
+        },
         {
           label: "Automatische Versuche bei langen Dokumenten",
           text: "Wenn der erste Kontext das Eingabelimit überschreitet, verkleinert AIdea ihn schrittweise und versucht es automatisch erneut.",
@@ -1447,7 +1475,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Übersetzung in Hervorhebungen",
-          text: "Aktivieren Sie nach der Übersetzung „Uebersetzung in die Anmerkung schreiben“ und wählen Sie eine Farbe, um die Übersetzung in den Kommentar der neuen Anmerkung zu schreiben.",
+          text: "Aktivieren Sie „Übersetzung in die Anmerkung schreiben“, warten Sie auf die Übersetzung und wählen Sie eine Farbe, um sie im Kommentar der neuen Anmerkung zu speichern.",
         },
         {
           label: "Vorhandene Kommentare bleiben erhalten",
@@ -1462,10 +1490,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "es-ES": {
       eyebrow: "Actualización",
       title: "Traducción de selección fiable y anotaciones bilingües",
-      lead: "AIdea ahora puede reducir progresivamente el contexto y reintentar cuando un documento largo supera el límite de entrada del modelo. También puede guardar la traducción generada directamente en una nueva anotación resaltada de Zotero.",
-      note: "Reinicia Zotero después de actualizar. La casilla solo se aplica a la selección actual y debe marcarse antes de elegir un color de resaltado.",
+      lead: "AIdea ahora puede reducir progresivamente el contexto y reintentar cuando un documento largo supera el límite de entrada del modelo. También puede guardar la traducción generada directamente en una nueva anotación resaltada de Zotero. La casilla «Guardar la traduccion en la anotacion» ahora recuerda tanto su activación como su desactivación.",
+      note: "Reinicia Zotero después de actualizar. La opción está desactivada por defecto y recuerda ambos estados. Cuando esté activada, espera a que termine la traducción antes de elegir un color.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
+        {
+          label: "Estado de la casilla guardado",
+          text: "El estado de «Guardar la traduccion en la anotacion» se conserva entre selecciones, documentos y reinicios de Zotero, sin necesidad de marcarla cada vez.",
+        },
         {
           label: "Reintentos automáticos para documentos largos",
           text: "Si el contexto inicial supera el límite de entrada, AIdea lo reduce progresivamente y reintenta automáticamente.",
@@ -1476,7 +1508,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Traducciones en anotaciones resaltadas",
-          text: "Después de generar la traducción, marca «Guardar la traduccion en la anotacion» y elige un color para escribirla en el comentario de la nueva anotación.",
+          text: "Activa «Guardar la traduccion en la anotacion», espera a que termine la traducción y elige un color para guardarla en el comentario de la nueva anotación.",
         },
         {
           label: "Se conservan los comentarios existentes",
@@ -1491,10 +1523,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "ru-RU": {
       eyebrow: "Обновление",
       title: "Надёжный перевод выделения и двуязычные аннотации",
-      lead: "Если длинный документ превышает входной лимит модели, AIdea теперь поэтапно сокращает контекст и автоматически повторяет запрос. Готовый перевод также можно сразу сохранить в новой выделенной аннотации Zotero.",
-      note: "После обновления перезапустите Zotero. Флажок действует только для текущего выделения и должен быть установлен до выбора цвета.",
+      lead: "Если длинный документ превышает входной лимит модели, AIdea теперь поэтапно сокращает контекст и автоматически повторяет запрос. Готовый перевод также можно сразу сохранить в новой выделенной аннотации Zotero. Флажок «Записать перевод в аннотацию» теперь запоминает как включённое, так и выключенное состояние.",
+      note: "После обновления перезапустите Zotero. По умолчанию опция выключена; оба состояния сохраняются. Если она включена, дождитесь завершения перевода, прежде чем выбрать цвет.",
       alsoLabel: "В это обновление входит",
       alsoItems: [
+        {
+          label: "Запоминание состояния флажка",
+          text: "Состояние «Записать перевод в аннотацию» сохраняется при следующих выделениях, смене документа и перезапуске Zotero. Устанавливать флажок каждый раз больше не нужно.",
+        },
         {
           label: "Автоповтор для длинных документов",
           text: "Если исходный контекст превышает входной лимит, AIdea поэтапно сокращает его и автоматически повторяет запрос.",
@@ -1505,7 +1541,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Перевод в выделенной аннотации",
-          text: "После перевода установите «Записать перевод в аннотацию» и выберите цвет, чтобы записать перевод в комментарий новой аннотации.",
+          text: "Включите «Записать перевод в аннотацию», дождитесь перевода и выберите цвет, чтобы записать его в комментарий новой аннотации.",
         },
         {
           label: "Сохранение существующих комментариев",
@@ -1520,10 +1556,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "pt-BR": {
       eyebrow: "Atualização",
       title: "Tradução de seleção confiável e anotações bilíngues",
-      lead: "O AIdea agora reduz progressivamente o contexto e tenta novamente quando um documento longo excede o limite de entrada do modelo. A tradução gerada também pode ser salva diretamente em uma nova anotação destacada do Zotero.",
-      note: "Reinicie o Zotero após atualizar. A caixa vale apenas para a seleção atual e deve ser marcada antes de escolher uma cor de destaque.",
+      lead: "O AIdea agora reduz progressivamente o contexto e tenta novamente quando um documento longo excede o limite de entrada do modelo. A tradução gerada também pode ser salva diretamente em uma nova anotação destacada do Zotero. A caixa “Salvar a traducao na anotacao” agora lembra tanto a ativação quanto a desativação.",
+      note: "Reinicie o Zotero após atualizar. A opção vem desativada e lembra ambos os estados. Quando ativada, aguarde o fim da tradução antes de escolher uma cor.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
+        {
+          label: "Estado da caixa lembrado",
+          text: "O estado de “Salvar a traducao na anotacao” é mantido entre seleções, documentos e reinicializações do Zotero, sem precisar marcar a caixa novamente a cada vez.",
+        },
         {
           label: "Novas tentativas automáticas",
           text: "Se o contexto inicial exceder o limite de entrada, o AIdea o reduz progressivamente e tenta novamente de forma automática.",
@@ -1534,7 +1574,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Tradução em anotações destacadas",
-          text: "Depois da tradução, marque “Salvar a traducao na anotacao” e escolha uma cor para gravá-la no comentário da nova anotação.",
+          text: "Ative “Salvar a traducao na anotacao”, aguarde a tradução e escolha uma cor para gravá-la no comentário da nova anotação.",
         },
         {
           label: "Comentários existentes preservados",
@@ -1549,10 +1589,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "ar-SA": {
       eyebrow: "تحديث",
       title: "ترجمة تحديد موثوقة وتعليقات توضيحية ثنائية اللغة",
-      lead: "يستطيع AIdea الآن تقليص سياق المستند تدريجيا وإعادة المحاولة تلقائيا عندما يتجاوز مستند طويل حد إدخال النموذج. ويمكن أيضا حفظ الترجمة الناتجة مباشرة في تعليق توضيحي جديد ومميز في Zotero.",
-      note: "أعد تشغيل Zotero بعد التحديث. ينطبق مربع الاختيار على التحديد الحالي فقط ويجب تحديده قبل اختيار لون التمييز.",
+      lead: "يستطيع AIdea الآن تقليص سياق المستند تدريجيا وإعادة المحاولة تلقائيا عندما يتجاوز مستند طويل حد إدخال النموذج. ويمكن أيضا حفظ الترجمة الناتجة مباشرة في تعليق توضيحي جديد ومميز في Zotero. يحفظ خيار «كتابة الترجمة في التعليق التوضيحي» الآن حالة تفعيله أو تعطيله.",
+      note: "أعد تشغيل Zotero بعد التحديث. الخيار معطل افتراضيا ويحفظ حالة التفعيل والتعطيل. عند تفعيله، انتظر اكتمال الترجمة قبل اختيار لون التمييز.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
+        {
+          label: "حفظ حالة مربع الاختيار",
+          text: "تُحفظ حالة «كتابة الترجمة في التعليق التوضيحي» بين التحديدات والمستندات وبعد إعادة تشغيل Zotero، دون الحاجة إلى تحديد الخيار في كل مرة.",
+        },
         {
           label: "إعادة المحاولة تلقائيا للمستندات الطويلة",
           text: "إذا تجاوز السياق الأولي حد الإدخال، يقلصه AIdea تدريجيا ويعيد المحاولة تلقائيا.",
@@ -1563,7 +1607,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "الترجمة في التعليقات المميزة",
-          text: "بعد إنشاء الترجمة، حدد «كتابة الترجمة في التعليق التوضيحي» ثم اختر لونا لكتابتها في تعليق التوضيح الجديد.",
+          text: "فعّل «كتابة الترجمة في التعليق التوضيحي»، وانتظر الترجمة ثم اختر لون التمييز لكتابتها في تعليق التوضيح الجديد.",
         },
         {
           label: "الحفاظ على التعليقات الموجودة",
@@ -1578,10 +1622,14 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "hi-IN": {
       eyebrow: "अपडेट",
       title: "विश्वसनीय चयन अनुवाद और द्विभाषी एनोटेशन",
-      lead: "लंबा दस्तावेज़ मॉडल की input limit से बड़ा होने पर AIdea अब document context को चरणों में कम करके अपने आप फिर कोशिश करता है। तैयार अनुवाद को नए Zotero highlight annotation में सीधे सहेजा भी जा सकता है।",
-      note: "अपडेट के बाद Zotero को फिर शुरू करें। Checkbox केवल मौजूदा selection पर लागू होता है और highlight color चुनने से पहले इसे चुनना आवश्यक है।",
+      lead: "लंबा दस्तावेज़ मॉडल की input limit से बड़ा होने पर AIdea अब document context को चरणों में कम करके अपने आप फिर कोशिश करता है। तैयार अनुवाद को नए Zotero highlight annotation में सीधे सहेजा भी जा सकता है। ‘अनुवाद को एनोटेशन में लिखें’ अब चालू और बंद दोनों स्थितियाँ याद रखता है।",
+      note: "अपडेट के बाद Zotero फिर शुरू करें। विकल्प डिफ़ॉल्ट रूप से बंद है और चालू या बंद की गई स्थिति याद रखता है। चालू होने पर रंग चुनने से पहले अनुवाद पूरा होने दें।",
       alsoLabel: "इस अपडेट में शामिल है",
       alsoItems: [
+        {
+          label: "चेकबॉक्स की स्थिति याद रहती है",
+          text: "‘अनुवाद को एनोटेशन में लिखें’ की चालू या बंद स्थिति अगले चयन, दस्तावेज़ बदलने और Zotero फिर शुरू करने पर भी बनी रहती है। हर बार दोबारा चुनना आवश्यक नहीं है।",
+        },
         {
           label: "लंबे दस्तावेज़ों के लिए automatic retry",
           text: "शुरुआती context input limit से बड़ा होने पर AIdea उसे चरणों में कम करता है और अपने आप फिर कोशिश करता है।",
@@ -1592,7 +1640,7 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
         },
         {
           label: "Highlight annotation में अनुवाद",
-          text: "अनुवाद बनने के बाद ‘अनुवाद को एनोटेशन में लिखें’ चुनें और नया annotation comment बनाने के लिए highlight color चुनें।",
+          text: "‘अनुवाद को एनोटेशन में लिखें’ चालू करें, अनुवाद पूरा होने दें और नए एनोटेशन के कमेंट में अनुवाद सहेजने के लिए हाइलाइट का रंग चुनें।",
         },
         {
           label: "मौजूदा comments सुरक्षित",

@@ -47,6 +47,7 @@ declare namespace _ZoteroTypes {
       "selectionTranslate.auto": boolean;
       "selectionTranslate.showCopyButton": boolean;
       "selectionTranslate.showAddToNoteButton": boolean;
+      "selectionTranslate.writeToAnnotation": boolean;
       "selectionTranslate.model": string;
       "selectionTranslate.provider": string;
       "selectionTranslate.sourceLang": string;

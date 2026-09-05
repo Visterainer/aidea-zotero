@@ -38,6 +38,7 @@ pref("selectionTranslate.enabled", true);
 pref("selectionTranslate.auto", true);
 pref("selectionTranslate.showCopyButton", true);
 pref("selectionTranslate.showAddToNoteButton", true);
+pref("selectionTranslate.writeToAnnotation", false);
 pref("selectionTranslate.model", "");
 pref("selectionTranslate.provider", "");
 pref("selectionTranslate.sourceLang", "auto");

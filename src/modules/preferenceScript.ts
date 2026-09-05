@@ -6205,6 +6205,7 @@ export async function bootstrapSettingTab(
     setBoolPref("selectionTranslate.auto", true);
     setBoolPref("selectionTranslate.showCopyButton", true);
     setBoolPref("selectionTranslate.showAddToNoteButton", true);
+    setBoolPref("selectionTranslate.writeToAnnotation", false);
     setBoolPref("translate.outputMono", true);
     setBoolPref("translate.outputDual", true);
     setBoolPref("translate.skipReferencesAuto", true);
