@@ -1,5 +1,7 @@
 import { assert } from "chai";
-import { readFileSync } from "node:fs";
+import katex from "katex";
+import { readFileSync, readdirSync } from "node:fs";
+import { format } from "prettier";
 import { renderMarkdown, renderMarkdownForNote } from "../src/utils/markdown";
 
 describe("markdown renderer", function () {
@@ -104,7 +106,7 @@ describe("markdown renderer", function () {
       assert.include(html, "math-inline");
     });
 
-    it("should keep bundled KaTeX CSS aligned with rendered markup", function () {
+    it("should keep bundled KaTeX CSS aligned with the installed renderer", async function () {
       const html = renderMarkdown("The formula is $x^2$.");
       const css = readFileSync(
         new URL("../addon/content/vendor/katex/katex.min.css", import.meta.url),
@@ -113,7 +115,52 @@ describe("markdown renderer", function () {
 
       assert.include(html, "katex-base");
       assert.include(css, ".katex-base");
-      assert.include(css, 'content: "0.18.1"');
+      assert.include(css, `content: "${katex.version}"`);
+      const installedCss = readFileSync(
+        new URL("../node_modules/katex/dist/katex.min.css", import.meta.url),
+        "utf8",
+      );
+      assert.equal(
+        await format(css, { parser: "css" }),
+        await format(installedCss, { parser: "css" }),
+      );
+    });
+
+    it("should bundle the fonts used by the installed KaTeX renderer", function () {
+      const bundledDir = new URL(
+        "../addon/content/vendor/katex/fonts/",
+        import.meta.url,
+      );
+      const installedDir = new URL(
+        "../node_modules/katex/dist/fonts/",
+        import.meta.url,
+      );
+      const fonts = readdirSync(installedDir);
+      assert.isAbove(fonts.length, 0);
+      assert.deepEqual(readdirSync(bundledDir).sort(), fonts.sort());
+      for (const font of fonts) {
+        assert.isTrue(
+          readFileSync(new URL(font, bundledDir)).equals(
+            readFileSync(new URL(font, installedDir)),
+          ),
+          font,
+        );
+      }
+    });
+
+    it("should render sized delimiters with braced arguments", function () {
+      const html = renderMarkdown("$$\\bigl{(} x + y \\bigr{)}$$");
+      assert.include(html, "katex-base");
+      assert.notInclude(html, "katex-error");
+      assert.notInclude(html, "math-error");
+    });
+
+    it("should show malformed environments without dropping following text", function () {
+      const html = renderMarkdown(
+        "$$\\begin{\\frac{1}{2}} x \\end{array}$$\n\nStill readable.",
+      );
+      assert.include(html, "katex-error");
+      assert.include(html, "Still readable.");
     });
 
     it("should handle display math with $$...$$", function () {
