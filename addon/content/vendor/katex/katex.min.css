@@ -213,7 +213,7 @@
   border-color: currentColor;
 }
 .katex .katex-version:after {
-  content: "0.18.1";
+  content: "0.18.5";
 }
 .katex .katex-mathml {
   border: 0;
