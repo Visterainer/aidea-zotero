@@ -1,5 +1,7 @@
 import { assert } from "chai";
-import { readFileSync } from "node:fs";
+import katex from "katex";
+import { readFileSync, readdirSync } from "node:fs";
+import { format } from "prettier";
 import { renderMarkdown, renderMarkdownForNote } from "../src/utils/markdown";
 
 describe("markdown renderer", function () {
@@ -104,7 +106,7 @@ describe("markdown renderer", function () {
       assert.include(html, "math-inline");
     });
 
-    it("should keep bundled KaTeX CSS aligned with rendered markup", function () {
+    it("should keep bundled KaTeX CSS aligned with the installed renderer", async function () {
       const html = renderMarkdown("The formula is $x^2$.");
       const css = readFileSync(
         new URL("../addon/content/vendor/katex/katex.min.css", import.meta.url),
@@ -113,7 +115,52 @@ describe("markdown renderer", function () {
 
       assert.include(html, "katex-base");
       assert.include(css, ".katex-base");
-      assert.include(css, 'content: "0.18.1"');
+      assert.include(css, `content: "${katex.version}"`);
+      const installedCss = readFileSync(
+        new URL("../node_modules/katex/dist/katex.min.css", import.meta.url),
+        "utf8",
+      );
+      assert.equal(
+        await format(css, { parser: "css" }),
+        await format(installedCss, { parser: "css" }),
+      );
+    });
+
+    it("should bundle the fonts used by the installed KaTeX renderer", function () {
+      const bundledDir = new URL(
+        "../addon/content/vendor/katex/fonts/",
+        import.meta.url,
+      );
+      const installedDir = new URL(
+        "../node_modules/katex/dist/fonts/",
+        import.meta.url,
+      );
+      const fonts = readdirSync(installedDir);
+      assert.isAbove(fonts.length, 0);
+      assert.deepEqual(readdirSync(bundledDir).sort(), fonts.sort());
+      for (const font of fonts) {
+        assert.isTrue(
+          readFileSync(new URL(font, bundledDir)).equals(
+            readFileSync(new URL(font, installedDir)),
+          ),
+          font,
+        );
+      }
+    });
+
+    it("should render sized delimiters with braced arguments", function () {
+      const html = renderMarkdown("$$\\bigl{(} x + y \\bigr{)}$$");
+      assert.include(html, "katex-base");
+      assert.notInclude(html, "katex-error");
+      assert.notInclude(html, "math-error");
+    });
+
+    it("should show malformed environments without dropping following text", function () {
+      const html = renderMarkdown(
+        "$$\\begin{\\frac{1}{2}} x \\end{array}$$\n\nStill readable.",
+      );
+      assert.include(html, "katex-error");
+      assert.include(html, "Still readable.");
     });
 
     it("should handle display math with $$...$$", function () {
@@ -247,6 +294,122 @@ describe("markdown renderer", function () {
       // The | inside the outermost "..." pair must not split the row
       assert.include(body, "triple nesting");
     });
+  });
+
+  describe("inline math delimiter boundaries", function () {
+    for (const [name, render, marker] of [
+      ["chat", renderMarkdown, 'class="math-inline"'],
+      ["note", renderMarkdownForNote, 'class="math"'],
+    ] as const) {
+      describe(name, function () {
+        const countMath = (html: string) => html.split(marker).length - 1;
+
+        for (const number of [
+          "9",
+          "0",
+          "1",
+          "-9",
+          "+9",
+          "9.5",
+          "0.05",
+          "1,000",
+        ]) {
+          it(`should render the number ${number} inside paired dollars`, function () {
+            const html = render(`结果为 $${number}$。`);
+            assert.equal(countMath(html), 1);
+            assert.notInclude(html, "katex-error");
+          });
+        }
+
+        it("should render the exact previously broken answer", function () {
+          const html = render("当 $x=1$、$y=2$ 时，等式左边和右边均为 $9$。");
+          assert.equal(countMath(html), 3);
+          assert.notInclude(html, "katex-error");
+        });
+
+        it("should render explicit parentheses without currency heuristics", function () {
+          const html = render("结果 \\( 9 \\)，概率 \\(0\\)，价格 $5。");
+          assert.equal(countMath(html), 2);
+          assert.include(html, "价格 $5。");
+        });
+
+        for (const text of [
+          "价格 $9",
+          "价格 $5 和 $10",
+          "Prices: $20,000 and $30,000.",
+          "$9.50 / $10.00",
+          "Mean($close, 24)",
+          "$ 9 $",
+        ]) {
+          it(`should keep literal text: ${text}`, function () {
+            assert.equal(render(text), `<p>${text}</p>`);
+          });
+        }
+
+        for (const text of ["结果 $9$，费用 $5", "费用 $5，结果 $9$"]) {
+          it(`should render math alongside an unpaired currency sign: ${text}`, function () {
+            const html = render(text);
+            assert.equal(countMath(html), 1);
+            assert.include(html, "费用 $5");
+          });
+        }
+
+        it("should leave an incomplete streaming formula raw until it closes", function () {
+          for (const tail of ["$", "$9", "$x+"]) {
+            const html = render(`已有 $1$，下一项 ${tail}`);
+            assert.equal(countMath(html), 1);
+            assert.include(html, `下一项 ${tail}`);
+          }
+          assert.equal(countMath(render("已有 $1$，下一项 $9$")), 2);
+        });
+
+        it("should honor escaped currency delimiters", function () {
+          const html = render("文字 \\$9\\$，金额 \\$5，公式 $9$。");
+          assert.equal(countMath(html), 1);
+          assert.include(html, "文字 $9$，金额 $5，公式 ");
+        });
+
+        it("should preserve escaped dollar signs inside actual math", function () {
+          const html = render("金额公式 $\\text{USD }\\$9$，数值 $9$。");
+          assert.equal(countMath(html), 2);
+          assert.notInclude(html, "katex-error");
+        });
+
+        it("should protect code before recognizing math delimiters", function () {
+          const html = render("`$9$`、`$x$`、`\\(9\\)`、`$`，实际公式 $9$。");
+          assert.include(html, "<code>$9$</code>");
+          assert.include(html, "<code>$x$</code>");
+          assert.include(html, "<code>\\(9\\)</code>");
+          assert.include(html, "<code>$</code>");
+          assert.equal(countMath(html), 1);
+        });
+
+        it("should keep fenced examples literal", function () {
+          const html = render("```text\n$9$ and \\(9\\)\n```");
+          assert.equal(countMath(html), 0);
+          assert.include(html, "$9$ and \\(9\\)");
+        });
+
+        it("should render numeric math in headings, lists, quotes and tables", function () {
+          const html = render(
+            "# 结果 $9$\n\n- 概率 $0$\n\n> 概率 $1$\n\n| 数值 |\n| --- |\n| $9.5$ |",
+          );
+          assert.equal(countMath(html), 4);
+        });
+
+        it("should preserve display math next to inline math", function () {
+          const html = render("内联 $9$，展示 $$9$$，另一种展示 \\[9\\]。");
+          assert.equal(countMath(html), name === "chat" ? 1 : 3);
+          if (name === "chat") {
+            assert.equal(
+              html.split('class="math-display-inline"').length - 1,
+              2,
+            );
+          }
+          assert.notInclude(html, "katex-error");
+        });
+      });
+    }
   });
 
   describe("renderMarkdownForNote", function () {

@@ -1,5 +1,6 @@
 import { renderMarkdown, renderMarkdownForNote } from "../../utils/markdown";
 import { getZoteroItem } from "../../utils/zoteroItems";
+import { COMPACTION_SYSTEM_PROMPT } from "../../utils/llmPrompts";
 import {
   findAssistantBubbleByMessageId,
   patchStreamingBubble,
@@ -1865,6 +1866,7 @@ async function compactConversationHistory(params: {
       );
       const summary = await callLLM({
         prompt: COMPACTION_SUMMARY_PROMPT + summaryInput,
+        systemPrompt: COMPACTION_SYSTEM_PROMPT,
         model: params.model,
         apiBase: params.apiBase,
         apiKey: params.apiKey,

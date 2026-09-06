@@ -1,4 +1,8 @@
 import { callLLM, callLLMStream } from "../../utils/llmClient";
+import {
+  COLD_START_SYSTEM_PROMPT,
+  SELECTION_TRANSLATION_SYSTEM_PROMPT,
+} from "../../utils/llmPrompts";
 import { getZoteroItem } from "../../utils/zoteroItems";
 import {
   loadSelectionTranslateColdStartCache,
@@ -440,6 +444,7 @@ async function ensureColdStartCache(params: {
             const result = normalizeCacheText(
               await callLLM({
                 prompt,
+                systemPrompt: COLD_START_SYSTEM_PROMPT,
                 model: params.modelConfig.model,
                 apiBase: params.modelConfig.apiBase,
                 apiKey: params.modelConfig.apiKey,
@@ -572,6 +577,7 @@ export async function translateSelectedTextForReader(params: {
   const translation = normalizeCacheText(
     await callLLMStream(
       {
+        systemPrompt: SELECTION_TRANSLATION_SYSTEM_PROMPT,
         prompt: buildSelectionTranslatePrompt({
           selectedText,
           cacheText: contextText,

@@ -36,7 +36,7 @@ describe("oauthCli Gemini Code Assist helpers", function () {
     );
     assert.include(
       payload.request.contents[0].parts[0].text,
-      "Document Context:\nPaper context",
+      '"documentContext":"Paper context"',
     );
     assert.include(
       payload.request.contents[0].parts[0].text,

@@ -1,4 +1,5 @@
 import { callLLM } from "../../utils/llmClient";
+import { AUTHOR_PROFILE_SYSTEM_PROMPT } from "../../utils/llmPrompts";
 import { getSelectedProfileForItem } from "../contextPanel/prefHelpers";
 import {
   getModelChoices,
@@ -282,6 +283,7 @@ export async function generateAuthorProfileMarkdown(
   const markdown = sanitizeMarkdown(
     await callLLM({
       prompt: buildPrompt(input, targetLanguage),
+      systemPrompt: AUTHOR_PROFILE_SYSTEM_PROMPT,
       model: profile.model,
       apiBase: profile.apiBase,
       apiKey: profile.apiKey,

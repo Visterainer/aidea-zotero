@@ -301,7 +301,8 @@ const I18N = {
     source: "来源",
     internalNote: "只有勾选的模型会出现在侧边栏对话框中。",
     systemPrompt: "自定义系统提示词（可选）",
-    systemPromptHint: "覆盖默认系统提示词（留空使用默认值）",
+    systemPromptHint:
+      "自定义对话的系统提示词。留空使用默认提示词；填写后替换默认对话提示词。划词翻译、内部摘要和作者档案使用独立提示词。修改从下一次请求生效。",
     showAddText: "在阅读器选择弹窗显示 添加文本",
     showAddTextHint:
       "如果不想在 Zotero 文本选择弹出菜单中显示 添加文本 选项，请关闭此开关。",
@@ -411,7 +412,7 @@ const I18N = {
     internalNote: "Only checked models appear in the sidebar dropdown.",
     systemPrompt: "Custom System Prompt (Optional)",
     systemPromptHint:
-      "Override the default system prompt (leave empty to use default)",
+      "Customize the chat system prompt. Leave blank to use the default; otherwise replace it. Selection translation, internal summaries, and author profiles use independent prompts. Changes apply to the next request.",
     showAddText: 'Show "Add Text" in reader selection popup',
     showAddTextHint:
       "Disable this if you prefer not to show the Add Text option in Zotero's text selection popup menu.",
@@ -578,7 +579,8 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     source: "來源",
     internalNote: "只有勾選的模型會出現在側邊欄下拉選單中。",
     systemPrompt: "自訂系統提示詞（可選）",
-    systemPromptHint: "覆寫預設系統提示詞（留空則使用預設）",
+    systemPromptHint:
+      "自訂對話的系統提示詞。留空使用預設提示詞；填寫後取代預設對話提示詞。劃詞翻譯、內部摘要與作者檔案使用獨立提示詞。修改從下一次請求生效。",
     showAddText: "在閱讀器選取文字彈窗中顯示「Add Text」",
     showAddTextHint:
       "若不想在 Zotero 文字選取彈窗中顯示 Add Text 選項，可關閉此項。",
@@ -663,7 +665,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "チェックしたモデルだけがサイドバーのドロップダウンに表示されます。",
     systemPrompt: "カスタムシステムプロンプト（任意）",
     systemPromptHint:
-      "既定のシステムプロンプトを上書きします（空欄なら既定を使用）",
+      "対話用のシステムプロンプトを設定します。空欄なら既定を使用し、入力すると置き換えます。選択テキストの翻訳、内部要約、著者プロフィールには専用のプロンプトを使用します。変更は次のリクエストから適用されます。",
     showAddText: "リーダーの選択ポップアップに「Add Text」を表示",
     showAddTextHint:
       "Zotero の文字選択ポップアップに Add Text オプションを表示したくない場合は無効にしてください。",
@@ -747,7 +749,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     internalNote: "선택한 모델만 사이드바 드롭다운에 표시됩니다.",
     systemPrompt: "사용자 지정 시스템 프롬프트(선택 사항)",
     systemPromptHint:
-      "기본 시스템 프롬프트를 덮어씁니다(비워 두면 기본값 사용)",
+      "대화 시스템 프롬프트를 설정합니다. 비워 두면 기본값을 사용하고, 입력하면 대체합니다. 선택 텍스트 번역, 내부 요약, 저자 프로필은 별도 프롬프트를 사용합니다. 변경 사항은 다음 요청부터 적용됩니다.",
     showAddText: '리더 선택 팝업에 "Add Text" 표시',
     showAddTextHint:
       "Zotero 텍스트 선택 팝업에서 Add Text 옵션을 보이지 않게 하려면 비활성화하세요.",
@@ -832,7 +834,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "Seuls les modèles cochés apparaissent dans la liste déroulante de la barre latérale.",
     systemPrompt: "Invite système personnalisée (facultatif)",
     systemPromptHint:
-      "Remplace l'invite système par défaut (laisser vide pour utiliser la valeur par défaut)",
+      "Personnalise l'invite système du dialogue. Laisser vide pour utiliser la valeur par défaut ; sinon, elle est remplacée. La traduction de sélection, les résumés internes et les profils d'auteurs utilisent des invites distinctes. Les modifications s'appliquent à la prochaine requête.",
     showAddText:
       "Afficher « Add Text » dans la fenêtre de sélection du lecteur",
     showAddTextHint:
@@ -916,7 +918,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     internalNote: "Nur markierte Modelle erscheinen im Seitenleisten-Dropdown.",
     systemPrompt: "Benutzerdefinierter System-Prompt (optional)",
     systemPromptHint:
-      "Überschreibt den Standard-System-Prompt (leer lassen, um den Standard zu verwenden)",
+      "Passt den System-Prompt für Chats an. Leer lassen für den Standard, sonst wird er ersetzt. Auswahlübersetzung, interne Zusammenfassungen und Autorenprofile verwenden eigene Prompts. Änderungen gelten ab der nächsten Anfrage.",
     showAddText: '"Add Text" im Auswahl-Popup des Readers anzeigen',
     showAddTextHint:
       "Deaktivieren, wenn die Option Add Text im Zotero-Textauswahlmenü nicht angezeigt werden soll.",
@@ -1001,7 +1003,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "Solo los modelos marcados aparecen en el desplegable de la barra lateral.",
     systemPrompt: "Prompt de sistema personalizado (opcional)",
     systemPromptHint:
-      "Anula el prompt de sistema predeterminado (dejar vacío para usar el predeterminado)",
+      "Personaliza el prompt de sistema del chat. Déjalo vacío para usar el predeterminado; si escribes uno, lo sustituye. La traducción de selecciones, los resúmenes internos y los perfiles de autores usan prompts independientes. Los cambios se aplican a la siguiente solicitud.",
     showAddText: 'Mostrar "Add Text" en el popup de selección del lector',
     showAddTextHint:
       "Desactívalo si no quieres mostrar Add Text en el menú de selección de texto de Zotero.",
@@ -1087,7 +1089,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
       "В выпадающем списке боковой панели отображаются только отмеченные модели.",
     systemPrompt: "Пользовательский системный промпт (необязательно)",
     systemPromptHint:
-      "Переопределяет системный промпт по умолчанию (оставьте пустым для значения по умолчанию)",
+      "Настраивает системный промпт диалога. Пустое поле — промпт по умолчанию; введённый текст заменяет его. Перевод выделенного текста, внутренние сводки и профили авторов используют отдельные промпты. Изменения действуют со следующего запроса.",
     showAddText: 'Показывать "Add Text" во всплывающем меню выделения в ридере',
     showAddTextHint:
       "Отключите, если не хотите показывать Add Text в меню выделения текста Zotero.",
@@ -1170,7 +1172,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     internalNote: "Somente modelos marcados aparecem no menu da barra lateral.",
     systemPrompt: "Prompt de sistema personalizado (opcional)",
     systemPromptHint:
-      "Substitui o prompt de sistema padrão (deixe vazio para usar o padrão)",
+      "Personaliza o prompt de sistema da conversa. Deixe vazio para usar o padrão; caso contrário, ele será substituído. Tradução de seleção, resumos internos e perfis de autores usam prompts independentes. As alterações valem a partir da próxima solicitação.",
     showAddText: 'Mostrar "Add Text" no popup de seleção do leitor',
     showAddTextHint:
       "Desative se não quiser mostrar Add Text no menu de seleção de texto do Zotero.",
@@ -1251,7 +1253,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     internalNote: "تظهر النماذج المحددة فقط في قائمة الشريط الجانبي.",
     systemPrompt: "موجه النظام المخصص (اختياري)",
     systemPromptHint:
-      "يتجاوز موجه النظام الافتراضي (اتركه فارغًا لاستخدام الافتراضي)",
+      "يخصص موجه النظام للمحادثة. اتركه فارغًا لاستخدام الافتراضي؛ وإلا يحل النص محله. تستخدم ترجمة النص المحدد والملخصات الداخلية وملفات المؤلفين موجهات مستقلة. تسري التغييرات بدءًا من الطلب التالي.",
     showAddText: 'إظهار "Add Text" في نافذة تحديد النص بالقارئ',
     showAddTextHint:
       "عطّل هذا الخيار إذا كنت لا تريد إظهار Add Text في قائمة تحديد النص في Zotero.",
@@ -1334,7 +1336,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     internalNote: "केवल चुने गए मॉडल साइडबार dropdown में दिखाई देंगे।",
     systemPrompt: "कस्टम सिस्टम प्रॉम्प्ट (वैकल्पिक)",
     systemPromptHint:
-      "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट को बदलता है (डिफ़ॉल्ट के लिए खाली छोड़ें)",
+      "चैट का सिस्टम प्रॉम्प्ट अनुकूलित करें। डिफ़ॉल्ट के लिए खाली छोड़ें; भरा हुआ पाठ उसे बदल देता है। चयनित पाठ का अनुवाद, आंतरिक सारांश और लेखक प्रोफ़ाइल अलग प्रॉम्प्ट का उपयोग करते हैं। बदलाव अगले अनुरोध से लागू होते हैं।",
     showAddText: 'Reader selection popup में "Add Text" दिखाएँ',
     showAddTextHint:
       "यदि Zotero के text selection menu में Add Text विकल्प नहीं दिखाना चाहते, तो इसे बंद करें।",

@@ -4,6 +4,7 @@ import {
   escapeShellArg,
 } from "./processRunner";
 import { fetchWithTransientRetry } from "./transientRetry";
+import { formatDocumentContext } from "./llmPrompts";
 import { recordOAuthEnvUpdateSuccess } from "./oauthEnvUpdateState";
 import {
   DEFAULT_PANEL_LANG,
@@ -4711,8 +4712,8 @@ function buildOpenAIResponsesInput(params: {
   }
   if (params.context?.trim()) {
     input.push({
-      role: "system",
-      content: `Document Context:\n${params.context.trim()}`,
+      role: "user",
+      content: formatDocumentContext(params.context),
     });
   }
   for (const msg of params.history || []) {
@@ -4750,23 +4751,14 @@ function buildCopilotResponsesInput(params: {
 }): Array<Record<string, unknown>> {
   const input: Array<Record<string, unknown>> = [];
 
-  // Context as a user+assistant exchange if present
+  // Reference data, without fabricating an assistant acknowledgement.
   if (params.context?.trim()) {
     input.push({
       role: "user",
       content: [
         {
           type: "input_text",
-          text: `Document Context:\n${params.context.trim()}`,
-        },
-      ],
-    });
-    input.push({
-      role: "assistant",
-      content: [
-        {
-          type: "output_text",
-          text: "I've reviewed the document context. How can I help you?",
+          text: formatDocumentContext(params.context),
         },
       ],
     });
@@ -4818,18 +4810,12 @@ function buildCopilotResponsesInput(params: {
  * The chatgpt.com/backend-api/codex/responses endpoint requires `instructions`
  * as a separate string field (not inside the input array).
  */
-function buildCodexInstructions(params: {
-  systemPrompt?: string;
-  context?: string;
-}): string {
+function buildCodexInstructions(params: { systemPrompt?: string }): string {
   const parts: string[] = [];
   if (params.systemPrompt?.trim()) {
     parts.push(params.systemPrompt.trim());
   } else {
     parts.push("You are a helpful AI assistant.");
-  }
-  if (params.context?.trim()) {
-    parts.push(`\nDocument Context:\n${params.context.trim()}`);
   }
   parts.push(
     [
@@ -4860,10 +4846,21 @@ function buildCodexInstructions(params: {
  */
 function buildCodexInput(params: {
   prompt: string;
+  context?: string;
   history?: Array<{ role: "user" | "assistant" | "system"; content: any }>;
   images?: string[];
 }): Array<Record<string, unknown>> {
   const input: Array<Record<string, unknown>> = [];
+
+  if (params.context?.trim()) {
+    input.push({
+      type: "message",
+      role: "user",
+      content: [
+        { type: "input_text", text: formatDocumentContext(params.context) },
+      ],
+    });
+  }
 
   // Add history messages
   for (const msg of params.history || []) {
@@ -5267,7 +5264,7 @@ function buildGeminiOAuthPromptText(params: {
     userParts.push(`System:\n${params.systemPrompt.trim()}`);
   }
   if (params.context?.trim()) {
-    userParts.push(`Document Context:\n${params.context.trim()}`);
+    userParts.push(formatDocumentContext(params.context));
   }
   for (const msg of params.history || []) {
     const content =
@@ -5450,11 +5447,7 @@ function buildAnthropicMessagesInput(params: {
   if (params.context?.trim()) {
     messages.push({
       role: "user",
-      content: `Document Context:\n${params.context.trim()}`,
-    });
-    messages.push({
-      role: "assistant",
-      content: "I've reviewed the document context. How can I help you?",
+      content: formatDocumentContext(params.context),
     });
   }
 

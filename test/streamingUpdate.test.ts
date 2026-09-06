@@ -378,6 +378,27 @@ describe("streamingUpdate", function () {
       assert.include(contentEl!.innerHTML, "<strong>Bold</strong>");
     });
 
+    it("should render numeric math when its streaming delimiter closes", function () {
+      const { assistantBubble } = buildChatBoxWithMessages();
+      patchStreamingBubble(assistantBubble, "结果 $9");
+      const content = assistantBubble.querySelector(
+        "[data-streaming-content]",
+      )!;
+      assert.include(content.innerHTML, "结果 $9");
+      assert.notInclude(content.innerHTML, 'class="math-inline"');
+
+      patchStreamingBubble(assistantBubble, "结果 $9$，价格 $5 和 $10。");
+      assert.include(content.innerHTML, 'class="math-inline"');
+      assert.include(content.innerHTML, 'encoding="application/x-tex">9<');
+      assert.include(content.innerHTML, "价格 $5 和 $10。");
+      assert.notInclude(content.innerHTML, "katex-error");
+      const completedHtml = content.innerHTML;
+
+      finalizeStreamingBubble(assistantBubble);
+      patchStreamingBubble(assistantBubble, "迟到的 $0");
+      assert.equal(content.innerHTML, completedHtml);
+    });
+
     it("should update content on subsequent patches", function () {
       const { assistantBubble } = buildChatBoxWithMessages();
 

@@ -247,6 +247,10 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 
 ---
 
+The default chat prompt favors direct, natural answers, with enough detail for the task and citations grounded in the available material. Extracted text does not imply access to unavailable pages or figure images.
+
+To customize the response style, open **Settings → Advanced → Custom System Prompt**. Leave it blank to use the default; a non-empty value replaces the default chat prompt. Existing custom prompts are preserved. Changes apply to the next request without restarting Zotero; start a new conversation for a clean comparison because earlier answers remain in history. Selection translation, cold-start summaries, conversation compaction, and author profiles use independent task prompts, unaffected by this chat setting. Full-document translation retains its own configuration.
+
 ## 🔒 Privacy & Security
 
 - OAuth tokens are stored **locally only**

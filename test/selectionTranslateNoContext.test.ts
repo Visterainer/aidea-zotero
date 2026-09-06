@@ -72,6 +72,11 @@ async function assertTranslatesWithEmptyContext(params: {
     const messages = payload.messages as
       Array<{ content?: unknown }> | undefined;
     seenPrompt = String(messages?.at(-1)?.content || "");
+    assert.include(
+      String(messages?.[0]?.content),
+      "You are an academic translator",
+    );
+    assert.notInclude(String(messages?.[0]?.content), "ONLY_CUSTOM_JSON");
     return buildOpenAICompatSseResponse("已翻译");
   }) as typeof globalThis.fetch;
 
@@ -102,6 +107,7 @@ describe("selection translation without document context", function () {
       ],
       ["extensions.zotero.aidea.apiKey", "test-key"],
       ["extensions.zotero.aidea.model", "gpt-4o-mini"],
+      ["extensions.zotero.aidea.systemPrompt", "ONLY_CUSTOM_JSON"],
       ["extensions.zotero.aidea.selectionTranslate.sourceLang", "en"],
       ["extensions.zotero.aidea.selectionTranslate.targetLang", "zh-CN"],
     ]);
@@ -189,6 +195,14 @@ describe("selection translation without document context", function () {
       };
       const prompt = String(payload.messages?.at(-1)?.content || "");
       if (payload.stream !== true) {
+        assert.include(
+          String(payload.messages?.[0]?.content),
+          "compact reference cache",
+        );
+        assert.notInclude(
+          String(payload.messages?.[0]?.content),
+          "ONLY_CUSTOM_JSON",
+        );
         coldStartPromptLengths.push(prompt.length);
         return new Response(
           JSON.stringify({

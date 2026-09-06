@@ -726,6 +726,65 @@ function renderParagraph(content: string): string {
 // Inline Rendering (with delimiter validation)
 // =============================================================================
 
+/** Recognize local math pairs without treating every dollar sign as math. */
+function renderInlineMath(
+  text: string,
+  render: (math: string, display: boolean) => string,
+): string {
+  let result = "";
+  let i = 0;
+  while (i < text.length) {
+    let open: string;
+    let close: string;
+    if (text.startsWith("\\(", i) || text.startsWith("\\[", i)) {
+      open = text.slice(i, i + 2);
+      close = open === "\\(" ? "\\)" : "\\]";
+    } else if (text[i] === "\\") {
+      // Escaped dollars outside math are literal; skip escaped backslashes
+      // together so the next character cannot become a false delimiter.
+      result += text[i + 1] === "$" ? "$" : text.slice(i, i + 2);
+      i += 2;
+      continue;
+    } else if (text[i] === "$") {
+      open = close = text.startsWith("$$", i) ? "$$" : "$";
+    } else {
+      result += text[i++];
+      continue;
+    }
+
+    const start = i + open.length;
+    let end = start;
+    while (end < text.length) {
+      if (text.startsWith(close, end) || text[end] === "\n") break;
+      // Keep LaTeX escapes inside the formula intact, including \$.
+      end += text[end] === "\\" ? 2 : 1;
+    }
+    const inner = text.slice(start, end);
+    const isSingleDollar = open === "$";
+    const valid =
+      end < text.length &&
+      text.startsWith(close, end) &&
+      inner.trim().length > 0 &&
+      // Code placeholders must not be swallowed into a neighboring formula.
+      !inner.includes("@@PROTECTED") &&
+      (!isSingleDollar ||
+        (!/\s/.test(text[start]) &&
+          !/\s/.test(text[end - 1]) &&
+          !/[\d$]/.test(text[end + 1] || "")));
+
+    if (!valid) {
+      // A price or unfinished stream must not disable other complete pairs.
+      result += open;
+      i = start;
+      continue;
+    }
+
+    result += render(inner.trim(), open === "$$" || open === "\\[");
+    i = end + close.length;
+  }
+  return result;
+}
+
 /** Render inline elements within a line/block */
 function renderInline(text: string): string {
   let result = text;
@@ -737,48 +796,27 @@ function renderInline(text: string): string {
     return `@@PROTECTED${protectedBlocks.length - 1}@@`;
   };
 
-  // 1. Normalize math delimiters \(...\) and \[...\] to $...$ and $$...$$
-  result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_m, inner) => `$${inner}$`);
-  result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner) => `$$${inner}$$`);
-
-  // 2. Inline math ($...$) - only if balanced
-  if (hasBalancedInlineDelimiter(result, "$")) {
-    // Display math first ($$...$$)
-    result = result.replace(/\$\$([^$]+?)\$\$/g, (_match, math) => {
-      if (zoteroNoteMode) {
-        // Zotero note-editor: <span class="math">$LaTeX$</span>
-        return protect(
-          `<span class="math">$${escapeHtml(math.trim())}$</span>`,
-        );
-      }
-      const rendered = renderDisplayLatex(math.trim());
-      return protect(`<span class="math-display-inline">${rendered}</span>`);
-    });
-
-    // Inline math ($...$)
-    result = result.replace(/\$([^$\n]+?)\$/g, (_match, inner) => {
-      const trimmed = inner.trim();
-      // Skip currency-like patterns
-      if (!trimmed || /^\d+([.,]\d+)?$/.test(trimmed)) {
-        return `$${inner}$`;
-      }
-      if (zoteroNoteMode) {
-        // Zotero note-editor: <span class="math">$LaTeX$</span>
-        return protect(`<span class="math">$${escapeHtml(trimmed)}$</span>`);
-      }
-      const rendered = renderLatex(trimmed, false);
-      return protect(`<span class="math-inline">${rendered}</span>`);
-    });
-  }
-
-  // 3. Inline code - only if balanced
+  // 1. Protect code before interpreting any math delimiters inside it.
   if (hasBalancedInlineDelimiter(result, "`")) {
     result = result.replace(/`([^`]+)`/g, (_match, code) => {
       return protect(`<code>${escapeHtml(code)}</code>`);
     });
   }
 
-  // 4. Images ![alt](url) and ![alt](url "title")
+  // 2. Numeric content is valid math. Distinguish prices by delimiter
+  // boundaries (as in Pandoc tex_math_dollars), not by the formula's value.
+  result = renderInlineMath(result, (math, display) => {
+    if (zoteroNoteMode) {
+      return protect(`<span class="math">$${escapeHtml(math)}$</span>`);
+    }
+    const rendered = display
+      ? renderDisplayLatex(math)
+      : renderLatex(math, false);
+    const className = display ? "math-display-inline" : "math-inline";
+    return protect(`<span class="${className}">${rendered}</span>`);
+  });
+
+  // 3. Images ![alt](url) and ![alt](url "title")
   result = result.replace(
     /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']+)["'])?\)/g,
     (_m, alt, src, title) => protect(renderImage(src, alt, title)),

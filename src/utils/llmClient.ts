@@ -5,6 +5,7 @@
  */
 
 import { config } from "../../package.json";
+import { formatDocumentContext, resolveSystemPrompt } from "./llmPrompts";
 import {
   getPrimaryConnectionMode,
   getApiProfiles,
@@ -110,6 +111,8 @@ export type ChatFileAttachment = {
 
 export type ChatParams = {
   prompt: string;
+  /** Task-specific system instructions, replacing the conversational prompt. */
+  systemPrompt?: string;
   context?: string;
   history?: ChatMessage[];
   signal?: AbortSignal;
@@ -218,20 +221,6 @@ interface ImageGenerationResponse {
 // Constants
 // =============================================================================
 
-const DEFAULT_SYSTEM_PROMPT = `You are an intelligent research assistant integrated into Zotero. You help users analyze and understand academic papers and documents.
-
-IMPORTANT — Document Access Rules:
-If a "Document Context" message is provided below, it contains the paper/document content that has been automatically extracted and injected by the Zotero plugin. This IS the document content — you already have access to it. You MUST NOT tell the user that you "only have excerpts", that you "cannot read the full text", or ask them to "upload the PDF" or "paste more text". Instead, answer their questions directly based on the content provided to you. If the context says "Full context", you have the complete document. If it contains numbered sections, they are the most relevant portions selected by the retrieval system — answer based on them and note if a specific section might contain more detail.
-
-When answering questions:
-- Be concise but thorough
-- Cite specific parts of the document when relevant
-- Use markdown formatting for better readability (headers, lists, bold, code blocks)
-- For mathematical expressions, use standard LaTeX syntax with dollar signs: use $...$ for inline math (e.g., $x^2 + y^2 = z^2$) and $$...$$ for display equations on their own line. IMPORTANT: Always use $ delimiters, never use \\( \\) or \\[ \\] delimiters.
-- For tables, use markdown table syntax with pipes and a header divider row
-- If you don't have enough information from the provided context to fully answer, explain what you can determine and what additional information would help
-- Provide actionable insights when possible`;
-
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2";
@@ -247,6 +236,7 @@ export function getApiConfig(overrides?: {
   apiBase?: string;
   apiKey?: string;
   model?: string;
+  systemPrompt?: string;
 }) {
   const connectionMode = getPrimaryConnectionMode();
   const primaryProfile = getApiProfiles().primary;
@@ -270,7 +260,12 @@ export function getApiConfig(overrides?: {
     apiKey,
     model,
     embeddingModel,
-    systemPrompt: customSystemPrompt || DEFAULT_SYSTEM_PROMPT,
+    systemPrompt: resolveSystemPrompt({
+      systemPrompt: overrides?.systemPrompt,
+      customSystemPrompt,
+      uiLanguage: getPref("uiLanguage"),
+      locale: Zotero.locale,
+    }),
   };
 }
 
@@ -832,13 +827,10 @@ function buildMessages(
 ): ChatMessage[] {
   const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }];
 
-  if (params.context) {
-    const contextPreamble =
-      `[INSTRUCTION: The text below is the document content automatically extracted by the Zotero plugin. ` +
-      `Answer user questions based on this content. Do NOT say you only have excerpts or ask users to upload the PDF.]\n\n`;
+  if (params.context?.trim()) {
     messages.push({
-      role: "system",
-      content: `Document Context:\n${contextPreamble}${params.context}`,
+      role: "user",
+      content: formatDocumentContext(params.context),
     });
   }
 
@@ -1973,6 +1965,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
     apiBase: params.apiBase,
     apiKey: params.apiKey,
     model: params.model,
+    systemPrompt: params.systemPrompt,
   });
   const oauthProvider = markerToProvider(apiBase);
   if (oauthProvider) {
@@ -2237,6 +2230,7 @@ export async function callLLMStream(
     apiBase: params.apiBase,
     apiKey: params.apiKey,
     model: params.model,
+    systemPrompt: params.systemPrompt,
   });
   const oauthProvider = markerToProvider(apiBase);
   if (oauthProvider) {
@@ -2456,7 +2450,7 @@ export async function callLLMStream(
   });
 
   if (!res.body) {
-    return finishNormalizedOutput(await callLLM(params));
+    return finishNormalizedOutput(await callLLM({ ...params, systemPrompt }));
   }
 
   const rawText = useResponses
