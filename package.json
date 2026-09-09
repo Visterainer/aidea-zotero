@@ -31,7 +31,7 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "katex": "^0.18.5",
+    "katex": "^0.18.7",
     "zotero-plugin-toolkit": "^5.2.0"
   },
   "devDependencies": {
@@ -40,7 +40,7 @@
     "@types/node": "^26.4.1",
     "@zotero-plugin/eslint-config": "^0.6.10",
     "chai": "^6.2.2",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "mocha": "^11.7.6",
     "prettier": "^3.9.6",
     "tsx": "^4.23.13",
