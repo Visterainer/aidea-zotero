@@ -132,6 +132,58 @@ describe("reading context and citations", function () {
     });
   }
 
+  it("retains recalled memory when final budget checking drops evidence blocks", async function () {
+    // Escaped source text fits extraction's budget, but its JSON envelope
+    // forces the final guard to remove one whole evidence block.
+    const question = "QA_MEMORY_KEEP compare methods";
+    const attachment = await paper(
+      91,
+      Array.from(
+        { length: 3 },
+        (_, i) => `Methods page ${i + 1} ` + '\\"'.repeat(600),
+      ),
+    );
+    const hits: unknown[][] = [];
+    globals.Zotero.DB.queryAsync = async (sql: string, args: unknown[]) => {
+      if (sql.includes("FROM zotero_ai_memories"))
+        return [
+          {
+            id: 1,
+            libraryID: 1,
+            text: question,
+            category: "fact",
+            importance: 1,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+        ];
+      if (sql.includes("UPDATE zotero_ai_memories")) hits.push(args);
+      return [];
+    };
+    const request = await prepareChatRequest({
+      item: attachment,
+      question,
+      imageCount: 0,
+      fileCount: 0,
+      apiBase: "test",
+      apiKey: "",
+      model: "test",
+      advanced: { contextWindowTokens: 5000, maxTokens: 1024 },
+      historyForLLM: [],
+      paperContexts: [],
+      conversationKey: 901,
+      setStatusSafely: () => undefined,
+    });
+
+    assert.lengthOf(hits, 1);
+    assert.include(request.combinedContext, "<relevant-memories>");
+    assert.include(request.combinedContext, question);
+    assert.include(request.combinedContext, "supplied: excerpts");
+    assert.lengthOf(request.citations, 2);
+    assert.include(request.combinedContext, "</relevant-memories>");
+    assert.notInclude(request.combinedContext, "Methods page 3");
+  });
+
   it("labels a new base document with the parent item title", async function () {
     const attachment = await paper(9, ["Methods trials ".repeat(400)]);
     // Zotero names attachments after the file, so the chip must fall back to

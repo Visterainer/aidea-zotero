@@ -3136,6 +3136,8 @@
 
 /* Message Bubbles */
 .llm-bubble {
+  /* Theme padding and borders must stay inside the available message width. */
+  box-sizing: border-box;
   padding: var(--llm-bubble-padding-y) var(--llm-bubble-padding-x);
   border-radius: 12px;
   max-width: 95%;
@@ -4582,6 +4584,11 @@
 }
 
 .llm-bubble.assistant table {
+  word-break: normal;
+  overflow-wrap: normal;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   width: 100%;
   border-collapse: collapse;
   margin: 8px 0;

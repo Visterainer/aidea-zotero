@@ -62,3 +62,25 @@
 - 导出时检查来源版本；已经生成的笔记或外部副本中的链接不会在日后自动更新。
 - 引用匹配只验证来源 ID 和位置，不验证模型结论的语义正确性；模拟模型测试不代表真实模型回答质量评估。
 - `reference/` 仅作本地参考，保持忽略；本次未发布或推送。
+
+## 2026-09-18 记忆预算与引用补验
+
+针对提交 `cba010b` 补充 `retains recalled memory when final budget checking drops evidence blocks`：使用含 JSON 转义字符的三页合成原文、5,000 token 上限和 1,024 token 输出预留，触发最终预算裁剪，断言只保留两个完整证据块、第三页移除、召回记忆及完整标签仍在。临时恢复旧裁剪逻辑后，此测试因缺少 `<relevant-memories>` 失败；恢复当前实现后通过。反向测试没有保留源码修改。
+
+全套单元测试 604 项通过。Windows 独立 Zotero 10.0.2 测试配置中，由临时验收扩展调用实际 `prepareChatRequest`，使用 Zotero 原生记忆数据库、合成文献及提取缓存，确认 `memory=true`、`trimmed=true`、`evidenceCount=2`；附件名为 Full Text PDF 时，主文献标题取父条目的 QA Memory Budget Parent Title。
+
+通过电脑工具实际打开 AIdea 历史中的 QA memory budget regression 20260918，会话成功恢复，未闭合反引号后的引用渲染为 Paper 91 · PDF p. 2。实际点击后，阅读器页码显示 2，正文显示 Results 及 accuracy improved from 72 percent to 89 percent。该回答为合成验收文本，不是外部模型生成；预算结果由原生函数执行断言证明，界面操作验证的是历史恢复和引用点击。
+
+原生结果保存在独立测试数据目录 `memory-budget-native.json`，反向测试记录为本地忽略目录 `.scaffold/memory-budget-mutation.log`；辅助扩展的后续启动入口已改为空操作，避免重复生成测试数据。本轮未改生产代码，未发布或推送。
+
+## 2026-09-18 Issue #87 主题回复右侧裁切
+
+修改范围为 CSS：气泡使用 `box-sizing: border-box`，使主题内边距和边框包含在气泡宽度内；宽表格使用局部横向滚动，并恢复正常单词换行，避免被外层横向裁切或将单词拆成竖排。不增加外侧留白，不改变主题圆角、阴影及配色，不新增设置项。
+
+Zotero 10.0.2 原生布局检查使用实际样式和 Markdown 渲染器，覆盖默认／护眼绿／午夜黑、280／400／600px 宽度、6／15／36px 气泡留白和 15／24px 字号，共 54 组。气泡边界、聊天区横向宽度及表格宽度检查全部通过；最终版本的 12 列合成宽表格在全部 54 组中均可局部横向滚动。将同一测试气泡临时恢复为旧 `content-box` 时，原生测得右边界越界约 31.13px。结果留存在忽略目录 `.scaffold/reading-qa/issue87-layout-result.json`。
+
+完整单元测试 604 项通过，构建（含 TypeScript）及 CSS 格式检查通过。生产包已装入专用测试 profile。用户处理 Windows 管理员权限提示后，已补齐电脑操作验收：重启后从历史打开合成测试回复，护眼绿和午夜黑主题的窄侧栏正文保留完整右侧留白，圆角和配色正常；实际横向滚动宽表格至最后一列 Metric11，列标题和数字保持可读，没有撑宽聊天区。54 组参数组合由原生布局断言覆盖，并非逐组人工操作。未验证报告者的原机器或其他平台。
+
+最终构建和已安装 XPI 的 SHA-256 均为 `62AC6C499B075AC920E548D0951861EC0FA98DCC81110A3464EEF3DC53893F80`。构建产物为 `.scaffold/build/AIdea-3.5.2.xpi`；没有发布或推送。
+
+测试环境注意：首次直接启动测试 profile 时未显式传入数据目录，使用了该 profile 默认的 `C:/Users/zhaoz/Zotero`，验收辅助扩展生成一条专用测试会话。发现后关闭实例，逐一核对会话标题、key 及两条测试消息，只撤回该测试会话和本轮结果文件；未删除其他会话。随后显式绑定 `C:/Users/zhaoz/AppData/Local/Temp/aidea-reading-qa-20260909/data`，并在辅助入口加入目录断言，重新得到上述 54 组结果。辅助扩展已移出 profile，避免下次启动重复生成数据。

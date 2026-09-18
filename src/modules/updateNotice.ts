@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.5.2-natural-responses-math-v1";
+export const NOTICE_ID = "v3.6.0-citations-chat-transfer-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -1258,36 +1258,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "AIdea v3.5.2: More Natural Answers and Improved Math Display",
-      lead: "Improved default responses and math rendering, together with recent selection-translation enhancements.",
+      title: "AIdea v3.6.0: Source Citations and Portable Chat History",
+      lead: "Reading context now follows your questions, citations can open the source, and chat history can be transferred manually between devices with images and attachments.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "Task-focused answers",
-          text: "Direct answers to simple questions, with necessary reasoning and assumptions retained for complex analysis.",
+          label: "Question-aware reading context",
+          text: "Selects relevant paper content for each question, supports follow-ups and multiple papers, and allocates space within the model’s context budget.",
         },
         {
-          label: "Custom response style",
-          text: "Adjust responses under Settings → Advanced → Custom System Prompt. Leave it blank for the defaults. Existing custom prompts are preserved.",
+          label: "Clickable source citations",
+          text: "Opens PDF pages or EPUB chapters. Saved conversations retain citations; sources without reliable locations offer a document link.",
         },
         {
-          label: "Independent task prompts",
-          text: "Selection translation, summaries, and other internal tasks use dedicated prompts, unaffected by custom chat instructions.",
+          label: "Chat import and export",
+          text: "Packages text, screenshots, images, and uploaded files. Imports merge new messages, preserve conversation branches from both devices, and avoid adding duplicates on repeated imports.",
         },
         {
-          label: "Numeric math fix",
-          text: "Fixed inline numbers and decimals displaying as raw formula text, with improved handling of currency and code snippets.",
+          label: "More coherent long conversations",
+          text: "Improves history summaries and quick prompts, and fixes recalled memories being dropped during context-budget trimming. Existing custom instructions are preserved.",
         },
         {
-          label: "Long-document fallback",
-          text: "Retained progressively smaller context retries and selection-only translation when the context remains too long.",
-        },
-        {
-          label: "Annotations and remembered choices",
-          text: "Retained translation-to-highlight support and checkbox persistence across Zotero restarts, without overwriting existing comments.",
+          label: "Improved response layout",
+          text: "Fixes clipped themed bubbles and keeps wide tables readable with horizontal scrolling.",
         },
       ],
-      note: "Restart Zotero after updating. “Write translation to annotation” is off by default. When enabled, wait for the translation before choosing a highlight color.",
+      note: "Restart Zotero after updating. Chat transfer requires manual export and import. Opening a source on another device also requires the corresponding document to be available.",
       confirm: "Got it",
       close: "Close update notice",
       exampleLabel: "",
@@ -1295,36 +1291,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "AIdea v3.5.2：自然回答与公式显示改进",
-      lead: "优化默认回答方式和数学公式显示，并保留近期的划词翻译改进。",
-      alsoLabel: "本次更新包括",
+      title: "AIdea v3.6.0：原文引用与聊天记录迁移",
+      lead: "阅读上下文随问题更新，回答支持原文跳转，聊天记录可携带图片与附件在设备之间手动迁移。",
+      alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "回答更贴合问题",
-          text: "简单问题直接回答，复杂分析保留必要的推导与条件，减少无关扩展。",
+          label: "更贴合问题的阅读上下文",
+          text: "每轮按当前问题选择论文材料，兼顾连续追问与多篇文献，并根据模型上下文容量分配空间。",
         },
         {
-          label: "自定义回答风格",
-          text: "在“设置 → 高级 → 自定义系统提示词”中调整回答方式。留空使用默认规则，已有自定义内容不会被覆盖。",
+          label: "点击引用查看原文",
+          text: "支持跳转到 PDF 页面或 EPUB 章节。历史记录保留引用；没有可靠位置时，提供打开来源的链接。",
         },
         {
-          label: "内部任务独立",
-          text: "划词翻译、摘要等内部任务使用专用提示词，不受自定义对话风格影响。",
+          label: "聊天记录导入与导出",
+          text: "支持打包文字、截图、图片和上传附件。导入时合并新增消息，保留双方的对话分支，重复导入避免重复添加。",
         },
         {
-          label: "数字公式显示修复",
-          text: "修复纯数字、小数等行内公式原样显示的问题，同时改进金额与代码片段的识别。",
+          label: "更连贯的长对话",
+          text: "改进历史摘要与快捷指令，并修复上下文预算裁剪时召回记忆可能丢失的问题。保留已有自定义指令。",
         },
         {
-          label: "长文档自动兜底",
-          text: "保留上下文过长时逐级缩减重试、最终仅翻译选中文本的机制。",
-        },
-        {
-          label: "标注与选项记忆",
-          text: "保留译文写入高亮标注及勾选状态记忆，重启 Zotero 后仍保持选择，已有批注不会被覆盖。",
+          label: "更完整的回复显示",
+          text: "修复主题气泡右侧裁切，宽表格支持横向滚动，保持文字清晰可读。",
         },
       ],
-      note: "更新后请重启 Zotero。“将译文写入标注”默认关闭；开启后，请等待译文生成，再选择高亮颜色。",
+      note: "更新后请重启 Zotero。聊天迁移需要手动导出、导入；在另一台设备跳转原文，还需要对应文献文件可用。",
       confirm: "知道了",
       close: "关闭更新提示",
       exampleLabel: "",
@@ -1332,36 +1324,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "AIdea v3.5.2：自然回答與公式顯示改進",
-      lead: "最佳化預設回答方式與數學公式顯示，並保留近期的選取文字翻譯改進。",
-      alsoLabel: "本次更新包括",
+      title: "AIdea v3.6.0：原文引用與聊天記錄遷移",
+      lead: "閱讀上下文隨問題更新，回答支援跳轉至原文，聊天記錄可連同圖片與附件在裝置之間手動遷移。",
+      alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "回答更貼合問題",
-          text: "簡單問題直接回答，複雜分析保留必要的推導與條件，減少無關延伸。",
+          label: "更貼合問題的閱讀上下文",
+          text: "每輪依目前問題選擇論文材料，兼顧連續追問與多篇文獻，並依模型上下文容量分配空間。",
         },
         {
-          label: "自訂回答風格",
-          text: "在「設定 → 進階 → 自訂系統提示詞」中調整回答方式。留空使用預設規則，既有自訂內容不會被覆蓋。",
+          label: "點擊引用查看原文",
+          text: "支援跳轉至 PDF 頁面或 EPUB 章節。歷史記錄保留引用；沒有可靠位置時，提供開啟來源的連結。",
         },
         {
-          label: "內部任務獨立",
-          text: "選取文字翻譯、摘要等內部任務使用專用提示詞，不受自訂對話風格影響。",
+          label: "聊天記錄匯入與匯出",
+          text: "支援打包文字、螢幕截圖、圖片和上傳附件。匯入時合併新增訊息，保留雙方的對話分支，重複匯入避免重複新增。",
         },
         {
-          label: "數字公式顯示修正",
-          text: "修正純數字、小數等行內公式原樣顯示的問題，同時改進金額與程式碼片段的辨識。",
+          label: "更連貫的長對話",
+          text: "改進歷史摘要與快捷指令，並修復裁剪上下文時可能遺失召回記憶的問題。保留既有自訂指令。",
         },
         {
-          label: "長文件自動備援",
-          text: "保留內容過長時逐級縮減上下文並重試、最終僅翻譯選取文字的機制。",
-        },
-        {
-          label: "註記與選項記憶",
-          text: "保留將譯文寫入螢光標記註記及勾選狀態記憶，重新啟動 Zotero 後仍保持選擇，既有註解不會被覆蓋。",
+          label: "更完整的回覆顯示",
+          text: "修復主題氣泡右側裁切，寬表格支援水平捲動，保持文字清晰可讀。",
         },
       ],
-      note: "更新後請重新啟動 Zotero。「將譯文寫入註記」預設關閉；開啟後，請等待譯文產生，再選擇螢光標記顏色。",
+      note: "更新後請重新啟動 Zotero。聊天遷移需要手動匯出、匯入；在另一台裝置跳轉至原文，還需要對應文獻檔案可用。",
       confirm: "知道了",
       close: "關閉更新提示",
       exampleLabel: "",
@@ -1369,36 +1357,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "AIdea v3.5.2：より自然な回答と数式表示の改善",
-      lead: "既定の回答と数式表示を改善し、最近の選択範囲の翻訳機能の改善も引き続き利用できます。",
-      alsoLabel: "今回の更新内容",
+      title: "AIdea v3.6.0: 原文への引用リンクとチャット履歴の移行",
+      lead: "質問に応じて文献のコンテキストを更新し、引用から原文を開けます。画像や添付ファイルを含むチャット履歴を端末間で手動移行できます。",
+      alsoLabel: "今回の更新",
       alsoItems: [
         {
-          label: "質問に合った回答",
-          text: "簡単な質問には直接回答し、複雑な分析では必要な推論と前提条件を維持します。",
+          label: "質問に応じた文献コンテキスト",
+          text: "各質問に関連する文献内容を選び、追加質問や複数の文献に対応しながら、モデルのコンテキスト容量内で配分します。",
         },
         {
-          label: "回答スタイルのカスタマイズ",
-          text: "「設定 → 詳細 → カスタムシステムプロンプト」で調整できます。空欄なら既定のルールが使われ、既存のカスタム内容は上書きされません。",
+          label: "引用から原文を表示",
+          text: "PDF のページや EPUB の章に移動できます。保存済みの会話にも引用が残り、位置が不確かな場合は文献を開くリンクを表示します。",
         },
         {
-          label: "内部タスク専用のプロンプト",
-          text: "選択範囲の翻訳や要約などは専用のプロンプトを使用し、チャットのカスタム指示の影響を受けません。",
+          label: "チャット履歴のインポートとエクスポート",
+          text: "テキスト、スクリーンショット、画像、アップロードしたファイルをまとめて保存できます。インポートでは新しいメッセージを統合し、両端末の会話分岐を保持し、繰り返しても重複追加を避けます。",
         },
         {
-          label: "数字の数式表示を修正",
-          text: "整数や小数のインライン数式が未処理のまま表示される問題を修正し、金額とコード片の処理も改善しました。",
+          label: "長い会話のつながりを改善",
+          text: "履歴の要約とクイック指示を改善し、コンテキスト削減時に呼び出した記憶が失われる問題を修正しました。既存のカスタム指示は保持されます。",
         },
         {
-          label: "長い文書の自動フォールバック",
-          text: "コンテキストを段階的に縮小して再試行し、それでも長すぎる場合は選択したテキストのみを翻訳する仕組みを維持しました。",
-        },
-        {
-          label: "注釈と選択状態の記憶",
-          text: "訳文のハイライト注釈への書き込みとチェック状態の保存を維持しました。Zotero の再起動後も選択を記憶し、既存のコメントは上書きしません。",
+          label: "回答の表示を改善",
+          text: "テーマ付き吹き出しの右端が切れる問題を修正しました。幅の広い表は横スクロールで読みやすく表示します。",
         },
       ],
-      note: "更新後は Zotero を再起動してください。「訳文を注釈に書き込む」は既定でオフです。有効にした場合は、翻訳が完了してからハイライトの色を選んでください。",
+      note: "更新後は Zotero を再起動してください。チャットの移行には手動のエクスポートとインポートが必要です。別の端末で原文を開くには、対応する文献ファイルも必要です。",
       confirm: "了解",
       close: "更新のお知らせを閉じる",
       exampleLabel: "",
@@ -1406,36 +1390,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "AIdea v3.5.2: 더 자연스러운 답변과 수식 표시 개선",
-      lead: "기본 답변 방식과 수식 표시를 개선했으며, 최근의 선택 영역 번역 개선 사항도 유지합니다.",
-      alsoLabel: "이번 업데이트 내용",
+      title: "AIdea v3.6.0: 원문 인용과 채팅 기록 이전",
+      lead: "질문에 따라 문헌 컨텍스트를 갱신하고 인용에서 원문을 열 수 있습니다. 이미지와 첨부 파일을 포함한 채팅 기록을 기기 간에 수동으로 이전할 수 있습니다.",
+      alsoLabel: "이번 업데이트",
       alsoItems: [
         {
-          label: "질문에 맞는 답변",
-          text: "간단한 질문에는 바로 답하고, 복잡한 분석에는 필요한 추론과 전제 조건을 유지합니다.",
+          label: "질문에 맞는 문헌 컨텍스트",
+          text: "매 질문에 관련된 논문 내용을 선택하고 후속 질문과 여러 문헌을 지원하며 모델의 컨텍스트 용량에 맞춰 공간을 배분합니다.",
         },
         {
-          label: "답변 스타일 설정",
-          text: "설정 → 고급 → 사용자 지정 시스템 프롬프트에서 답변 방식을 조정할 수 있습니다. 비워 두면 기본 규칙을 사용하며, 기존 사용자 지정 내용은 덮어쓰지 않습니다.",
+          label: "인용을 눌러 원문 열기",
+          text: "PDF 페이지나 EPUB 장으로 이동합니다. 저장된 대화에도 인용이 유지되며, 위치가 확실하지 않으면 문헌을 여는 링크를 제공합니다.",
         },
         {
-          label: "독립적인 내부 작업 프롬프트",
-          text: "선택 영역 번역, 요약 등 내부 작업에는 전용 프롬프트를 사용하므로 사용자 지정 대화 지침의 영향을 받지 않습니다.",
+          label: "채팅 기록 가져오기와 내보내기",
+          text: "텍스트, 스크린샷, 이미지, 업로드한 파일을 묶어 저장합니다. 가져올 때 새 메시지를 병합하고 양쪽 기기의 대화 분기를 유지하며 반복 가져오기 시 중복 추가를 방지합니다.",
         },
         {
-          label: "숫자 수식 표시 수정",
-          text: "정수와 소수 등의 인라인 수식이 원문 그대로 표시되는 문제를 수정하고, 금액과 코드 조각의 처리를 개선했습니다.",
+          label: "더 자연스럽게 이어지는 긴 대화",
+          text: "기록 요약과 빠른 지시를 개선하고 컨텍스트를 줄일 때 불러온 기억이 누락되는 문제를 수정했습니다. 기존 사용자 지정 지시는 유지됩니다.",
         },
         {
-          label: "긴 문서 자동 대체 처리",
-          text: "문맥을 단계적으로 줄여 재시도하고, 그래도 너무 길면 선택한 텍스트만 번역하는 방식을 유지합니다.",
-        },
-        {
-          label: "주석과 선택 상태 기억",
-          text: "번역문을 하이라이트 주석에 쓰는 기능과 체크 상태 저장을 유지합니다. Zotero를 다시 시작해도 선택 상태가 유지되며, 기존 댓글은 덮어쓰지 않습니다.",
+          label: "더 나은 답변 표시",
+          text: "테마 말풍선 오른쪽이 잘리는 문제를 수정했습니다. 넓은 표는 가로 스크롤로 읽기 쉽게 표시됩니다.",
         },
       ],
-      note: "업데이트 후 Zotero를 다시 시작하세요. ‘번역문을 주석에 쓰기’는 기본적으로 꺼져 있습니다. 켠 경우 번역이 완료된 후 하이라이트 색상을 선택하세요.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 채팅 이전에는 수동 내보내기와 가져오기가 필요합니다. 다른 기기에서 원문을 열려면 해당 문헌 파일도 있어야 합니다.",
       confirm: "확인",
       close: "업데이트 안내 닫기",
       exampleLabel: "",
@@ -1443,37 +1423,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title:
-        "AIdea v3.5.2 : réponses plus naturelles et meilleur affichage des formules",
-      lead: "Amélioration des réponses par défaut et du rendu des formules, avec maintien des améliorations récentes de la traduction de sélection.",
+      title: "AIdea v3.6.0: Citations des sources et transfert de l’historique",
+      lead: "Le contexte de lecture suit vos questions, les citations ouvrent les sources et l’historique peut être transféré manuellement entre appareils avec les images et pièces jointes.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Des réponses adaptées",
-          text: "Des réponses directes aux questions simples, tout en conservant le raisonnement et les hypothèses nécessaires aux analyses complexes.",
+          label: "Un contexte adapté aux questions",
+          text: "Sélectionne le contenu pertinent pour chaque question, prend en charge les questions de suivi et plusieurs articles, et répartit l’espace dans la limite de contexte du modèle.",
         },
         {
-          label: "Style de réponse personnalisé",
-          text: "Réglez les réponses dans Paramètres → Avancé → Invite système personnalisée. Laissez ce champ vide pour les règles par défaut. Les invites existantes sont conservées.",
+          label: "Des citations cliquables",
+          text: "Ouvre les pages PDF ou les chapitres EPUB. Les conversations enregistrées conservent les citations ; sans emplacement fiable, un lien ouvre le document.",
         },
         {
-          label: "Invites dédiées aux tâches internes",
-          text: "La traduction de sélection, les résumés et les autres tâches internes utilisent leurs propres invites, sans être affectés par les consignes de discussion personnalisées.",
+          label: "Importation et exportation des discussions",
+          text: "Regroupe texte, captures d’écran, images et fichiers téléversés. L’importation fusionne les nouveaux messages, conserve les branches des deux appareils et évite les doublons lors des imports répétés.",
         },
         {
-          label: "Correction des formules numériques",
-          text: "Correction des entiers et décimales en ligne affichés comme du texte brut, avec une meilleure gestion des montants et des extraits de code.",
+          label: "Des conversations longues plus cohérentes",
+          text: "Améliore les résumés et les commandes rapides, et corrige la perte des souvenirs rappelés lors de la réduction du contexte. Les instructions personnalisées existantes sont conservées.",
         },
         {
-          label: "Repli pour les longs documents",
-          text: "Le contexte est toujours réduit progressivement lors des nouvelles tentatives ; s’il reste trop long, seul le texte sélectionné est traduit.",
-        },
-        {
-          label: "Annotations et choix mémorisés",
-          text: "L’ajout de la traduction aux annotations surlignées et la mémorisation de la case cochée après redémarrage de Zotero sont conservés, sans écraser les commentaires existants.",
+          label: "Un meilleur affichage des réponses",
+          text: "Corrige les bulles de thème coupées à droite et permet de lire les tableaux larges grâce au défilement horizontal.",
         },
       ],
-      note: "Redémarrez Zotero après la mise à jour. « Écrire la traduction dans l’annotation » est désactivé par défaut. Une fois activé, attendez la traduction avant de choisir une couleur de surlignage.",
+      note: "Redémarrez Zotero après la mise à jour. Le transfert nécessite une exportation et une importation manuelles. Pour ouvrir une source sur un autre appareil, le document correspondant doit aussi être disponible.",
       confirm: "Compris",
       close: "Fermer l’avis de mise à jour",
       exampleLabel: "",
@@ -1481,37 +1456,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title:
-        "AIdea v3.5.2: Natürlichere Antworten und verbesserte Formeldarstellung",
-      lead: "Verbesserte Standardantworten und Formeldarstellung sowie die bisherigen Verbesserungen bei der Übersetzung markierter Texte.",
+      title: "AIdea v3.6.0: Quellenzitate und übertragbarer Chatverlauf",
+      lead: "Der Lesekontext folgt Ihren Fragen, Zitate öffnen die Quelle, und Chatverläufe lassen sich mit Bildern und Anhängen manuell zwischen Geräten übertragen.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Passende Antworten",
-          text: "Einfache Fragen werden direkt beantwortet; bei komplexen Analysen bleiben die nötigen Herleitungen und Annahmen erhalten.",
+          label: "Fragebezogener Lesekontext",
+          text: "Wählt relevante Inhalte für jede Frage, berücksichtigt Folgefragen und mehrere Dokumente und verteilt den Platz innerhalb des Kontextbudgets des Modells.",
         },
         {
-          label: "Eigener Antwortstil",
-          text: "Anpassbar unter Einstellungen → Erweitert → Benutzerdefinierter System-Prompt. Ein leeres Feld verwendet die Standardregeln. Vorhandene eigene Prompts bleiben erhalten.",
+          label: "Anklickbare Quellenzitate",
+          text: "Öffnet PDF-Seiten oder EPUB-Kapitel. Gespeicherte Gespräche behalten ihre Zitate; ohne verlässliche Position wird ein Link zum Dokument angeboten.",
         },
         {
-          label: "Unabhängige Aufgaben-Prompts",
-          text: "Übersetzungen markierter Texte, Zusammenfassungen und andere interne Aufgaben verwenden eigene Prompts, unabhängig von benutzerdefinierten Chat-Anweisungen.",
+          label: "Chatverlauf importieren und exportieren",
+          text: "Bündelt Text, Screenshots, Bilder und hochgeladene Dateien. Importe führen neue Nachrichten zusammen, behalten Gesprächszweige beider Geräte und vermeiden Duplikate bei wiederholten Importen.",
         },
         {
-          label: "Zahlenformeln korrigiert",
-          text: "Ganze Zahlen und Dezimalzahlen in Inline-Formeln werden nicht mehr als unbearbeiteter Formeltext angezeigt. Auch die Erkennung von Geldbeträgen und Code wurde verbessert.",
+          label: "Zusammenhängendere lange Gespräche",
+          text: "Verbessert Verlaufszusammenfassungen und Schnellbefehle und behebt den Verlust abgerufener Erinnerungen beim Kürzen des Kontexts. Vorhandene eigene Anweisungen bleiben erhalten.",
         },
         {
-          label: "Fallback für lange Dokumente",
-          text: "Der Kontext wird bei erneuten Versuchen weiterhin schrittweise verkleinert. Bleibt er zu lang, wird nur der markierte Text übersetzt.",
-        },
-        {
-          label: "Annotationen und gespeicherte Auswahl",
-          text: "Die Übersetzung in Hervorhebungsannotationen und der Zustand des Kontrollkästchens bleiben auch nach einem Zotero-Neustart erhalten. Vorhandene Kommentare werden nicht überschrieben.",
+          label: "Verbesserte Antwortdarstellung",
+          text: "Behebt rechts abgeschnittene Sprechblasen in Designs und hält breite Tabellen durch horizontales Scrollen lesbar.",
         },
       ],
-      note: "Starten Sie Zotero nach dem Update neu. „Übersetzung in Annotation schreiben“ ist standardmäßig deaktiviert. Nach dem Aktivieren warten Sie auf die Übersetzung, bevor Sie eine Hervorhebungsfarbe wählen.",
+      note: "Starten Sie Zotero nach dem Update neu. Chats werden manuell exportiert und importiert. Zum Öffnen einer Quelle auf einem anderen Gerät muss dort auch das entsprechende Dokument verfügbar sein.",
       confirm: "Verstanden",
       close: "Update-Hinweis schließen",
       exampleLabel: "",
@@ -1519,37 +1489,32 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title:
-        "AIdea v3.5.2: respuestas más naturales y mejor visualización de fórmulas",
-      lead: "Mejoras en las respuestas predeterminadas y las fórmulas, junto con las mejoras recientes de la traducción de selecciones.",
+      title: "AIdea v3.6.0: Citas de fuentes y traslado del historial",
+      lead: "El contexto de lectura sigue tus preguntas, las citas abren la fuente y el historial se puede transferir manualmente entre dispositivos con imágenes y archivos adjuntos.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Respuestas ajustadas a la pregunta",
-          text: "Respuestas directas a preguntas sencillas, conservando el razonamiento y los supuestos necesarios en análisis complejos.",
+          label: "Contexto adaptado a cada pregunta",
+          text: "Selecciona contenido relevante para cada pregunta, admite preguntas de seguimiento y varios documentos, y distribuye el espacio dentro del límite de contexto del modelo.",
         },
         {
-          label: "Estilo de respuesta personalizado",
-          text: "Ajuste las respuestas en Ajustes → Avanzado → Prompt del sistema personalizado. Déjelo vacío para usar las reglas predeterminadas. Los prompts existentes se conservan.",
+          label: "Citas de fuentes accesibles",
+          text: "Abre páginas PDF o capítulos EPUB. Las conversaciones guardadas conservan las citas; sin una ubicación fiable, se ofrece un enlace al documento.",
         },
         {
-          label: "Prompts independientes para tareas internas",
-          text: "La traducción de selecciones, los resúmenes y otras tareas internas usan prompts específicos, sin verse afectados por las instrucciones personalizadas del chat.",
+          label: "Importación y exportación de chats",
+          text: "Agrupa texto, capturas de pantalla, imágenes y archivos subidos. La importación combina mensajes nuevos, conserva las ramas de conversación de ambos dispositivos y evita duplicados al repetirla.",
         },
         {
-          label: "Corrección de fórmulas numéricas",
-          text: "Corregida la visualización de enteros y decimales en línea como texto de fórmula sin procesar, con mejoras para importes y fragmentos de código.",
+          label: "Conversaciones largas más coherentes",
+          text: "Mejora los resúmenes y las instrucciones rápidas, y corrige la pérdida de recuerdos recuperados al reducir el contexto. Se conservan las instrucciones personalizadas existentes.",
         },
         {
-          label: "Alternativa para documentos largos",
-          text: "Se mantienen los reintentos con un contexto cada vez menor y la traducción solo del texto seleccionado si el contexto sigue siendo demasiado largo.",
-        },
-        {
-          label: "Anotaciones y opciones recordadas",
-          text: "Se mantienen la escritura de traducciones en anotaciones resaltadas y el estado de la casilla tras reiniciar Zotero, sin sobrescribir comentarios existentes.",
+          label: "Mejor presentación de las respuestas",
+          text: "Corrige el recorte del borde derecho de las burbujas con tema y permite leer tablas anchas mediante desplazamiento horizontal.",
         },
       ],
-      note: "Reinicie Zotero después de actualizar. «Escribir la traducción en la anotación» está desactivado por defecto. Si lo activa, espere a que termine la traducción antes de elegir un color de resaltado.",
+      note: "Reinicia Zotero después de actualizar. La transferencia requiere exportar e importar manualmente. Para abrir una fuente en otro dispositivo, el documento correspondiente también debe estar disponible.",
       confirm: "Entendido",
       close: "Cerrar aviso de actualización",
       exampleLabel: "",
@@ -1557,112 +1522,65 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title:
-        "AIdea v3.5.2: более естественные ответы и улучшенное отображение формул",
-      lead: "Улучшены ответы по умолчанию и отображение формул; сохранены недавние улучшения перевода выделенного текста.",
+      title: "AIdea v3.6.0: Ссылки на источники и перенос истории чата",
+      lead: "Контекст чтения обновляется под ваши вопросы, ссылки открывают источники, а историю чата можно вручную переносить между устройствами вместе с изображениями и вложениями.",
       alsoLabel: "В этом обновлении",
       alsoItems: [
         {
-          label: "Ответы по существу",
-          text: "Прямые ответы на простые вопросы с сохранением необходимых рассуждений и допущений при сложном анализе.",
+          label: "Контекст с учётом вопроса",
+          text: "Выбирает подходящие фрагменты для каждого вопроса, учитывает уточнения и несколько документов и распределяет место в пределах контекстного окна модели.",
         },
         {
-          label: "Свой стиль ответов",
-          text: "Настройте ответы в разделе «Настройки → Дополнительно → Пользовательский системный промпт». Пустое поле включает правила по умолчанию. Существующие промпты сохраняются.",
+          label: "Переход к источнику по ссылке",
+          text: "Открывает страницы PDF или главы EPUB. Сохранённые диалоги сохраняют ссылки; если точное положение неизвестно, предлагается ссылка на документ.",
         },
         {
-          label: "Отдельные промпты внутренних задач",
-          text: "Перевод выделенного текста, краткие обзоры и другие внутренние задачи используют отдельные промпты, не зависящие от пользовательских инструкций чата.",
+          label: "Импорт и экспорт чатов",
+          text: "Упаковывает текст, снимки экрана, изображения и загруженные файлы. Импорт объединяет новые сообщения, сохраняет ветви диалога с обоих устройств и не добавляет дубликаты при повторном импорте.",
         },
         {
-          label: "Исправление числовых формул",
-          text: "Исправлено отображение целых и дробных чисел во встроенных формулах как необработанного текста. Улучшена обработка денежных сумм и фрагментов кода.",
+          label: "Более связные длинные диалоги",
+          text: "Улучшены сводки истории и быстрые команды, исправлена потеря извлечённых воспоминаний при сокращении контекста. Существующие пользовательские инструкции сохраняются.",
         },
         {
-          label: "Резервный режим для длинных документов",
-          text: "Сохранены повторные попытки с постепенным сокращением контекста. Если он всё ещё слишком длинный, переводится только выделенный текст.",
-        },
-        {
-          label: "Аннотации и сохранение выбора",
-          text: "Сохранены запись перевода в аннотацию выделения и состояние флажка после перезапуска Zotero. Существующие комментарии не перезаписываются.",
+          label: "Улучшенное отображение ответов",
+          text: "Исправлена обрезка правого края тематических блоков ответа. Широкие таблицы остаются читаемыми благодаря горизонтальной прокрутке.",
         },
       ],
-      note: "После обновления перезапустите Zotero. Параметр «Записывать перевод в аннотацию» по умолчанию выключен. Если он включён, дождитесь перевода, затем выберите цвет выделения.",
+      note: "После обновления перезапустите Zotero. Перенос чатов требует ручного экспорта и импорта. Для открытия источника на другом устройстве соответствующий файл документа также должен быть доступен.",
       confirm: "Понятно",
-      close: "Закрыть уведомление об обновлении",
-      exampleLabel: "",
-      examplePrompt: "",
-    },
-    "pt-BR": {
-      eyebrow: "Atualização",
-      title:
-        "AIdea v3.5.2: respostas mais naturais e melhor exibição de fórmulas",
-      lead: "Melhorias nas respostas padrão e na renderização de fórmulas, mantendo os aprimoramentos recentes da tradução de seleções.",
-      alsoLabel: "Esta atualização inclui",
-      alsoItems: [
-        {
-          label: "Respostas adequadas à pergunta",
-          text: "Respostas diretas a perguntas simples, preservando o raciocínio e as premissas necessários para análises complexas.",
-        },
-        {
-          label: "Estilo de resposta personalizado",
-          text: "Ajuste as respostas em Configurações → Avançado → Prompt de sistema personalizado. Deixe vazio para usar as regras padrão. Os prompts existentes são preservados.",
-        },
-        {
-          label: "Prompts independentes para tarefas internas",
-          text: "Tradução de seleções, resumos e outras tarefas internas usam prompts próprios, sem influência das instruções personalizadas do chat.",
-        },
-        {
-          label: "Correção de fórmulas numéricas",
-          text: "Corrigida a exibição de inteiros e decimais em fórmulas em linha como texto bruto, com melhorias no tratamento de valores monetários e trechos de código.",
-        },
-        {
-          label: "Alternativa para documentos longos",
-          text: "Mantidas as novas tentativas com contexto progressivamente menor e a tradução apenas do texto selecionado quando o contexto ainda for muito longo.",
-        },
-        {
-          label: "Anotações e escolhas lembradas",
-          text: "Mantidas a inclusão de traduções em anotações de destaque e a persistência da caixa de seleção após reiniciar o Zotero, sem sobrescrever comentários existentes.",
-        },
-      ],
-      note: "Reinicie o Zotero após atualizar. “Escrever tradução na anotação” fica desativado por padrão. Quando ativado, aguarde a tradução antes de escolher a cor do destaque.",
-      confirm: "Entendi",
-      close: "Fechar aviso de atualização",
+      close: "Закрыть уведомление",
       exampleLabel: "",
       examplePrompt: "",
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "AIdea v3.5.2: إجابات أكثر طبيعية وعرض محسّن للمعادلات",
-      lead: "تحسين الإجابات الافتراضية وعرض المعادلات، مع الإبقاء على التحسينات الأخيرة لترجمة النص المحدد.",
+      title: "AIdea v3.6.0: الاستشهاد بالمصادر ونقل سجل المحادثات",
+      lead: "يتغير سياق القراءة وفق أسئلتك، وتفتح الاستشهادات المصادر، ويمكن نقل سجل المحادثات يدويًا بين الأجهزة مع الصور والمرفقات.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "إجابات تناسب السؤال",
-          text: "إجابات مباشرة للأسئلة البسيطة، مع الاحتفاظ بالاستدلال والافتراضات اللازمة للتحليل المعقد.",
+          label: "سياق قراءة ملائم للسؤال",
+          text: "يختار المحتوى المناسب لكل سؤال، ويدعم أسئلة المتابعة والمستندات المتعددة، ويوزع المساحة ضمن سعة سياق النموذج.",
         },
         {
-          label: "تخصيص أسلوب الإجابة",
-          text: "يمكن ضبط الإجابات من الإعدادات ← متقدم ← موجّه النظام المخصص. اترك الحقل فارغًا لاستخدام القواعد الافتراضية. لن تُستبدل الموجّهات المخصصة الموجودة.",
+          label: "استشهادات قابلة للنقر",
+          text: "تفتح صفحات PDF أو فصول EPUB. تحتفظ المحادثات المحفوظة بالاستشهادات؛ وعند غياب موقع موثوق، يتوفر رابط لفتح المستند.",
         },
         {
-          label: "موجّهات مستقلة للمهام الداخلية",
-          text: "تستخدم ترجمة النص المحدد والتلخيص والمهام الداخلية الأخرى موجّهات مخصصة لها، ولا تتأثر بتعليمات المحادثة المخصصة.",
+          label: "استيراد المحادثات وتصديرها",
+          text: "يجمع النصوص ولقطات الشاشة والصور والملفات المرفوعة. يدمج الاستيراد الرسائل الجديدة ويحفظ فروع المحادثة من الجهازين ويتجنب التكرار عند إعادة الاستيراد.",
         },
         {
-          label: "إصلاح عرض المعادلات الرقمية",
-          text: "إصلاح ظهور الأعداد الصحيحة والعشرية في المعادلات المضمنة كنص خام، مع تحسين التعامل مع المبالغ المالية ومقاطع الشيفرة.",
+          label: "محادثات طويلة أكثر ترابطًا",
+          text: "يحسن ملخصات السجل والتعليمات السريعة، ويصلح فقدان الذكريات المسترجعة عند تقليص السياق. تبقى التعليمات المخصصة الحالية محفوظة.",
         },
         {
-          label: "حل بديل للمستندات الطويلة",
-          text: "الإبقاء على إعادة المحاولة مع تقليص السياق تدريجيًا، ثم ترجمة النص المحدد وحده إذا ظل السياق طويلًا جدًا.",
-        },
-        {
-          label: "التعليقات وتذكّر الاختيارات",
-          text: "الإبقاء على كتابة الترجمة في تعليقات التظليل وحفظ حالة مربع الاختيار بعد إعادة تشغيل Zotero، دون استبدال التعليقات الموجودة.",
+          label: "عرض أفضل للردود",
+          text: "يصلح اقتطاع الحافة اليمنى لفقاعات السمات، ويحافظ على وضوح الجداول العريضة باستخدام التمرير الأفقي.",
         },
       ],
-      note: "أعد تشغيل Zotero بعد التحديث. خيار «كتابة الترجمة في التعليق» معطّل افتراضيًا. عند تفعيله، انتظر اكتمال الترجمة قبل اختيار لون التظليل.",
+      note: "أعد تشغيل Zotero بعد التحديث. يتطلب نقل المحادثات تصديرًا واستيرادًا يدويين. ولفتح مصدر على جهاز آخر، يجب أن يكون ملف المستند المقابل متاحًا أيضًا.",
       confirm: "فهمت",
       close: "إغلاق إشعار التحديث",
       exampleLabel: "",
@@ -1670,38 +1588,67 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "AIdea v3.5.2: अधिक स्वाभाविक उत्तर और बेहतर सूत्र प्रदर्शन",
-      lead: "डिफ़ॉल्ट उत्तरों और गणितीय सूत्रों के प्रदर्शन में सुधार, साथ ही चुने हुए पाठ के अनुवाद में हाल के सुधार बरकरार हैं।",
-      alsoLabel: "इस अपडेट में शामिल है",
+      title: "AIdea v3.6.0: स्रोत उद्धरण और चैट इतिहास का स्थानांतरण",
+      lead: "पठन संदर्भ आपके प्रश्नों के अनुसार बदलता है, उद्धरण स्रोत खोलते हैं और चित्रों तथा अटैचमेंट सहित चैट इतिहास को उपकरणों के बीच मैन्युअल रूप से स्थानांतरित किया जा सकता है।",
+      alsoLabel: "इस अपडेट में",
       alsoItems: [
         {
-          label: "प्रश्न के अनुरूप उत्तर",
-          text: "सरल प्रश्नों के सीधे उत्तर, जबकि जटिल विश्लेषण में आवश्यक तर्क और मान्यताएँ बरकरार रहती हैं।",
+          label: "प्रश्न के अनुसार पठन संदर्भ",
+          text: "हर प्रश्न के लिए प्रासंगिक सामग्री चुनता है, आगे के प्रश्नों और कई दस्तावेज़ों का समर्थन करता है तथा मॉडल की संदर्भ सीमा के भीतर स्थान बाँटता है।",
         },
         {
-          label: "उत्तर देने की शैली बदलें",
-          text: "सेटिंग्स → उन्नत → कस्टम सिस्टम प्रॉम्प्ट में शैली बदलें। डिफ़ॉल्ट नियमों के लिए इसे खाली छोड़ें। मौजूदा कस्टम प्रॉम्प्ट बदले नहीं जाएँगे।",
+          label: "क्लिक करके स्रोत खोलें",
+          text: "PDF पृष्ठ या EPUB अध्याय खोलता है। सहेजी गई बातचीत में उद्धरण बने रहते हैं; विश्वसनीय स्थान न होने पर दस्तावेज़ खोलने का लिंक मिलता है।",
         },
         {
-          label: "आंतरिक कार्यों के स्वतंत्र प्रॉम्प्ट",
-          text: "चुने हुए पाठ के अनुवाद, सारांश और अन्य आंतरिक कार्यों के अपने प्रॉम्प्ट हैं, जिन पर कस्टम चैट निर्देशों का प्रभाव नहीं पड़ता।",
+          label: "चैट का आयात और निर्यात",
+          text: "पाठ, स्क्रीनशॉट, चित्र और अपलोड की गई फ़ाइलें एक साथ रखता है। आयात नए संदेश जोड़ता है, दोनों उपकरणों की बातचीत की शाखाएँ बनाए रखता है और दोबारा आयात करने पर दोहराव से बचता है।",
         },
         {
-          label: "संख्यात्मक सूत्रों का सुधार",
-          text: "पूर्णांक और दशमलव वाले इनलाइन सूत्रों के कच्चे पाठ की तरह दिखने की समस्या ठीक की गई है। धनराशि और कोड अंशों की पहचान भी बेहतर हुई है।",
+          label: "लंबी बातचीत में बेहतर निरंतरता",
+          text: "इतिहास के सारांश और त्वरित निर्देश बेहतर किए गए हैं। संदर्भ घटाते समय वापस लाई गई यादें खोने की समस्या ठीक की गई है। मौजूदा कस्टम निर्देश सुरक्षित रहते हैं।",
         },
         {
-          label: "लंबे दस्तावेज़ों के लिए वैकल्पिक तरीका",
-          text: "संदर्भ को क्रमशः घटाकर दोबारा कोशिश करने का तरीका बरकरार है। संदर्भ फिर भी बहुत लंबा हो तो केवल चुना हुआ पाठ अनुवादित होता है।",
-        },
-        {
-          label: "एनोटेशन और विकल्पों की याद",
-          text: "अनुवाद को हाइलाइट एनोटेशन में लिखने और चेकबॉक्स की स्थिति सहेजने की सुविधा बरकरार है। Zotero दोबारा शुरू होने पर भी चयन बना रहता है और मौजूदा टिप्पणियाँ बदली नहीं जातीं।",
+          label: "उत्तर का बेहतर प्रदर्शन",
+          text: "थीम वाले संदेशों का दायाँ किनारा कटने की समस्या ठीक की गई है। चौड़ी तालिकाएँ क्षैतिज स्क्रॉल से पढ़ने योग्य रहती हैं।",
         },
       ],
-      note: "अपडेट के बाद Zotero दोबारा शुरू करें। “अनुवाद को एनोटेशन में लिखें” डिफ़ॉल्ट रूप से बंद है। चालू करने पर हाइलाइट रंग चुनने से पहले अनुवाद पूरा होने दें।",
+      note: "अपडेट के बाद Zotero दोबारा शुरू करें। चैट स्थानांतरण के लिए मैन्युअल निर्यात और आयात आवश्यक हैं। दूसरे उपकरण पर स्रोत खोलने के लिए संबंधित दस्तावेज़ फ़ाइल भी उपलब्ध होनी चाहिए।",
       confirm: "समझ गया",
       close: "अपडेट सूचना बंद करें",
+      exampleLabel: "",
+      examplePrompt: "",
+    },
+    "pt-BR": {
+      eyebrow: "Atualização",
+      title: "AIdea v3.6.0: Citações de fontes e transferência do histórico",
+      lead: "O contexto de leitura acompanha suas perguntas, as citações abrem as fontes e o histórico pode ser transferido manualmente entre dispositivos com imagens e anexos.",
+      alsoLabel: "Esta atualização inclui",
+      alsoItems: [
+        {
+          label: "Contexto adaptado à pergunta",
+          text: "Seleciona conteúdo relevante para cada pergunta, considera perguntas de acompanhamento e vários documentos, e distribui o espaço dentro do limite de contexto do modelo.",
+        },
+        {
+          label: "Citações clicáveis",
+          text: "Abre páginas PDF ou capítulos EPUB. As conversas salvas mantêm as citações; sem uma localização confiável, é oferecido um link para o documento.",
+        },
+        {
+          label: "Importação e exportação de conversas",
+          text: "Agrupa texto, capturas de tela, imagens e arquivos enviados. A importação combina novas mensagens, preserva as ramificações de conversa dos dois dispositivos e evita duplicatas em importações repetidas.",
+        },
+        {
+          label: "Conversas longas mais coerentes",
+          text: "Melhora os resumos e as instruções rápidas, e corrige a perda de memórias recuperadas ao reduzir o contexto. As instruções personalizadas existentes são preservadas.",
+        },
+        {
+          label: "Melhor exibição das respostas",
+          text: "Corrige o corte do lado direito dos balões com tema e mantém as tabelas largas legíveis com rolagem horizontal.",
+        },
+      ],
+      note: "Reinicie o Zotero após atualizar. A transferência exige exportação e importação manuais. Para abrir uma fonte em outro dispositivo, o documento correspondente também precisa estar disponível.",
+      confirm: "Entendi",
+      close: "Fechar aviso de atualização",
       exampleLabel: "",
       examplePrompt: "",
     },
