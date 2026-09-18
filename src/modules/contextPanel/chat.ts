@@ -1266,7 +1266,20 @@ export async function prepareChatRequest(params: {
     if (doc) {
       pool.basePdfItemId = doc.item.id;
       pool.baseDocumentKind = doc.kind;
-      pool.basePdfTitle = String(doc.item.getField("title") || "Document");
+      // The attachment title is usually a filename ("Full Text PDF"); the
+      // parent bibliographic item carries the title shown to the user.
+      try {
+        const parentItem = doc.item.parentID
+          ? getZoteroItem(doc.item.parentID)
+          : null;
+        pool.basePdfTitle = String(
+          (parentItem ? parentItem.getField("title") : "") ||
+            doc.item.getField("title") ||
+            "Document",
+        );
+      } catch (_e) {
+        pool.basePdfTitle = "Document";
+      }
     }
   }
   // Only source identities persist in the pool. Every turn checks source revisions
@@ -1409,9 +1422,9 @@ export async function prepareChatRequest(params: {
         .slice(0, index)
         .replace("supplied: full", "supplied: excerpts");
     else largest.text = "";
-    combinedContext = [CITATION_GUIDANCE, ...results.map((r) => r.text)].join(
-      "\n\n",
-    );
+    combinedContext = [CITATION_GUIDANCE, ...results.map((r) => r.text), memory]
+      .filter(Boolean)
+      .join("\n\n");
   }
   const citations = [
     ...results.flatMap((r) => r.evidenceRefs),

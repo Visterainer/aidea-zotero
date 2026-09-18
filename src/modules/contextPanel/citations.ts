@@ -2,18 +2,36 @@ import type { EvidenceRef } from "./document/evidence";
 import { getDocumentAdapter } from "./document/registry";
 import { documentFingerprint } from "../../utils/documentFingerprint";
 
+/**
+ * Mark the parts of one line that belong to a closed inline code span. A
+ * backtick run without a matching closer on the same line is literal text, so
+ * it must not swallow the rest of the line or leak into later lines.
+ */
+function inlineCodeParts(parts: string[]): boolean[] {
+  const inside = parts.map(() => false);
+  for (let index = 0; index < parts.length; index++) {
+    if (!/^`+$/.test(parts[index])) continue;
+    const close = parts.findIndex(
+      (part, other) => other > index && part === parts[index],
+    );
+    if (close < 0) continue;
+    for (let span = index; span <= close; span++) inside[span] = true;
+    index = close;
+  }
+  return inside;
+}
+
 /** Keep citation syntax inside fenced and inline code literal. */
 export function mapCitationText(
   text: string,
   replace: (id: string) => string,
 ): string {
   let fence = "";
-  let inlineFence = "";
   return text
     .split(/(\r?\n)/)
     .map((line) => {
       const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-      if (match && !inlineFence) {
+      if (match) {
         if (!fence) fence = match[1];
         else if (
           match[1][0] === fence[0] &&
@@ -24,20 +42,16 @@ export function mapCitationText(
         return line;
       }
       if (fence || /^(?: {4}|\t)/.test(line)) return line;
-      return line
-        .split(/(`+)/g)
-        .map((part) => {
-          if (/^`+$/.test(part)) {
-            if (!inlineFence) inlineFence = part;
-            else if (part === inlineFence) inlineFence = "";
-            return part;
-          }
-          return inlineFence
+      const parts = line.split(/(`+)/g);
+      const inside = inlineCodeParts(parts);
+      return parts
+        .map((part, index) =>
+          inside[index]
             ? part
             : part.replace(/\[\[cite:([A-Za-z0-9_-]+)\]\]/g, (_, id: string) =>
                 replace(id),
-              );
-        })
+              ),
+        )
         .join("");
     })
     .join("");

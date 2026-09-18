@@ -132,6 +132,40 @@ describe("reading context and citations", function () {
     });
   }
 
+  it("labels a new base document with the parent item title", async function () {
+    const attachment = await paper(9, ["Methods trials ".repeat(400)]);
+    // Zotero names attachments after the file, so the chip must fall back to
+    // the bibliographic parent's title whenever one exists.
+    (attachment as any).parentID = 90;
+    (attachment as any).getField = () => "Full Text PDF";
+    items.set(90, {
+      id: 90,
+      key: "KEY90",
+      libraryID: 1,
+      isAttachment: () => false,
+      isRegularItem: () => true,
+      getField: (field: string) =>
+        field === "title" ? "Attention Is All You Need" : "",
+    } as unknown as Zotero.Item);
+    await prepareChatRequest({
+      item: attachment,
+      question: "Summarize the methods",
+      imageCount: 0,
+      fileCount: 0,
+      apiBase: "test",
+      apiKey: "",
+      model: "test",
+      historyForLLM: [],
+      paperContexts: [],
+      conversationKey: 900,
+      setStatusSafely: () => undefined,
+    });
+    assert.equal(
+      conversationContextPool.get(900)!.basePdfTitle,
+      "Attention Is All You Need",
+    );
+  });
+
   it("estimates CJK conservatively and slices without exceeding the budget", function () {
     assert.isAbove(
       estimateTokens("中".repeat(100)),
@@ -281,6 +315,29 @@ describe("reading context and citations", function () {
     } catch (error) {
       assert.include(String(error), "input budget");
     }
+  });
+
+  it("keeps an unpaired backtick from disabling later citations", function () {
+    const ref: EvidenceRef = {
+      id: "e1",
+      itemId: 1,
+      title: "Source",
+      text: "evidence",
+      itemKey: "KEY1",
+    };
+    // An unmatched backtick opens no code span, so it must not swallow the
+    // rest of its line nor leak into the following lines.
+    const sameLine = "It costs 5` and cites [[cite:e1]].";
+    assert.include(citationMarkdown(sameLine, [ref]), "aidea-cite:e1");
+    assert.lengthOf(citedEvidence(sameLine, [ref]), 1);
+    const laterLine = "Prices use ` here.\nThen [[cite:e1]] applies.";
+    assert.include(citationMarkdown(laterLine, [ref]), "aidea-cite:e1");
+    assert.lengthOf(citedEvidence(laterLine, [ref]), 1);
+    // A genuine inline span on an earlier line still protects only itself.
+    const mixed = "See `[[cite:e1]]` verbatim.\nThen [[cite:e1]] applies.";
+    const rendered = citationMarkdown(mixed, [ref]);
+    assert.include(rendered, "`[[cite:e1]]`");
+    assert.include(rendered, "aidea-cite:e1");
   });
 
   it("renders only known IDs outside code and preserves partial streaming markers", function () {
