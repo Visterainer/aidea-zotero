@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import {
+  isContextPanelSectionEnabled,
   getLibraryPanelDisplayState,
   getLibrarySelectedItemIds,
   getLibrarySelectionState,
@@ -10,6 +11,15 @@ import {
 import { resolveActiveLibraryID } from "../src/modules/contextPanel/portalScope";
 
 describe("librarySelection", function () {
+  it("keeps uninitialized reader sections eligible for the first render", function () {
+    assert.isTrue(isContextPanelSectionEnabled(undefined, undefined, null));
+    assert.isTrue(isContextPanelSectionEnabled(null, undefined, null));
+    assert.isTrue(isContextPanelSectionEnabled("reader", { id: 15 }, null));
+    assert.isTrue(isContextPanelSectionEnabled("library", { id: 15 }, null));
+    assert.isFalse(isContextPanelSectionEnabled("library", undefined, null));
+    assert.isFalse(isContextPanelSectionEnabled("other", { id: 15 }, null));
+  });
+
   it("classifies no selected items as empty", function () {
     assert.equal(getLibrarySelectionState([]), "empty");
     assert.equal(getLibrarySelectionState(null), "empty");

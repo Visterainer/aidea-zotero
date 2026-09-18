@@ -191,12 +191,19 @@ function createMockDb() {
       }
       if (sql.includes("UPDATE zotero_ai_chat_messages")) {
         const conversationKey = Number(params[params.length - 1]);
-        if (sql.includes("active_child_id") && sql.includes("WHERE id = ?")) {
+        if (
+          sql.includes("active_child_id") &&
+          (sql.includes("WHERE id = ?") ||
+            sql.includes("WHERE conversation_key = ? AND id = ?"))
+        ) {
           const childId = params[0] === null ? null : Number(params[0]);
-          const id = Number(params[1]);
+          const keyFirst = sql.includes(
+            "WHERE conversation_key = ? AND id = ?",
+          );
+          const id = Number(params[keyFirst ? 2 : 1]);
+          const key = Number(params[keyFirst ? 1 : 2]);
           const row = messages.find(
-            (entry) =>
-              entry.id === id && entry.conversation_key === conversationKey,
+            (entry) => entry.id === id && entry.conversation_key === key,
           );
           if (row) row.active_child_id = childId;
           return [];
@@ -325,6 +332,53 @@ describe("chatStore message tree", function () {
     assert.strictEqual(activePath[0].siblingIndex, 1);
     assert.strictEqual((await loadConversationTree(1)).length, 4);
     assert.strictEqual(firstAssistant > 0, true);
+  });
+
+  it("round-trips per-answer citations and keeps sibling snapshots separate", async function () {
+    const user = await appendMessageNode(
+      71,
+      { role: "user", text: "Question", timestamp: 1 },
+      null,
+    );
+    const ref = {
+      id: "e1",
+      itemId: 10,
+      itemKey: "KEY",
+      title: "Paper",
+      text: "Evidence",
+      locator: { kind: "pdf-page" as const, pageIndex: 2 },
+    };
+    const first = await appendMessageNode(
+      71,
+      {
+        role: "assistant",
+        text: "Answer [[cite:e1]]",
+        timestamp: 2,
+        contextRefs: {
+          citations: [ref],
+          summaryCheckpoint: { text: "summary", coveredMessageIds: [user] },
+        },
+      },
+      user,
+    );
+    const second = await createSiblingBranch(71, first, {
+      role: "assistant",
+      text: "Other answer",
+      timestamp: 3,
+      contextRefs: { citations: [] },
+    });
+    assert.deepEqual(
+      (await loadConversationPath(71, 20)).at(-1)?.contextRefs?.citations,
+      [],
+    );
+    await setActiveChild(71, user, first);
+    const restored = (await loadConversationPath(71, 20)).at(-1)!;
+    assert.deepEqual(restored.contextRefs?.citations, [ref]);
+    assert.deepEqual(
+      restored.contextRefs?.summaryCheckpoint?.coveredMessageIds,
+      [user],
+    );
+    assert.notEqual(first, second);
   });
 
   it("clones only the current active prefix to a new conversation", async function () {

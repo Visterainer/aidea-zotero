@@ -101,8 +101,8 @@ function loadNoticeRuntime(prefs = new Map<string, unknown>(), lang = "en-US") {
 }
 
 describe("one-time update notice", function () {
-  it("uses the v3.5.2 notice id", function () {
-    assert.equal(NOTICE_ID, "v3.5.2-natural-responses-math-v1");
+  it("uses the v3.6.0 notice id", function () {
+    assert.equal(NOTICE_ID, "v3.6.0-citations-chat-transfer-v1");
   });
 
   it("provides complete localized copy for every panel language", function () {
@@ -120,22 +120,18 @@ describe("one-time update notice", function () {
       assert.isAbove(copy.note.trim().length, 0, `${uiCode}.note`);
       assert.isAbove(copy.confirm.trim().length, 0, `${uiCode}.confirm`);
       assert.isAbove(copy.close.trim().length, 0, `${uiCode}.close`);
-      assert.include(copy.title, "v3.5.2", `${uiCode}.version`);
+      assert.include(copy.title, "v3.6.0", `${uiCode}.version`);
       assert.isAbove(
         copy.alsoLabel?.trim().length || 0,
         0,
         `${uiCode}.alsoLabel`,
       );
-      assert.lengthOf(copy.alsoItems || [], 6, `${uiCode}.alsoItems`);
+      assert.lengthOf(copy.alsoItems || [], 5, `${uiCode}.alsoItems`);
       for (const item of copy.alsoItems || []) {
         assert.isAbove(item.label.trim().length, 0, `${uiCode}.item.label`);
         assert.isAbove(item.text.trim().length, 0, `${uiCode}.item.text`);
       }
-      assert.include(
-        copy.alsoItems?.[5].text,
-        "Zotero",
-        `${uiCode}.persistence`,
-      );
+      assert.include(copy.note, "Zotero", `${uiCode}.restart`);
       assert.isEmpty(copy.exampleLabel, `${uiCode}.exampleLabel`);
       assert.isEmpty(copy.examplePrompt, `${uiCode}.examplePrompt`);
       assert.isUndefined(copy.modeItems, `${uiCode}.modeItems`);
@@ -161,54 +157,42 @@ describe("one-time update notice", function () {
     assert.deepEqual(
       english.alsoItems?.map((item) => item.label),
       [
-        "Task-focused answers",
-        "Custom response style",
-        "Independent task prompts",
-        "Numeric math fix",
-        "Long-document fallback",
-        "Annotations and remembered choices",
+        "Question-aware reading context",
+        "Clickable source citations",
+        "Chat import and export",
+        "More coherent long conversations",
+        "Improved response layout",
       ],
     );
-    assert.include(
-      english.alsoItems?.[1].text,
-      "Existing custom prompts are preserved",
-    );
+    assert.include(english.alsoItems?.[1].text, "without reliable locations");
     assert.include(
       english.alsoItems?.[2].text,
-      "unaffected by custom chat instructions",
+      "preserve conversation branches from both devices",
     );
-    assert.include(english.alsoItems?.[3].text, "currency and code snippets");
-    assert.include(english.alsoItems?.[4].text, "selection-only translation");
+    assert.include(english.alsoItems?.[2].text, "avoid adding duplicates");
     assert.include(
-      english.alsoItems?.[5].text,
-      "without overwriting existing comments",
+      english.alsoItems?.[3].text,
+      "Existing custom instructions are preserved",
     );
-    assert.include(english.note, "off by default");
-    assert.include(
-      english.note,
-      "wait for the translation before choosing a highlight color",
-    );
-
+    assert.include(english.note, "manual export and import");
+    assert.include(english.note, "corresponding document to be available");
     const chinese = CURRENT_UPDATE_NOTICE_COPIES["zh-CN"];
     assert.deepEqual(
       chinese.alsoItems?.map((item) => item.label),
       [
-        "回答更贴合问题",
-        "自定义回答风格",
-        "内部任务独立",
-        "数字公式显示修复",
-        "长文档自动兜底",
-        "标注与选项记忆",
+        "更贴合问题的阅读上下文",
+        "点击引用查看原文",
+        "聊天记录导入与导出",
+        "更连贯的长对话",
+        "更完整的回复显示",
       ],
     );
-    assert.include(chinese.alsoItems?.[1].text, "已有自定义内容不会被覆盖");
-    assert.include(chinese.alsoItems?.[2].text, "不受自定义对话风格影响");
-    assert.include(chinese.alsoItems?.[3].text, "金额与代码片段");
-    assert.include(chinese.alsoItems?.[4].text, "最终仅翻译选中文本");
-    assert.include(chinese.alsoItems?.[5].text, "已有批注不会被覆盖");
+    assert.include(chinese.alsoItems?.[1].text, "没有可靠位置");
+    assert.include(chinese.alsoItems?.[2].text, "保留双方的对话分支");
+    assert.include(chinese.alsoItems?.[3].text, "保留已有自定义指令");
     assert.equal(
       chinese.note,
-      "更新后请重启 Zotero。“将译文写入标注”默认关闭；开启后，请等待译文生成，再选择高亮颜色。",
+      "更新后请重启 Zotero。聊天迁移需要手动导出、导入；在另一台设备跳转原文，还需要对应文献文件可用。",
     );
   });
 
@@ -223,7 +207,7 @@ describe("one-time update notice", function () {
 
     it("shows the new version after an old notice and persists confirmation across restart", function () {
       const prefs = new Map<string, unknown>([
-        [noticePref, "v3.5.1-selection-translation-persistence-v1"],
+        [noticePref, "v3.5.2-natural-responses-math-v1"],
       ]);
       const runtime = loadNoticeRuntime(prefs);
       runtime.show();
@@ -258,7 +242,7 @@ describe("one-time update notice", function () {
       }
     });
 
-    it("renders six localized items, the language direction, and only one confirmation button", function () {
+    it("renders five localized items, the language direction, and only one confirmation button", function () {
       for (const { uiCode } of UI_LANGUAGE_OPTIONS) {
         const runtime = loadNoticeRuntime(undefined, uiCode);
         runtime.show();
@@ -272,7 +256,7 @@ describe("one-time update notice", function () {
           uiCode,
         );
         const card = dialog.body.children[3];
-        assert.lengthOf(card.children, 7, uiCode);
+        assert.lengthOf(card.children, 6, uiCode);
         for (const [index, item] of (copy.alsoItems || []).entries()) {
           assert.include(
             card.children[index + 1].children[0].properties.innerText,

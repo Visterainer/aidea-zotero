@@ -12,6 +12,11 @@ import {
 } from "../epub/contentExtractor";
 import { EpubPackageReader } from "../epub/packageReader";
 import {
+  correctEpubPageBoundary,
+  resolveEpubNavigationLocation,
+  type EpubNavigationView,
+} from "../epub/navigation";
+import {
   getAttachmentContentType,
   getAttachmentSourceRevision,
   getDocumentTitle,
@@ -253,7 +258,71 @@ export async function extractEpubText(
   }
 }
 
+/** Reader spine hrefs are relative to the OPF; extraction hrefs are archive-relative. */
+export function epubReaderHref(href: string, contentPath: string): string {
+  const base = contentPath.split("/").slice(0, -1);
+  const target = href.replace(/^\//, "").split("/");
+  while (base.length && target.length && base[0] === target[0]) {
+    base.shift();
+    target.shift();
+  }
+  return [...base.map(() => ".."), ...target].join("/");
+}
+
 export const epubDocumentAdapter: DocumentAdapter = {
+  async navigate(item, locator) {
+    let location: { pageNumber?: string; href?: string } | undefined;
+    if (locator?.kind === "epub-location") {
+      if (locator.cfi) location = { pageNumber: locator.cfi };
+      else if (locator.href) {
+        const path = await item.getFilePathAsync();
+        if (path) {
+          const reader = new EpubPackageReader(path);
+          try {
+            const publication = await reader.readPackage();
+            location = {
+              href: epubReaderHref(locator.href, publication.contentPath),
+            };
+          } catch {
+            ztoolkit.log(
+              "LLM: EPUB navigation package unavailable; opening source",
+            );
+          } finally {
+            reader.close();
+          }
+        }
+      }
+    }
+    // Navigate after the reader has restored its initial view. Passing href to
+    // open() can be overwritten by EPUB's initial pagination/position restore.
+    const opened = await Zotero.Reader.open(item.id);
+    if (location && opened) {
+      await opened._initPromise;
+      const view = (
+        opened._internalReader as unknown as {
+          _primaryView?: EpubNavigationView;
+        }
+      )?._primaryView;
+      await view?.initializedPromise;
+      location = resolveEpubNavigationLocation(view, location);
+      await opened.navigate(location as Parameters<typeof opened.navigate>[0]);
+      if (view) {
+        // Initial pagination has a debounced position restore in Zotero. Apply
+        // the requested anchor again after that first layout has settled.
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await opened.navigate(
+          location as Parameters<typeof opened.navigate>[0],
+        );
+        correctEpubPageBoundary(view, location);
+      }
+    } else if (location) {
+      // A suspended Zotero tab may resume without returning a reader yet.
+      await Zotero.Reader.open(
+        item.id,
+        location as Parameters<typeof Zotero.Reader.open>[1],
+      );
+    }
+  },
   kind: "epub",
   contentTypes: [EPUB_CONTENT_TYPE],
   capabilities,

@@ -1,1 +1,1 @@
-Explain the limitations and potential weaknesses.
+Analyze limitations relevant to the user's question, including assumptions, data, validation and applicability when supported by the supplied material. Distinguish limitations explicitly acknowledged by the authors from your own evidence-based critique. Cite concrete evidence and explain its implication; do not invent weaknesses or treat unavailable excerpts as omissions in the paper.

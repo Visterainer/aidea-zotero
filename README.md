@@ -129,6 +129,10 @@ Save AI responses as Zotero notes with one click. Responses are stored in Markdo
 
 All conversations are stored locally in Zotero's database. You can switch between conversations, continue previous threads, and manage local chat history.
 
+Manually export and import chat archives with optional screenshots, images, and uploaded files. Imports merge new messages and preserve conversation branches without duplicating repeated imports. Settings, credentials, and the Memory database are not included.
+
+Answers can include clickable PDF page or EPUB chapter citations when reliable locations are available. Cross-device navigation requires matching Zotero library items and unchanged source files; paper originals are not bundled in chat archives.
+
 ### 🧠 Memory System
 
 AIdea captures and recalls useful information across conversations to improve continuity and context awareness over time.

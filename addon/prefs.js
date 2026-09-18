@@ -98,3 +98,5 @@ pref("font.selectionLineHeight", "1.55");
 pref("font.selectionPopupWidth", "480");
 pref("font.selectionPopupHeight", "0");
 pref("font.chatImageScale", "1");
+
+pref("modelContextWindows", "{}");

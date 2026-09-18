@@ -1919,6 +1919,7 @@
   max-width: 100%;
   min-width: 0;
   contain: inline-size;
+  container-type: inline-size;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -1970,6 +1971,25 @@
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
+}
+
+/* Keep history reachable when Zotero's side pane is narrower than the header. */
+@container (max-width: 460px) {
+  .llm-header-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
+  }
+
+  .llm-header-top > .llm-tab-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+  }
+
+  .llm-header-top > .llm-header-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 
 /* Hide discussion-only header elements when Setting tab is active */
@@ -3116,6 +3136,8 @@
 
 /* Message Bubbles */
 .llm-bubble {
+  /* Theme padding and borders must stay inside the available message width. */
+  box-sizing: border-box;
   padding: var(--llm-bubble-padding-y) var(--llm-bubble-padding-x);
   border-radius: 12px;
   max-width: 95%;
@@ -4562,6 +4584,11 @@
 }
 
 .llm-bubble.assistant table {
+  word-break: normal;
+  overflow-wrap: normal;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   width: 100%;
   border-collapse: collapse;
   margin: 8px 0;

@@ -1,65 +1,35 @@
 ## ✨ What's Changed
 
-- 💬 **More natural, task-focused answers**: Updated the default chat prompt to answer simple questions directly and retain necessary reasoning, evidence, and assumptions for complex analysis. Document-based answers should distinguish available source material from inference and avoid claiming access to unavailable pages or figures. Thanks @siyuanj for the feedback in [#81](https://github.com/Visterainer/aidea-zotero/issues/81).
-- ⚙️ **Custom response style**: Adjust responses under **Settings → Advanced → Custom System Prompt**. Leave it blank to use the defaults; a non-empty prompt replaces the default chat instructions. Existing custom prompts are preserved. Changes apply to the next request without restarting Zotero; start a new conversation for a clean comparison.
-- 🧩 **Independent internal-task prompts**: Selection translation, cold-start summaries, conversation compaction, and author profiles now use dedicated prompts, unaffected by custom chat instructions. Full-document translation retains its own configuration.
-- 🔢 **Fixed numeric inline math**: Fixed formulas such as `$9$`, `$0$`, and `$9.5$` displaying as raw text. Improved delimiter matching, ordinary currency handling, code protection, and streaming updates. Chat rendering and note HTML use consistent formula-recognition rules.
-- 🔧 **Dependency updates**: Integrated the dependency updates from [#80](https://github.com/Visterainer/aidea-zotero/pull/80), including KaTeX 0.18.5 and build-tool updates. Added matching resource checks and formula regression tests. Thanks [Dependabot](https://github.com/apps/dependabot) for the update PR.
-- 🛡️ **Retained long-document fallback**: Kept the selection-translation improvements from v3.5.0–v3.5.1. Input-length failures trigger progressively smaller cold-start context retries: full text, 50%, 25%, 15%, 10%, and 5%. If all tiers remain too long, only the selected text is translated, and repeated cold starts for the same document/model are skipped for 30 minutes. Thanks @Aaaanano for reporting [#79](https://github.com/Visterainer/aidea-zotero/issues/79).
-- 💾 **Retained annotations and remembered choices**: **Write translation to annotation** remembers both enabling and disabling across selections, documents, and Zotero restarts. When enabled, wait for translation to finish before choosing a highlight color. Translation is appended without overwriting existing comments.
-- 🌐 **Localized update notice and documentation**: Updated the one-time notice in all 12 interface languages, retaining the recent translation guidance. Updated settings help in all 12 languages and the English and Chinese READMEs.
-
-## ✅ Compatibility and Validation
-
-- Compatible with Zotero 7–10 (`strict_min_version: 6.999`, `strict_max_version: 10.0.*`).
-- Passed 548 TypeScript unit tests, 110 Python bridge checks, Prettier, ESLint, the plugin/TypeScript build, and the 12-page website build.
-- Verified the latest candidate on Windows with Zotero 8.0.3: installation, full restart, restored chat history and numeric formulas, update-notice layout, and no repeated notice after restart.
-- Completed a 48-request, small-sample comparison of the old and new prompts using `gpt-5.6-luna`. This was not a GPT-5.4 versus GPT-5.6 capability comparison or a guarantee of faster responses.
-
-## 📦 Installation
-
-Download `AIdea-3.5.2.xpi`, then select:
-
-**Tools → Plugins → Gear icon → Install Plugin From File**
-
-Restart Zotero after installation.
-
-## ℹ️ Known Behavior
-
-- This update does not restore unavailable models or change provider-side model availability. Response quality, latency, and occasional formatting errors can still vary.
-- **Write translation to annotation** is off by default. Enabling or disabling it is remembered.
-- Context shrinking applies to recognized input-length or request-size failures. Authentication, quota, model, parameter, and other provider errors remain visible.
-
----
+- 📖 **Question-aware reading context**: Refreshes paper content for each question, supports follow-ups and multiple documents, and shares a context budget across documents, history, and attachments. Short documents use full text when space permits; longer documents use relevant excerpts.
+- 🔗 **Clickable source citations**: Opens PDF pages or EPUB chapters when reliable locations are available. Citations persist in chat history and are retained as source links when copying, exporting, or saving notes.
+- 💾 **Portable chat archives**: Manually export and import conversations with optional screenshots, images, and uploaded files. Imports merge new messages, preserve conversation branches, and avoid duplicates on repeated imports. Existing chat records receive stable identifiers with a verified backup before migration. Thanks @siyuanj for the multi-device workflow suggestions in [#84](https://github.com/Visterainer/aidea-zotero/issues/84).
+- 💬 **Better conversation continuity**: Improves incremental history summaries and reading shortcuts while preserving custom instructions. Fixes recalled memories being lost during context-budget trimming.
+- 🛠️ **Citation and navigation fixes**: Improves EPUB chapter navigation, prevents unmatched backticks from suppressing citations, and uses the parent paper title instead of generic attachment names.
+- 🎨 **Improved response layout**: Fixes clipped themed bubbles while preserving their appearance. Wide tables scroll horizontally and keep words readable. Thanks @Dousongyao for reporting [#87](https://github.com/Visterainer/aidea-zotero/issues/87).
 
 ## 📝 更新内容
 
-- 💬 **默认回答更自然、更贴合问题**：简单问题直接回答，复杂分析保留必要的推导、证据和成立条件。针对文献的问题，明确区分已提供的材料与推断，避免声称看过未提供的页面或图像。感谢 @siyuanj 在 [#81](https://github.com/Visterainer/aidea-zotero/issues/81) 中反馈回答体验。
-- ⚙️ **支持自定义回答风格**：可在 **设置 → 高级 → 自定义系统提示词** 中调整回答方式。留空使用默认规则；填写后替换默认对话提示词。已有自定义内容不会被覆盖，修改从下一次请求生效，无需重启 Zotero。建议新建对话进行对比，避免旧回答影响后续表现。
-- 🧩 **内部任务使用独立提示词**：划词翻译、冷启动摘要、历史压缩和作者档案使用专用提示词，不受自定义对话指令影响。全文翻译仍使用自身配置。
-- 🔢 **修复纯数字行内公式显示**：修复 `$9$`、`$0$`、`$9.5$` 等公式原样显示的问题，改进公式定界符配对、普通金额识别、代码保护和流式更新。聊天显示与笔记 HTML 使用一致的公式识别规则。
-- 🔧 **依赖更新与配套验证**：纳入 [#80](https://github.com/Visterainer/aidea-zotero/pull/80) 的依赖更新，包括 KaTeX 0.18.5 和构建工具更新，并补充资源一致性检查及公式回归测试。感谢 [Dependabot](https://github.com/apps/dependabot) 提供更新 PR。
-- 🛡️ **保留长文档自动兜底**：延续 v3.5.0–v3.5.1 的划词翻译改进。冷启动请求因输入过长失败时，依次使用全文、50%、25%、15%、10% 和 5% 的文档上下文重试；若仍然过长，则仅翻译选中文本，并在接下来的 30 分钟内跳过同一文档和模型的重复冷启动。感谢 @Aaaanano 在 [#79](https://github.com/Visterainer/aidea-zotero/issues/79) 中反馈问题。
-- 💾 **保留标注功能及选项记忆**：“将译文写入标注”的勾选和取消状态会跨选区、跨文献保存，重启 Zotero 后仍然保持。开启后，等待翻译完成，再选择高亮颜色即可写入译文；已有批注采用追加方式，不会被覆盖。
-- 🌐 **多语言弹窗与文档更新**：更新全部 12 种界面语言的一次性弹窗，并保留近期的划词翻译说明。同步更新 12 种语言的设置帮助及中英文 README。
+- 📖 **阅读上下文随问题更新**：每轮重新选择论文材料，支持连续追问与多篇文献，统一分配文档、历史和附件的上下文预算。短文在空间允许时提供全文，长文选取相关片段。
+- 🔗 **点击引用查看原文**：有可靠位置时，支持跳转到 PDF 页面或 EPUB 章节。聊天历史保留引用，复制、导出和保存笔记时保留来源链接。
+- 💾 **聊天记录手动迁移**：支持导出、导入会话，可选择包含截图、图片和上传文件。导入合并新增消息，保留对话分支，重复导入避免重复添加。旧记录升级时增加稳定标识，迁移前生成并校验恢复备份。感谢 @siyuanj 在 [#84](https://github.com/Visterainer/aidea-zotero/issues/84) 中提出多设备使用建议。
+- 💬 **长对话更连贯**：改进增量历史摘要与阅读快捷指令，保留已有自定义指令；修复上下文预算裁剪时召回记忆丢失的问题。
+- 🛠️ **引用与导航修复**：改进 EPUB 章节跳转，修复未配对反引号导致引用失效的问题，并优先显示父文献标题，避免使用通用附件名称。
+- 🎨 **回复显示更完整**：修复主题气泡右侧裁切，保留原有外观。宽表格支持横向滚动，避免单词过度拆行。感谢 @Dousongyao 在 [#87](https://github.com/Visterainer/aidea-zotero/issues/87) 中反馈。
 
-## ✅ 兼容性与验证
+## ✅ Compatibility and Validation / 兼容性与验证
 
-- 支持 Zotero 7–10（`strict_min_version: 6.999`，`strict_max_version: 10.0.*`）。
-- 548 项 TypeScript 单元测试、110 项 Python Bridge 检查、Prettier、ESLint、插件及 TypeScript 构建、12 页面网站构建均通过。
-- 最新候选包已在 Windows / Zotero 8.0.3 中验证安装、完整重启、历史对话及数字公式恢复、更新弹窗排版，以及重启后不重复弹出。
-- 使用 `gpt-5.6-luna` 完成新旧提示词共 48 次请求的小样本对照。这不是 GPT-5.4 与 GPT-5.6 的模型能力比较，也不构成稳定提速承诺。
+- Supports Zotero 7–10. / 支持 Zotero 7–10。
+- Passed 604 unit tests, the plugin/TypeScript build, Prettier, and ESLint. / 604 项单元测试、插件及 TypeScript 构建、Prettier 和 ESLint 通过。
+- Feature testing covered Windows / Zotero 10.0.2; archive transfer and branch merging were also tested with Linux / Zotero 9.0.1. This does not represent full validation on every supported platform or version. / 功能测试覆盖 Windows / Zotero 10.0.2；归档迁移与分支合并另在 Linux / Zotero 9.0.1 上验证，不代表所有支持平台及版本均已完整验收。
 
-## 📦 安装方法
+## 📦 Installation / 安装
 
-下载 `AIdea-3.5.2.xpi`，然后依次选择：
+Download `AIdea-3.6.0.xpi`, install through **Tools → Plugins → Install Plugin From File**, then restart Zotero.
 
-**工具 → 插件 → 齿轮按钮 → 从文件安装插件**
+下载 `AIdea-3.6.0.xpi`，通过 **工具 → 插件 → 从文件安装插件** 安装，然后重启 Zotero。
 
-安装完成后重启 Zotero。
+## ℹ️ Scope and Limitations / 范围与限制
 
-## ℹ️ 使用说明
-
-- 本次更新不恢复已不可用的模型，也不改变服务商侧的模型可用性。回答质量、延迟和偶发格式错误仍可能随模型及服务状态变化。
-- “将译文写入标注”默认关闭，勾选和取消状态都会保存。
-- 只有被识别为输入长度或请求体过大的错误才触发上下文缩减；身份验证、额度、模型、参数及其他服务商错误仍会正常显示。
+- Chat transfer is manual. Settings, credentials, and the Memory database are not included. / 聊天迁移为手动操作，不包含设置、认证凭据或 Memory 数据库。
+- Zotero-managed paper originals are not bundled. Cross-device citation navigation requires matching library items and unchanged source files; unavailable locations are not guessed. / 不打包 Zotero 管理的论文原件。跨设备引用跳转需要匹配的文献条目及内容一致的原文文件，不猜测缺失位置。
+- Citations identify sources; they do not independently verify the model’s conclusions. Exact passage highlighting is not included. / 引用用于标明来源，不等于模型结论已经验证；本次不包含精确原文高亮。

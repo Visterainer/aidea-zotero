@@ -119,6 +119,20 @@ export function isManagedLibraryPanelSectionEnabled(
   return getLibraryPanelDisplayState(selectionState).managedSectionEnabled;
 }
 
+/** A newly connected Zotero section has no tab context until its first render. */
+export function isContextPanelSectionEnabled(
+  tabType: unknown,
+  item: unknown,
+  win: unknown,
+): boolean {
+  if (tabType == null || tabType === "reader") return true;
+  if (tabType !== "library") return false;
+  if (item) return true;
+  return isManagedLibraryPanelSectionEnabled(
+    getLibrarySelectionStateFromWindow(win),
+  );
+}
+
 export function getLibrarySelectedItemIdsFromWindow(win: unknown): number[] {
   try {
     const pane = (win as { ZoteroPane?: { getSelectedItems?: () => unknown } })

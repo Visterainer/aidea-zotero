@@ -1,3 +1,4 @@
+import { isGlobalChatKey } from "../../utils/chatTransfer";
 import {
   sanitizeText,
   normalizeSelectedText,
@@ -10,7 +11,6 @@ import {
   normalizeSelectedTextSource,
 } from "./normalizers";
 import {
-  GLOBAL_CONVERSATION_KEY_BASE,
   INLINE_CONTEXT_COLLAPSE_THRESHOLD,
   MAX_SELECTED_TEXT_CONTEXTS,
 } from "./constants";
@@ -613,7 +613,7 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     (selectedTextPreviewExpandedCache.get(itemId) ===
       SELECTED_TEXT_GROUP_EXPANDED_INDEX ||
       expandedIndex >= 0);
-  const isGlobalConversation = itemId >= GLOBAL_CONVERSATION_KEY_BASE;
+  const isGlobalConversation = isGlobalChatKey(itemId);
   previewList.style.display = "contents";
   previewList.innerHTML = "";
 

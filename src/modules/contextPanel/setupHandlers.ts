@@ -1,3 +1,5 @@
+import { bindChatTransferMenu } from "./chatTransferUI";
+import { exportCitationMarkdown } from "./citations";
 import { createElement } from "../../utils/domHelpers";
 import {
   AUTO_SCROLL_BOTTOM_THRESHOLD,
@@ -123,7 +125,7 @@ import {
   createNoteFromAssistantText,
   createNoteFromChatHistory,
   createStandaloneNoteFromChatHistory,
-  buildChatHistoryNotePayload,
+  buildValidatedChatHistoryNotePayload,
 } from "./notes";
 import {
   persistAttachmentBlob,
@@ -1262,7 +1264,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         await ensureConversationLoaded(item);
         const conversationKey = getConversationKey(item);
         const history = chatHistory.get(conversationKey) || [];
-        const payload = buildChatHistoryNotePayload(history);
+        const payload = await buildValidatedChatHistoryNotePayload(history);
         if (!payload.noteText) {
           if (status)
             setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
@@ -1285,7 +1287,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           await ensureConversationLoaded(currentItem);
           const conversationKey = getConversationKey(currentItem);
           const history = chatHistory.get(conversationKey) || [];
-          const payload = buildChatHistoryNotePayload(history);
+          const payload = await buildValidatedChatHistoryNotePayload(history);
           if (!payload.noteText) {
             if (status)
               setStatus(status, getPanelI18n().noChatHistoryDetected, "ready");
@@ -1318,6 +1320,23 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       });
     }
   }
+
+  if (exportMenu)
+    bindChatTransferMenu({
+      menu: exportMenu,
+      currentScope: () => ({
+        libraryID: getCurrentLibraryID(),
+        conversationKey: item ? getConversationKey(item) : undefined,
+        paperItemID: item && !isGlobalMode() ? item.id : undefined,
+      }),
+      close: closeExportMenu,
+      refreshed: async () => {
+        if (item) {
+          await ensureConversationLoaded(item);
+          refreshChat(body, item);
+        }
+      },
+    });
 
   if (exportBtn) {
     exportBtn.addEventListener("click", (e: Event) => {
@@ -5589,7 +5608,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   ): string => {
     const normalizedTitle = sanitizeText(attachment.title || "").trim();
     if (normalizedTitle) return normalizedTitle;
-    return group.attachments.length > 1 ? `PDF ${attachmentIndex + 1}` : "PDF";
+    const format = attachment.kind?.toUpperCase() || "PDF";
+    return group.attachments.length > 1
+      ? `${format} ${attachmentIndex + 1}`
+      : format;
   };
   const getPaperPickerGroupKey = (group: PaperSearchGroupCandidate): number =>
     group.itemId;
@@ -5908,7 +5930,19 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
             "span",
             "llm-paper-picker-group-meta",
             {
-              textContent: i18n.pdfCount(group.attachments.length),
+              textContent: group.attachments.some(
+                (entry) => entry.kind === "epub",
+              )
+                ? ["pdf", "epub"]
+                    .map((kind) => {
+                      const count = group.attachments.filter(
+                        (entry) => entry.kind === kind,
+                      ).length;
+                      return count ? `${count} ${kind.toUpperCase()}` : "";
+                    })
+                    .filter(Boolean)
+                    .join(" · ")
+                : i18n.pdfCount(group.attachments.length),
             },
           );
           const chevron = createElement(
@@ -5957,7 +5991,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           },
         );
         const meta = createElement(ownerDoc, "span", "llm-paper-picker-meta", {
-          textContent: i18n.pdfAttachment,
+          textContent:
+            attachment.kind === "epub"
+              ? i18n.pdfAttachment.replace("PDF", "EPUB")
+              : i18n.pdfAttachment,
         });
         attachmentMain.append(title, meta);
         option.append(indent, attachmentMain);
@@ -7083,9 +7120,11 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         const history = chatHistory.get(key) || [];
         const msg = history[msgIndex];
         if (!msg?.text?.trim()) return;
-        void copyTextToClipboard(body, msg.text.trim()).then(() => {
-          if (status) setStatus(status, getPanelI18n().copied, "ready");
-        });
+        void exportCitationMarkdown(msg.text.trim(), msg.contextRefs?.citations)
+          .then((text) => copyTextToClipboard(body, text))
+          .then(() => {
+            if (status) setStatus(status, getPanelI18n().copied, "ready");
+          });
         return;
       }
 
@@ -7110,7 +7149,14 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
               const libraryID = getCurrentLibraryID();
               await createStandaloneNoteFromChatHistory(libraryID, [msg]);
             } else {
-              await createNoteFromAssistantText(item, msg.text, modelName);
+              await createNoteFromAssistantText(
+                item,
+                await exportCitationMarkdown(
+                  msg.text,
+                  msg.contextRefs?.citations,
+                ),
+                modelName,
+              );
             }
             if (status) setStatus(status, i18n.saveAsNote, "ready");
           } catch (err) {

@@ -1,3 +1,4 @@
+import { citationMarkdown, evidenceForExport } from "./citations";
 import { renderMarkdownForNote } from "../../utils/markdown";
 import { getZoteroItem } from "../../utils/zoteroItems";
 import {
@@ -94,7 +95,11 @@ export function buildChatHistoryNotePayload(messages: Message[]): {
   const textLines: string[] = [];
   const htmlBlocks: string[] = [];
   for (const msg of messages) {
-    const text = sanitizeText(msg.text || "").trim();
+    const text = citationMarkdown(
+      sanitizeText(msg.text || "").trim(),
+      msg.contextRefs?.citations,
+      true,
+    );
     const screenshotImages = normalizeScreenshotImagesForNote(
       msg.screenshotImages,
     );
@@ -494,7 +499,7 @@ export async function createNoteFromChatHistory(
   if (parentId) {
     note.parentID = parentId;
   }
-  note.setNote(buildChatHistoryNotePayload(history).noteHtml);
+  note.setNote((await buildValidatedChatHistoryNotePayload(history)).noteHtml);
   await note.saveTx();
   ztoolkit.log(
     `LLM: Created chat history note for parent ${parentId ?? "standalone"}`,
@@ -513,9 +518,24 @@ export async function createStandaloneNoteFromChatHistory(
   }
   const note = new Zotero.Item("note");
   note.libraryID = normalizedLibraryID;
-  note.setNote(buildChatHistoryNotePayload(history).noteHtml);
+  note.setNote((await buildValidatedChatHistoryNotePayload(history)).noteHtml);
   await note.saveTx();
   ztoolkit.log(
     `LLM: Created standalone chat history note in library ${normalizedLibraryID}`,
   );
+}
+
+export async function buildValidatedChatHistoryNotePayload(
+  messages: Message[],
+): Promise<ReturnType<typeof buildChatHistoryNotePayload>> {
+  const validated = await Promise.all(
+    messages.map(async (message) => ({
+      ...message,
+      contextRefs: {
+        ...message.contextRefs,
+        citations: await evidenceForExport(message.contextRefs?.citations),
+      },
+    })),
+  );
+  return buildChatHistoryNotePayload(validated);
 }

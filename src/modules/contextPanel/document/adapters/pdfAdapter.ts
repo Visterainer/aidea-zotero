@@ -1,3 +1,4 @@
+import { extractPdfPageSegments } from "../pdfPages";
 import type { DocumentAdapter, DocumentExtraction } from "../types";
 import {
   getAttachmentContentType,
@@ -18,10 +19,18 @@ const capabilities: DocumentAdapter["capabilities"] = {
 
 async function extractPdfText(item: Zotero.Item): Promise<DocumentExtraction> {
   let text = "";
+  let segments: DocumentExtraction["segments"];
+  let incomplete = false;
   try {
     const result = await Zotero.PDFWorker.getFullText(item.id);
     if (result?.text) {
       text = result.text;
+      segments = extractPdfPageSegments(
+        text,
+        result.pageChars,
+        result.extractedPages,
+      );
+      incomplete = result.extractedPages < result.totalPages;
     }
   } catch (err) {
     ztoolkit.log("PDF extraction failed:", err);
@@ -29,11 +38,20 @@ async function extractPdfText(item: Zotero.Item): Promise<DocumentExtraction> {
 
   return {
     text,
-    completeness: text ? "complete" : "unavailable",
+    segments,
+    completeness: text ? (incomplete ? "partial" : "complete") : "unavailable",
   };
 }
 
 export const pdfDocumentAdapter: DocumentAdapter = {
+  async navigate(item, locator) {
+    await Zotero.Reader.open(
+      item.id,
+      locator?.kind === "pdf-page"
+        ? { pageIndex: locator.pageIndex }
+        : undefined,
+    );
+  },
   kind: "pdf",
   contentTypes: [PDF_CONTENT_TYPE],
   capabilities,

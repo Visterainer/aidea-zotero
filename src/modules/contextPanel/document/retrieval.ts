@@ -45,8 +45,7 @@ export type CreateDocumentTextContextOptions = {
 
 export type BuildDocumentContextOptions = {
   /**
-   * Compatibility flag retained for existing PDF callers. Historically this
-   * was diagnostic-only; use contextStrategy for adapter policy.
+   * Force bounded retrieval even when the adapter permits full text.
    */
   forceRetrieval?: boolean;
   contextStrategy?: "full-or-retrieval" | "retrieval";
@@ -59,6 +58,7 @@ export type BuildDocumentContextOptions = {
   onRetrievedSegments?: (segmentIds: string[]) => void;
   /** Cancels context preparation and provider-backed embedding requests. */
   signal?: AbortSignal;
+  onRetrievedChunks?: (indexes: number[]) => void;
   maxChunks?: number;
   maxLength?: number;
 };
@@ -500,8 +500,16 @@ export async function buildDocumentContext(
       ? MAX_CONTEXT_LENGTH_WITH_IMAGE
       : MAX_CONTEXT_LENGTH;
 
-  if (FORCE_FULL_CONTEXT && contextStrategy === "full-or-retrieval") {
-    if (!fullLength || fullLength <= FULL_CONTEXT_CHAR_LIMIT) {
+  if (
+    FORCE_FULL_CONTEXT &&
+    !forceRetrieval &&
+    contextStrategy === "full-or-retrieval"
+  ) {
+    if (
+      (!fullLength || fullLength <= FULL_CONTEXT_CHAR_LIMIT) &&
+      chunks.join("\n\n").length + 256 + title.length <= maxLength
+    ) {
+      options?.onRetrievedChunks?.(chunks.map((_, index) => index));
       contextParts.push(labels.fullText);
       contextParts.push(chunks.join("\n\n"));
       if (fullLength) {
@@ -750,6 +758,7 @@ export async function buildDocumentContext(
     ),
   );
   options?.onRetrievedSegments?.(retrievedSegmentIds);
+  options?.onRetrievedChunks?.(emittedIndexes);
 
   ztoolkit.log(
     `LLM buildContext: kind=${context.documentKind || "pdf"}, ` +
