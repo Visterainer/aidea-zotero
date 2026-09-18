@@ -1,3 +1,4 @@
+import { createModelBudgetSettings } from "./contextPanel/modelBudgetSettings";
 import { config } from "../../package.json";
 import { HTML_NS } from "../utils/domHelpers";
 import {
@@ -30,7 +31,7 @@ import {
 } from "../utils/oauthModelSelection";
 import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
-import { getPanelI18n } from "./contextPanel/i18n";
+import { getPanelI18n, getPanelLang } from "./contextPanel/i18n";
 import { refreshTranslateTabI18n } from "./contextPanel/i18n";
 import { clearSelectionTranslateColdStartFallbackState } from "./contextPanel/selectionTranslateColdStart";
 import { AUTHOR_PROFILE_SETTINGS_I18N } from "./authorProfiles/i18n";
@@ -4429,6 +4430,16 @@ export async function bootstrapSettingTab(
   ) as HTMLButtonElement;
   fetchModelsBtn.type = "button";
   customModelInputRow.append(customModelInput);
+  customModelInputRow.appendChild(
+    createModelBudgetSettings(
+      doc,
+      () => ({
+        apiBase: customApiBaseInput.value,
+        model: customModelInput.value,
+      }),
+      getPanelLang().startsWith("zh"),
+    ),
+  );
   const customModelHint = createEl(doc, "span", "llm-set-hint");
   customModelField.append(
     customModelLabel,
@@ -5692,13 +5703,17 @@ export async function bootstrapSettingTab(
       for (const row of providerModels) {
         const id = String(row.id || "").trim();
         if (!id) continue;
-        const line = createEl(doc, "label", "llm-set-model-row");
+        const line = createEl(doc, "div", "llm-set-model-row");
         const checkbox = createEl(
           doc,
           "input",
           "llm-set-checkbox",
         ) as HTMLInputElement;
         checkbox.type = "checkbox";
+        checkbox.setAttribute("aria-label", id);
+        line.addEventListener("click", (event: Event) => {
+          if (event.target !== checkbox) checkbox.click();
+        });
         checkbox.checked = selected.has(normalizeModelId(id));
         checkbox.addEventListener("change", () => {
           const nextSelected = new Set(
@@ -5742,6 +5757,17 @@ export async function bootstrapSettingTab(
           idRow.append(createEl(doc, "span", badgeCls, badgeText));
         }
         textBox.append(idRow);
+        textBox.appendChild(
+          createModelBudgetSettings(
+            doc,
+            () => ({
+              apiBase:
+                row.apiBase || providerToMarker(provider as OAuthProviderId),
+              model: id,
+            }),
+            getPanelLang().startsWith("zh"),
+          ),
+        );
         if (row.label && row.label !== id) {
           textBox.append(
             createEl(doc, "div", "llm-set-model-label", row.label),
@@ -6140,6 +6166,7 @@ export async function bootstrapSettingTab(
       apiKeyQuaternary: "",
       modelQuaternary: "",
       systemPrompt: "",
+      modelContextWindows: "{}",
       oauthModelListCache: "",
       oauthModelSelectionCache: "",
       oauthSetupLog: "",

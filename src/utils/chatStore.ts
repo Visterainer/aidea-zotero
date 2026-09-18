@@ -1,3 +1,11 @@
+import {
+  ensureChatTransferSchema,
+  reconcileTransferredConversations,
+} from "./chatTransfer";
+import type {
+  EvidenceRef,
+  SummaryCheckpoint,
+} from "../modules/contextPanel/document/evidence";
 import type {
   SelectedTextSource,
   PaperContextRef,
@@ -28,6 +36,9 @@ export type ContextRefsJson = {
   supplementalPapers?: PaperContextRef[];
   fileAttachmentIds?: string[];
   compactedSummary?: string;
+  summaryCheckpoint?: SummaryCheckpoint;
+  citations?: EvidenceRef[];
+  unavailableAttachments?: string[];
 };
 
 export type StoredChatMessage = {
@@ -326,6 +337,15 @@ async function initializeChatStore(): Promise<void> {
     "linear-conversations-to-tree",
     migrateLinearConversationsToTree,
   );
+  try {
+    await ensureChatTransferSchema();
+    await reconcileTransferredConversations();
+  } catch (error) {
+    ztoolkit.log(
+      "LLM: Chat transfer migration unavailable; legacy chat remains enabled",
+      error,
+    );
+  }
 }
 
 async function runOptionalChatStoreMigration(
@@ -406,6 +426,12 @@ function normalizeContextRefsForStorage(
     const summary = normalizeModelOutput(normalized.compactedSummary).text;
     if (summary) normalized.compactedSummary = summary;
     else delete normalized.compactedSummary;
+  }
+  if (normalized.summaryCheckpoint) {
+    normalized.summaryCheckpoint = {
+      ...normalized.summaryCheckpoint,
+      text: normalizeModelOutput(normalized.summaryCheckpoint.text).text,
+    };
   }
   return normalized;
 }
@@ -1605,7 +1631,7 @@ export async function createGlobalConversation(
   return await Zotero.DB.executeTransaction(async () => {
     const rows = (await Zotero.DB.queryAsync(
       `SELECT MAX(conversation_key) AS maxConversationKey
-       FROM ${GLOBAL_CONVERSATIONS_TABLE}`,
+       FROM (SELECT conversation_key FROM ${GLOBAL_CONVERSATIONS_TABLE} UNION ALL SELECT conversation_key FROM ${PAPER_CONVERSATIONS_TABLE})`,
     )) as Array<{ maxConversationKey?: unknown }> | undefined;
     const maxConversationKey = Number(rows?.[0]?.maxConversationKey);
     const nextConversationKey = Number.isFinite(maxConversationKey)
@@ -1631,6 +1657,7 @@ export async function listGlobalConversations(
 ): Promise<GlobalConversationSummary[]> {
   const normalizedLibraryID = normalizeLibraryID(libraryID);
   if (!normalizedLibraryID) return [];
+  await reconcileTransferredConversations();
   const normalizedLimit = normalizeLimit(limit, 50);
 
   const rows = (await Zotero.DB.queryAsync(
@@ -1844,7 +1871,7 @@ export async function createPaperConversation(
   const createdAt = Date.now();
   return await Zotero.DB.executeTransaction(async () => {
     const rows = (await Zotero.DB.queryAsync(
-      `SELECT MAX(conversation_key) AS maxKey FROM ${PAPER_CONVERSATIONS_TABLE}`,
+      `SELECT MAX(conversation_key) AS maxKey FROM ${PAPER_CONVERSATIONS_TABLE} WHERE conversation_key < ${GLOBAL_CONVERSATION_KEY_BASE}`,
     )) as Array<{ maxKey?: unknown }> | undefined;
     const maxKey = Number(rows?.[0]?.maxKey);
     const nextKey = Number.isFinite(maxKey)
@@ -1865,6 +1892,7 @@ export async function listPaperConversations(
   limit: number,
 ): Promise<PaperConversationSummary[]> {
   if (!Number.isFinite(parentItemId) || parentItemId <= 0) return [];
+  await reconcileTransferredConversations();
   const normalizedParent = Math.floor(parentItemId);
   const normalizedLimit = normalizeLimit(limit, 10);
 

@@ -1,3 +1,4 @@
+import { fileEvidence } from "./fileEvidence";
 import { SELECTED_TEXT_MAX_LENGTH } from "./constants";
 import {
   normalizeSelectedTextPaperContexts,
@@ -207,8 +208,14 @@ export function buildModelPromptWithFileContext(
       `- ${attachment.name} (${attachment.mimeType || "application/octet-stream"}, ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB)`,
     );
     if (attachment.textContent) {
-      const clipped = attachment.textContent.slice(0, 12000);
-      textBlocks.push(`### ${attachment.name}\n${clipped}`);
+      const evidence = fileEvidence(attachment)!;
+      const range =
+        evidence.text.length === attachment.textContent.length
+          ? "full"
+          : "excerpts";
+      textBlocks.push(
+        `### ${attachment.name}\nSupplied: ${range}; source only, no page location.\n[[cite:${evidence.id}]]\n${evidence.text}`,
+      );
     }
   }
   const blocks: string[] = [baseQuestion];

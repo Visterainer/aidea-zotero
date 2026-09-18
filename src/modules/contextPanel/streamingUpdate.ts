@@ -1,3 +1,5 @@
+import { citationMarkdown } from "./citations";
+import type { EvidenceRef } from "./document/evidence";
 /**
  * Streaming Update Module
  *
@@ -96,6 +98,7 @@ export function findAssistantBubbleByMessageId(
 export function patchStreamingBubble(
   bubble: HTMLDivElement | null,
   text: string,
+  citations?: EvidenceRef[],
 ): void {
   if (!bubble || !bubble.parentNode) return;
 
@@ -129,7 +132,7 @@ export function patchStreamingBubble(
   }
 
   try {
-    contentEl.innerHTML = renderMarkdown(safeText);
+    contentEl.innerHTML = renderMarkdown(citationMarkdown(safeText, citations));
   } catch {
     contentEl.textContent = safeText;
   }

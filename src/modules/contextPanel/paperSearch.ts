@@ -1,8 +1,10 @@
+import { getDocumentAdapterForItem } from "./document/registry";
 import type { PaperContextRef } from "./types";
 import { getZoteroItem } from "../../utils/zoteroItems";
 
 export type PaperSearchAttachmentCandidate = {
   contextItemId: number;
+  kind?: string;
   title: string;
   score: number;
 };
@@ -82,12 +84,8 @@ function toModifiedTimestamp(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function isPdfAttachment(item: Zotero.Item | null | undefined): boolean {
-  return Boolean(
-    item &&
-    item.isAttachment?.() &&
-    item.attachmentContentType === "application/pdf",
-  );
+function isReaderAttachment(item: Zotero.Item | null | undefined): boolean {
+  return Boolean(getDocumentAdapterForItem(item));
 }
 
 function getFieldText(item: Zotero.Item, field: string): string {
@@ -98,13 +96,13 @@ function getFieldText(item: Zotero.Item, field: string): string {
   }
 }
 
-function getPdfChildAttachments(item: Zotero.Item): Zotero.Item[] {
+function getReaderChildAttachments(item: Zotero.Item): Zotero.Item[] {
   const out: Zotero.Item[] = [];
   if (!item?.isRegularItem?.()) return out;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
     const attachment = getZoteroItem(attachmentId);
-    if (attachment && isPdfAttachment(attachment)) {
+    if (attachment && isReaderAttachment(attachment)) {
       out.push(attachment);
     }
   }
@@ -127,8 +125,9 @@ function resolveAttachmentTitle(
   if (title) return title;
   const filename = resolveAttachmentFilename(attachment);
   if (filename) return filename;
-  if (total > 1) return `PDF ${index + 1}`;
-  return "PDF";
+  const format =
+    getDocumentAdapterForItem(attachment)?.kind.toUpperCase() || "Document";
+  return total > 1 ? `${format} ${index + 1}` : format;
 }
 
 function buildAttachmentCandidates(
@@ -136,6 +135,7 @@ function buildAttachmentCandidates(
 ): PaperSearchAttachmentCandidate[] {
   return attachments.map((attachment, index) => ({
     contextItemId: attachment.id,
+    kind: getDocumentAdapterForItem(attachment)?.kind,
     title: resolveAttachmentTitle(attachment, index, attachments.length),
     score: 0,
   }));
@@ -171,11 +171,11 @@ function buildGroupCandidate(
 function buildStandaloneAttachmentCandidate(
   attachment: Zotero.Item,
 ): PaperSearchGroupCandidate | null {
-  if (!isPdfAttachment(attachment)) return null;
+  if (!isReaderAttachment(attachment)) return null;
   const title =
     getFieldText(attachment, "title") ||
     resolveAttachmentFilename(attachment) ||
-    `PDF ${attachment.id}`;
+    `${getDocumentAdapterForItem(attachment)?.kind.toUpperCase() || "Document"} ${attachment.id}`;
   const firstCreator =
     normalizeText(attachment.firstCreator) ||
     getFieldText(attachment, "firstCreator") ||
@@ -192,6 +192,7 @@ function buildStandaloneAttachmentCandidate(
     attachments: [
       {
         contextItemId: attachment.id,
+        kind: getDocumentAdapterForItem(attachment)?.kind,
         title,
         score: 0,
       },
@@ -332,7 +333,7 @@ export async function searchPaperCandidates(
   const candidates: PaperSearchGroupCandidate[] = [];
 
   for (const item of items) {
-    if (isPdfAttachment(item)) {
+    if (isReaderAttachment(item)) {
       if (item.parentID || (excludeId && item.id === excludeId)) {
         continue;
       }
@@ -345,7 +346,7 @@ export async function searchPaperCandidates(
     }
 
     if (!item?.isRegularItem?.()) continue;
-    const contextAttachments = getPdfChildAttachments(item).filter(
+    const contextAttachments = getReaderChildAttachments(item).filter(
       (attachment) => !excludeId || attachment.id !== excludeId,
     );
     if (!contextAttachments.length) continue;

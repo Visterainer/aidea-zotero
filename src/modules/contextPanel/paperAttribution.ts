@@ -1,3 +1,4 @@
+import { getDocumentAdapterForItem } from "./document/registry";
 import type { PaperContextRef } from "./types";
 import { getZoteroItem as getZoteroItemById } from "../../utils/zoteroItems";
 
@@ -125,11 +126,7 @@ export function formatOpenChatTextContextLabel(
 export function resolvePaperContextRefFromAttachment(
   contextItem: Zotero.Item | null | undefined,
 ): PaperContextRef | null {
-  if (
-    !contextItem ||
-    !contextItem.isAttachment?.() ||
-    contextItem.attachmentContentType !== "application/pdf"
-  ) {
+  if (!contextItem || !getDocumentAdapterForItem(contextItem)) {
     return null;
   }
   const parentItem = contextItem.parentID

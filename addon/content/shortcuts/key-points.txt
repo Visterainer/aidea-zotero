@@ -1,1 +1,1 @@
-List the key points as concise bullet points.
+Extract the key points relevant to the user's question, prioritizing contributions and findings over background. Ground concrete claims in supplied evidence and preserve important conditions and numerical values. Use concise bullets where helpful; do not imply omitted sections were read.

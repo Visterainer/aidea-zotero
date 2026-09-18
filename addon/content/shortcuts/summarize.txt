@@ -1,1 +1,1 @@
-Summarize the document in 3-5 bullet points.
+Summarize the supplied paper, focusing on its research question, main approach, key findings and the conditions under which they hold. Cite available evidence for important paper-specific claims. Distinguish the authors' conclusions from your interpretation. Match the depth and format to the user's question; do not fill missing sections with guesses.

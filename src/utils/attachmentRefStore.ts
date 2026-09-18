@@ -172,10 +172,43 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
   }
 }
 
+/** Rebuild from every branch, including archives imported by older builds. */
+export async function reconcileConversationAttachmentRefs(
+  conversationKeys?: readonly number[],
+): Promise<void> {
+  await ensureAttachmentRefTables();
+  const exists = await Zotero.DB.valueQueryAsync(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='zotero_ai_chat_messages'",
+  );
+  if (!exists) return;
+  const rows = (await Zotero.DB.queryAsync(
+    "SELECT conversation_key, attachments_json FROM zotero_ai_chat_messages",
+  )) as Array<{ conversation_key: number; attachments_json?: string }>;
+  const wanted = conversationKeys ? new Set(conversationKeys) : undefined;
+  const owners = new Map<number, Set<string>>();
+  for (const key of conversationKeys || []) owners.set(key, new Set());
+  for (const row of rows || []) {
+    if (wanted && !wanted.has(row.conversation_key)) continue;
+    let hashes = owners.get(row.conversation_key);
+    if (!hashes) owners.set(row.conversation_key, (hashes = new Set()));
+    // Fail closed: malformed metadata must never authorize file deletion.
+    const attachments = JSON.parse(row.attachments_json || "[]");
+    if (!Array.isArray(attachments))
+      throw new Error("Invalid attachment metadata");
+    for (const attachment of attachments) {
+      const hash = extractManagedBlobHash(attachment?.storedPath);
+      if (hash) hashes.add(hash);
+    }
+  }
+  for (const [key, hashes] of owners)
+    await replaceOwnerAttachmentRefs("conversation", key, [...hashes]);
+}
+
 export async function collectAndDeleteUnreferencedBlobs(
   minAgeMs: number,
 ): Promise<void> {
   await ensureAttachmentRefTables();
+  await reconcileConversationAttachmentRefs();
   const minAge = Number.isFinite(minAgeMs)
     ? Math.max(0, Math.floor(minAgeMs))
     : ATTACHMENT_GC_MIN_AGE_MS;

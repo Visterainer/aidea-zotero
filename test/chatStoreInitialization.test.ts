@@ -145,6 +145,8 @@ describe("chatStore initialization", function () {
     );
     assert.deepEqual(logs, [
       "LLM: Optional chat store migration failed (linear-conversations-to-tree)",
+      // The fixture has no file backup runtime; transfer failure must not disable chat.
+      "LLM: Chat transfer migration unavailable; legacy chat remains enabled",
     ]);
   });
 });

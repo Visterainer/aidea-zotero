@@ -1,3 +1,4 @@
+import type { EvidenceRef, SummaryCheckpoint } from "./document/evidence";
 import type {
   DocumentCapabilities,
   DocumentCompleteness,
@@ -56,6 +57,9 @@ export interface Message {
     supplementalPapers?: PaperContextRef[];
     fileAttachmentIds?: string[];
     compactedSummary?: string;
+    summaryCheckpoint?: SummaryCheckpoint;
+    citations?: EvidenceRef[];
+    unavailableAttachments?: string[];
   };
   streaming?: boolean;
 }
@@ -70,6 +74,7 @@ export type ActionDropdownSpec = {
   disabled?: boolean;
 };
 export type AdvancedModelParams = {
+  contextWindowTokens?: number;
   temperature: number;
   maxTokens: number;
 };

@@ -1,3 +1,31 @@
+import { isGlobalChatKey } from "../../utils/chatTransfer";
+import { fileEvidence } from "./fileEvidence";
+import { checkpointMatches } from "./summaryCheckpoint";
+import {
+  estimateTokens,
+  sliceToTokens,
+  resolveInputBudget,
+  fitHistory,
+  historyTokens,
+} from "../../utils/contextBudget";
+import {
+  formatDocumentContext,
+  resolveSystemPrompt,
+} from "../../utils/llmPrompts";
+import {
+  buildReadingContext,
+  retrievalQuestion,
+  CITATION_GUIDANCE,
+} from "./document/readingContext";
+import {
+  citationMarkdown,
+  exportCitationMarkdown,
+  citedEvidence,
+  navigateCitation,
+  mapCitationText,
+} from "./citations";
+import type { EvidenceRef, SummaryCheckpoint } from "./document/evidence";
+import { getModelContextWindow } from "../../utils/modelContextWindow";
 import { renderMarkdown, renderMarkdownForNote } from "../../utils/markdown";
 import { getZoteroItem } from "../../utils/zoteroItems";
 import { COMPACTION_SYSTEM_PROMPT } from "../../utils/llmPrompts";
@@ -31,7 +59,6 @@ import {
   AUTO_SCROLL_BOTTOM_THRESHOLD,
   MAX_SELECTED_IMAGES,
   MAX_SELECTED_PAPER_CONTEXTS,
-  GLOBAL_CONVERSATION_KEY_BASE,
   ACTIVE_PAPER_MULTI_CONTEXT_MAX_CHUNKS,
   ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH,
   CONTEXT_COMPACTION_THRESHOLD,
@@ -1148,22 +1175,78 @@ function detectProviderForModel(modelName: string): string | null {
   return null;
 }
 
-async function buildCombinedContextForRequest(params: {
+export async function prepareChatRequest(params: {
   item: Zotero.Item;
   question: string;
   imageCount: number;
+  fileCount: number;
+  attachments?: ChatAttachment[];
   paperContexts: PaperContextRef[];
   apiBase: string;
   apiKey: string;
+  model: string;
+  advanced?: AdvancedModelParams;
+  historyForLLM: Message[];
   conversationKey: number;
   signal?: AbortSignal;
   setStatusSafely: (
     text: string,
     kind: Parameters<typeof setStatus>[2],
   ) => void;
-}): Promise<string> {
+}): Promise<{
+  combinedContext: string;
+  llmHistory: ChatMessage[];
+  citations: EvidenceRef[];
+}> {
   throwIfRequestAborted(params.signal);
-  // ── Get or create the conversation-level context pool ──
+  const limits = resolveInputBudget(
+    params.advanced?.contextWindowTokens ??
+      getModelContextWindow(params.apiBase, params.model),
+    params.advanced?.maxTokens,
+  );
+  const system = resolveSystemPrompt({
+    customSystemPrompt: getStringPref("systemPrompt"),
+    uiLanguage: getStringPref("uiLanguage"),
+    locale: Zotero.locale,
+  });
+  // Selected text and local file text are already part of question. Reserve a
+  // conservative allowance for visual inputs; providers tokenize images differently.
+  const fixed =
+    estimateTokens(system) +
+    estimateTokens(params.question) +
+    params.imageCount * 4096 +
+    params.fileCount * 8192 +
+    256;
+  if (fixed >= limits.inputTokens)
+    throw new Error(
+      "Current question/attachments exceed the input budget. Reduce attachments or set the model context limit. 当前问题或附件超出输入预算，请减少附件或设置模型上下文上限。",
+    );
+  const available = limits.inputTokens - fixed;
+  const historyBudget = Math.max(
+    0,
+    Math.min(
+      available - 256,
+      Math.max(
+        Math.floor(available * 0.35),
+        historyTokens(buildLLMHistoryMessages(params.historyForLLM.slice(-10))),
+      ),
+    ),
+  );
+  let llmHistory = await compactConversationHistory({
+    ...params,
+    combinedContext: "",
+    currentQuestion: params.question,
+    historyBudget,
+    contextWindowTokens: limits.contextWindow,
+  });
+  llmHistory = fitHistory(llmHistory, historyBudget);
+  const documentBudget = Math.max(
+    0,
+    available -
+      historyTokens(llmHistory) -
+      estimateTokens(CITATION_GUIDANCE) -
+      128,
+  );
   let pool = conversationContextPool.get(params.conversationKey);
   if (!pool) {
     pool = {
@@ -1177,250 +1260,192 @@ async function buildCombinedContextForRequest(params: {
     };
     conversationContextPool.set(params.conversationKey, pool);
   }
-
-  // ── Zone A: Memory context (re-queried every turn) ──
-  const memoryLibraryID = resolveMemoryLibraryID(params.item);
-  let memoryContext = "";
-  if (memoryLibraryID && params.question.trim()) {
+  if (pool.basePdfItemId === null && !pool.basePdfRemoved) {
+    const source = resolveContextSourceItem(params.item);
+    const doc = resolveReaderDocument(source.contextItem);
+    if (doc) {
+      pool.basePdfItemId = doc.item.id;
+      pool.baseDocumentKind = doc.kind;
+      pool.basePdfTitle = String(doc.item.getField("title") || "Document");
+    }
+  }
+  // Only source identities persist in the pool. Every turn checks source revisions
+  // and selects evidence afresh, including supplemental papers.
+  pool.basePdfContext = "";
+  pool.supplementalContexts.clear();
+  const targets: { item: Zotero.Item; preferred?: string[]; base?: boolean }[] =
+    [];
+  if (pool.basePdfItemId && !pool.basePdfRemoved) {
+    const item = getZoteroItem(pool.basePdfItemId);
+    if (item)
+      targets.push({
+        item,
+        preferred:
+          retrievalQuestion(params.question, params.historyForLLM) !==
+          params.question
+            ? pool.baseDocumentSegmentIds
+            : undefined,
+        base: true,
+      });
+  }
+  for (const ref of params.paperContexts) {
+    if (targets.some((t) => t.item.id === ref.contextItemId)) continue;
+    const item = getZoteroItem(ref.contextItemId) || getZoteroItem(ref.itemId);
+    if (!item) continue;
+    targets.push({ item });
+    pool.supplementalContexts.set(ref.contextItemId, {
+      ref,
+      builtContext: "",
+      addedAtTurn: 0,
+    });
+  }
+  const query = retrievalQuestion(params.question, params.historyForLLM);
+  const share = targets.length
+    ? Math.floor(documentBudget / targets.length)
+    : documentBudget;
+  const results: {
+    text: string;
+    evidenceRefs: EvidenceRef[];
+    budgetUsage: number;
+  }[] = [];
+  for (const target of targets) {
+    throwIfRequestAborted(params.signal);
+    const document = resolveReaderDocument(target.item);
+    if (document) {
+      const result = await buildReadingContext(document, query, share, {
+        ...params,
+        preferredSegmentIds: target.preferred,
+      });
+      results.push(result);
+      if (target.base)
+        pool.baseDocumentSegmentIds = result.evidenceRefs
+          .map((r) => r.segmentId || "")
+          .filter(Boolean);
+    } else {
+      const abstract = String(target.item.getField("abstractNote") || "");
+      const text = sliceToTokens(
+        `Title: ${target.item.getField("title")}\nExtraction: unavailable; supplied: ${abstract ? "abstract" : "unavailable"}\n${abstract || "Metadata only; no paper evidence available"}`,
+        Math.max(0, share - 20),
+      );
+      const ref: EvidenceRef = {
+        id: `m${target.item.id}`,
+        itemId: target.item.id,
+        itemKey: target.item.key,
+        libraryId: target.item.libraryID,
+        title: String(target.item.getField("title")),
+        text,
+      };
+      results.push({
+        text: `[[cite:${ref.id}]]\n${text}`,
+        evidenceRefs: [ref],
+        budgetUsage: estimateTokens(text) + 20,
+      });
+    }
+  }
+  // Redistribute only unused shares, after every paper has received its base share.
+  let spare =
+    documentBudget - results.reduce((n, r) => n + r.budgetUsage + 8, 0);
+  for (let i = 0; i < results.length && spare > 128; i++) {
+    if (results[i].budgetUsage < share * 0.75) continue;
+    const document = resolveReaderDocument(targets[i].item);
+    if (!document) continue;
+    const before = results[i].budgetUsage;
+    results[i] = await buildReadingContext(document, query, before + spare, {
+      ...params,
+      preferredSegmentIds: targets[i].preferred,
+    });
+    spare -= Math.max(0, results[i].budgetUsage - before);
+  }
+  let memory = "";
+  const libraryID = resolveMemoryLibraryID(params.item);
+  if (libraryID && spare > 128) {
     try {
-      const memories = await searchMemories({
-        libraryID: memoryLibraryID,
+      const entries = await searchMemories({
+        libraryID,
         query: params.question,
         limit: 3,
         minScore: 0.35,
       });
-      if (memories.length) {
-        memoryContext = formatRelevantMemoriesContext(
-          memories.map((entry) => ({
-            category: entry.entry.category,
-            text: entry.entry.text,
+      memory = sliceToTokens(
+        formatRelevantMemoriesContext(
+          entries.map((e) => ({
+            category: e.entry.category,
+            text: e.entry.text,
           })),
-        );
-        params.setStatusSafely(
-          `Using ${memories.length} memory item(s)`,
-          "sending",
-        );
-      }
-    } catch (err) {
-      ztoolkit.log("LLM: Memory recall failed", err);
+        ),
+        Math.min(512, spare),
+      );
+    } catch {
+      ztoolkit.log("LLM: memory recall unavailable");
     }
   }
-  throwIfRequestAborted(params.signal);
-
-  // ── Zone A: Base PDF context (cached after first build) ──
-  const hasSupplementalPaperContexts = params.paperContexts.length > 0;
-  let pdfContext = "";
-  if (pool.basePdfRemoved) {
-    // User explicitly unpinned the base PDF — send nothing.
-    pdfContext = "";
-    ztoolkit.log("LLM context: base PDF was unpinned by user");
-  } else if (pool.basePdfContext) {
-    // Subsequent turns: use the cached context, no tab dependency.
-    pdfContext = pool.basePdfContext;
-    params.setStatusSafely(
-      getPanelI18n().usingCachedDocumentContext,
-      "sending",
-    );
-    ztoolkit.log(
-      `LLM context: using cached basePdfContext (${pdfContext.length} chars, itemId=${pool.basePdfItemId})`,
-    );
-  } else if (pool.basePdfItemId !== null) {
-    // Pool was restored from DB with a known item ID but empty text.
-    // Rebuild from the stored ID instead of re-resolving from the current tab.
-    params.setStatusSafely(getPanelI18n().rebuildingDocumentContext, "sending");
-    try {
-      const ctxItem = getZoteroItem(pool.basePdfItemId);
-      const readerDocument = resolveReaderDocument(ctxItem);
-      if (readerDocument) {
-        const cached = await ensureDocumentContext(readerDocument);
-        const queryDependent = isDocumentContextQueryDependent(readerDocument);
-        pdfContext = await buildReaderDocumentContext(
-          readerDocument,
-          cached || undefined,
-          params.question,
-          params.imageCount > 0,
-          { apiBase: params.apiBase, apiKey: params.apiKey },
-          {
-            forceRetrieval: hasSupplementalPaperContexts,
-            maxChunks: hasSupplementalPaperContexts
-              ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_CHUNKS
-              : undefined,
-            maxLength: hasSupplementalPaperContexts
-              ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH
-              : undefined,
-            preferredSegmentIds: queryDependent
-              ? pool.baseDocumentSegmentIds
-              : undefined,
-            onRetrievedSegments: queryDependent
-              ? (segmentIds) => {
-                  pool.baseDocumentSegmentIds = segmentIds;
-                }
-              : undefined,
-            signal: params.signal,
-          },
-        );
-        pool.basePdfContext = queryDependent ? "" : pdfContext;
-        pool.baseDocumentKind = readerDocument.kind;
-        ztoolkit.log(
-          `LLM context: rebuilt basePdfContext from stored ID ${pool.basePdfItemId} (${pdfContext.length} chars)`,
-        );
-      } else {
-        ztoolkit.log(
-          `LLM context: stored basePdfItemId=${pool.basePdfItemId} no longer exists`,
-        );
-        resetBaseDocumentState(pool);
-      }
-    } catch (err) {
-      throwIfRequestAborted(params.signal);
-      ztoolkit.log("LLM context: failed to rebuild from stored ID", err);
-      resetBaseDocumentState(pool);
-    }
-  } else {
-    // First turn: resolve from tab and cache.
-    const contextSource = resolveContextSourceItem(params.item);
-    params.setStatusSafely(contextSource.statusText, "sending");
-    if (contextSource.contextItem) {
-      const ctxItem = contextSource.contextItem;
-      const readerDocument = resolveReaderDocument(ctxItem);
-      // This branch establishes a new base document, so no structural scope
-      // from an earlier or missing attachment may carry into it.
-      pool.baseDocumentSegmentIds = [];
-      ztoolkit.log(
-        `LLM context: item=${ctxItem.id}, isAttachment=${ctxItem.isAttachment()}, ` +
-          `contentType=${ctxItem.attachmentContentType || "N/A"}, hasCachedText=${pdfTextCache.has(ctxItem.id)}`,
-      );
-      const cached = readerDocument
-        ? await ensureDocumentContext(readerDocument)
-        : null;
-      ztoolkit.log(
-        `LLM context: cached chunks=${cached?.chunks?.length ?? 0}, fullLength=${cached?.fullLength ?? 0}`,
-      );
-      const queryDependent = readerDocument
-        ? isDocumentContextQueryDependent(readerDocument)
-        : false;
-      pdfContext = readerDocument
-        ? await buildReaderDocumentContext(
-            readerDocument,
-            cached || undefined,
-            params.question,
-            params.imageCount > 0,
-            { apiBase: params.apiBase, apiKey: params.apiKey },
-            {
-              forceRetrieval: hasSupplementalPaperContexts,
-              maxChunks: hasSupplementalPaperContexts
-                ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_CHUNKS
-                : undefined,
-              maxLength: hasSupplementalPaperContexts
-                ? ACTIVE_PAPER_MULTI_CONTEXT_MAX_LENGTH
-                : undefined,
-              preferredSegmentIds: queryDependent
-                ? pool.baseDocumentSegmentIds
-                : undefined,
-              onRetrievedSegments: queryDependent
-                ? (segmentIds) => {
-                    pool.baseDocumentSegmentIds = segmentIds;
-                  }
-                : undefined,
-              signal: params.signal,
-            },
-          )
-        : "";
-      // Lock into the pool.
-      pool.basePdfContext = readerDocument && !queryDependent ? pdfContext : "";
-      pool.basePdfItemId = ctxItem.id;
-      pool.baseDocumentKind = readerDocument?.kind || null;
-      try {
-        const parentItem = ctxItem.parentID
-          ? getZoteroItem(ctxItem.parentID)
-          : null;
-        pool.basePdfTitle =
-          (parentItem ? parentItem.getField("title") : "") ||
-          ctxItem.getField("title") ||
-          "Document";
-      } catch (_e) {
-        pool.basePdfTitle = "Document";
-      }
-      ztoolkit.log(
-        `LLM context: pdfContext length=${pdfContext.length} (cached to pool)`,
-      );
-    } else {
-      ztoolkit.log(
-        `LLM context: no contextItem resolved. statusText="${contextSource.statusText}"`,
-      );
-    }
-  }
-
-  // ── Zone A: Supplemental paper contexts (accumulated) ──
-  // Build only new papers; reuse already-built ones from the pool.
-  // Filter out any supplemental paper that is the same as the base PDF
-  // to avoid injecting the same document content twice.
-  const rawPaperRefs = params.paperContexts;
-  const currentPaperRefs =
-    pool.basePdfItemId !== null && !pool.basePdfRemoved
-      ? rawPaperRefs.filter(
-          (ref) =>
-            ref.contextItemId !== pool.basePdfItemId &&
-            ref.itemId !== pool.basePdfItemId,
-        )
-      : rawPaperRefs;
-  const currentRefIds = new Set(
-    currentPaperRefs.map((ref) => ref.contextItemId),
-  );
-  // Remove papers that the user has unpinned from the preview area.
-  for (const existingId of pool.supplementalContexts.keys()) {
-    if (!currentRefIds.has(existingId)) {
-      pool.supplementalContexts.delete(existingId);
-      ztoolkit.log(
-        `LLM context: removed unpinned supplemental paper contextItemId=${existingId}`,
-      );
-    }
-  }
-  // Build newly added papers or rebuild DB-restored ones with empty content.
-  const turnNumber = (chatHistory.get(params.conversationKey)?.length ?? 0) + 1;
-  for (const ref of currentPaperRefs) {
-    const existing = pool.supplementalContexts.get(ref.contextItemId);
-    if (existing && existing.builtContext) continue; // Already built, skip.
-    const built = await buildSinglePaperContext(
-      ref,
-      params.question,
-      pool.supplementalContexts.size,
-      { apiBase: params.apiBase, apiKey: params.apiKey },
-    );
-    pool.supplementalContexts.set(ref.contextItemId, {
-      ref,
-      builtContext: built,
-      addedAtTurn: existing?.addedAtTurn ?? turnNumber,
-    });
-    ztoolkit.log(
-      `LLM context: ${existing ? "rebuilt" : "built"} supplemental paper contextItemId=${ref.contextItemId} (${built.length} chars)`,
-    );
-  }
-  if (pool.supplementalContexts.size > 0) {
-    params.setStatusSafely(
-      getPanelI18n().paperCount(pool.supplementalContexts.size, Number.NaN),
-      "sending",
-    );
-  }
-
-  // ── Combine all Zone A segments ──
-  const supplementalBlocks = [...pool.supplementalContexts.values()]
-    .map((entry) => entry.builtContext)
-    .filter(Boolean);
-  const supplementalPaperContext = supplementalBlocks.length
-    ? `Supplemental Paper Contexts:\n\n${supplementalBlocks.join("\n\n---\n\n")}`
-    : "";
-
-  throwIfRequestAborted(params.signal);
-  return [memoryContext, pdfContext, supplementalPaperContext]
-    .map((entry) => sanitizeText(entry || "").trim())
+  let combinedContext = [
+    CITATION_GUIDANCE,
+    ...results.map((r) => r.text),
+    memory,
+  ]
     .filter(Boolean)
-    .join("\n\n====================\n\n");
+    .join("\n\n");
+  // JSON escaping and message envelopes count too. Drop complete evidence blocks
+  // from the largest paper first rather than cutting IDs or source text mid-block.
+  while (
+    fixed +
+      historyTokens(llmHistory) +
+      estimateTokens(formatDocumentContext(combinedContext)) >
+    limits.inputTokens
+  ) {
+    const largest = [...results]
+      .sort((a, b) => b.text.length - a.text.length)
+      .find((r) => r.evidenceRefs.length);
+    if (!largest)
+      throw new Error(
+        "Input budget is too small for the selected material / 当前输入预算不足",
+      );
+    const dropped = largest.evidenceRefs.pop()!;
+    const marker = `[[cite:${dropped.id}]]`;
+    const index = largest.text.indexOf(marker);
+    if (index >= 0)
+      largest.text = largest.text
+        .slice(0, index)
+        .replace("supplied: full", "supplied: excerpts");
+    else largest.text = "";
+    combinedContext = [CITATION_GUIDANCE, ...results.map((r) => r.text)].join(
+      "\n\n",
+    );
+  }
+  const citations = [
+    ...results.flatMap((r) => r.evidenceRefs),
+    ...(params.attachments || [])
+      .map(fileEvidence)
+      .filter((ref): ref is EvidenceRef => Boolean(ref)),
+  ];
+  const availableIds = new Set(citations.map((ref) => ref.id));
+  llmHistory = llmHistory.map((message) => ({
+    ...message,
+    content:
+      typeof message.content === "string"
+        ? mapCitationText(message.content, (id) =>
+            availableIds.has(id) ? `[[cite:${id}]]` : "",
+          )
+        : message.content,
+  }));
+  const baseIndex = targets.findIndex((target) => target.base);
+  if (baseIndex >= 0)
+    pool.baseDocumentSegmentIds = results[baseIndex].evidenceRefs
+      .map((ref) => ref.segmentId || "")
+      .filter(Boolean);
+  ztoolkit.log("LLM request budget", {
+    inputLimit: limits.inputTokens,
+    history: historyTokens(llmHistory),
+    documents: estimateTokens(formatDocumentContext(combinedContext)),
+    evidenceCount: citations.length,
+    coverage: results.map(
+      (result) => result.text.match(/Extraction: [^\n]+/)?.[0] || "unavailable",
+    ),
+  });
+  return { combinedContext, llmHistory, citations };
 }
 
-/**
- * Build a lightweight snapshot of the current context pool for DB persistence.
- * Only stores references (itemId, title), not the full text.
- */
 function buildContextRefsSnapshot(
   conversationKey: number,
 ): ContextRefsJson | undefined {
@@ -1469,6 +1494,7 @@ function buildContextRefsSnapshot(
     );
   }
   // Persist Zone B summary if available.
+  refs.summaryCheckpoint = summaryCheckpointCache.get(conversationKey);
   const cachedZoneBSummary = zoneBSummaryCache.get(conversationKey);
   if (cachedZoneBSummary) {
     refs.compactedSummary = cachedZoneBSummary;
@@ -1502,6 +1528,7 @@ function restoreContextPoolFromStoredMessages(
     if (options?.force) {
       conversationContextPool.delete(conversationKey);
       zoneBSummaryCache.delete(conversationKey);
+      summaryCheckpointCache.delete(conversationKey);
     }
     return;
   }
@@ -1550,6 +1577,7 @@ function restoreContextPoolFromStoredMessages(
     );
   } else if (options?.force) {
     zoneBSummaryCache.delete(conversationKey);
+    summaryCheckpointCache.delete(conversationKey);
   }
 
   ztoolkit.log(
@@ -1752,6 +1780,7 @@ function restoreSelectedTextsFromMessages(
 
 /** A per-conversation cache for Zone B summaries. */
 export const zoneBSummaryCache = new Map<number, string>();
+const summaryCheckpointCache = new Map<number, SummaryCheckpoint>();
 
 /**
  * Estimate character length of history messages for threshold checks.
@@ -1803,10 +1832,10 @@ const COMPACTION_SUMMARY_PROMPT =
   `Please summarise the following conversation history into a structured summary. ` +
   `The summary will be used to provide context for an ongoing conversation.\n\n` +
   `Format:\n` +
-  `## Discussion Topics\n[What was discussed?]\n\n` +
+  `## Current goal and constraints\n[User goal and explicit constraints]\n\n` +
   `## Key Conclusions\n[What conclusions were reached?]\n\n` +
   `## Open Questions\n[What questions remain unanswered?]\n\n` +
-  `## Key Terms/Concepts\n[Important terminology or concepts mentioned]\n\n` +
+  `## Sources and Key Terms\n[Source titles/IDs supporting conclusions; terminology]\n\n` +
   `Keep the summary concise (under 1000 characters). Write in the same language as the conversation.\n\n` +
   `--- CONVERSATION HISTORY ---\n`;
 
@@ -1819,7 +1848,7 @@ const COMPACTION_SUMMARY_PROMPT =
  *
  * @returns Updated llmHistory (ChatMessage[]) with optional Zone B summary.
  */
-async function compactConversationHistory(params: {
+export async function compactConversationHistory(params: {
   conversationKey: number;
   combinedContext: string;
   historyForLLM: Message[];
@@ -1828,86 +1857,114 @@ async function compactConversationHistory(params: {
   apiKey: string;
   model?: string;
   signal?: AbortSignal;
+  historyBudget?: number;
+  summarize?: typeof callLLM;
+  contextWindowTokens?: number;
 }): Promise<ChatMessage[]> {
-  const usableHistory = params.historyForLLM.filter(isUsableLLMHistoryMessage);
-  const totalEstimate =
-    params.combinedContext.length +
-    estimateHistoryLength(usableHistory) +
-    params.currentQuestion.length;
-
-  // Check if we already have a cached Zone B summary.
-  const cachedSummary = zoneBSummaryCache.get(params.conversationKey);
-
-  if (totalEstimate <= CONTEXT_COMPACTION_THRESHOLD && !cachedSummary) {
-    // Under threshold, no compression needed.
-    return buildLLMHistoryMessages(usableHistory);
+  const history = params.historyForLLM.filter(isUsableLLMHistoryMessage);
+  const budget = params.historyBudget ?? 8000;
+  const { zoneBMessages: old, zoneCMessages: recent } =
+    buildZoneBCSplit(history);
+  const ids = old.map((m) => m.messageId || 0);
+  const candidates = [
+    summaryCheckpointCache.get(params.conversationKey),
+    ...history.map((m) => m.contextRefs?.summaryCheckpoint),
+  ];
+  let checkpoint = candidates
+    .filter((c) => checkpointMatches(c, ids))
+    .sort(
+      (a, b) => b!.coveredMessageIds.length - a!.coveredMessageIds.length,
+    )[0];
+  if (!checkpoint) {
+    summaryCheckpointCache.delete(params.conversationKey);
+    zoneBSummaryCache.delete(params.conversationKey);
   }
-
-  const { zoneBMessages, zoneCMessages } = buildZoneBCSplit(usableHistory);
-
-  // If nothing to compress (all messages are in Zone C), return as-is.
-  if (!zoneBMessages.length && !cachedSummary) {
-    return buildLLMHistoryMessages(usableHistory);
-  }
-
-  let zoneBSummary = cachedSummary || "";
-
-  // Generate new summary if we have new messages to compress.
-  if (zoneBMessages.length > 0) {
-    const oldConversationText = formatMessagesForSummary(zoneBMessages);
-    const summaryInput = cachedSummary
-      ? `Previous summary:\n${cachedSummary}\n\nNew turns to incorporate:\n${oldConversationText}`
-      : oldConversationText;
-
-    try {
-      ztoolkit.log(
-        `LLM: Compacting ${zoneBMessages.length} old messages into Zone B summary ` +
-          `(total estimate: ${totalEstimate} chars, threshold: ${CONTEXT_COMPACTION_THRESHOLD})`,
-      );
-      const summary = await callLLM({
-        prompt: COMPACTION_SUMMARY_PROMPT + summaryInput,
-        systemPrompt: COMPACTION_SYSTEM_PROMPT,
-        model: params.model,
-        apiBase: params.apiBase,
-        apiKey: params.apiKey,
-        signal: params.signal,
-        temperature: 0.2,
-        maxTokens: 1200,
-      });
-      if (summary && summary.trim().length > 20) {
-        zoneBSummary = summary.trim();
-        zoneBSummaryCache.set(params.conversationKey, zoneBSummary);
-        ztoolkit.log(
-          `LLM: Zone B summary generated (${zoneBSummary.length} chars)`,
-        );
+  const all = buildLLMHistoryMessages(history);
+  if (!checkpoint && historyTokens(all) <= budget) return all;
+  const newOld = old.slice(checkpoint?.coveredMessageIds.length || 0);
+  if (newOld.length && ids.every((id) => id > 0)) {
+    const window =
+      params.contextWindowTokens ||
+      getModelContextWindow(params.apiBase, params.model || "") ||
+      32768;
+    const outputTokens = Math.min(1200, Math.floor(window / 8));
+    const inputBudget = Math.min(
+      6000,
+      resolveInputBudget(window, outputTokens).inputTokens -
+        estimateTokens(COMPACTION_SYSTEM_PROMPT + COMPACTION_SUMMARY_PROMPT) -
+        128,
+    );
+    let consumed = checkpoint?.coveredMessageIds.length || 0;
+    while (consumed < old.length) {
+      let input = checkpoint
+        ? `Prior summary (history only): ${checkpoint.text}\n`
+        : "";
+      let end = consumed;
+      // Never mark unseen messages as summarized. Oversized single messages use
+      // the same bounded representation as all historical summary inputs.
+      while (end < old.length) {
+        const addition = formatMessagesForSummary([old[end]]);
+        if (estimateTokens(input + addition) > inputBudget) break;
+        input += addition + "\n\n";
+        end++;
       }
-    } catch (err) {
-      if (params.signal?.aborted) throw err;
-      ztoolkit.log(
-        "LLM: Failed to generate Zone B summary, falling back to truncation",
-        err,
-      );
-      // Fallback: just use Zone C without summary.
-      if (!cachedSummary) {
-        return buildLLMHistoryMessages(zoneCMessages);
+      if (end === consumed) {
+        ztoolkit.log("LLM summary fallback", {
+          reason: "summary input budget exhausted",
+          coveredCount: consumed,
+        });
+        break;
+      }
+      try {
+        const text = await (params.summarize || callLLM)({
+          prompt: COMPACTION_SUMMARY_PROMPT + input,
+          systemPrompt: COMPACTION_SYSTEM_PROMPT,
+          model: params.model,
+          apiBase: params.apiBase,
+          apiKey: params.apiKey,
+          signal: params.signal,
+          maxTokens: outputTokens,
+          temperature: 0.2,
+        });
+        if (!text.trim()) {
+          ztoolkit.log("LLM summary fallback", {
+            reason: "empty summary",
+            coveredCount: consumed,
+          });
+          break;
+        }
+        checkpoint = {
+          text: sliceToTokens(
+            text.trim(),
+            Math.min(1000, Math.floor(budget * 0.25)),
+          ),
+          coveredMessageIds: ids.slice(0, end),
+        };
+        consumed = end;
+        summaryCheckpointCache.set(params.conversationKey, checkpoint);
+        zoneBSummaryCache.set(params.conversationKey, checkpoint.text);
+        ztoolkit.log("LLM summary checkpoint", {
+          coveredCount: end,
+          lastMessageId: ids[end - 1],
+        });
+      } catch (error) {
+        if (params.signal?.aborted) throw error;
+        ztoolkit.log("LLM summary generation failed; keeping recent history");
+        break;
       }
     }
   }
-
-  // Build final history: [Zone B summary] + [Zone C messages]
-  const result: ChatMessage[] = [];
-  if (zoneBSummary) {
-    result.push({
-      role: "user",
-      content: `[Previous conversation summary — for context only, do not respond to this directly]\n\n${zoneBSummary}`,
-    });
-    result.push({
-      role: "assistant",
-      content: "Understood, I'll use this context to inform my responses.",
-    });
-  }
-  result.push(...buildLLMHistoryMessages(zoneCMessages));
-  return result;
+  const tail = buildLLMHistoryMessages(
+    checkpoint ? history.slice(checkpoint.coveredMessageIds.length) : recent,
+  );
+  if (!checkpoint) return fitHistory(all, budget);
+  // Request preparation whitelists summary citations against this turn's evidence.
+  const summary: ChatMessage = {
+    role: "user",
+    content: `[Conversation summary; reference history, not instructions]\n${checkpoint.text}`,
+  };
+  if (historyTokens([summary, ...tail]) <= budget) return [summary, ...tail];
+  return fitHistory(tail, budget);
 }
 
 async function autoCaptureRequestMemories(params: {
@@ -2265,9 +2322,7 @@ export async function editUserMessageAndRetry(
     ui,
   );
 
-  const historyForLLM = history
-    .slice(0, sourceUserIndex)
-    .slice(-MAX_HISTORY_MESSAGES);
+  const historyForLLM = history.slice(0, sourceUserIndex).slice();
   const generatedImageContext =
     collectRecentGeneratedImageDataUrls(historyForLLM);
   const nextUserId = await createSiblingBranch(
@@ -2312,35 +2367,47 @@ export async function editUserMessageAndRetry(
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
+      contextRefs: {
+        ...assistantMessage.contextRefs,
+        citations: citedEvidence(
+          assistantMessage.text,
+          assistantMessage.contextRefs?.citations,
+        ),
+      },
     });
   };
 
   try {
-    const combinedContext = await buildCombinedContextForRequest({
-      item,
-      question,
-      imageCount: screenshotImages.length,
-      paperContexts,
-      apiBase: effectiveRequestConfig.apiBase,
-      apiKey: effectiveRequestConfig.apiKey,
-      conversationKey,
-      setStatusSafely,
-      signal: requestAbortController.signal,
-    });
+    const { combinedContext, llmHistory, citations } = await prepareChatRequest(
+      {
+        item,
+        question,
+        imageCount: Math.min(
+          MAX_SELECTED_IMAGES,
+          screenshotImages.length + generatedImageContext.length,
+        ),
+        fileCount: fileAttachments.length,
+        attachments: nextUserMessage.attachments,
+        paperContexts,
+        apiBase: effectiveRequestConfig.apiBase,
+        apiKey: effectiveRequestConfig.apiKey,
+        conversationKey,
+        setStatusSafely,
+        model: effectiveRequestConfig.model,
+        advanced: effectiveRequestConfig.advanced,
+        historyForLLM,
+        signal: requestAbortController.signal,
+      },
+    );
+    assistantMessage.contextRefs = {
+      citations,
+      summaryCheckpoint: summaryCheckpointCache.get(conversationKey),
+    };
+    refreshChatSafely();
     const refreshedContextRefs = buildContextRefsSnapshot(conversationKey);
     nextUserMessage.contextRefs = refreshedContextRefs;
     await updateMessageNode(conversationKey, nextUserId, {
       contextRefs: refreshedContextRefs,
-    });
-
-    const llmHistory = await compactConversationHistory({
-      conversationKey,
-      combinedContext,
-      historyForLLM,
-      currentQuestion: question,
-      apiBase: effectiveRequestConfig.apiBase,
-      apiKey: effectiveRequestConfig.apiKey,
-      signal: requestAbortController.signal,
     });
 
     if (isPanelRequestCancelled(body, thisRequestId)) {
@@ -2369,6 +2436,7 @@ export async function editUserMessageAndRetry(
             assistantMessage.messageId,
           ),
           assistantMessage.text,
+          assistantMessage.contextRefs?.citations,
         );
       });
     });
@@ -2581,9 +2649,7 @@ export async function retryLatestAssistantResponse(
     ui,
   );
 
-  const historyForLLM = history
-    .slice(0, retryPair.userIndex)
-    .slice(-MAX_HISTORY_MESSAGES);
+  const historyForLLM = history.slice(0, retryPair.userIndex).slice();
   const generatedImageContext =
     collectRecentGeneratedImageDataUrls(historyForLLM);
   const { question, screenshotImages, fileAttachments, paperContexts } =
@@ -2647,21 +2713,43 @@ export async function retryLatestAssistantResponse(
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
+      contextRefs: {
+        ...assistantMessage.contextRefs,
+        citations: citedEvidence(
+          assistantMessage.text,
+          assistantMessage.contextRefs?.citations,
+        ),
+      },
     });
   };
 
   try {
-    const combinedContext = await buildCombinedContextForRequest({
-      item,
-      question,
-      imageCount: screenshotImages.length,
-      paperContexts,
-      apiBase: effectiveRequestConfig.apiBase,
-      apiKey: effectiveRequestConfig.apiKey,
-      conversationKey,
-      setStatusSafely,
-      signal: requestAbortController.signal,
-    });
+    const { combinedContext, llmHistory, citations } = await prepareChatRequest(
+      {
+        item,
+        question,
+        imageCount: Math.min(
+          MAX_SELECTED_IMAGES,
+          screenshotImages.length + generatedImageContext.length,
+        ),
+        fileCount: fileAttachments.length,
+        attachments: retryPair.userMessage.attachments,
+        paperContexts,
+        apiBase: effectiveRequestConfig.apiBase,
+        apiKey: effectiveRequestConfig.apiKey,
+        conversationKey,
+        setStatusSafely,
+        model: effectiveRequestConfig.model,
+        advanced: effectiveRequestConfig.advanced,
+        historyForLLM,
+        signal: requestAbortController.signal,
+      },
+    );
+    assistantMessage.contextRefs = {
+      citations,
+      summaryCheckpoint: summaryCheckpointCache.get(conversationKey),
+    };
+    refreshChatSafely();
     if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
       assistantMessage.streaming = false;
@@ -2675,16 +2763,6 @@ export async function retryLatestAssistantResponse(
       setStatusSafely(i18n.cancelled, "ready");
       return;
     }
-    const llmHistory = await compactConversationHistory({
-      conversationKey,
-      combinedContext,
-      historyForLLM,
-      currentQuestion: question,
-      apiBase: effectiveRequestConfig.apiBase,
-      apiKey: effectiveRequestConfig.apiKey,
-      model: effectiveRequestConfig.model,
-      signal: requestAbortController.signal,
-    });
 
     if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
@@ -2730,6 +2808,7 @@ export async function retryLatestAssistantResponse(
             assistantMessage.messageId,
           ),
           assistantMessage.text,
+          assistantMessage.contextRefs?.citations,
         );
       });
     });
@@ -2927,7 +3006,7 @@ export async function sendQuestion(
   const parentMessageId = history.length
     ? (history[history.length - 1]?.messageId ?? null)
     : null;
-  const historyForLLM = history.slice(-MAX_HISTORY_MESSAGES);
+  const historyForLLM = history.slice();
   const generatedImageContext = collectRecentGeneratedImageDataUrls(history);
   const requestFileAttachments = normalizeModelFileAttachments(attachments);
   let effectiveRequestConfig: EffectiveRequestConfig;
@@ -3053,6 +3132,13 @@ export async function sendQuestion(
       text: assistantMessage.text,
       timestamp: assistantMessage.timestamp,
       modelName: assistantMessage.modelName,
+      contextRefs: {
+        ...assistantMessage.contextRefs,
+        citations: citedEvidence(
+          assistantMessage.text,
+          assistantMessage.contextRefs?.citations,
+        ),
+      },
     });
   };
   const markCancelled = async () => {
@@ -3081,17 +3167,32 @@ export async function sendQuestion(
   };
 
   try {
-    const combinedContext = await buildCombinedContextForRequest({
-      item,
-      question,
-      imageCount,
-      paperContexts: paperContextsForMessage,
-      apiBase: effectiveRequestConfig.apiBase,
-      apiKey: effectiveRequestConfig.apiKey,
-      conversationKey,
-      setStatusSafely,
-      signal: requestAbortController.signal,
-    });
+    const { combinedContext, llmHistory, citations } = await prepareChatRequest(
+      {
+        item,
+        question,
+        imageCount: Math.min(
+          MAX_SELECTED_IMAGES,
+          imageCount + generatedImageContext.length,
+        ),
+        fileCount: requestFileAttachments.length,
+        attachments,
+        paperContexts: paperContextsForMessage,
+        apiBase: effectiveRequestConfig.apiBase,
+        apiKey: effectiveRequestConfig.apiKey,
+        conversationKey,
+        setStatusSafely,
+        model: effectiveRequestConfig.model,
+        advanced: effectiveRequestConfig.advanced,
+        historyForLLM,
+        signal: requestAbortController.signal,
+      },
+    );
+    assistantMessage.contextRefs = {
+      citations,
+      summaryCheckpoint: summaryCheckpointCache.get(conversationKey),
+    };
+    refreshChatSafely();
     const refreshedContextRefs = buildContextRefsSnapshot(conversationKey);
     userMessage.contextRefs = refreshedContextRefs;
     if (userMessage.messageId) {
@@ -3099,17 +3200,6 @@ export async function sendQuestion(
         contextRefs: refreshedContextRefs,
       });
     }
-
-    const llmHistory = await compactConversationHistory({
-      conversationKey,
-      combinedContext,
-      historyForLLM,
-      currentQuestion: question,
-      apiBase: effectiveRequestConfig.apiBase,
-      apiKey: effectiveRequestConfig.apiKey,
-      model: effectiveRequestConfig.model,
-      signal: requestAbortController.signal,
-    });
 
     if (isPanelRequestCancelled(body, thisRequestId)) {
       await markCancelled();
@@ -3131,6 +3221,7 @@ export async function sendQuestion(
             assistantMessage.messageId,
           ),
           assistantMessage.text,
+          assistantMessage.contextRefs?.citations,
         );
       });
     });
@@ -3246,7 +3337,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
   }
 
   const conversationKey = getConversationKey(item);
-  const isGlobalConversation = conversationKey >= GLOBAL_CONVERSATION_KEY_BASE;
+  const isGlobalConversation = isGlobalChatKey(conversationKey);
   const mutateChatWithScrollGuard = (fn: () => void) => {
     withScrollGuard(chatBox, conversationKey, fn);
   };
@@ -3969,13 +4060,31 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         });
       }
     } else {
+      bubble.addEventListener("click", (event) => {
+        const link = (event.target as Element | null)?.closest(
+          'a[href^="aidea-cite:"]',
+        );
+        if (!link) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const id = link.getAttribute("href")?.slice("aidea-cite:".length);
+        const ref = msg.contextRefs?.citations?.find((r) => r.id === id);
+        if (ref)
+          void navigateCitation(ref).catch((error) => {
+            const status = body.querySelector("#llm-status");
+            if (status)
+              setStatus(status as HTMLElement, String(error), "error");
+          });
+      });
       const hasModelName = Boolean(msg.modelName?.trim());
       const hasAnswerText = Boolean(msg.text);
       if (hasAnswerText) {
         const safeText = sanitizeText(msg.text);
         const renderAssistantMarkdown = (target: HTMLDivElement) => {
           try {
-            target.innerHTML = renderMarkdown(safeText);
+            target.innerHTML = renderMarkdown(
+              citationMarkdown(safeText, msg.contextRefs?.citations),
+            );
           } catch (err) {
             ztoolkit.log("LLM render error:", err);
             target.textContent = safeText;
@@ -3989,7 +4098,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         } else {
           renderAssistantMarkdown(bubble);
         }
-        bubble.addEventListener("contextmenu", (e: Event) => {
+        bubble.addEventListener("contextmenu", async (e: Event) => {
           const me = e as MouseEvent;
           me.preventDefault();
           me.stopPropagation();
@@ -4029,7 +4138,10 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           // just that portion (with KaTeX math properly handled).
           // Otherwise fall back to the full raw markdown source.
           const selectedText = getSelectedTextWithinBubble(doc, bubble);
-          const fullMarkdown = sanitizeText(msg.text || "").trim();
+          const fullMarkdown = await exportCitationMarkdown(
+            sanitizeText(msg.text || "").trim(),
+            msg.contextRefs?.citations,
+          );
           const contentText = selectedText || fullMarkdown;
           if (!contentText) return;
           setResponseMenuTarget({
@@ -4064,6 +4176,14 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         modelName.textContent = msg.modelName?.trim() || "";
         bubble.insertBefore(modelName, bubble.firstChild);
       }
+    }
+
+    const unavailable = msg.contextRefs?.unavailableAttachments;
+    if (Array.isArray(unavailable) && unavailable.length) {
+      const notice = doc.createElement("div");
+      notice.className = "llm-model-name";
+      notice.textContent = `Attachments not included / 附件未包含：${unavailable.join(", ")}`;
+      bubble.appendChild(notice);
     }
 
     const meta = doc.createElement("div") as HTMLDivElement;

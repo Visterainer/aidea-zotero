@@ -1,3 +1,4 @@
+import { isGlobalChatKey } from "../../utils/chatTransfer";
 /**
  * Context Panel Module
  *
@@ -24,7 +25,7 @@
 import { getLocaleID } from "../../utils/locale";
 import { renderMarkdown } from "../../utils/markdown";
 import { getZoteroItem } from "../../utils/zoteroItems";
-import { config, GLOBAL_CONVERSATION_KEY_BASE, PANE_ID } from "./constants";
+import { config, PANE_ID } from "./constants";
 import type { Message } from "./types";
 import {
   activeConversationModeByLibrary,
@@ -64,10 +65,7 @@ import {
   bootstrapSharedLibraryPanel,
   getSharedLibraryPanelHost,
 } from "./libraryPanel";
-import {
-  getLibrarySelectionStateFromWindow,
-  isManagedLibraryPanelSectionEnabled,
-} from "./librarySelection";
+import { isContextPanelSectionEnabled } from "./librarySelection";
 import { getPanelI18n } from "./i18n";
 import {
   isSelectionTranslateEnabled,
@@ -109,12 +107,10 @@ function shouldEnablePanelSection(
   tabType: unknown,
   item?: unknown,
 ): boolean {
-  if (tabType === "reader") return true;
-  if (tabType !== "library") return false;
-  if (item) return true;
-  const win = body.ownerDocument?.defaultView;
-  return isManagedLibraryPanelSectionEnabled(
-    getLibrarySelectionStateFromWindow(win),
+  return isContextPanelSectionEnabled(
+    tabType,
+    item,
+    body.ownerDocument?.defaultView,
   );
 }
 
@@ -186,15 +182,16 @@ export function registerReaderContextPanel() {
       l10nID: getLocaleID("llm-panel-sidenav-tooltip"),
       icon: `chrome://${config.addonRef}/content/icons/icon-20.png`,
     },
-    onInit: ({ body, setEnabled, tabType }) => {
-      // Reader tabs and selected Library items use Zotero's managed
-      // section so native item-pane sections remain selectable.
-      const enabled = shouldEnablePanelSection(body, tabType);
+    onInit: ({ body, setEnabled, tabType, item }) => {
+      // Zotero connects custom sections before assigning tabType and item.
+      // Hiding one here can exclude it from the subsequent pane render pass.
+      // Defer visibility filtering until the context is available.
+      const enabled = shouldEnablePanelSection(body, tabType, item);
       setEnabled(enabled);
       ztoolkit.log(`LLM: panel init tabType=${tabType} enabled=${enabled}`);
     },
-    onItemChange: ({ body, setEnabled, tabType }) => {
-      const enabled = shouldEnablePanelSection(body, tabType);
+    onItemChange: ({ body, setEnabled, tabType, item }) => {
+      const enabled = shouldEnablePanelSection(body, tabType, item);
       setEnabled(enabled);
       ztoolkit.log(
         `LLM: panel itemChange tabType=${tabType} enabled=${enabled}`,
@@ -982,7 +979,7 @@ export function registerReaderSelectionTracking() {
             }
             if (
               readerGlobalConversationKey > 0 &&
-              panelItemId < GLOBAL_CONVERSATION_KEY_BASE
+              !isGlobalChatKey(panelItemId)
             ) {
               return readerGlobalConversationKey;
             }
@@ -1080,8 +1077,7 @@ export function registerReaderSelectionTracking() {
 
           const panelRoot = bestState.root;
           const conversationKey = bestState.conversationKey as number;
-          const isGlobalConversation =
-            conversationKey >= GLOBAL_CONVERSATION_KEY_BASE;
+          const isGlobalConversation = isGlobalChatKey(conversationKey);
           if (!isGlobalConversation) {
             // Compare using the Zotero item/parent IDs, NOT the conversation
             // key which is now in the paper-conversation numeric range.

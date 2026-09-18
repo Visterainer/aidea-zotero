@@ -177,4 +177,5 @@ export interface DocumentAdapter {
   /** Revision of the attachment source used to invalidate extracted context. */
   getSourceRevision?(item: Zotero.Item): Promise<string | undefined>;
   extract(item: Zotero.Item): Promise<DocumentExtraction>;
+  navigate?(item: Zotero.Item, locator?: DocumentLocator): Promise<void>;
 }
