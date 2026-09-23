@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/ja/">https://visterainer.github.io/aidea-zotero/ja/</a>
 </p>
 
-AIdea は、Zotero 向けの無料かつオープンソースの AI 研究支援プラグインです。🔐 OpenAI（ChatGPT）、Google Gemini、GitHub Copilot での OAuth ログインに対応しています。⚙️ さらに、OpenAI 互換 API や、Ollama、LM Studio、vLLM などを通じたローカル／セルフホストモデルにも対応しています。複数プロバイダ対応の対話、文書コンテキスト解析、ノート書き戻し、記憶機能、全文翻訳を、Zotero のライブラリ画面、PDF リーダー、EPUB リーダーに統合します。
+AIdea は Zotero 向けの無料オープンソース AI アシスタントです：💬 論文と対話 · ✍️ 選択テキストの翻訳 · 📄 全文翻訳と対訳 PDF の書き出し。接続方法は 3 つから選べます：🔐 お手持ちのサブスクリプション（ChatGPT、Gemini、GitHub Copilot）で OAuth ログイン、API キー不要；🔑 OpenAI、DeepSeek、OpenRouter など任意の OpenAI 互換 API に API キーで接続；💻 ローカルモデル（Ollama、LM Studio、vLLM）を使用し、データは手元の環境から出ません。
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -90,6 +90,8 @@ AIdea は、論文や電子書籍の読解、追質問、抜粋、ノート整�
 | Google Gemini             | プラグイン内 OAuth（PKCE）           | 必要な場合はプラグインが Node.js 実行環境を自動導入      |
 | GitHub Copilot            | プラグイン内 OAuth（Device Code）    | Node.js の追加導入は不要                                 |
 | OpenAI 互換エンドポイント | API Base URL、モデル、任意の API Key | ローカル、自前運用、またはサードパーティ互換サービス向け |
+
+> **注記：** 「環境をインストール/更新」で導入されるのは Codex CLI、Gemini CLI、`pdf2zh_next` などのサードパーティ製ツールです。これらの更新頻度は各ツールの開発元が決めるもので、AIdea のリリース周期とは無関係です。プロバイダの CLI が更新されたら「環境をインストール/更新」を再実行してください。プラグインの更新を待つ必要はなく、プラグインを更新しても環境は自動更新されません。全文翻訳に必要な Python 環境は初回使用時に自動導入され、その際はインターネット接続が必要です。
 
 ## インストール
 

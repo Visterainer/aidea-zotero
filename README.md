@@ -23,9 +23,15 @@
 </p>
 
 <p align="center">
-  <strong>A free, open-source AI assistant plugin for Zotero</strong><br/>
-  🔐 OAuth login with OpenAI (ChatGPT), Google Gemini, and GitHub Copilot<br/>
-  ⚙️ OpenAI-compatible APIs and local or self-hosted models via Ollama, LM Studio, vLLM, and similar runtimes
+  <strong>A free, open-source AI assistant for Zotero</strong><br/>
+  💬 Chat with your papers · ✍️ Translate selected text · 📄 Translate full PDFs into bilingual documents
+</p>
+
+<p align="center">
+  <strong>Connect any way you like:</strong><br/>
+  🔐 Your existing subscription — ChatGPT, Gemini, or GitHub Copilot via OAuth, no API key needed<br/>
+  🔑 Any OpenAI-compatible API — OpenAI, DeepSeek, OpenRouter, and more<br/>
+  💻 Local models — Ollama, LM Studio, vLLM, your data stays on your machine
 </p>
 
 <p align="center">
@@ -93,7 +99,7 @@ Sign in with your existing account through OAuth. AIdea supports multiple provid
 
 ### 📄 Full-Document Translation
 
-Translate full papers directly inside Zotero and export either a **bilingual dual-column PDF** or a **single-language PDF**. The translation workflow supports model selection, output path configuration, and end-to-end execution in the side panel.
+Translate full papers directly inside Zotero and export either a **bilingual PDF** (side-by-side or top-bottom layout) or a **single-language PDF**. The translation workflow supports model selection, output path configuration, and end-to-end execution in the side panel.
 
 <p align="center">
   <img src="doc/screenshots/translate_panel_en.png" alt="Full-document translation panel" width="800" />
@@ -115,11 +121,11 @@ Example outputs:
 
 ### 🌐 Multi-Provider Support
 
-| Provider             | Auth Method                   | Extra Setup              |
-| -------------------- | ----------------------------- | ------------------------ |
-| **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Node.js (auto-installed) |
-| **Google Gemini**    | In-plugin OAuth (PKCE)        | Node.js (auto-installed) |
-| **GitHub Copilot**   | In-plugin OAuth (Device Code) | None                     |
+| Provider             | Auth Method                   | Extra Setup                           |
+| -------------------- | ----------------------------- | ------------------------------------- |
+| **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Node.js (auto-installed)              |
+| **Google Gemini**    | In-plugin OAuth (PKCE)        | Node.js (auto-installed)              |
+| **GitHub Copilot**   | In-plugin OAuth (Device Code) | None; GPT and Claude models available |
 
 ### 📝 Note Export
 
@@ -163,6 +169,9 @@ The plugin interface now supports **12 UI languages**: **English**, **简体中�
 
 - **Zotero 7 or later**
 - **Node.js**, required for OpenAI and Gemini, can be installed automatically by the plugin when needed
+- **Python environment** (managed by `uv`, running `pdf2zh_next`), required only for full-document translation, is installed automatically by the plugin on first use and needs an internet connection at that time
+
+> **Note:** The environment installed by **Install/Update Env** consists of third-party tools such as Codex CLI, Gemini CLI, and `pdf2zh_next`. Their update cadence is set by their own maintainers and is independent of AIdea's release schedule. If a provider's CLI has changed, run **Install/Update Env** again; a new plugin version is not required, and a new plugin version does not by itself update the environment.
 
 ### Install the Plugin
 
@@ -194,12 +203,12 @@ For each provider card, the typical setup order is:
 
 > **① `Install/Update Env`** → **② `OAuth Login`** → **③ `Refresh Models`**
 
-| Button                   | What it does                                                                                                                                                                  |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step.                                 |
-| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI and Gemini open the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization. |
-| **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                              |
-| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                      |
+| Button                   | What it does                                                                                                                                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step. Run it again whenever the provider's CLI is updated upstream; this is independent of plugin updates. |
+| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI and Gemini open the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization.                                                                      |
+| **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                                                                                                   |
+| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                                                                                           |
 
 <p align="center">
   <img src="doc/screenshots/settings_oauth_models_en.png" alt="OAuth providers and model management" width="700" />

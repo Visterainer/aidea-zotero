@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/fr/">https://visterainer.github.io/aidea-zotero/fr/</a>
 </p>
 
-AIdea est un plugin open source et gratuit pour Zotero, conçu comme assistant de recherche alimenté par l'IA. 🔐 Il prend en charge la connexion OAuth avec OpenAI (ChatGPT), Google Gemini et GitHub Copilot. ⚙️ Il prend aussi en charge les API compatibles OpenAI, ainsi que les modèles locaux ou auto-hébergés via Ollama, LM Studio, vLLM et des environnements similaires. Il intègre dans la vue Bibliothèque et les lecteurs PDF et EPUB de Zotero le dialogue avec plusieurs fournisseurs, l'analyse contextuelle des documents, l'export de notes, la mémoire locale, la traduction par sélection et la traduction intégrale des documents.
+AIdea est un assistant IA gratuit et open source pour Zotero : 💬 dialoguez avec vos articles · ✍️ traduisez le texte sélectionné · 📄 traduisez des PDF entiers en documents bilingues. Trois façons de se connecter, au choix : 🔐 votre abonnement existant (ChatGPT, Gemini ou GitHub Copilot) via OAuth, sans clé API ; 🔑 n'importe quelle API compatible OpenAI (OpenAI, DeepSeek, OpenRouter, etc.) avec une clé API ; 💻 des modèles locaux (Ollama, LM Studio, vLLM), vos données restent sur votre machine.
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -90,6 +90,8 @@ AIdea s'adresse aux chercheurs qui souhaitent conserver dans Zotero la lecture d
 | Google Gemini                          | OAuth intégré au plugin (PKCE)                 | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
 | GitHub Copilot                         | OAuth intégré au plugin (Device Code)          | Aucun bootstrap Node.js supplémentaire n'est requis                            |
 | Point de terminaison compatible OpenAI | URL de base API, modèle et clé API facultative | Convient aux services locaux, auto-hébergés ou tiers compatibles               |
+
+> **Remarque :** l'environnement mis en place par **Installer/Mettre à jour l'environnement** est constitué d'outils tiers tels que Codex CLI, Gemini CLI et `pdf2zh_next`. Leur rythme de mise à jour est fixé par leurs propres mainteneurs et ne dépend pas du calendrier de publication d'AIdea. Si le CLI d'un fournisseur a changé, relancez simplement **Installer/Mettre à jour l'environnement** ; une nouvelle version du plugin n'est pas nécessaire, et une mise à jour du plugin ne met pas l'environnement à jour par elle-même. L'environnement Python requis pour la traduction intégrale est installé automatiquement à la première utilisation et nécessite alors une connexion Internet.
 
 ## Installation
 
