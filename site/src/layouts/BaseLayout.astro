@@ -19,6 +19,27 @@ const normalize = (value: string) =>
   `${siteUrl}${withBase(value)}`.replace(/([^:]\/)\/+/g, "$1");
 const canonical = normalize(path);
 const themeColor = "#f3efe7";
+const keywords = [
+  "Zotero",
+  "Zotero plugin",
+  "Zotero addon",
+  "AI assistant",
+  "ChatGPT",
+  "OpenAI",
+  "Gemini",
+  "GitHub Copilot",
+  "OAuth",
+  "no API key",
+  "OpenAI-compatible API",
+  "Ollama",
+  "LM Studio",
+  "translation",
+  "PDF translation",
+  "academic",
+  "research",
+  "free",
+  "open source",
+].join(", ");
 const locale = getLocaleDefinition(lang);
 const socialImage = normalize(
   locale.usesChineseMedia ? "/media/chat-panel-cn.png" : "/media/chat-panel-en.png",
@@ -32,6 +53,7 @@ const socialImage = normalize(
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
     <meta name="theme-color" content={themeColor} />
     <link rel="canonical" href={canonical} />
     {localeDefinitions.map((item) => (
