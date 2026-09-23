@@ -169,9 +169,9 @@ The plugin interface now supports **12 UI languages**: **English**, **简体中�
 
 - **Zotero 7 or later**
 - **Node.js**, required for OpenAI and Gemini, can be installed automatically by the plugin when needed
-- **Python environment** (managed by `uv`, running `pdf2zh_next`), required only for full-document translation, is installed automatically by the plugin on first use and needs an internet connection at that time
+- **Python environment** running `pdf2zh_next` (set up with `uv`, or Miniconda as a fallback), required only for full-document translation, is installed by the **Install Environment** button on the Translate tab and needs an internet connection at that time
 
-> **Note:** The environment installed by **Install/Update Env** consists of third-party tools such as Codex CLI, Gemini CLI, and `pdf2zh_next`. Their update cadence is set by their own maintainers and is independent of AIdea's release schedule. If a provider's CLI has changed, run **Install/Update Env** again; a new plugin version is not required, and a new plugin version does not by itself update the environment.
+> **Note:** These environments are third-party tools, and their update cadence is set by their own maintainers, independent of AIdea's release schedule. **Install/Update Env** on a provider card installs and updates that provider's CLI (Codex CLI, Gemini CLI). **Install Environment** on the Translate tab installs and updates the Python environment and `pdf2zh_next`. If an upstream tool has changed, run the matching button again; a new plugin version is not required, and a new plugin version does not by itself update these environments.
 
 ### Install the Plugin
 
