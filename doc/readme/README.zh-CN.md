@@ -23,9 +23,15 @@
 </p>
 
 <p align="center">
-  <strong>免费开源的 Zotero AI 助手插件</strong><br/>
-  🔐 支持 OpenAI（ChatGPT）、Google Gemini、GitHub Copilot 的 OAuth 授权登录<br/>
-  ⚙️ 支持 OpenAI 兼容 API，以及通过 Ollama、LM Studio、vLLM 等接入本地或自托管模型
+  <strong>免费开源的 Zotero AI 助手</strong><br/>
+  💬 与论文对话 · ✍️ 划词翻译 · 📄 全文翻译并导出双语 PDF
+</p>
+
+<p align="center">
+  <strong>三种接入方式，任选其一：</strong><br/>
+  🔐 用现有订阅账号登录：ChatGPT、Gemini、GitHub Copilot，OAuth 授权，无需 API Key<br/>
+  🔑 用 API Key 接入：OpenAI、DeepSeek、OpenRouter 等任意 OpenAI 兼容接口<br/>
+  💻 用本地模型：Ollama、LM Studio、vLLM，数据不出本机
 </p>
 
 <p align="center">
@@ -93,7 +99,7 @@ PDF 首次使用划词翻译时，AIdea 会在本地生成包含精简概述和�
 
 ### 📄 全文翻译
 
-可直接在 Zotero 中翻译整篇论文，并导出 **双语对照 PDF** 或 **单语言 PDF**。全文翻译流程支持模型选择、输出路径配置，以及在侧边栏中的一站式执行。
+可直接在 Zotero 中翻译整篇论文，并导出 **双语对照 PDF**（支持左右并排或上下对照两种版式）或 **单语言 PDF**。全文翻译流程支持模型选择、输出路径配置，以及在侧边栏中的一站式执行。
 
 <p align="center">
   <img src="../screenshots/translate_panel_cn.png" alt="全文翻译面板" width="800" />
@@ -115,11 +121,11 @@ PDF 首次使用划词翻译时，AIdea 会在本地生成包含精简概述和�
 
 ### 🌐 多服务商支持
 
-| 服务商                | 认证方式                    | 额外安装                |
-| --------------------- | --------------------------- | ----------------------- |
-| **OpenAI（ChatGPT）** | Codex CLI OAuth             | Node.js（插件自动安装） |
-| **Google Gemini**     | 插件内 OAuth（PKCE）        | Node.js（插件自动安装） |
-| **GitHub Copilot**    | 插件内 OAuth（Device Code） | 无需额外安装            |
+| 服务商                | 认证方式                    | 额外安装                                    |
+| --------------------- | --------------------------- | ------------------------------------------- |
+| **OpenAI（ChatGPT）** | Codex CLI OAuth             | Node.js（插件自动安装）                     |
+| **Google Gemini**     | 插件内 OAuth（PKCE）        | Node.js（插件自动安装）                     |
+| **GitHub Copilot**    | 插件内 OAuth（Device Code） | 无需额外安装；可使用 GPT 与 Claude 系列模型 |
 
 ### 📝 笔记导出
 
@@ -163,6 +169,9 @@ AIdea 会在多轮对话中捕捉和回忆有价值的信息，以便后续回�
 
 - **Zotero 7 及以上**
 - **Node.js**，OpenAI 和 Gemini 需要时可由插件自动安装
+- **Python 环境**（由 `uv` 管理，运行 `pdf2zh_next`），仅全文翻译需要，首次使用时由插件自动安装，安装过程需要联网
+
+> **说明：** 「安装/更新环境」安装的是 Codex CLI、Gemini CLI、`pdf2zh_next` 等第三方工具。它们的更新节奏由各自的维护方决定，与 AIdea 插件的版本发布无关。当某个服务商的 CLI 有更新时，重新点击「安装/更新环境」即可，无需等待插件更新；反过来，插件更新也不会自动更新这些环境。
 
 ### 安装插件
 
@@ -194,12 +203,12 @@ AIdea 提供两种连接方式，可以只用其中一种，也可以同时使�
 
 > **① `安装/更新环境`** → **② `OAuth 登录`** → **③ `刷新模型`**
 
-| 按钮                | 功能说明                                                                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **`安装/更新环境`** | 安装并配置所需 CLI 工具及运行环境，包括 Node.js 和 npm。GitHub Copilot 无需此步骤。                                    |
-| **`OAuth 登录`**    | 启动服务商对应的授权流程。OpenAI 和 Gemini 会直接打开浏览器。GitHub Copilot 会显示 device code，并打开浏览器完成授权。 |
-| **`刷新模型`**      | 登录成功后加载当前服务商可用的模型列表。                                                                               |
-| **`删除授权`**      | 清除本地保存的 OAuth 令牌。                                                                                            |
+| 按钮                | 功能说明                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`安装/更新环境`** | 安装并配置所需 CLI 工具及运行环境，包括 Node.js 和 npm。GitHub Copilot 无需此步骤。服务商 CLI 在上游更新后可随时重新执行，与插件更新无关。 |
+| **`OAuth 登录`**    | 启动服务商对应的授权流程。OpenAI 和 Gemini 会直接打开浏览器。GitHub Copilot 会显示 device code，并打开浏览器完成授权。                     |
+| **`刷新模型`**      | 登录成功后加载当前服务商可用的模型列表。                                                                                                   |
+| **`删除授权`**      | 清除本地保存的 OAuth 令牌。                                                                                                                |
 
 <p align="center">
   <img src="../screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商与模型管理" width="700" />
