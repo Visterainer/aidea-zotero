@@ -491,6 +491,34 @@ describe("paper reading quality regressions", function () {
     );
     assert.deepEqual(parseCodexModelsResponse(null), []);
   });
+
+  it("keeps a valid window when the effective percent is missing or malformed", function () {
+    for (const percent of [undefined, null, "95", 0, 101, NaN]) {
+      const [row] = parseCodexModelsResponse([
+        {
+          id: "m",
+          context_window: 272000,
+          effective_context_window_percent: percent,
+        },
+      ]);
+      assert.equal(row.contextWindowTokens, 272000, String(percent));
+    }
+  });
+
+  it("matches discovered model ids case-insensitively like other cache lookups", function () {
+    prefs.set(
+      "extensions.zotero.aidea.oauthModelListCache",
+      JSON.stringify({
+        "openai-codex": [
+          { id: "gpt-5-codex", label: "Codex", contextWindowTokens: 258400 },
+        ],
+      }),
+    );
+    assert.equal(
+      getModelContextWindow("oauth://openai-codex", " GPT-5-Codex "),
+      258400,
+    );
+  });
   for (const value of ["272000", 0, -1, 1023, NaN, Infinity, 1024.5]) {
     it(`rejects malformed discovered window: ${value}`, function () {
       assert.isUndefined(

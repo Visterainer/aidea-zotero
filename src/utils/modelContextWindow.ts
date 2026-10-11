@@ -17,15 +17,16 @@ export function providerContextWindow(
   effectivePercent: unknown = 100,
 ): number | undefined {
   const window = validContextWindow(value);
-  if (
-    !window ||
-    typeof effectivePercent !== "number" ||
-    !Number.isFinite(effectivePercent) ||
-    effectivePercent <= 0 ||
-    effectivePercent > 100
-  )
-    return undefined;
-  return validContextWindow(Math.floor((window * effectivePercent) / 100));
+  if (!window) return undefined;
+  // A missing or malformed percent must not discard a valid window.
+  const percent =
+    typeof effectivePercent === "number" &&
+    Number.isFinite(effectivePercent) &&
+    effectivePercent > 0 &&
+    effectivePercent <= 100
+      ? effectivePercent
+      : 100;
+  return validContextWindow(Math.floor((window * percent) / 100));
 }
 function key(apiBase: string, model: string): string {
   return `${apiBase.trim().replace(/\/+$/, "").toLowerCase()}|${model.trim()}`;
@@ -73,7 +74,13 @@ export function getDiscoveredModelContextWindow(
       .replace(/^oauth:\/\//, "");
     const rows = cache?.[provider];
     if (!Array.isArray(rows)) return undefined;
-    const row = rows.find((r: any) => r?.id === model.trim());
+    const wanted = model.trim().toLowerCase();
+    const row = rows.find(
+      (r: any) =>
+        String(r?.id || "")
+          .trim()
+          .toLowerCase() === wanted,
+    );
     return validContextWindow(row?.contextWindowTokens);
   } catch {
     return undefined;

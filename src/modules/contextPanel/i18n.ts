@@ -31,6 +31,7 @@ export type PanelI18n = {
   statusReady: string;
   contextFullText: string;
   contextExcerpts: string;
+  contextAbstract: string;
   contextUnavailable: string;
   contextBudgetHint: string;
   statusSelectItem: string;
@@ -630,6 +631,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "就緒",
     contextFullText: "已提供全文",
     contextExcerpts: "已提供部分內容",
+    contextAbstract: "僅提供摘要",
     contextUnavailable: "未提供正文",
     contextBudgetHint: "本輪只包含部分內容。可在模型進階設定中檢查上下文上限。",
     statusSelectItem: "選取項目或開啟 PDF",
@@ -700,6 +702,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "準備完了",
     contextFullText: "全文を提供",
     contextExcerpts: "一部を提供",
+    contextAbstract: "要旨のみ提供",
     contextUnavailable: "本文なし",
     contextBudgetHint:
       "この応答には文書の一部のみが含まれます。モデルの詳細設定でコンテキスト上限を確認できます。",
@@ -772,6 +775,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "준비됨",
     contextFullText: "전체 텍스트 제공",
     contextExcerpts: "일부 내용 제공",
+    contextAbstract: "초록만 제공",
     contextUnavailable: "본문 없음",
     contextBudgetHint:
       "이번 응답에는 문서 일부만 포함됩니다. 모델 고급 설정에서 컨텍스트 한도를 확인할 수 있습니다.",
@@ -844,6 +848,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "Prêt",
     contextFullText: "Texte intégral fourni",
     contextExcerpts: "Extraits fournis",
+    contextAbstract: "Résumé uniquement",
     contextUnavailable: "Texte non fourni",
     contextBudgetHint:
       "Seule une partie du document est incluse. Vérifiez la limite de contexte dans les paramètres avancés du modèle.",
@@ -918,6 +923,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "Bereit",
     contextFullText: "Volltext enthalten",
     contextExcerpts: "Auszüge enthalten",
+    contextAbstract: "Nur Abstract enthalten",
     contextUnavailable: "Kein Volltext",
     contextBudgetHint:
       "Diese Antwort verwendet nur einen Teil des Dokuments. Prüfen Sie das Kontextlimit in den erweiterten Modelleinstellungen.",
@@ -990,6 +996,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "Listo",
     contextFullText: "Texto completo incluido",
     contextExcerpts: "Extractos incluidos",
+    contextAbstract: "Solo el resumen incluido",
     contextUnavailable: "Texto no incluido",
     contextBudgetHint:
       "Solo se incluye parte del documento. Revise el límite de contexto en los ajustes avanzados del modelo.",
@@ -1064,6 +1071,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "Готово",
     contextFullText: "Полный текст передан",
     contextExcerpts: "Переданы фрагменты",
+    contextAbstract: "Передана только аннотация",
     contextUnavailable: "Текст не передан",
     contextBudgetHint:
       "Передана лишь часть документа. Проверьте лимит контекста в расширенных настройках модели.",
@@ -1135,6 +1143,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "Pronto",
     contextFullText: "Texto completo incluído",
     contextExcerpts: "Trechos incluídos",
+    contextAbstract: "Apenas o resumo incluído",
     contextUnavailable: "Texto não incluído",
     contextBudgetHint:
       "Apenas parte do documento foi incluída. Confira o limite de contexto nas configurações avançadas do modelo.",
@@ -1209,6 +1218,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "جاهز",
     contextFullText: "تم تضمين النص الكامل",
     contextExcerpts: "تم تضمين مقتطفات",
+    contextAbstract: "تم تضمين الملخص فقط",
     contextUnavailable: "لم يتم تضمين النص",
     contextBudgetHint:
       "تم تضمين جزء من المستند فقط. تحقق من حد السياق في إعدادات النموذج المتقدمة.",
@@ -1280,6 +1290,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     statusReady: "तैयार",
     contextFullText: "पूरा पाठ शामिल",
     contextExcerpts: "आंशिक पाठ शामिल",
+    contextAbstract: "केवल सार शामिल",
     contextUnavailable: "पाठ शामिल नहीं",
     contextBudgetHint:
       "दस्तावेज़ का केवल कुछ हिस्सा शामिल है। मॉडल की उन्नत सेटिंग में संदर्भ सीमा जाँचें।",
@@ -3832,6 +3843,7 @@ export function getPanelI18n(): PanelI18n {
       statusReady: "Ready",
       contextFullText: "Full text supplied",
       contextExcerpts: "Excerpts supplied",
+      contextAbstract: "Abstract only",
       contextUnavailable: "Text unavailable",
       contextBudgetHint:
         "Only part of the document is included this turn. Check the context limit in the model's advanced settings.",
@@ -4140,6 +4152,7 @@ export function getPanelI18n(): PanelI18n {
     statusReady: "就绪",
     contextFullText: "已提供全文",
     contextExcerpts: "已提供部分内容",
+    contextAbstract: "仅提供摘要",
     contextUnavailable: "未提供正文",
     contextBudgetHint: "本轮只包含部分内容，可在模型高级设置中检查上下文上限。",
     statusSelectItem: "请选择条目或打开 PDF",

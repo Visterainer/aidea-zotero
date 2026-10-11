@@ -4214,9 +4214,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       const label = (row: DocumentCoverage) =>
         row.supplied === "unavailable"
           ? i18n.contextUnavailable
-          : row.supplied === "full" && row.extraction === "complete"
-            ? i18n.contextFullText
-            : i18n.contextExcerpts;
+          : row.supplied === "abstract"
+            ? i18n.contextAbstract
+            : row.supplied === "full" && row.extraction === "complete"
+              ? i18n.contextFullText
+              : i18n.contextExcerpts;
       notice.textContent = [...new Set(rows.map(label))].join(" · ");
       notice.title = rows
         .map((row) => `${row.title}: ${label(row)}`)
