@@ -302,25 +302,8 @@ describe("oauthCli environment helpers", function () {
       executableName: "codex",
       versionArg: "--version",
     });
-    assert.deepInclude(getProviderCliSpec("google-gemini-cli") || {}, {
-      packageName: "@google/gemini-cli",
-      executableName: "gemini",
-      versionArg: "--version",
-    });
     assert.isNull(getProviderCliSpec("qwen"));
     assert.isNull(getProviderCliSpec("github-copilot"));
-  });
-
-  it("should require Node.js 20 or newer for current Gemini CLI", function () {
-    assert.isFalse(
-      isNodeVersionSupportedByProviderCli("google-gemini-cli", "18.19.1"),
-    );
-    assert.isTrue(
-      isNodeVersionSupportedByProviderCli("google-gemini-cli", "20.0.0"),
-    );
-    assert.isTrue(
-      isNodeVersionSupportedByProviderCli("google-gemini-cli", "22.9.0"),
-    );
   });
 
   it("should parse macOS system proxy settings from scutil output", function () {

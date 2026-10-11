@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/ja/">https://visterainer.github.io/aidea-zotero/ja/</a>
 </p>
 
-AIdea は Zotero 向けの無料オープンソース AI アシスタントです：💬 論文と対話 · ✍️ 選択テキストの翻訳 · 📄 全文翻訳と対訳 PDF の書き出し。接続方法は 3 つから選べます：🔐 お手持ちのサブスクリプション（ChatGPT、Gemini、GitHub Copilot）で OAuth ログイン、API キー不要；🔑 OpenAI、DeepSeek、OpenRouter など任意の OpenAI 互換 API に API キーで接続；💻 ローカルモデル（Ollama、LM Studio、vLLM）を使用し、データは手元の環境から出ません。
+AIdea は Zotero 向けの無料オープンソース AI アシスタントです：💬 論文と対話 · ✍️ 選択テキストの翻訳 · 📄 全文翻訳と対訳 PDF の書き出し。接続方法は 3 つから選べます：🔐 お手持ちのサブスクリプション（ChatGPT、GitHub Copilot）で OAuth ログイン、API キー不要；🔑 OpenAI、DeepSeek、OpenRouter など任意の OpenAI 互換 API に API キーで接続；💻 ローカルモデル（Ollama、LM Studio、vLLM）を使用し、データは手元の環境から出ません。
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -87,11 +87,10 @@ AIdea は、論文や電子書籍の読解、追質問、抜粋、ノート整�
 | 方式                      | 認証                                 | 補足                                                     |
 | ------------------------- | ------------------------------------ | -------------------------------------------------------- |
 | OpenAI（ChatGPT）         | Codex CLI 経由の OAuth               | 必要な場合はプラグインが Node.js 実行環境を自動導入      |
-| Google Gemini             | プラグイン内 OAuth（PKCE）           | 必要な場合はプラグインが Node.js 実行環境を自動導入      |
 | GitHub Copilot            | プラグイン内 OAuth（Device Code）    | Node.js の追加導入は不要                                 |
 | OpenAI 互換エンドポイント | API Base URL、モデル、任意の API Key | ローカル、自前運用、またはサードパーティ互換サービス向け |
 
-> **注記：** これらの環境はサードパーティ製ツールであり、更新頻度は各ツールの開発元が決めるもので、AIdea のリリース周期とは無関係です。プロバイダカードの「環境をインストール/更新」はそのプロバイダの CLI（Codex CLI、Gemini CLI）を導入・更新します。翻訳タブの「環境をインストール」は全文翻訳に必要な Python 環境と `pdf2zh_next` を導入・更新し、その際はインターネット接続が必要です。上流のツールが更新されたら該当するボタンを再実行してください。プラグインの更新を待つ必要はなく、プラグインを更新してもこれらの環境は自動更新されません。
+> **注記：** これらの環境はサードパーティ製ツールであり、更新頻度は各ツールの開発元が決めるもので、AIdea のリリース周期とは無関係です。プロバイダカードの「環境をインストール/更新」はそのプロバイダの CLI（Codex CLI）を導入・更新します。翻訳タブの「環境をインストール」は全文翻訳に必要な Python 環境と `pdf2zh_next` を導入・更新し、その際はインターネット接続が必要です。上流のツールが更新されたら該当するボタンを再実行してください。プラグインの更新を待つ必要はなく、プラグインを更新してもこれらの環境は自動更新されません。
 
 ## インストール
 

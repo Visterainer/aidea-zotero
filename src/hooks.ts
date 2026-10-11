@@ -24,6 +24,7 @@ import {
 import { initSelectionTranslateCacheStore } from "./utils/selectionTranslateCacheStore";
 import { createZToolkit } from "./utils/ztoolkit";
 import { ensureZoteroProxyFromSystem } from "./utils/oauthCli";
+import { migrateRemovedGeminiOAuth } from "./utils/oauthMigrations";
 import { maybeShowOpenAIUpdateNotice } from "./modules/updateNotice";
 import {
   registerOAuthEnvUpdateSchedulerWindow,
@@ -45,6 +46,15 @@ async function onStartup() {
   ]);
 
   initLocale();
+
+  try {
+    if (migrateRemovedGeminiOAuth())
+      ztoolkit.log(
+        "LLM: Reset profiles that used the removed Gemini CLI OAuth",
+      );
+  } catch (err) {
+    ztoolkit.log("LLM: Gemini OAuth migration failed", err);
+  }
 
   // Auto-detect system proxy and apply to Gecko so fetch() works with chatgpt.com etc.
   try {

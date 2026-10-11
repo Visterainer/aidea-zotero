@@ -61,11 +61,11 @@ describe("custom endpoint OAuth sync guard", function () {
 
     const cache = {
       "openai-codex": models(["gpt-5.2", "gpt-5.1"]),
-      "google-gemini-cli": models(["gemini-3.1-pro-preview"]),
+      "github-copilot": models(["gemini-3.1-pro-preview"]),
     };
     const selectionCache: ProviderModelSelectionCache = {
       "openai-codex": ["gpt-5.2"],
-      "google-gemini-cli": ["gemini-3.1-pro-preview"],
+      "github-copilot": ["gemini-3.1-pro-preview"],
     };
 
     preferenceScript.syncSidebarModelPrefsFromSelection(cache, selectionCache);
@@ -77,10 +77,7 @@ describe("custom endpoint OAuth sync guard", function () {
     assert.equal(getPluginPref("apiBasePrimary"), "oauth://openai-codex");
     assert.equal(getPluginPref("apiKeyPrimary"), "");
     assert.equal(getPluginPref("modelPrimary"), "gpt-5.2");
-    assert.equal(
-      getPluginPref("apiBaseSecondary"),
-      "oauth://google-gemini-cli",
-    );
+    assert.equal(getPluginPref("apiBaseSecondary"), "oauth://github-copilot");
     assert.equal(getPluginPref("apiKeySecondary"), "");
     assert.equal(getPluginPref("modelSecondary"), "gemini-3.1-pro-preview");
   });

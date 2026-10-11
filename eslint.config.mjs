@@ -17,18 +17,6 @@ export default zotero({
       },
     },
     {
-      files: ["test/test-gemini-cloudcode.mjs"],
-      languageOptions: {
-        globals: {
-          console: "readonly",
-          fetch: "readonly",
-          process: "readonly",
-          setTimeout: "readonly",
-          TextDecoder: "readonly",
-        },
-      },
-    },
-    {
       files: ["test/contextPersistence.test.ts"],
       rules: {
         // This legacy suite uses arrow callbacks but never Mocha's dynamic `this`.

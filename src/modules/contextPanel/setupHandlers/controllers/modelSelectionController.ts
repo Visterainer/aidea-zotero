@@ -45,7 +45,6 @@ export type ModelChoice = {
 /** Human-readable labels for known OAuth providers. */
 const OAUTH_PROVIDER_LABELS: Record<OAuthProviderId, string> = {
   "openai-codex": "Codex",
-  "google-gemini-cli": "Gemini",
   "github-copilot": "Copilot",
 };
 

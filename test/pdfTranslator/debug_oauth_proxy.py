@@ -7,7 +7,6 @@ addon/scripts/aidea_bridge.py.
 
 Examples:
   python test/pdfTranslator/debug_oauth_proxy.py --provider openai-codex --model gpt-5.4
-  python test/pdfTranslator/debug_oauth_proxy.py --provider google-gemini-cli --model gemini-2.5-pro
   python test/pdfTranslator/debug_oauth_proxy.py --provider github-copilot --model gpt-5.4-mini
 """
 
@@ -47,48 +46,6 @@ def read_codex_cred_from_home(home: Path) -> Tuple[str, str]:
     access = str(tokens.get("access_token") or "").strip()
     account_id = str(tokens.get("account_id") or "").strip()
     return access, account_id
-
-
-def read_gemini_cred_from_home(home: Path) -> Tuple[str, str]:
-    data = read_json(home / ".gemini" / "oauth_creds.json")
-    access = str(data.get("access_token") or data.get("token") or "").strip()
-    project = str(data.get("project_id") or data.get("projectId") or "").strip()
-    return access, project
-
-
-def read_gemini_cred_from_zotero_prefs() -> Tuple[str, str]:
-    appdata = os.environ.get("APPDATA", "").strip()
-    if not appdata:
-        return "", ""
-    profiles_dir = Path(appdata) / "Zotero" / "Zotero" / "Profiles"
-    if not profiles_dir.exists():
-        return "", ""
-
-    token = ""
-    project = ""
-    token_re = re.compile(
-        r'user_pref\("extensions\.zotero\.aidea\.geminiOAuthAccessToken",\s*"([^"]*)"\)'
-    )
-    project_re = re.compile(
-        r'user_pref\("extensions\.zotero\.aidea\.geminiOAuthProjectId",\s*"([^"]*)"\)'
-    )
-
-    for profile in profiles_dir.iterdir():
-        prefs = profile / "prefs.js"
-        if not prefs.exists():
-            continue
-        text = prefs.read_text(encoding="utf-8", errors="ignore")
-        if not token:
-            m = token_re.search(text)
-            if m:
-                token = m.group(1).strip()
-        if not project:
-            m = project_re.search(text)
-            if m:
-                project = m.group(1).strip()
-        if token and project:
-            break
-    return token, project
 
 
 def read_copilot_cred_from_zotero_prefs() -> Tuple[str, str]:
@@ -172,21 +129,10 @@ def ensure_token(token: str) -> str:
     return value
 
 
-def ensure_project_id(project_id: str) -> str:
-    value = project_id.strip()
-    if value:
-        return value
-    value = input("Paste Google project id (required for Gemini): ").strip()
-    if not value:
-        raise RuntimeError("Google project id is required for Gemini OAuth")
-    return value
-
-
 def resolve_credentials(args: argparse.Namespace) -> dict:
     provider = args.provider
     token = (args.token or "").strip()
     account_id = (args.account_id or "").strip()
-    project_id = (args.project_id or "").strip()
     api_base = (args.api_base or "").strip()
     home = Path.home()
 
@@ -200,23 +146,6 @@ def resolve_credentials(args: argparse.Namespace) -> dict:
         if account_id:
             cfg["accountId"] = account_id
         return cfg
-
-    if provider == "google-gemini-cli":
-        if not token or not project_id:
-            home_token, home_project = read_gemini_cred_from_home(home)
-            token = token or home_token
-            project_id = project_id or home_project
-        if not token or not project_id:
-            zotero_token, zotero_project = read_gemini_cred_from_zotero_prefs()
-            token = token or zotero_token
-            project_id = project_id or zotero_project
-        token = ensure_token(token)
-        project_id = ensure_project_id(project_id)
-        return {
-            "provider": provider,
-            "accessToken": token,
-            "projectId": project_id,
-        }
 
     if provider == "github-copilot":
         if not token:
@@ -238,7 +167,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--provider",
         required=True,
-        choices=["openai-codex", "google-gemini-cli", "github-copilot"],
+        choices=["openai-codex", "github-copilot"],
         help="OAuth provider to test",
     )
     p.add_argument("--model", required=True, help="Model id (e.g. gpt-5.4)")
@@ -249,7 +178,6 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--token", default="", help="OAuth access token")
     p.add_argument("--account-id", default="", help="Codex ChatGPT account id")
-    p.add_argument("--project-id", default="", help="Gemini Google project id")
     p.add_argument("--api-base", default="", help="Copilot API base override")
     return p.parse_args()
 

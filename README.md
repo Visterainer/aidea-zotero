@@ -29,7 +29,7 @@
 
 <p align="center">
   <strong>Connect any way you like:</strong><br/>
-  🔐 Your existing subscription — ChatGPT, Gemini, or GitHub Copilot via OAuth, no API key needed<br/>
+  🔐 Your existing subscription — ChatGPT or GitHub Copilot via OAuth, no API key needed<br/>
   🔑 Any OpenAI-compatible API — OpenAI, DeepSeek, OpenRouter, and more<br/>
   💻 Local models — Ollama, LM Studio, vLLM, your data stays on your machine
 </p>
@@ -124,7 +124,6 @@ Example outputs:
 | Provider             | Auth Method                   | Extra Setup                           |
 | -------------------- | ----------------------------- | ------------------------------------- |
 | **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Node.js (auto-installed)              |
-| **Google Gemini**    | In-plugin OAuth (PKCE)        | Node.js (auto-installed)              |
 | **GitHub Copilot**   | In-plugin OAuth (Device Code) | None; GPT and Claude models available |
 
 ### 📝 Note Export
@@ -168,10 +167,10 @@ The plugin interface now supports **12 UI languages**: **English**, **简体中�
 ### Requirements
 
 - **Zotero 7 or later**
-- **Node.js**, required for OpenAI and Gemini, can be installed automatically by the plugin when needed
+- **Node.js**, required for OpenAI (Codex CLI), can be installed automatically by the plugin when needed
 - **Python environment** running `pdf2zh_next` (set up with `uv`, or Miniconda as a fallback), required only for full-document translation, is installed by the **Install Environment** button on the Translate tab and needs an internet connection at that time
 
-> **Note:** These environments are third-party tools, and their update cadence is set by their own maintainers, independent of AIdea's release schedule. **Install/Update Env** on a provider card installs and updates that provider's CLI (Codex CLI, Gemini CLI). **Install Environment** on the Translate tab installs and updates the Python environment and `pdf2zh_next`. If an upstream tool has changed, run the matching button again; a new plugin version is not required, and a new plugin version does not by itself update these environments.
+> **Note:** These environments are third-party tools, and their update cadence is set by their own maintainers, independent of AIdea's release schedule. **Install/Update Env** on a provider card installs and updates that provider's CLI (Codex CLI). **Install Environment** on the Translate tab installs and updates the Python environment and `pdf2zh_next`. If an upstream tool has changed, run the matching button again; a new plugin version is not required, and a new plugin version does not by itself update these environments.
 
 ### Install the Plugin
 
@@ -206,7 +205,7 @@ For each provider card, the typical setup order is:
 | Button                   | What it does                                                                                                                                                                                                                                       |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step. Run it again whenever the provider's CLI is updated upstream; this is independent of plugin updates. |
-| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI and Gemini open the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization.                                                                      |
+| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI opens the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization.                                                                                |
 | **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                                                                                                   |
 | **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                                                                                           |
 

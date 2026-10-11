@@ -213,7 +213,7 @@ This is the plugin's core module, comprising approximately **29 source files + 1
 | ----------------------- | -------- | -------------------------------------------------------------- |
 | **`llmClient.ts`**      | **67KB** | ★ LLM API calls (streaming/non-streaming, ~2275 lines)         |
 | **`chatStore.ts`**      | **35KB** | ★ Chat persistence (SQLite via Zotero.DB, ~1020 lines)         |
-| **`oauthCli.ts`**       | **35KB** | ★ OAuth auth flow (openai-codex / google-gemini-cli)           |
+| **`oauthCli.ts`**       | **35KB** | ★ OAuth auth flow (openai-codex / github-copilot)              |
 | `markdown.ts`           | 25KB     | Markdown rendering (incl. KaTeX formulas)                      |
 | `reasoningProfiles.ts`  | 16KB     | Reasoning profiles (GPT-5/o1/Claude/Gemini/Qwen/DeepSeek etc.) |
 | `memoryStore.ts`        | 14KB     | Memory system storage                                          |
@@ -690,7 +690,7 @@ Handles reader mode. Each `(window, itemId)` pair maintains an independent `Read
 Manages the plugin settings interface, including:
 
 - API Base URL / API Key / Model name (supports 4 profiles: Primary / Secondary / Tertiary / Quaternary)
-- OAuth authentication (openai-codex / google-gemini-cli)
+- OAuth authentication (openai-codex / github-copilot)
 - Reasoning mode (off / low / medium / high / default)
 - Custom shortcuts (add/delete/edit/drag-reorder)
 - Advanced parameters (Temperature / Max Tokens)
@@ -754,28 +754,26 @@ Provides cross-session persistent memory capability for the AI.
 ### 26.1 Provider Types
 
 ```typescript
-type OAuthProviderId = "openai-codex" | "google-gemini-cli";
+type OAuthProviderId = "openai-codex" | "github-copilot";
 ```
 
 ### 26.2 Key Functions
 
-| Function                              | Responsibility                                        |
-| ------------------------------------- | ----------------------------------------------------- |
-| `readCodexOAuthCredential()`          | Read Codex credentials                                |
-| `readGeminiOAuthCredential()`         | Read Gemini credentials                               |
-| `runProviderOAuthLogin(provider)`     | Start OAuth login flow                                |
-| `fetchAvailableModels(provider)`      | Fetch available model list                            |
-| `chatWithProviderOAuth(...)`          | Call API using OAuth credentials (supports streaming) |
-| `parseCodexSSEStream(body, onDelta)`  | Incrementally parse Codex SSE stream                  |
-| `parseGeminiSSEStream(body, onDelta)` | Incrementally parse Gemini SSE stream                 |
-| `ensureZoteroProxyFromSystem()`       | Auto-detect Windows system proxy and apply to Gecko   |
-| `autoConfigureEnvironment()`          | Auto-configure runtime environment                    |
-| `getProviderAccountSummary()`         | Get OAuth account status summary                      |
+| Function                             | Responsibility                                        |
+| ------------------------------------ | ----------------------------------------------------- |
+| `readCodexOAuthCredential()`         | Read Codex credentials                                |
+| `runProviderOAuthLogin(provider)`    | Start OAuth login flow                                |
+| `fetchAvailableModels(provider)`     | Fetch available model list                            |
+| `chatWithProviderOAuth(...)`         | Call API using OAuth credentials (supports streaming) |
+| `parseCodexSSEStream(body, onDelta)` | Incrementally parse Codex SSE stream                  |
+| `ensureZoteroProxyFromSystem()`      | Auto-detect Windows system proxy and apply to Gecko   |
+| `autoConfigureEnvironment()`         | Auto-configure runtime environment                    |
+| `getProviderAccountSummary()`        | Get OAuth account status summary                      |
 
 ### 26.3 OAuth Streaming
 
 - **Codex**: Uses `chatgpt.com/backend-api/codex/responses` (`stream: true`), parses SSE via `ReadableStream`
-- **Gemini**: Uses `streamGenerateContent?alt=sse` endpoint, parses via `ReadableStream`
+- **GitHub Copilot**: Uses the Copilot `/responses` or `/chat/completions` endpoints and reuses the Codex / OpenAI-compatible SSE parsers
 
 ---
 

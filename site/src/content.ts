@@ -490,13 +490,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "zh-CN",
     title: "AIdea for Zotero",
     description:
-      "AIdea 是免费开源的 Zotero AI 助手：论文对话、划词翻译、全文翻译。支持用现有的 ChatGPT、Gemini、GitHub Copilot 订阅账号登录（OAuth，无需 API Key），也支持任意 OpenAI 兼容 API 和 Ollama、LM Studio 等本地模型。",
+      "AIdea 是免费开源的 Zotero AI 助手：论文对话、划词翻译、全文翻译。支持用现有的 ChatGPT、GitHub Copilot 订阅账号登录（OAuth，无需 API Key），也支持任意 OpenAI 兼容 API 和 Ollama、LM Studio 等本地模型。",
     badge: "免费开源 Zotero 插件",
     hero: {
       eyebrow: "给长期读论文、做笔记、写综述的人",
       heading: "在 Zotero 里读论文、提问和整理笔记。",
       subheading:
-        "AIdea 是一个免费开源项目。不离开 Zotero 就能与论文对话、划词翻译、把整篇 PDF 翻译成双语文档。接入方式任选：现有的 ChatGPT、Gemini、GitHub Copilot 订阅账号，任意 OpenAI 兼容 API，或本地模型。",
+        "AIdea 是一个免费开源项目。不离开 Zotero 就能与论文对话、划词翻译、把整篇 PDF 翻译成双语文档。接入方式任选：现有的 ChatGPT、GitHub Copilot 订阅账号，任意 OpenAI 兼容 API，或本地模型。",
       primaryCta: "安装插件",
       secondaryCta: "查看源码",
       tertiaryCta: "阅读文档",
@@ -552,7 +552,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "先用起来，再慢慢配置",
-          body: "用现有的 ChatGPT、Gemini、GitHub Copilot 订阅账号通过 OAuth 登录即可开始，无需 API Key。",
+          body: "用现有的 ChatGPT、GitHub Copilot 订阅账号通过 OAuth 登录即可开始，无需 API Key。",
           meta: "先用起来",
         },
         {
@@ -618,13 +618,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "en",
     title: "AIdea for Zotero",
     description:
-      "AIdea is a free, open-source AI assistant for Zotero: chat with papers, translate selections, and translate full PDFs. Use your existing ChatGPT, Gemini, or GitHub Copilot subscription (OAuth, no API key), any OpenAI-compatible API, or local models via Ollama and LM Studio.",
+      "AIdea is a free, open-source AI assistant for Zotero: chat with papers, translate selections, and translate full PDFs. Use your existing ChatGPT or GitHub Copilot subscription (OAuth, no API key), any OpenAI-compatible API, or local models via Ollama and LM Studio.",
     badge: "Free & Open Source",
     hero: {
       eyebrow: "For people who read papers, take notes, and write reviews",
       heading: "Read, ask, and organize notes inside Zotero.",
       subheading:
-        "AIdea is a free and open-source project. Chat with your papers, translate selected text, and translate full PDFs into bilingual documents without leaving Zotero. Connect with your existing ChatGPT, Gemini, or GitHub Copilot subscription, any OpenAI-compatible API, or local models.",
+        "AIdea is a free and open-source project. Chat with your papers, translate selected text, and translate full PDFs into bilingual documents without leaving Zotero. Connect with your existing ChatGPT or GitHub Copilot subscription, any OpenAI-compatible API, or local models.",
       primaryCta: "Install from Releases",
       secondaryCta: "View Source",
       tertiaryCta: "Read Docs",
@@ -681,7 +681,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "Get started before doing heavy setup",
-          body: "Sign in with your existing ChatGPT, Gemini, or GitHub Copilot subscription through OAuth. No API key is needed to start.",
+          body: "Sign in with your existing ChatGPT or GitHub Copilot subscription through OAuth. No API key is needed to start.",
           meta: "Get started quickly",
         },
         {
@@ -751,13 +751,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "ja",
     title: "AIdea for Zotero",
     description:
-      "AIdea は Zotero 向けの無料オープンソース AI アシスタントです。論文との対話、選択テキストの翻訳、PDF 全文翻訳に対応。お手持ちの ChatGPT、Gemini、GitHub Copilot のサブスクリプション（OAuth、API キー不要）、任意の OpenAI 互換 API、Ollama や LM Studio などのローカルモデルを利用できます。",
+      "AIdea は Zotero 向けの無料オープンソース AI アシスタントです。論文との対話、選択テキストの翻訳、PDF 全文翻訳に対応。お手持ちの ChatGPT、GitHub Copilot のサブスクリプション（OAuth、API キー不要）、任意の OpenAI 互換 API、Ollama や LM Studio などのローカルモデルを利用できます。",
     badge: "無料・オープンソース",
     hero: {
       eyebrow: "論文を読み、メモを取り、レビューを書く人のために",
       heading: "Zotero の中で論文を読み、質問し、ノートを整理する。",
       subheading:
-        "AIdea は無料のオープンソースプロジェクトです。Zotero を離れずに論文と対話し、選択テキストを翻訳し、PDF 全体を対訳文書に翻訳できます。接続方法は、お手持ちの ChatGPT、Gemini、GitHub Copilot のサブスクリプション、任意の OpenAI 互換 API、ローカルモデルから選べます。",
+        "AIdea は無料のオープンソースプロジェクトです。Zotero を離れずに論文と対話し、選択テキストを翻訳し、PDF 全体を対訳文書に翻訳できます。接続方法は、お手持ちの ChatGPT、GitHub Copilot のサブスクリプション、任意の OpenAI 互換 API、ローカルモデルから選べます。",
       primaryCta: "Releases からインストール",
       secondaryCta: "ソースコードを見る",
       tertiaryCta: "ドキュメントを読む",
@@ -814,7 +814,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "まず使い始めてから細かく調整",
-          body: "お手持ちの ChatGPT、Gemini、GitHub Copilot のサブスクリプションで OAuth ログインするだけで始められます。API キーは不要です。",
+          body: "お手持ちの ChatGPT、GitHub Copilot のサブスクリプションで OAuth ログインするだけで始められます。API キーは不要です。",
           meta: "導入しやすい",
         },
         {
@@ -884,13 +884,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "de",
     title: "AIdea for Zotero",
     description:
-      "AIdea ist ein kostenloser Open-Source-KI-Assistent fuer Zotero: mit Papern chatten, markierten Text uebersetzen, ganze PDFs uebersetzen. Nutzbar mit dem vorhandenen ChatGPT-, Gemini- oder GitHub-Copilot-Abo (OAuth, kein API-Key), jeder OpenAI-kompatiblen API oder lokalen Modellen ueber Ollama und LM Studio.",
+      "AIdea ist ein kostenloser Open-Source-KI-Assistent fuer Zotero: mit Papern chatten, markierten Text uebersetzen, ganze PDFs uebersetzen. Nutzbar mit dem vorhandenen ChatGPT- oder GitHub-Copilot-Abo (OAuth, kein API-Key), jeder OpenAI-kompatiblen API oder lokalen Modellen ueber Ollama und LM Studio.",
     badge: "Kostenlos & Open Source",
     hero: {
       eyebrow: "Fuer Menschen, die Papers lesen, markieren und zusammenfassen",
       heading: "In Zotero lesen, fragen und Notizen organisieren.",
       subheading:
-        "AIdea ist ein kostenloses Open-Source-Projekt. Mit Papern chatten, markierten Text uebersetzen und ganze PDFs als zweisprachige Dokumente uebersetzen, ohne Zotero zu verlassen. Verbindung ueber das vorhandene ChatGPT-, Gemini- oder GitHub-Copilot-Abo, jede OpenAI-kompatible API oder lokale Modelle.",
+        "AIdea ist ein kostenloses Open-Source-Projekt. Mit Papern chatten, markierten Text uebersetzen und ganze PDFs als zweisprachige Dokumente uebersetzen, ohne Zotero zu verlassen. Verbindung ueber das vorhandene ChatGPT- oder GitHub-Copilot-Abo, jede OpenAI-kompatible API oder lokale Modelle.",
       primaryCta: "Aus Releases installieren",
       secondaryCta: "Quellcode ansehen",
       tertiaryCta: "Dokumentation lesen",
@@ -948,7 +948,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "Schnell starten und spaeter feiner einstellen",
-          body: "Mit dem vorhandenen ChatGPT-, Gemini- oder GitHub-Copilot-Abo per OAuth anmelden. Zum Start ist kein API-Key noetig.",
+          body: "Mit dem vorhandenen ChatGPT- oder GitHub-Copilot-Abo per OAuth anmelden. Zum Start ist kein API-Key noetig.",
           meta: "Schneller Einstieg",
         },
         {
@@ -1018,14 +1018,14 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "fr",
     title: "AIdea for Zotero",
     description:
-      "AIdea est un assistant IA gratuit et open source pour Zotero : dialoguer avec les articles, traduire le texte selectionne, traduire des PDF entiers. Utilisable avec votre abonnement ChatGPT, Gemini ou GitHub Copilot existant (OAuth, sans cle API), n'importe quelle API compatible OpenAI ou des modeles locaux via Ollama et LM Studio.",
+      "AIdea est un assistant IA gratuit et open source pour Zotero : dialoguer avec les articles, traduire le texte selectionne, traduire des PDF entiers. Utilisable avec votre abonnement ChatGPT ou GitHub Copilot existant (OAuth, sans cle API), n'importe quelle API compatible OpenAI ou des modeles locaux via Ollama et LM Studio.",
     badge: "Gratuit & Open Source",
     hero: {
       eyebrow:
         "Pour celles et ceux qui lisent des articles, annotent et synthetisent",
       heading: "Lire, questionner et organiser ses notes dans Zotero.",
       subheading:
-        "AIdea est un projet gratuit et open source. Dialoguez avec vos articles, traduisez le texte selectionne et traduisez des PDF entiers en documents bilingues sans quitter Zotero. Connectez-vous avec votre abonnement ChatGPT, Gemini ou GitHub Copilot existant, n'importe quelle API compatible OpenAI ou des modeles locaux.",
+        "AIdea est un projet gratuit et open source. Dialoguez avec vos articles, traduisez le texte selectionne et traduisez des PDF entiers en documents bilingues sans quitter Zotero. Connectez-vous avec votre abonnement ChatGPT ou GitHub Copilot existant, n'importe quelle API compatible OpenAI ou des modeles locaux.",
       primaryCta: "Installer depuis Releases",
       secondaryCta: "Voir le code source",
       tertiaryCta: "Lire la documentation",
@@ -1084,7 +1084,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "Commencer vite, regler ensuite",
-          body: "Connectez-vous via OAuth avec votre abonnement ChatGPT, Gemini ou GitHub Copilot existant. Aucune cle API n'est necessaire pour commencer.",
+          body: "Connectez-vous via OAuth avec votre abonnement ChatGPT ou GitHub Copilot existant. Aucune cle API n'est necessaire pour commencer.",
           meta: "Demarrage rapide",
         },
         {
@@ -1154,13 +1154,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "zh-TW",
     title: "AIdea for Zotero",
     description:
-      "AIdea 是免費開源的 Zotero AI 助手：論文對話、劃詞翻譯、全文翻譯。支援用現有的 ChatGPT、Gemini、GitHub Copilot 訂閱帳號登入（OAuth，無需 API Key），也支援任意 OpenAI 相容 API 與 Ollama、LM Studio 等本地模型。",
+      "AIdea 是免費開源的 Zotero AI 助手：論文對話、劃詞翻譯、全文翻譯。支援用現有的 ChatGPT、GitHub Copilot 訂閱帳號登入（OAuth，無需 API Key），也支援任意 OpenAI 相容 API 與 Ollama、LM Studio 等本地模型。",
     badge: "免費開源 Zotero 外掛",
     hero: {
       eyebrow: "給長期讀論文、做筆記、寫綜述的人",
       heading: "在 Zotero 裡讀論文、提問和整理筆記。",
       subheading:
-        "AIdea 是一個免費開源專案。不離開 Zotero 就能與論文對話、劃詞翻譯、把整篇 PDF 翻譯成雙語文件。接入方式任選：現有的 ChatGPT、Gemini、GitHub Copilot 訂閱帳號，任意 OpenAI 相容 API，或本地模型。",
+        "AIdea 是一個免費開源專案。不離開 Zotero 就能與論文對話、劃詞翻譯、把整篇 PDF 翻譯成雙語文件。接入方式任選：現有的 ChatGPT、GitHub Copilot 訂閱帳號，任意 OpenAI 相容 API，或本地模型。",
       primaryCta: "安裝外掛",
       secondaryCta: "查看原始碼",
       tertiaryCta: "閱讀文件",
@@ -1216,7 +1216,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "先用起來，再慢慢調整設定",
-          body: "用現有的 ChatGPT、Gemini、GitHub Copilot 訂閱帳號透過 OAuth 登入即可開始，無需 API Key。",
+          body: "用現有的 ChatGPT、GitHub Copilot 訂閱帳號透過 OAuth 登入即可開始，無需 API Key。",
           meta: "先用起來",
         },
         {
@@ -1282,13 +1282,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "ko",
     title: "AIdea for Zotero",
     description:
-      "AIdea는 Zotero를 위한 무료 오픈소스 AI 어시스턴트입니다. 논문과 대화, 선택 텍스트 번역, PDF 전체 번역을 지원합니다. 기존 ChatGPT, Gemini, GitHub Copilot 구독(OAuth, API 키 불필요), 모든 OpenAI 호환 API, Ollama와 LM Studio 같은 로컬 모델을 사용할 수 있습니다.",
+      "AIdea는 Zotero를 위한 무료 오픈소스 AI 어시스턴트입니다. 논문과 대화, 선택 텍스트 번역, PDF 전체 번역을 지원합니다. 기존 ChatGPT, GitHub Copilot 구독(OAuth, API 키 불필요), 모든 OpenAI 호환 API, Ollama와 LM Studio 같은 로컬 모델을 사용할 수 있습니다.",
     badge: "무료 오픈소스",
     hero: {
       eyebrow: "논문을 읽고, 메모하고, 리뷰를 쓰는 사람들을 위해",
       heading: "Zotero 안에서 읽고, 묻고, 노트를 정리하세요.",
       subheading:
-        "AIdea는 무료 오픈소스 프로젝트입니다. Zotero를 벗어나지 않고 논문과 대화하고, 선택한 텍스트를 번역하고, PDF 전체를 이중 언어 문서로 번역할 수 있습니다. 기존 ChatGPT, Gemini, GitHub Copilot 구독, 모든 OpenAI 호환 API, 로컬 모델 중 원하는 방식으로 연결하세요.",
+        "AIdea는 무료 오픈소스 프로젝트입니다. Zotero를 벗어나지 않고 논문과 대화하고, 선택한 텍스트를 번역하고, PDF 전체를 이중 언어 문서로 번역할 수 있습니다. 기존 ChatGPT, GitHub Copilot 구독, 모든 OpenAI 호환 API, 로컬 모델 중 원하는 방식으로 연결하세요.",
       primaryCta: "Releases에서 설치",
       secondaryCta: "소스 코드 보기",
       tertiaryCta: "문서 읽기",
@@ -1345,7 +1345,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "복잡한 설정 전에 먼저 써볼 수 있음",
-          body: "기존 ChatGPT, Gemini, GitHub Copilot 구독으로 OAuth 로그인하면 바로 시작할 수 있습니다. API 키가 필요 없습니다.",
+          body: "기존 ChatGPT, GitHub Copilot 구독으로 OAuth 로그인하면 바로 시작할 수 있습니다. API 키가 필요 없습니다.",
           meta: "빠르게 시작",
         },
         {
@@ -1415,13 +1415,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "es",
     title: "AIdea for Zotero",
     description:
-      "AIdea es un asistente de IA gratuito y de código abierto para Zotero: chatea con los artículos, traduce el texto seleccionado y traduce PDF completos. Usa tu suscripción existente de ChatGPT, Gemini o GitHub Copilot (OAuth, sin clave API), cualquier API compatible con OpenAI o modelos locales mediante Ollama y LM Studio.",
+      "AIdea es un asistente de IA gratuito y de código abierto para Zotero: chatea con los artículos, traduce el texto seleccionado y traduce PDF completos. Usa tu suscripción existente de ChatGPT o GitHub Copilot (OAuth, sin clave API), cualquier API compatible con OpenAI o modelos locales mediante Ollama y LM Studio.",
     badge: "Gratis y de código abierto",
     hero: {
       eyebrow: "Para quienes leen artículos, toman notas y escriben revisiones",
       heading: "Lee, pregunta y organiza tus notas dentro de Zotero.",
       subheading:
-        "AIdea es un proyecto gratuito y de código abierto. Chatea con tus artículos, traduce el texto seleccionado y traduce PDF completos a documentos bilingües sin salir de Zotero. Conéctate con tu suscripción existente de ChatGPT, Gemini o GitHub Copilot, cualquier API compatible con OpenAI o modelos locales.",
+        "AIdea es un proyecto gratuito y de código abierto. Chatea con tus artículos, traduce el texto seleccionado y traduce PDF completos a documentos bilingües sin salir de Zotero. Conéctate con tu suscripción existente de ChatGPT o GitHub Copilot, cualquier API compatible con OpenAI o modelos locales.",
       primaryCta: "Instalar desde Releases",
       secondaryCta: "Ver el código",
       tertiaryCta: "Leer la documentación",
@@ -1478,7 +1478,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "Empieza a usarlo antes de una configuración pesada",
-          body: "Inicia sesión mediante OAuth con tu suscripción existente de ChatGPT, Gemini o GitHub Copilot. No necesitas una clave API para empezar.",
+          body: "Inicia sesión mediante OAuth con tu suscripción existente de ChatGPT o GitHub Copilot. No necesitas una clave API para empezar.",
           meta: "Inicio rápido",
         },
         {
@@ -1549,13 +1549,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "ru",
     title: "AIdea for Zotero",
     description:
-      "AIdea — бесплатный ИИ-ассистент с открытым кодом для Zotero: диалог со статьями, перевод выделенного текста, перевод целых PDF. Используйте существующую подписку ChatGPT, Gemini или GitHub Copilot (OAuth, без API-ключа), любой OpenAI-совместимый API или локальные модели через Ollama и LM Studio.",
+      "AIdea — бесплатный ИИ-ассистент с открытым кодом для Zotero: диалог со статьями, перевод выделенного текста, перевод целых PDF. Используйте существующую подписку ChatGPT или GitHub Copilot (OAuth, без API-ключа), любой OpenAI-совместимый API или локальные модели через Ollama и LM Studio.",
     badge: "Бесплатно и с открытым кодом",
     hero: {
       eyebrow: "Для тех, кто читает статьи, делает заметки и пишет обзоры",
       heading: "Читайте статьи, задавайте вопросы и ведите заметки в Zotero.",
       subheading:
-        "AIdea — это бесплатный проект с открытым исходным кодом. Общайтесь со статьями, переводите выделенный текст и переводите целые PDF в двуязычные документы, не покидая Zotero. Подключайтесь через существующую подписку ChatGPT, Gemini или GitHub Copilot, любой OpenAI-совместимый API или локальные модели.",
+        "AIdea — это бесплатный проект с открытым исходным кодом. Общайтесь со статьями, переводите выделенный текст и переводите целые PDF в двуязычные документы, не покидая Zotero. Подключайтесь через существующую подписку ChatGPT или GitHub Copilot, любой OpenAI-совместимый API или локальные модели.",
       primaryCta: "Установить из Releases",
       secondaryCta: "Посмотреть код",
       tertiaryCta: "Читать документацию",
@@ -1614,7 +1614,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "Можно начать до сложной настройки",
-          body: "Войдите через OAuth с существующей подпиской ChatGPT, Gemini или GitHub Copilot. Для начала API-ключ не нужен.",
+          body: "Войдите через OAuth с существующей подпиской ChatGPT или GitHub Copilot. Для начала API-ключ не нужен.",
           meta: "Быстрый старт",
         },
         {
@@ -1684,13 +1684,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "pt",
     title: "AIdea for Zotero",
     description:
-      "AIdea é um assistente de IA gratuito e de código aberto para Zotero: converse com artigos, traduza o texto selecionado e traduza PDFs inteiros. Use sua assinatura existente do ChatGPT, Gemini ou GitHub Copilot (OAuth, sem chave de API), qualquer API compatível com OpenAI ou modelos locais via Ollama e LM Studio.",
+      "AIdea é um assistente de IA gratuito e de código aberto para Zotero: converse com artigos, traduza o texto selecionado e traduza PDFs inteiros. Use sua assinatura existente do ChatGPT ou GitHub Copilot (OAuth, sem chave de API), qualquer API compatível com OpenAI ou modelos locais via Ollama e LM Studio.",
     badge: "Gratuito e de código aberto",
     hero: {
       eyebrow: "Para quem lê artigos, faz anotações e escreve revisões",
       heading: "Leia, pergunte e organize notas dentro do Zotero.",
       subheading:
-        "AIdea é um projeto gratuito e de código aberto. Converse com seus artigos, traduza o texto selecionado e traduza PDFs inteiros em documentos bilíngues sem sair do Zotero. Conecte-se com sua assinatura existente do ChatGPT, Gemini ou GitHub Copilot, qualquer API compatível com OpenAI ou modelos locais.",
+        "AIdea é um projeto gratuito e de código aberto. Converse com seus artigos, traduza o texto selecionado e traduza PDFs inteiros em documentos bilíngues sem sair do Zotero. Conecte-se com sua assinatura existente do ChatGPT ou GitHub Copilot, qualquer API compatível com OpenAI ou modelos locais.",
       primaryCta: "Instalar via Releases",
       secondaryCta: "Ver o código",
       tertiaryCta: "Ler a documentação",
@@ -1749,7 +1749,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "Comece a usar antes da configuração pesada",
-          body: "Entre via OAuth com sua assinatura existente do ChatGPT, Gemini ou GitHub Copilot. Nenhuma chave de API é necessária para começar.",
+          body: "Entre via OAuth com sua assinatura existente do ChatGPT ou GitHub Copilot. Nenhuma chave de API é necessária para começar.",
           meta: "Início rápido",
         },
         {
@@ -1819,13 +1819,13 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "ar",
     title: "AIdea for Zotero",
     description:
-      "AIdea مساعد ذكاء اصطناعي مجاني ومفتوح المصدر لبرنامج Zotero: الدردشة مع المقالات، وترجمة النص المحدد، وترجمة ملفات PDF كاملة. استخدم اشتراكك الحالي في ChatGPT أو Gemini أو GitHub Copilot (عبر OAuth، بلا مفتاح API)، أو أي واجهة API متوافقة مع OpenAI، أو النماذج المحلية عبر Ollama وLM Studio.",
+      "AIdea مساعد ذكاء اصطناعي مجاني ومفتوح المصدر لبرنامج Zotero: الدردشة مع المقالات، وترجمة النص المحدد، وترجمة ملفات PDF كاملة. استخدم اشتراكك الحالي في ChatGPT أو GitHub Copilot (عبر OAuth، بلا مفتاح API)، أو أي واجهة API متوافقة مع OpenAI، أو النماذج المحلية عبر Ollama وLM Studio.",
     badge: "مجاني ومفتوح المصدر",
     hero: {
       eyebrow: "لمن يقرؤون الأوراق العلمية ويكتبون الملاحظات والمراجعات",
       heading: "اقرأ واسأل ونظّم ملاحظاتك داخل Zotero.",
       subheading:
-        "AIdea مشروع مجاني ومفتوح المصدر. تحدث مع مقالاتك، وترجم النص المحدد، وترجم ملفات PDF كاملة إلى مستندات ثنائية اللغة دون مغادرة Zotero. اتصل عبر اشتراكك الحالي في ChatGPT أو Gemini أو GitHub Copilot، أو أي واجهة API متوافقة مع OpenAI، أو النماذج المحلية.",
+        "AIdea مشروع مجاني ومفتوح المصدر. تحدث مع مقالاتك، وترجم النص المحدد، وترجم ملفات PDF كاملة إلى مستندات ثنائية اللغة دون مغادرة Zotero. اتصل عبر اشتراكك الحالي في ChatGPT أو GitHub Copilot، أو أي واجهة API متوافقة مع OpenAI، أو النماذج المحلية.",
       primaryCta: "التثبيت من Releases",
       secondaryCta: "عرض الشفرة المصدرية",
       tertiaryCta: "قراءة التوثيق",
@@ -1881,7 +1881,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "ابدأ باستخدامه قبل الضبط المعقد",
-          body: "سجّل الدخول عبر OAuth باشتراكك الحالي في ChatGPT أو Gemini أو GitHub Copilot. لا حاجة إلى مفتاح API للبدء.",
+          body: "سجّل الدخول عبر OAuth باشتراكك الحالي في ChatGPT أو GitHub Copilot. لا حاجة إلى مفتاح API للبدء.",
           meta: "بداية سريعة",
         },
         {
@@ -1947,14 +1947,14 @@ export const pageContent: Record<Locale, PageData> = {
     locale: "hi",
     title: "AIdea for Zotero",
     description:
-      "AIdea Zotero के लिए एक मुफ्त और मुक्त-स्रोत AI सहायक है: शोध-पत्रों से चैट करें, चुने हुए टेक्स्ट का अनुवाद करें, पूरी PDF का अनुवाद करें। अपनी मौजूदा ChatGPT, Gemini या GitHub Copilot सदस्यता (OAuth, API कुंजी की ज़रूरत नहीं), कोई भी OpenAI-संगत API, या Ollama और LM Studio जैसे स्थानीय मॉडल इस्तेमाल करें।",
+      "AIdea Zotero के लिए एक मुफ्त और मुक्त-स्रोत AI सहायक है: शोध-पत्रों से चैट करें, चुने हुए टेक्स्ट का अनुवाद करें, पूरी PDF का अनुवाद करें। अपनी मौजूदा ChatGPT या GitHub Copilot सदस्यता (OAuth, API कुंजी की ज़रूरत नहीं), कोई भी OpenAI-संगत API, या Ollama और LM Studio जैसे स्थानीय मॉडल इस्तेमाल करें।",
     badge: "मुफ्त और मुक्त-स्रोत",
     hero: {
       eyebrow:
         "उन लोगों के लिए जो शोध-पत्र पढ़ते हैं, नोट्स बनाते हैं और समीक्षाएँ लिखते हैं",
       heading: "Zotero के भीतर पढ़ें, पूछें और नोट्स व्यवस्थित करें।",
       subheading:
-        "AIdea एक मुफ्त और मुक्त-स्रोत परियोजना है। Zotero छोड़े बिना अपने शोध-पत्रों से चैट करें, चुने हुए टेक्स्ट का अनुवाद करें और पूरी PDF को द्विभाषी दस्तावेज़ में बदलें। अपनी मौजूदा ChatGPT, Gemini या GitHub Copilot सदस्यता, किसी भी OpenAI-संगत API, या स्थानीय मॉडल से जुड़ें।",
+        "AIdea एक मुफ्त और मुक्त-स्रोत परियोजना है। Zotero छोड़े बिना अपने शोध-पत्रों से चैट करें, चुने हुए टेक्स्ट का अनुवाद करें और पूरी PDF को द्विभाषी दस्तावेज़ में बदलें। अपनी मौजूदा ChatGPT या GitHub Copilot सदस्यता, किसी भी OpenAI-संगत API, या स्थानीय मॉडल से जुड़ें।",
       primaryCta: "Releases से इंस्टॉल करें",
       secondaryCta: "सोर्स कोड देखें",
       tertiaryCta: "दस्तावेज़ पढ़ें",
@@ -2012,7 +2012,7 @@ export const pageContent: Record<Locale, PageData> = {
       cards: [
         {
           title: "भारी सेटअप से पहले भी इस्तेमाल शुरू करें",
-          body: "अपनी मौजूदा ChatGPT, Gemini या GitHub Copilot सदस्यता से OAuth के ज़रिए साइन इन करें। शुरू करने के लिए API कुंजी की ज़रूरत नहीं है।",
+          body: "अपनी मौजूदा ChatGPT या GitHub Copilot सदस्यता से OAuth के ज़रिए साइन इन करें। शुरू करने के लिए API कुंजी की ज़रूरत नहीं है।",
           meta: "तेज़ शुरुआत",
         },
         {

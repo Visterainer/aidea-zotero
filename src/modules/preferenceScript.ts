@@ -9,7 +9,6 @@ import {
   getProviderAccountSummary,
   getProviderLabel,
   pingCodexModel,
-  pingGeminiModel,
   pingModel,
   providerToMarker,
   removeProviderOAuthCredential,
@@ -159,11 +158,7 @@ type PrefKey =
 type Lang = PanelLang;
 const OAUTH_ENV_UPDATE_LOG_EVENT = `${config.addonRef}-oauth-env-update-log`;
 const GITHUB_ISSUES_URL = "https://github.com/Visterainer/aidea-zotero/issues";
-const PROVIDERS: OAuthProviderId[] = [
-  "openai-codex",
-  "google-gemini-cli",
-  "github-copilot",
-];
+const PROVIDERS: OAuthProviderId[] = ["openai-codex", "github-copilot"];
 const PROFILE_KEYS = [
   "Primary",
   "Secondary",
@@ -5896,18 +5891,6 @@ export async function bootstrapSettingTab(
             else failCount++;
           }
           renderModels();
-        } else if (provider === "google-gemini-cli" && pingInfo) {
-          // Gemini CLI: single token-level ping (all models share same token)
-          const result = await pingGeminiModel(
-            pingInfo.headers,
-            pingInfo.projectId || "",
-          );
-          for (const m of models) {
-            m.status = result;
-            if (result === "ok") okCount++;
-            else failCount++;
-          }
-          renderModels();
         } else if (pingInfo) {
           // Qwen / Copilot: standard /chat/completions ping per model
           for (const m of models) {
@@ -6156,13 +6139,13 @@ export async function bootstrapSettingTab(
       apiBasePrimary: "oauth://openai-codex",
       apiKeyPrimary: "",
       modelPrimary: "",
-      apiBaseSecondary: "oauth://google-gemini-cli",
+      apiBaseSecondary: "oauth://github-copilot",
       apiKeySecondary: "",
       modelSecondary: "",
       apiBaseTertiary: "oauth://openai-codex",
       apiKeyTertiary: "",
       modelTertiary: "",
-      apiBaseQuaternary: "oauth://google-gemini-cli",
+      apiBaseQuaternary: "oauth://github-copilot",
       apiKeyQuaternary: "",
       modelQuaternary: "",
       systemPrompt: "",

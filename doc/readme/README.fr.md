@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/fr/">https://visterainer.github.io/aidea-zotero/fr/</a>
 </p>
 
-AIdea est un assistant IA gratuit et open source pour Zotero : 💬 dialoguez avec vos articles · ✍️ traduisez le texte sélectionné · 📄 traduisez des PDF entiers en documents bilingues. Trois façons de se connecter, au choix : 🔐 votre abonnement existant (ChatGPT, Gemini ou GitHub Copilot) via OAuth, sans clé API ; 🔑 n'importe quelle API compatible OpenAI (OpenAI, DeepSeek, OpenRouter, etc.) avec une clé API ; 💻 des modèles locaux (Ollama, LM Studio, vLLM), vos données restent sur votre machine.
+AIdea est un assistant IA gratuit et open source pour Zotero : 💬 dialoguez avec vos articles · ✍️ traduisez le texte sélectionné · 📄 traduisez des PDF entiers en documents bilingues. Trois façons de se connecter, au choix : 🔐 votre abonnement existant (ChatGPT ou GitHub Copilot) via OAuth, sans clé API ; 🔑 n'importe quelle API compatible OpenAI (OpenAI, DeepSeek, OpenRouter, etc.) avec une clé API ; 💻 des modèles locaux (Ollama, LM Studio, vLLM), vos données restent sur votre machine.
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -87,11 +87,10 @@ AIdea s'adresse aux chercheurs qui souhaitent conserver dans Zotero la lecture d
 | Option                                 | Authentification                               | Remarques                                                                      |
 | -------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
 | OpenAI (ChatGPT)                       | OAuth via Codex CLI                            | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
-| Google Gemini                          | OAuth intégré au plugin (PKCE)                 | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
 | GitHub Copilot                         | OAuth intégré au plugin (Device Code)          | Aucun bootstrap Node.js supplémentaire n'est requis                            |
 | Point de terminaison compatible OpenAI | URL de base API, modèle et clé API facultative | Convient aux services locaux, auto-hébergés ou tiers compatibles               |
 
-> **Remarque :** ces environnements sont des outils tiers dont le rythme de mise à jour est fixé par leurs propres mainteneurs, indépendamment du calendrier de publication d'AIdea. **Installer/mettre à jour l'environnement**, sur la carte d'un fournisseur, installe et met à jour le CLI de ce fournisseur (Codex CLI, Gemini CLI). **Installer l'environnement**, dans l'onglet Traduction, installe et met à jour l'environnement Python et `pdf2zh_next` requis pour la traduction intégrale ; une connexion Internet est alors nécessaire. Si un outil en amont a changé, relancez simplement le bouton correspondant ; une nouvelle version du plugin n'est pas nécessaire, et une mise à jour du plugin ne met pas ces environnements à jour par elle-même.
+> **Remarque :** ces environnements sont des outils tiers dont le rythme de mise à jour est fixé par leurs propres mainteneurs, indépendamment du calendrier de publication d'AIdea. **Installer/mettre à jour l'environnement**, sur la carte d'un fournisseur, installe et met à jour le CLI de ce fournisseur (Codex CLI). **Installer l'environnement**, dans l'onglet Traduction, installe et met à jour l'environnement Python et `pdf2zh_next` requis pour la traduction intégrale ; une connexion Internet est alors nécessaire. Si un outil en amont a changé, relancez simplement le bouton correspondant ; une nouvelle version du plugin n'est pas nécessaire, et une mise à jour du plugin ne met pas ces environnements à jour par elle-même.
 
 ## Installation
 

@@ -22,7 +22,7 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/ko/">https://visterainer.github.io/aidea-zotero/ko/</a>
 </p>
 
-AIdea는 Zotero를 위한 무료 오픈소스 AI 어시스턴트입니다: 💬 논문과 대화 · ✍️ 선택 텍스트 번역 · 📄 전체 문서 번역 및 이중 언어 PDF 내보내기. 세 가지 연결 방식 중 하나를 선택하세요: 🔐 기존 구독 계정(ChatGPT, Gemini, GitHub Copilot)으로 OAuth 로그인, API 키 불필요; 🔑 OpenAI, DeepSeek, OpenRouter 등 모든 OpenAI 호환 API에 API 키로 연결; 💻 로컬 모델(Ollama, LM Studio, vLLM) 사용, 데이터가 내 컴퓨터를 벗어나지 않습니다.
+AIdea는 Zotero를 위한 무료 오픈소스 AI 어시스턴트입니다: 💬 논문과 대화 · ✍️ 선택 텍스트 번역 · 📄 전체 문서 번역 및 이중 언어 PDF 내보내기. 세 가지 연결 방식 중 하나를 선택하세요: 🔐 기존 구독 계정(ChatGPT, GitHub Copilot)으로 OAuth 로그인, API 키 불필요; 🔑 OpenAI, DeepSeek, OpenRouter 등 모든 OpenAI 호환 API에 API 키로 연결; 💻 로컬 모델(Ollama, LM Studio, vLLM) 사용, 데이터가 내 컴퓨터를 벗어나지 않습니다.
 
 <p align="center">
   <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
@@ -87,11 +87,10 @@ AIdea는 논문과 전자책 읽기, 후속 질문, 발췌, 노트 정리, 선�
 | 방식                   | 인증                               | 설명                                                     |
 | ---------------------- | ---------------------------------- | -------------------------------------------------------- |
 | OpenAI (ChatGPT)       | Codex CLI 기반 OAuth               | 필요할 경우 플러그인이 Node.js 실행 환경을 자동으로 설치 |
-| Google Gemini          | 플러그인 내부 OAuth (PKCE)         | 필요할 경우 플러그인이 Node.js 실행 환경을 자동으로 설치 |
 | GitHub Copilot         | 플러그인 내부 OAuth (Device Code)  | 추가 Node.js 부트스트랩 불필요                           |
 | OpenAI 호환 엔드포인트 | API Base URL, 모델, 선택적 API Key | 로컬, 자체 호스팅, 서드파티 호환 서비스에 적합           |
 
-> **참고:** 이들 환경은 서드파티 도구이며, 업데이트 주기는 각 도구의 관리자가 정하므로 AIdea 플러그인의 릴리스 일정과 무관합니다. 제공자 카드의 "환경 설치/업데이트"는 해당 제공자의 CLI(Codex CLI, Gemini CLI)를 설치하고 업데이트합니다. 번역 탭의 "환경 설치"는 전체 문서 번역에 필요한 Python 환경과 `pdf2zh_next`를 설치하고 업데이트하며, 이때 인터넷 연결이 필요합니다. 업스트림 도구가 업데이트되면 해당 버튼을 다시 실행하면 되고, 플러그인 업데이트를 기다릴 필요가 없습니다. 플러그인을 업데이트해도 이들 환경이 자동으로 갱신되지는 않습니다.
+> **참고:** 이들 환경은 서드파티 도구이며, 업데이트 주기는 각 도구의 관리자가 정하므로 AIdea 플러그인의 릴리스 일정과 무관합니다. 제공자 카드의 "환경 설치/업데이트"는 해당 제공자의 CLI(Codex CLI)를 설치하고 업데이트합니다. 번역 탭의 "환경 설치"는 전체 문서 번역에 필요한 Python 환경과 `pdf2zh_next`를 설치하고 업데이트하며, 이때 인터넷 연결이 필요합니다. 업스트림 도구가 업데이트되면 해당 버튼을 다시 실행하면 되고, 플러그인 업데이트를 기다릴 필요가 없습니다. 플러그인을 업데이트해도 이들 환경이 자동으로 갱신되지는 않습니다.
 
 ## 설치
 

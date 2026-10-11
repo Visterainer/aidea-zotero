@@ -1549,71 +1549,6 @@ def _generate_prompt_id():
     return f"aidea-{int(time.time())}-{suffix}"
 
 
-def _build_gemini_prompt(messages):
-    parts = []
-    for msg in messages:
-        if not isinstance(msg, dict):
-            continue
-        role = str(msg.get("role", "user"))
-        text = _extract_text_from_openai_content(msg.get("content")).strip()
-        if not text:
-            continue
-        role_label = "User"
-        if role == "assistant":
-            role_label = "Assistant"
-        elif role == "system":
-            role_label = "System"
-        parts.append(f"{role_label}:\n{text}")
-    if not parts:
-        return "Translate this text."
-    return "\n\n".join(parts)
-
-
-def _extract_gemini_text_from_json(data):
-    candidates = []
-    if isinstance(data, dict):
-        root_candidates = data.get("candidates")
-        if isinstance(root_candidates, list):
-            candidates = root_candidates
-        response = data.get("response")
-        if isinstance(response, dict) and isinstance(response.get("candidates"), list):
-            candidates = response["candidates"]
-
-    out = []
-    for cand in candidates:
-        if not isinstance(cand, dict):
-            continue
-        content = cand.get("content")
-        if not isinstance(content, dict):
-            continue
-        parts = content.get("parts")
-        if not isinstance(parts, list):
-            continue
-        for part in parts:
-            if isinstance(part, dict) and isinstance(part.get("text"), str):
-                out.append(part["text"])
-    return "".join(out)
-
-
-def _extract_gemini_text_from_sse(raw):
-    out = []
-    for line in raw.splitlines():
-        trimmed = line.strip()
-        if not trimmed.startswith("data:"):
-            continue
-        payload = trimmed[5:].strip()
-        if not payload or payload == "[DONE]":
-            continue
-        try:
-            parsed = json.loads(payload)
-        except Exception:
-            continue
-        text = _extract_gemini_text_from_json(parsed)
-        if text:
-            out.append(text)
-    return "".join(out)
-
-
 COPILOT_EDITOR_VERSION = "vscode/1.96.2"
 COPILOT_USER_AGENT = "GitHubCopilotChat/0.26.7"
 COPILOT_DEFAULT_API_BASE = "https://api.individual.githubcopilot.com"
@@ -1943,7 +1878,6 @@ def _to_openai_completion_stream_chunks(model, text):
 class OAuthCompatProxyServer:
     """Temporary local OpenAI-compatible adapter for OAuth and proxied API providers."""
 
-    GEMINI_STREAM_URL = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
     CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
 
     def __init__(self, proxy_cfg, debug_log=None, debug_enabled=False):
@@ -2123,8 +2057,6 @@ class OAuthCompatProxyServer:
             return self._forward_openai_compatible(payload)
         if provider == "openai-codex":
             return self._forward_codex(payload)
-        if provider == "google-gemini-cli":
-            return self._forward_gemini(payload)
         if provider == "github-copilot":
             return self._forward_copilot(payload)
         raise RuntimeError(f"Unsupported OAuth proxy provider: {provider}")
@@ -2280,69 +2212,6 @@ class OAuthCompatProxyServer:
             model,
             request_json_mode,
             "codex-responses-sse",
-            raw,
-            text,
-            normalized_output["filtered_reasoning_chars"],
-        )
-        return text
-
-    def _forward_gemini(self, payload):
-        access_token = str(self.proxy_cfg.get("accessToken", "")).strip()
-        if not access_token:
-            raise RuntimeError("Missing OAuth access token for google-gemini-cli")
-        project_id = str(self.proxy_cfg.get("projectId", "")).strip()
-        if not project_id:
-            raise RuntimeError(
-                "Missing Google project ID for Gemini OAuth. Re-login in AIdea settings."
-            )
-
-        model = str(payload.get("model", "")).strip()
-        if model.startswith("models/"):
-            model = model[7:]
-        messages = payload.get("messages")
-        if not isinstance(messages, list):
-            messages = []
-
-        request = {
-            "contents": [{"role": "user", "parts": [{"text": _build_gemini_prompt(messages)}]}],
-        }
-        generation_cfg = {}
-        temp = payload.get("temperature")
-        max_tokens = payload.get("max_tokens")
-        if isinstance(temp, (int, float)):
-            generation_cfg["temperature"] = float(temp)
-        if isinstance(max_tokens, (int, float)):
-            generation_cfg["maxOutputTokens"] = max(1, int(max_tokens))
-        if generation_cfg:
-            request["generationConfig"] = generation_cfg
-
-        req_body = {
-            "model": model,
-            "project": project_id,
-            "user_prompt_id": _generate_prompt_id(),
-            "request": request,
-        }
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-            "Accept": "text/event-stream",
-            "User-Agent": f"AIdea/1.0/{model}",
-        }
-        raw = _http_post_json_with_retry(self.GEMINI_STREAM_URL, req_body, headers, timeout=300)
-        text = _extract_gemini_text_from_sse(raw)
-        if not text.strip():
-            try:
-                data = json.loads(raw)
-            except Exception:
-                data = {}
-            text = _extract_gemini_text_from_json(data)
-        normalized_output = self._normalize_provider_output(text)
-        text = normalized_output["text"]
-        self._debug_response(
-            "google-gemini-cli",
-            model,
-            False,
-            "gemini-sse",
             raw,
             text,
             normalized_output["filtered_reasoning_chars"],

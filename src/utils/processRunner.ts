@@ -184,7 +184,7 @@ export async function runShellCommand(
 /**
  * Run a command hidden, poll its output for a URL matching the given pattern,
  * and invoke `onUrlFound` when the URL appears.  Returns when the process exits.
- * This is designed for CLI tools like `gemini auth login` which print an OAuth URL
+ * This is designed for CLI tools like `codex login` which print an OAuth URL
  * and then wait for the browser callback.
  *
  * Uses a line-by-line flush wrapper to overcome Node.js stdout buffering when

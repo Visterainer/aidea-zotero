@@ -92,7 +92,7 @@ describe("custom endpoint primary connection mode", function () {
     setPluginPref("apiBasePrimary", "oauth://openai-codex");
     setPluginPref("apiKeyPrimary", "oauth-key");
     setPluginPref("modelPrimary", "oauth-model");
-    setPluginPref("apiBaseSecondary", "oauth://google-gemini-cli");
+    setPluginPref("apiBaseSecondary", "oauth://github-copilot");
     setPluginPref("apiKeySecondary", "secondary-key");
     setPluginPref("modelSecondary", "secondary-model");
 
@@ -104,7 +104,7 @@ describe("custom endpoint primary connection mode", function () {
       model: "custom-model",
     });
     assert.deepEqual(profiles.secondary, {
-      apiBase: "oauth://google-gemini-cli",
+      apiBase: "oauth://github-copilot",
       apiKey: "secondary-key",
       model: "secondary-model",
     });

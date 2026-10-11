@@ -575,7 +575,7 @@ describe("custom endpoint settings UI", function () {
 
     assert.equal(customFields.style.display, "none");
     assert.equal((apiBaseInput as any).disabled, true);
-    assert.equal(findTextCount(win.document.body, "OAuth Login"), 3);
+    assert.equal(findTextCount(win.document.body, "OAuth Login"), 2);
 
     (oauthModeRadio as any).checked = false;
     (customModeRadio as any).checked = true;
@@ -724,9 +724,7 @@ describe("custom endpoint settings UI", function () {
           { id: "gpt-5.2", label: "GPT 5.2" },
           { id: "gpt-5.3-codex", label: "GPT 5.3 Codex" },
         ],
-        "google-gemini-cli": [
-          { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-        ],
+        "github-copilot": [{ id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" }],
       }),
     );
 

@@ -37,24 +37,6 @@ describe("oauthModelSelection defaults", function () {
     ]);
   });
 
-  it("should pick the highest Gemini pro and flash variants", function () {
-    const selected = getDefaultSelectedModelIds(
-      "google-gemini-cli",
-      models([
-        "gemini-2.5-pro",
-        "gemini-3.1-pro-preview",
-        "gemini-2.5-flash",
-        "gemini-3-flash-preview",
-        "gemini-2.5-flash-lite",
-      ]),
-    );
-
-    assert.deepEqual(selected, [
-      "gemini-3.1-pro-preview",
-      "gemini-3-flash-preview",
-    ]);
-  });
-
   it("should include all Qwen models by default", function () {
     const selected = getDefaultSelectedModelIds(
       "qwen",
@@ -130,13 +112,13 @@ describe("oauthModelSelection persistence", function () {
   it("should initialize missing provider selections from defaults", function () {
     const modelCache: Partial<Record<OAuthProviderId, ProviderModelOption[]>> =
       {
-        "google-gemini-cli": models(["gemini-2.5-pro", "gemini-2.5-flash"]),
+        "github-copilot": models(["gemini-2.5-pro", "gemini-2.5-flash"]),
       };
     const reconciled = reconcileModelSelectionCache(modelCache, {});
 
     assert.isTrue(reconciled.changed);
     assert.deepEqual(reconciled.cache, {
-      "google-gemini-cli": ["gemini-2.5-pro", "gemini-2.5-flash"],
+      "github-copilot": ["gemini-2.5-pro", "gemini-2.5-flash"],
     });
   });
 });

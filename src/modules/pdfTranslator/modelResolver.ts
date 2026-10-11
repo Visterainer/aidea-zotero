@@ -20,11 +20,7 @@ import {
 
 /** Credentials needed by the pdf2zh_next translation engine. */
 export interface OAuthProxyConfig {
-  provider:
-    | "openai-codex"
-    | "google-gemini-cli"
-    | "github-copilot"
-    | "openai-compatible";
+  provider: "openai-codex" | "github-copilot" | "openai-compatible";
   accessToken: string;
   accountId?: string;
   projectId?: string;
@@ -71,13 +67,11 @@ function normalizeApiBaseUrl(url: string): string {
 
 const OAUTH_LABEL_TO_PROVIDER: Record<string, OAuthProviderId> = {
   codex: "openai-codex",
-  gemini: "google-gemini-cli",
   copilot: "github-copilot",
 };
 
 const KNOWN_OAUTH_PROVIDERS = new Set<OAuthProviderId>([
   "openai-codex",
-  "google-gemini-cli",
   "github-copilot",
 ]);
 
@@ -137,10 +131,10 @@ function inferProviderFromModelName(modelName: string): OAuthProviderId | null {
   ) {
     return "openai-codex";
   }
-  if (normalized.startsWith("gemini-")) {
-    return "google-gemini-cli";
-  }
+  // Gemini models are only reachable through GitHub Copilot now that the
+  // Gemini CLI OAuth route is gone.
   if (
+    normalized.startsWith("gemini-") ||
     normalized.startsWith("claude-") ||
     normalized.startsWith("deepseek-") ||
     normalized.startsWith("grok-")
@@ -234,19 +228,6 @@ async function resolveOAuthProviderCredentials(
         provider,
         accessToken: credential.accessToken,
         accountId: credential.accountId,
-      },
-    };
-  }
-
-  if (provider === "google-gemini-cli") {
-    return {
-      modelId,
-      apiKey: "aidea-oauth-proxy",
-      apiUrl: "http://127.0.0.1:1/v1",
-      oauthProxy: {
-        provider,
-        accessToken: credential.accessToken,
-        projectId: credential.projectId,
       },
     };
   }

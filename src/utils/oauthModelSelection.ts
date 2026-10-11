@@ -127,16 +127,6 @@ export function getDefaultSelectedModelIds(
     );
   }
 
-  if (provider === "google-gemini-cli") {
-    return canonicalizeSelectedModelIds(
-      [
-        pickBestGeminiModel(modelIds, "pro"),
-        pickBestGeminiModel(modelIds, "flash"),
-      ].filter((value): value is string => Boolean(value)),
-      models,
-    );
-  }
-
   const selected = [
     ...modelIds.filter((id) => /^claude-/i.test(id)),
     pickBestGeminiModel(
@@ -191,12 +181,7 @@ export function reconcileModelSelectionCache(
 ): { cache: ProviderModelSelectionCache; changed: boolean } {
   const next: ProviderModelSelectionCache = {};
   const providers = Array.from(
-    new Set([
-      "openai-codex",
-      "google-gemini-cli",
-      "github-copilot",
-      ...Object.keys(modelCache),
-    ]),
+    new Set(["openai-codex", "github-copilot", ...Object.keys(modelCache)]),
   ) as OAuthProviderId[];
 
   for (const provider of providers) {
@@ -224,7 +209,6 @@ function sameSelectionCache(
 ): boolean {
   const providers = new Set([
     "openai-codex",
-    "google-gemini-cli",
     "github-copilot",
     ...Object.keys(left),
     ...Object.keys(right),

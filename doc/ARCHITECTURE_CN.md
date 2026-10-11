@@ -214,7 +214,7 @@ onMainWindowUnload(win)
 | ----------------------- | -------- | ------------------------------------------------------- |
 | **`llmClient.ts`**      | **67KB** | ★ LLM API 调用（流式/非流式, ~2275行）                  |
 | **`chatStore.ts`**      | **35KB** | ★ 聊天持久化（SQLite via Zotero.DB, ~1020行）           |
-| **`oauthCli.ts`**       | **35KB** | ★ OAuth 认证流程（openai-codex / google-gemini-cli）    |
+| **`oauthCli.ts`**       | **35KB** | ★ OAuth 认证流程（openai-codex / github-copilot）       |
 | `markdown.ts`           | 25KB     | Markdown 渲染（含 KaTeX 公式）                          |
 | `reasoningProfiles.ts`  | 16KB     | 推理配置文件（GPT-5/o1/Claude/Gemini/Qwen/DeepSeek 等） |
 | `memoryStore.ts`        | 14KB     | 记忆系统存储                                            |
@@ -691,7 +691,7 @@ responseMenuTarget / promptMenuTarget;
 管理插件设置界面，配置项包括：
 
 - API Base URL / API Key / 模型名称（支持 4 个配置文件：Primary / Secondary / Tertiary / Quaternary）
-- OAuth 认证（openai-codex / google-gemini-cli）
+- OAuth 认证（openai-codex / github-copilot）
 - 推理模式（off / low / medium / high / default）
 - 自定义快捷指令（增删改拖拽排序）
 - 高级参数（Temperature / Max Tokens）
@@ -755,28 +755,26 @@ responseMenuTarget / promptMenuTarget;
 ### 26.1 Provider 类型
 
 ```typescript
-type OAuthProviderId = "openai-codex" | "google-gemini-cli";
+type OAuthProviderId = "openai-codex" | "github-copilot";
 ```
 
 ### 26.2 关键函数
 
-| 函数                                  | 职责                                    |
-| ------------------------------------- | --------------------------------------- |
-| `readCodexOAuthCredential()`          | 读取 Codex 凭证                         |
-| `readGeminiOAuthCredential()`         | 读取 Gemini 凭证                        |
-| `runProviderOAuthLogin(provider)`     | 启动 OAuth 登录流程                     |
-| `fetchAvailableModels(provider)`      | 获取可用模型列表                        |
-| `chatWithProviderOAuth(...)`          | 使用 OAuth 凭证调用 API（支持流式输出） |
-| `parseCodexSSEStream(body, onDelta)`  | 增量解析 Codex SSE 流                   |
-| `parseGeminiSSEStream(body, onDelta)` | 增量解析 Gemini SSE 流                  |
-| `ensureZoteroProxyFromSystem()`       | 自动检测 Windows 系统代理并应用到 Gecko |
-| `autoConfigureEnvironment()`          | 自动配置运行环境                        |
-| `getProviderAccountSummary()`         | 获取 OAuth 账户状态摘要                 |
+| 函数                                 | 职责                                    |
+| ------------------------------------ | --------------------------------------- |
+| `readCodexOAuthCredential()`         | 读取 Codex 凭证                         |
+| `runProviderOAuthLogin(provider)`    | 启动 OAuth 登录流程                     |
+| `fetchAvailableModels(provider)`     | 获取可用模型列表                        |
+| `chatWithProviderOAuth(...)`         | 使用 OAuth 凭证调用 API（支持流式输出） |
+| `parseCodexSSEStream(body, onDelta)` | 增量解析 Codex SSE 流                   |
+| `ensureZoteroProxyFromSystem()`      | 自动检测 Windows 系统代理并应用到 Gecko |
+| `autoConfigureEnvironment()`         | 自动配置运行环境                        |
+| `getProviderAccountSummary()`        | 获取 OAuth 账户状态摘要                 |
 
 ### 26.3 OAuth 流式处理
 
 - **Codex**：使用 `chatgpt.com/backend-api/codex/responses`（`stream: true`），通过 `ReadableStream` 解析 SSE
-- **Gemini**：使用 `streamGenerateContent?alt=sse` 端点，通过 `ReadableStream` 解析
+- **GitHub Copilot**：使用 Copilot 的 `/responses` 或 `/chat/completions` 端点，复用 Codex / OpenAI 兼容的 SSE 解析器
 
 ---
 
