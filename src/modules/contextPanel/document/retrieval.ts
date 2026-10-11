@@ -26,6 +26,7 @@ import {
   buildDeterministicSectionPlan,
   buildSectionCatalog,
   resolveSectionRetrievalPlan,
+  isDocumentOverviewQuestion,
   type SectionCoverage,
 } from "./sectionRouting";
 
@@ -58,7 +59,7 @@ export type BuildDocumentContextOptions = {
   onRetrievedSegments?: (segmentIds: string[]) => void;
   /** Cancels context preparation and provider-backed embedding requests. */
   signal?: AbortSignal;
-  onRetrievedChunks?: (indexes: number[]) => void;
+  onRetrievedChunks?: (indexes: number[], coverage?: SectionCoverage) => void;
   maxChunks?: number;
   maxLength?: number;
 };
@@ -310,7 +311,7 @@ function sampleAcrossSegments(
     let added = false;
     for (const group of selectedGroups) {
       const budget = Math.max(1, Math.ceil(maxChunks / selectedGroups.length));
-      const samples = sampleEvenly(group, budget);
+      const samples = budget === 1 ? [group[0]] : sampleEvenly(group, budget);
       const candidate = samples[round];
       if (candidate === undefined || picked.includes(candidate)) continue;
       picked.push(candidate);
@@ -619,7 +620,15 @@ export async function buildDocumentContext(
   throwIfAborted(options?.signal);
   const coverage: SectionCoverage =
     plannedRetrieval?.coverage ||
-    (preferredSegmentIds.size > 1 ? "balanced" : "focused");
+    (preferredSegmentIds.size > 1 ||
+    (anchorIndex < 0 &&
+      !preferredSegmentIds.size &&
+      (isDocumentOverviewQuestion(question) ||
+        !scored.some(
+          (entry) => candidateSet.has(entry.index) && entry.score > 0,
+        )))
+      ? "balanced"
+      : "focused");
   const picked = new Set<number>();
   const addIndex = (index: number) => {
     if (index < 0 || index >= chunks.length) return;
@@ -637,15 +646,15 @@ export async function buildDocumentContext(
     ? Math.max(1, Math.ceil(maxChunks * PLANNED_SECTION_PRIMARY_BUDGET_RATIO))
     : maxChunks;
 
-  if (structuredMetadata && coverage === "balanced") {
+  if (coverage === "balanced") {
     const representativeIndexes = primaryIndexes.filter((index) => {
-      const role = structuredMetadata[index]?.role;
-      const linear = structuredMetadata[index]?.linear;
+      const role = structuredMetadata?.[index]?.role;
+      const linear = structuredMetadata?.[index]?.linear;
       return (role === undefined || role === "content") && linear !== false;
     });
     for (const index of sampleAcrossSegments(
       representativeIndexes.length ? representativeIndexes : primaryIndexes,
-      structuredMetadata,
+      structuredMetadata || [],
       primaryBudget,
     )) {
       addIndex(index);
@@ -758,7 +767,7 @@ export async function buildDocumentContext(
     ),
   );
   options?.onRetrievedSegments?.(retrievedSegmentIds);
-  options?.onRetrievedChunks?.(emittedIndexes);
+  options?.onRetrievedChunks?.(emittedIndexes, coverage);
 
   ztoolkit.log(
     `LLM buildContext: kind=${context.documentKind || "pdf"}, ` +

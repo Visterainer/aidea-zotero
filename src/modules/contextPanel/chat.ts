@@ -14,6 +14,7 @@ import {
 } from "../../utils/llmPrompts";
 import {
   buildReadingContext,
+  buildMetadataReadingContext,
   retrievalQuestion,
   CITATION_GUIDANCE,
 } from "./document/readingContext";
@@ -24,7 +25,12 @@ import {
   navigateCitation,
   mapCitationText,
 } from "./citations";
-import type { EvidenceRef, SummaryCheckpoint } from "./document/evidence";
+import type {
+  EvidenceRef,
+  SummaryCheckpoint,
+  DocumentCoverage,
+  DocumentContextResult,
+} from "./document/evidence";
 import { getModelContextWindow } from "../../utils/modelContextWindow";
 import { renderMarkdown, renderMarkdownForNote } from "../../utils/markdown";
 import { getZoteroItem } from "../../utils/zoteroItems";
@@ -1197,6 +1203,7 @@ export async function prepareChatRequest(params: {
   combinedContext: string;
   llmHistory: ChatMessage[];
   citations: EvidenceRef[];
+  documentCoverage: DocumentCoverage[];
 }> {
   throwIfRequestAborted(params.signal);
   const limits = resolveInputBudget(
@@ -1320,6 +1327,7 @@ export async function prepareChatRequest(params: {
     text: string;
     evidenceRefs: EvidenceRef[];
     budgetUsage: number;
+    coverage: DocumentContextResult["coverage"];
   }[] = [];
   for (const target of targets) {
     throwIfRequestAborted(params.signal);
@@ -1335,24 +1343,7 @@ export async function prepareChatRequest(params: {
           .map((r) => r.segmentId || "")
           .filter(Boolean);
     } else {
-      const abstract = String(target.item.getField("abstractNote") || "");
-      const text = sliceToTokens(
-        `Title: ${target.item.getField("title")}\nExtraction: unavailable; supplied: ${abstract ? "abstract" : "unavailable"}\n${abstract || "Metadata only; no paper evidence available"}`,
-        Math.max(0, share - 20),
-      );
-      const ref: EvidenceRef = {
-        id: `m${target.item.id}`,
-        itemId: target.item.id,
-        itemKey: target.item.key,
-        libraryId: target.item.libraryID,
-        title: String(target.item.getField("title")),
-        text,
-      };
-      results.push({
-        text: `[[cite:${ref.id}]]\n${text}`,
-        evidenceRefs: [ref],
-        budgetUsage: estimateTokens(text) + 20,
-      });
+      results.push(buildMetadataReadingContext(target.item, share));
     }
   }
   // Redistribute only unused shares, after every paper has received its base share.
@@ -1415,12 +1406,19 @@ export async function prepareChatRequest(params: {
         "Input budget is too small for the selected material / 当前输入预算不足",
       );
     const dropped = largest.evidenceRefs.pop()!;
+    largest.coverage = {
+      ...largest.coverage,
+      supplied: largest.evidenceRefs.length ? "excerpts" : "unavailable",
+    };
     const marker = `[[cite:${dropped.id}]]`;
     const index = largest.text.indexOf(marker);
     if (index >= 0)
       largest.text = largest.text
         .slice(0, index)
-        .replace("supplied: full", "supplied: excerpts");
+        .replace(
+          /^(Extraction: [^\n]+; supplied: )(?:full|excerpts|abstract|unavailable)\b/m,
+          (_match, prefix: string) => `${prefix}${largest.coverage.supplied}`,
+        );
     else largest.text = "";
     combinedContext = [CITATION_GUIDANCE, ...results.map((r) => r.text), memory]
       .filter(Boolean)
@@ -1456,7 +1454,14 @@ export async function prepareChatRequest(params: {
       (result) => result.text.match(/Extraction: [^\n]+/)?.[0] || "unavailable",
     ),
   });
-  return { combinedContext, llmHistory, citations };
+  const documentCoverage = results.map((result, index) => ({
+    ...result.coverage,
+    itemId: targets[index].item.id,
+    title:
+      result.evidenceRefs[0]?.title ||
+      String(targets[index].item.getField("title") || "Document"),
+  }));
+  return { combinedContext, llmHistory, citations, documentCoverage };
 }
 
 function buildContextRefsSnapshot(
@@ -2391,8 +2396,8 @@ export async function editUserMessageAndRetry(
   };
 
   try {
-    const { combinedContext, llmHistory, citations } = await prepareChatRequest(
-      {
+    const { combinedContext, llmHistory, citations, documentCoverage } =
+      await prepareChatRequest({
         item,
         question,
         imageCount: Math.min(
@@ -2410,10 +2415,10 @@ export async function editUserMessageAndRetry(
         advanced: effectiveRequestConfig.advanced,
         historyForLLM,
         signal: requestAbortController.signal,
-      },
-    );
+      });
     assistantMessage.contextRefs = {
       citations,
+      documentCoverage,
       summaryCheckpoint: summaryCheckpointCache.get(conversationKey),
     };
     refreshChatSafely();
@@ -2737,8 +2742,8 @@ export async function retryLatestAssistantResponse(
   };
 
   try {
-    const { combinedContext, llmHistory, citations } = await prepareChatRequest(
-      {
+    const { combinedContext, llmHistory, citations, documentCoverage } =
+      await prepareChatRequest({
         item,
         question,
         imageCount: Math.min(
@@ -2756,10 +2761,10 @@ export async function retryLatestAssistantResponse(
         advanced: effectiveRequestConfig.advanced,
         historyForLLM,
         signal: requestAbortController.signal,
-      },
-    );
+      });
     assistantMessage.contextRefs = {
       citations,
+      documentCoverage,
       summaryCheckpoint: summaryCheckpointCache.get(conversationKey),
     };
     refreshChatSafely();
@@ -3180,8 +3185,8 @@ export async function sendQuestion(
   };
 
   try {
-    const { combinedContext, llmHistory, citations } = await prepareChatRequest(
-      {
+    const { combinedContext, llmHistory, citations, documentCoverage } =
+      await prepareChatRequest({
         item,
         question,
         imageCount: Math.min(
@@ -3199,10 +3204,10 @@ export async function sendQuestion(
         advanced: effectiveRequestConfig.advanced,
         historyForLLM,
         signal: requestAbortController.signal,
-      },
-    );
+      });
     assistantMessage.contextRefs = {
       citations,
+      documentCoverage,
       summaryCheckpoint: summaryCheckpointCache.get(conversationKey),
     };
     refreshChatSafely();
@@ -4189,6 +4194,36 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         modelName.textContent = msg.modelName?.trim() || "";
         bubble.insertBefore(modelName, bubble.firstChild);
       }
+    }
+
+    const documentCoverage = msg.contextRefs?.documentCoverage;
+    const coverageRows = Array.isArray(documentCoverage)
+      ? documentCoverage.filter(
+          (row) =>
+            row &&
+            typeof row.title === "string" &&
+            ["full", "excerpts", "abstract", "unavailable"].includes(
+              row.supplied,
+            ),
+        )
+      : [];
+    if (!isUser && coverageRows.length) {
+      const notice = doc.createElement("div");
+      notice.className = "llm-model-name llm-document-coverage";
+      const rows = coverageRows;
+      const label = (row: DocumentCoverage) =>
+        row.supplied === "unavailable"
+          ? i18n.contextUnavailable
+          : row.supplied === "full" && row.extraction === "complete"
+            ? i18n.contextFullText
+            : i18n.contextExcerpts;
+      notice.textContent = [...new Set(rows.map(label))].join(" · ");
+      notice.title = rows
+        .map((row) => `${row.title}: ${label(row)}`)
+        .join("\n");
+      if (rows.some((row) => row.supplied === "excerpts"))
+        notice.title += `\n${i18n.contextBudgetHint}`;
+      bubble.appendChild(notice);
     }
 
     const unavailable = msg.contextRefs?.unavailableAttachments;

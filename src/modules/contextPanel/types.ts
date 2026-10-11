@@ -1,4 +1,8 @@
-import type { EvidenceRef, SummaryCheckpoint } from "./document/evidence";
+import type {
+  EvidenceRef,
+  SummaryCheckpoint,
+  DocumentCoverage,
+} from "./document/evidence";
 import type {
   DocumentCapabilities,
   DocumentCompleteness,
@@ -59,6 +63,7 @@ export interface Message {
     compactedSummary?: string;
     summaryCheckpoint?: SummaryCheckpoint;
     citations?: EvidenceRef[];
+    documentCoverage?: DocumentCoverage[];
     unavailableAttachments?: string[];
   };
   streaming?: boolean;

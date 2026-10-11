@@ -34,3 +34,8 @@ export type SummaryCheckpoint = {
   text: string;
   coveredMessageIds: number[];
 };
+
+export type DocumentCoverage = DocumentContextResult["coverage"] & {
+  itemId: number;
+  title: string;
+};

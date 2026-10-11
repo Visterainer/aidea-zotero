@@ -29,6 +29,10 @@ export type PanelI18n = {
   cancel: string;
   statusNoContext: string;
   statusReady: string;
+  contextFullText: string;
+  contextExcerpts: string;
+  contextUnavailable: string;
+  contextBudgetHint: string;
   statusSelectItem: string;
   placeholderGlobal: string;
   placeholderPaper: string;
@@ -624,6 +628,10 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "傳送",
     cancel: "取消",
     statusReady: "就緒",
+    contextFullText: "已提供全文",
+    contextExcerpts: "已提供部分內容",
+    contextUnavailable: "未提供正文",
+    contextBudgetHint: "本輪只包含部分內容。可在模型進階設定中檢查上下文上限。",
     statusSelectItem: "選取項目或開啟 PDF",
     placeholderGlobal: "詢問任何問題... 輸入 @ 加入論文",
     placeholderPaper: "詢問這篇論文... 輸入 @ 加入其他論文作為上下文",
@@ -690,6 +698,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "送信",
     cancel: "キャンセル",
     statusReady: "準備完了",
+    contextFullText: "全文を提供",
+    contextExcerpts: "一部を提供",
+    contextUnavailable: "本文なし",
+    contextBudgetHint:
+      "この応答には文書の一部のみが含まれます。モデルの詳細設定でコンテキスト上限を確認できます。",
     statusSelectItem: "項目を選択するか PDF を開いてください",
     placeholderGlobal: "何でも質問... @ で論文を追加",
     placeholderPaper: "この論文について質問... @ で他の論文を追加",
@@ -757,6 +770,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "보내기",
     cancel: "취소",
     statusReady: "준비됨",
+    contextFullText: "전체 텍스트 제공",
+    contextExcerpts: "일부 내용 제공",
+    contextUnavailable: "본문 없음",
+    contextBudgetHint:
+      "이번 응답에는 문서 일부만 포함됩니다. 모델 고급 설정에서 컨텍스트 한도를 확인할 수 있습니다.",
     statusSelectItem: "항목을 선택하거나 PDF를 여세요",
     placeholderGlobal: "무엇이든 질문하세요... @로 논문 추가",
     placeholderPaper: "이 논문에 대해 질문하세요... @로 다른 논문 추가",
@@ -824,6 +842,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "Envoyer",
     cancel: "Annuler",
     statusReady: "Prêt",
+    contextFullText: "Texte intégral fourni",
+    contextExcerpts: "Extraits fournis",
+    contextUnavailable: "Texte non fourni",
+    contextBudgetHint:
+      "Seule une partie du document est incluse. Vérifiez la limite de contexte dans les paramètres avancés du modèle.",
     statusSelectItem: "Sélectionnez un élément ou ouvrez un PDF",
     placeholderGlobal:
       "Posez une question... tapez @ pour ajouter des articles",
@@ -893,6 +916,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "Senden",
     cancel: "Abbrechen",
     statusReady: "Bereit",
+    contextFullText: "Volltext enthalten",
+    contextExcerpts: "Auszüge enthalten",
+    contextUnavailable: "Kein Volltext",
+    contextBudgetHint:
+      "Diese Antwort verwendet nur einen Teil des Dokuments. Prüfen Sie das Kontextlimit in den erweiterten Modelleinstellungen.",
     statusSelectItem: "Element auswählen oder PDF öffnen",
     placeholderGlobal: "Alles fragen... @ eingeben, um Artikel hinzuzufügen",
     placeholderPaper: "Zu diesem Artikel fragen... @ für weitere Artikel",
@@ -960,6 +988,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "Enviar",
     cancel: "Cancelar",
     statusReady: "Listo",
+    contextFullText: "Texto completo incluido",
+    contextExcerpts: "Extractos incluidos",
+    contextUnavailable: "Texto no incluido",
+    contextBudgetHint:
+      "Solo se incluye parte del documento. Revise el límite de contexto en los ajustes avanzados del modelo.",
     statusSelectItem: "Selecciona un elemento o abre un PDF",
     placeholderGlobal:
       "Pregunta lo que quieras... escribe @ para añadir artículos",
@@ -1029,6 +1062,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "Отправить",
     cancel: "Отмена",
     statusReady: "Готово",
+    contextFullText: "Полный текст передан",
+    contextExcerpts: "Переданы фрагменты",
+    contextUnavailable: "Текст не передан",
+    contextBudgetHint:
+      "Передана лишь часть документа. Проверьте лимит контекста в расширенных настройках модели.",
     statusSelectItem: "Выберите элемент или откройте PDF",
     placeholderGlobal: "Задайте вопрос... введите @, чтобы добавить статьи",
     placeholderPaper: "Спросите об этой статье... введите @ для других статей",
@@ -1095,6 +1133,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "Enviar",
     cancel: "Cancelar",
     statusReady: "Pronto",
+    contextFullText: "Texto completo incluído",
+    contextExcerpts: "Trechos incluídos",
+    contextUnavailable: "Texto não incluído",
+    contextBudgetHint:
+      "Apenas parte do documento foi incluída. Confira o limite de contexto nas configurações avançadas do modelo.",
     statusSelectItem: "Selecione um item ou abra um PDF",
     placeholderGlobal:
       "Pergunte qualquer coisa... digite @ para adicionar artigos",
@@ -1164,6 +1207,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "إرسال",
     cancel: "إلغاء",
     statusReady: "جاهز",
+    contextFullText: "تم تضمين النص الكامل",
+    contextExcerpts: "تم تضمين مقتطفات",
+    contextUnavailable: "لم يتم تضمين النص",
+    contextBudgetHint:
+      "تم تضمين جزء من المستند فقط. تحقق من حد السياق في إعدادات النموذج المتقدمة.",
     statusSelectItem: "اختر عنصرًا أو افتح ملف PDF",
     placeholderGlobal: "اسأل أي شيء... اكتب @ لإضافة أوراق",
     placeholderPaper: "اسأل عن هذه الورقة... اكتب @ لإضافة أوراق أخرى",
@@ -1230,6 +1278,11 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
     send: "भेजें",
     cancel: "रद्द करें",
     statusReady: "तैयार",
+    contextFullText: "पूरा पाठ शामिल",
+    contextExcerpts: "आंशिक पाठ शामिल",
+    contextUnavailable: "पाठ शामिल नहीं",
+    contextBudgetHint:
+      "दस्तावेज़ का केवल कुछ हिस्सा शामिल है। मॉडल की उन्नत सेटिंग में संदर्भ सीमा जाँचें।",
     statusSelectItem: "कोई आइटम चुनें या PDF खोलें",
     placeholderGlobal: "कुछ भी पूछें... पेपर जोड़ने के लिए @ लिखें",
     placeholderPaper:
@@ -3777,6 +3830,11 @@ export function getPanelI18n(): PanelI18n {
       cancel: "Cancel",
       statusNoContext: "No active paper context. Type @ to add papers.",
       statusReady: "Ready",
+      contextFullText: "Full text supplied",
+      contextExcerpts: "Excerpts supplied",
+      contextUnavailable: "Text unavailable",
+      contextBudgetHint:
+        "Only part of the document is included this turn. Check the context limit in the model's advanced settings.",
       statusSelectItem: "Select an item or open a PDF",
       placeholderGlobal: "Ask anything... Type @ to add papers",
       placeholderPaper:
@@ -4080,6 +4138,10 @@ export function getPanelI18n(): PanelI18n {
     cancel: "取消",
     statusNoContext: "当前无论文上下文，输入 @ 可添加论文。",
     statusReady: "就绪",
+    contextFullText: "已提供全文",
+    contextExcerpts: "已提供部分内容",
+    contextUnavailable: "未提供正文",
+    contextBudgetHint: "本轮只包含部分内容，可在模型高级设置中检查上下文上限。",
     statusSelectItem: "请选择条目或打开 PDF",
     placeholderGlobal: "开始提问... 输入 @ 添加论文",
     placeholderPaper: "对当前论文提问... 输入 @ 添加其他论文上下文",

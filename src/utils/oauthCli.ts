@@ -5,6 +5,7 @@ import {
 } from "./processRunner";
 import { fetchWithTransientRetry } from "./transientRetry";
 import { formatDocumentContext } from "./llmPrompts";
+import { providerContextWindow } from "./modelContextWindow";
 import { recordOAuthEnvUpdateSuccess } from "./oauthEnvUpdateState";
 import {
   DEFAULT_PANEL_LANG,
@@ -219,6 +220,7 @@ export type OAuthCredential = {
 export type ProviderModelOption = {
   id: string;
   label: string;
+  contextWindowTokens?: number;
   apiBase?: string;
   apiKey?: string;
   supportedEndpoints?: string[];
@@ -3020,6 +3022,27 @@ const COPILOT_KNOWN_MODELS: ProviderModelOption[] = [
   { id: "o4-mini", label: "o4 Mini" },
 ];
 
+export function parseCodexModelsResponse(data: unknown): ProviderModelOption[] {
+  const models = Array.isArray(data) ? data : (data as any)?.models;
+  if (!Array.isArray(models)) return [];
+  return models
+    .filter((m) => m && typeof m === "object")
+    .map((m: any) => {
+      const id = String(m.id || m.slug || m.model_id || "").trim();
+      const label =
+        String(m.name || m.title || m.display_name || id).trim() || id;
+      return {
+        id,
+        label,
+        contextWindowTokens: providerContextWindow(
+          m.context_window,
+          m.effective_context_window_percent,
+        ),
+      };
+    })
+    .filter((m) => m.id);
+}
+
 export async function fetchAvailableModels(
   provider: OAuthProviderId,
 ): Promise<ProviderModelOption[]> {
@@ -3053,26 +3076,12 @@ export async function fetchAvailableModels(
           },
         );
         if (res.ok) {
-          const data = (await res.json()) as
-            | { models?: Array<{ id?: string; name?: string }> }
-            | Array<{ id?: string; name?: string }>;
-          const models = Array.isArray(data)
-            ? data
-            : (data as any).models || [];
-          if (Array.isArray(models) && models.length > 0) {
-            const rows: ProviderModelOption[] = models
-              .map((m: any) => {
-                const id = String(m.id || m.slug || m.model_id || "").trim();
-                const label = String(m.name || m.title || id).trim() || id;
-                return { id, label };
-              })
-              .filter((m: ProviderModelOption) => m.id);
-            if (rows.length > 0) {
-              ztoolkit?.log?.(
-                `AIdea: Codex dynamic models: ${rows.map((r) => r.id).join(", ")}`,
-              );
-              return rows;
-            }
+          const rows = parseCodexModelsResponse(await res.json());
+          if (rows.length > 0) {
+            ztoolkit?.log?.(
+              `AIdea: Codex dynamic models: ${rows.map((r) => r.id).join(", ")}`,
+            );
+            return rows;
           }
         }
         return [];
@@ -3176,6 +3185,8 @@ function dedupeModels(models: ProviderModelOption[]): ProviderModelOption[] {
     }
     if (row.policyState !== undefined) option.policyState = row.policyState;
     if (row.status !== undefined) option.status = row.status;
+    if (row.contextWindowTokens !== undefined)
+      option.contextWindowTokens = row.contextWindowTokens;
     out.push(option);
   }
   out.sort((a, b) => a.id.localeCompare(b.id));

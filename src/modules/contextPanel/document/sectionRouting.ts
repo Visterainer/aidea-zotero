@@ -42,6 +42,23 @@ export type ResolvedSectionRetrievalPlan = SectionRetrievalPlan & {
 const WHOLE_DOCUMENT_QUERY =
   /\b(?:whole|entire)\s+(?:book|document|text)\b|\b(?:book|document)\s+overview\b|全书|整本(?:书)?|全文概览|整篇概览/i;
 
+/** Recognize requests about the document itself, not a method/equation within it. */
+export function isDocumentOverviewQuestion(question: string): boolean {
+  const current = question.split("\nRetrieval disambiguation only")[0].trim();
+  return (
+    WHOLE_DOCUMENT_QUERY.test(current) ||
+    /(?:讲解|講解|解释|解釋|总结|總結|概括|介绍|介紹|解读|解讀)(?:一下)?(?:这篇|這篇|这份|這份|这本|這本|本篇|该|該)?(?:论文|論文|文章|文献|文獻|文档|文檔|书|書)(?=$|[\s，。！？、；,.!?;])/u.test(
+      current,
+    ) ||
+    /\b(?:explain|summari[sz]e|describe|outline|review)\s+(?:(?:this|the|attached|current)\s+)?(?:paper|article|document|book)(?:\s+(?:in detail|please))?[.!?\s]*$/i.test(
+      current,
+    ) ||
+    /\bwhat\s+is\s+(?:this|the)\s+(?:paper|article|document|book)\s+about[?\s]*$/i.test(
+      current,
+    )
+  );
+}
+
 function normalizeComparableText(value: unknown): string {
   return String(value || "")
     .normalize("NFKC")
@@ -65,7 +82,7 @@ export function buildDeterministicSectionPlan(
   catalog: SectionCatalog,
   question: string,
 ): SectionRetrievalPlan | null {
-  if (WHOLE_DOCUMENT_QUERY.test(question)) {
+  if (isDocumentOverviewQuestion(question)) {
     return { scope: "document", sectionIds: [], coverage: "balanced" };
   }
 

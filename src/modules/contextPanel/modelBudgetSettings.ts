@@ -1,5 +1,6 @@
 import {
-  getModelContextWindow,
+  getModelContextWindowOverride,
+  getDiscoveredModelContextWindow,
   setModelContextWindow,
 } from "../../utils/modelContextWindow";
 
@@ -35,7 +36,10 @@ export function createModelBudgetSettings(
   input.placeholder = "32768";
   const refresh = () => {
     const { apiBase, model } = connection();
-    input.value = String(getModelContextWindow(apiBase, model) || "");
+    input.value = String(getModelContextWindowOverride(apiBase, model) || "");
+    input.placeholder = String(
+      getDiscoveredModelContextWindow(apiBase, model) || 32768,
+    );
   };
   input.addEventListener("focus", refresh);
   details.addEventListener("toggle", () => {

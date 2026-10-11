@@ -5,6 +5,7 @@ import {
 import type {
   EvidenceRef,
   SummaryCheckpoint,
+  DocumentCoverage,
 } from "../modules/contextPanel/document/evidence";
 import type {
   SelectedTextSource,
@@ -38,6 +39,7 @@ export type ContextRefsJson = {
   compactedSummary?: string;
   summaryCheckpoint?: SummaryCheckpoint;
   citations?: EvidenceRef[];
+  documentCoverage?: DocumentCoverage[];
   unavailableAttachments?: string[];
 };
 
