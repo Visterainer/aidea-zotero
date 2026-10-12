@@ -150,3 +150,16 @@ Windows / Zotero 10.0.6，独立 profile 与数据目录位于 `C:\Users\zhaoz\A
 用户已确认 3.6.1 正式发布文案。发布前补跑 `python test/pdfTranslator/test_bridge.py`，110 项检查通过；重新运行 TypeScript 单元测试，654 项通过，静态检查和 `git diff --check` 通过。日志位于 `.scaffold/361-release-python.log`、`.scaffold/361-release-unit.log` 和 `.scaffold/361-release-lint.log`。
 
 以上候选版验收记录保留当时的产物哈希和未发布状态。正式发布使用 GitHub Actions 重新构建，构建时间和打包环境可能导致 XPI 哈希不同；线上资产、更新清单和发布后安装验收需另行核对，不以候选包哈希替代。
+
+### 2026-10-12 正式发布与线上产物验收
+
+- 正式版本与标签：`v3.6.1`；代码提交：`9e8a4e5868c84ac310ef142942c7e34c6ac4e92f`。
+- [GitHub Release](https://github.com/Visterainer/aidea-zotero/releases/tag/v3.6.1) 已发布并成为最新正式版，标题和完整中英文正文与用户批准稿一致。[Release Plugin Actions 38197751486](https://github.com/Visterainer/aidea-zotero/actions/runs/38197751486) 全部成功。
+- 最终发布前重新运行：654 项 TypeScript 测试、110 项 Python 检查、`npm run lint:check`、`npm run build` 和 `git diff --check` 全部通过；日志在 `.scaffold/release361/`。
+- 下载线上 `AIdea-3.6.1.xpi`，大小为 1,699,246 字节。SHA-256 为 `8c4531880f78c7365de3abaa0ce9911c619e423e7529d26d0b789d5db2c63173`，与 GitHub 资产摘要一致。内部版本、插件 ID、更新地址与兼容范围均正确。
+- `release/update.json` 指向该版本实际下载地址；其 SHA-512 与下载包逐字节计算结果一致。候选包与线上包展开后的文件清单相同，差异仅为部分 SVG 和快捷提示词文本的换行符，脚本内容一致。
+- 在线下载包再次安装到独立目录 `C:\Users\zhaoz\AppData\Local\Temp\aidea-361-qa-1791773880622`，运行前核验独立数据目录。Windows / Zotero 10.0.6 的首次安装 17 项断言、完整重启 7 项断言全部通过，覆盖更新提示、迁移后重新配置模型、PDF/EPUB 引用跳转、全文/片段/摘要状态、复制来源链接及历史恢复。两次均核对已安装 XPI 的 SHA-256 与线上包一致。
+- 真实模型对照沿用前述 26 个回答的结果；本次最终打包没有再修改生产代码或提示词。实机验收依然使用本机模拟接口，不扩大模型质量或平台覆盖结论。
+- 证据：`.scaffold/release361/online/verification.json`、`native/first.json`、`native/restart.json`、`native-first.log`、`native-restart.log`。测试实例已退出，辅助扩展入口已停用，未写入个人资料库。
+
+发布和线上验收已完成。Issue/PR 回复与关闭等待用户单独确认，不影响已完成的发布；本次没有回复或关闭任何条目。
