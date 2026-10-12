@@ -20,7 +20,10 @@ import {
 import {
   buildReadingContext,
   retrievalQuestion,
+  CITATION_GUIDANCE,
 } from "../src/modules/contextPanel/document/readingContext";
+import { resolveSystemPrompt } from "../src/utils/llmPrompts";
+import { formatRelevantMemoriesContext } from "../src/utils/memoryStore";
 import {
   citationMarkdown,
   exportCitationMarkdown,
@@ -137,6 +140,7 @@ describe("reading context and citations", function () {
       // The document fits its escaped-text budget. Escaping recalled memory
       // still exercises the final guard, which must retain that memory.
       const question = "QA_MEMORY_KEEP compare methods";
+      const memoryText = question + "\\".repeat(800);
       const attachment = await paper(
         91,
         Array.from(
@@ -149,6 +153,29 @@ describe("reading context and citations", function () {
         context.chunks = [context.chunks.join("\n")];
         context.chunkMetadata = context.chunkMetadata?.slice(0, 1);
       }
+      // Keep the evidence/memory headroom constant when default guidance grows.
+      // This fixture exercises JSON escaping in the final guard, not prompt size.
+      const full = await buildReadingContext(
+        { item: attachment, kind: "pdf" },
+        question,
+        10000,
+      );
+      const contextWindowTokens = Math.ceil(
+        (full.budgetUsage +
+          estimateTokens(
+            formatRelevantMemoriesContext([
+              { category: "fact", text: memoryText },
+            ]),
+          ) +
+          16 +
+          estimateTokens(resolveSystemPrompt({ locale: "en-US" })) +
+          estimateTokens(question) +
+          estimateTokens(CITATION_GUIDANCE) +
+          256 +
+          128 +
+          1024) /
+          0.9,
+      );
       const hits: unknown[][] = [];
       globals.Zotero.DB.queryAsync = async (sql: string, args: unknown[]) => {
         if (sql.includes("FROM zotero_ai_memories"))
@@ -156,7 +183,7 @@ describe("reading context and citations", function () {
             {
               id: 1,
               libraryID: 1,
-              text: question + "\\".repeat(800),
+              text: memoryText,
               category: "fact",
               importance: 1,
               createdAt: Date.now(),
@@ -174,7 +201,7 @@ describe("reading context and citations", function () {
         apiBase: "test",
         apiKey: "",
         model: "test",
-        advanced: { contextWindowTokens: 5000, maxTokens: 1024 },
+        advanced: { contextWindowTokens, maxTokens: 1024 },
         historyForLLM: [],
         paperContexts: [],
         conversationKey: 901,

@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   appendMessageNode,
@@ -88,6 +89,13 @@ function createMockDb() {
     },
     async valueQueryAsync(sql: string, params: unknown[] = []) {
       if (sql.includes("last_insert_rowid")) return lastInsertId;
+      if (
+        sql.includes("INSERT INTO zotero_ai_chat_messages") &&
+        sql.includes("RETURNING id")
+      ) {
+        await db.queryAsync(sql, params);
+        return lastInsertId;
+      }
       if (sql.includes("SELECT conversation_key")) {
         const id = Number(params[0]);
         return messages.find((row) => row.id === id)?.conversation_key || false;
@@ -272,6 +280,75 @@ function installMockZoteroDb() {
 describe("chatStore message tree", function () {
   beforeEach(function () {
     installMockZoteroDb();
+  });
+
+  it("keeps message IDs and citations when another table is written after each insert", async function () {
+    const sqlite = new DatabaseSync(":memory:");
+    sqlite.exec(`CREATE TABLE zotero_ai_chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_key INTEGER, parent_id INTEGER,
+      active_child_id INTEGER, branch_index INTEGER, role TEXT, text TEXT, timestamp INTEGER,
+      selected_text TEXT, selected_texts_json TEXT, selected_text_sources_json TEXT,
+      selected_text_paper_contexts_json TEXT, paper_contexts_json TEXT, screenshot_images TEXT,
+      attachments_json TEXT, model_name TEXT, reasoning_summary TEXT, reasoning_details TEXT,
+      context_refs_json TEXT);
+      CREATE TABLE zotero_ai_chat_tree_state (
+        conversation_key INTEGER PRIMARY KEY, active_root_id INTEGER, active_leaf_id INTEGER);
+      CREATE TABLE background_cache (id INTEGER PRIMARY KEY AUTOINCREMENT);
+      INSERT INTO background_cache VALUES (900);`);
+    const execute = (sql: string, params: any[] = []) => {
+      const stmt = sqlite.prepare(sql);
+      const rows = stmt.columns().length
+        ? stmt.all(...params)
+        : (stmt.run(...params), []);
+      if (sql.includes("INSERT INTO zotero_ai_chat_messages")) {
+        // A background translator/cache write completes before the caller resumes.
+        sqlite.exec("INSERT INTO background_cache DEFAULT VALUES");
+      }
+      return rows;
+    };
+    (globalThis as any).Zotero.DB = {
+      queryAsync: async (sql: string, params: any[] = []) =>
+        execute(sql, params),
+      valueQueryAsync: async (sql: string, params: any[] = []) => {
+        const row = execute(sql, params)[0];
+        return row ? Object.values(row)[0] : false;
+      },
+    };
+    try {
+      const user = await appendMessageNode(
+        81,
+        { role: "user", text: "Question", timestamp: 1 },
+        null,
+      );
+      assert.equal(user, 1);
+      const ref = {
+        id: "e1",
+        itemId: 10,
+        title: "Paper",
+        text: "Evidence",
+        locator: { kind: "pdf-page" as const, pageIndex: 1 },
+      };
+      const answer = await appendMessageNode(
+        81,
+        {
+          role: "assistant",
+          text: "Answer [[cite:e1]]",
+          timestamp: 2,
+          contextRefs: { citations: [ref] },
+        },
+        user,
+      );
+      assert.equal(answer, 2);
+      const restored = await loadConversationPath(81, 20);
+      assert.deepEqual(
+        restored.map((message) => message.text),
+        ["Question", "Answer [[cite:e1]]"],
+      );
+      assert.equal(restored[1].parentMessageId, user);
+      assert.deepEqual(restored[1].contextRefs?.citations, [ref]);
+    } finally {
+      sqlite.close();
+    }
   });
 
   it("creates user siblings and switches active paths without deleting old branches", async function () {

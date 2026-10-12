@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.6.0-citations-chat-transfer-v1";
+export const NOTICE_ID = "v3.6.1-reading-guidance-gemini-removal-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -1258,32 +1258,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "AIdea v3.6.0: Source Citations and Portable Chat History",
-      lead: "Reading context now follows your questions, citations can open the source, and chat history can be transferred manually between devices with images and attachments.",
+      title: "AIdea v3.6.1: Reading Context and Answer Guidance",
+      lead: "Improved paper coverage, more flexible answer structure, and citations where evidence helps.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "Question-aware reading context",
-          text: "Selects relevant paper content for each question, supports follow-ups and multiple papers, and allocates space within the model’s context budget.",
+          label: "Reading context",
+          text: "Uses context capacity reported by the model service when available. Papers that fit are supplied in full; longer papers receive broader excerpt coverage. Replies show whether full text, excerpts, or only an abstract was supplied.",
         },
         {
-          label: "Clickable source citations",
-          text: "Opens PDF pages or EPUB chapters. Saved conversations retain citations; sources without reliable locations offer a document link.",
+          label: "Answer structure and citations",
+          text: "Paper explanations can use helpful headings, lists, and necessary detail. Key claims cite supporting material where useful. Simple answers stay direct; existing custom instructions are preserved.",
         },
         {
-          label: "Chat import and export",
-          text: "Packages text, screenshots, images, and uploaded files. Imports merge new messages, preserve conversation branches from both devices, and avoid adding duplicates on repeated imports.",
-        },
-        {
-          label: "More coherent long conversations",
-          text: "Improves history summaries and quick prompts, and fixes recalled memories being dropped during context-budget trimming. Existing custom instructions are preserved.",
-        },
-        {
-          label: "Improved response layout",
-          text: "Fixes clipped themed bubbles and keeps wide tables readable with horizontal scrolling.",
+          label: "Gemini CLI OAuth removed",
+          text: "The old connection has been removed. If you used it, select and configure an available connection in model settings. Gemini authorization does not transfer to another service.",
         },
       ],
-      note: "Restart Zotero after updating. Chat transfer requires manual export and import. Opening a source on another device also requires the corresponding document to be available.",
+      note: "Restart Zotero after updating. Source citations help locate evidence; they do not independently verify the model’s conclusions.",
       confirm: "Got it",
       close: "Close update notice",
       exampleLabel: "",
@@ -1291,32 +1283,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "AIdea v3.6.0：原文引用与聊天记录迁移",
-      lead: "阅读上下文随问题更新，回答支持原文跳转，聊天记录可携带图片与附件在设备之间手动迁移。",
+      title: "AIdea v3.6.1: 阅读上下文与回答指引",
+      lead: "改进论文材料覆盖，让回答结构更灵活，并在需要证据说明时提供引用。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "更贴合问题的阅读上下文",
-          text: "每轮按当前问题选择论文材料，兼顾连续追问与多篇文献，并根据模型上下文容量分配空间。",
+          label: "阅读上下文",
+          text: "优先使用模型服务返回的上下文容量。放得下的论文提供全文，较长论文兼顾各部分取材；回复显示本轮提供了全文、部分内容还是仅摘要。",
         },
         {
-          label: "点击引用查看原文",
-          text: "支持跳转到 PDF 页面或 EPUB 章节。历史记录保留引用；没有可靠位置时，提供打开来源的链接。",
+          label: "回答结构与按需引用",
+          text: "论文讲解可按需使用标题、列表和必要细节，关键论点在有帮助时引用对应材料。简单问题直接回答，保留已有自定义指令。",
         },
         {
-          label: "聊天记录导入与导出",
-          text: "支持打包文字、截图、图片和上传附件。导入时合并新增消息，保留双方的对话分支，重复导入避免重复添加。",
-        },
-        {
-          label: "更连贯的长对话",
-          text: "改进历史摘要与快捷指令，并修复上下文预算裁剪时召回记忆可能丢失的问题。保留已有自定义指令。",
-        },
-        {
-          label: "更完整的回复显示",
-          text: "修复主题气泡右侧裁切，宽表格支持横向滚动，保持文字清晰可读。",
+          label: "移除 Gemini CLI OAuth",
+          text: "旧接入已移除。此前使用该接入的用户，请在模型设置中重新选择并配置可用的接入方式；原 Gemini 授权不能转移到其他服务。",
         },
       ],
-      note: "更新后请重启 Zotero。聊天迁移需要手动导出、导入；在另一台设备跳转原文，还需要对应文献文件可用。",
+      note: "更新后请重启 Zotero。引用用于定位证据，不等于模型结论已经验证。",
       confirm: "知道了",
       close: "关闭更新提示",
       exampleLabel: "",
@@ -1324,32 +1308,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "AIdea v3.6.0：原文引用與聊天記錄遷移",
-      lead: "閱讀上下文隨問題更新，回答支援跳轉至原文，聊天記錄可連同圖片與附件在裝置之間手動遷移。",
+      title: "AIdea v3.6.1: 閱讀上下文與回答指引",
+      lead: "改善論文材料涵蓋範圍，讓回答結構更靈活，並在需要證據說明時提供引用。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "更貼合問題的閱讀上下文",
-          text: "每輪依目前問題選擇論文材料，兼顧連續追問與多篇文獻，並依模型上下文容量分配空間。",
+          label: "閱讀上下文",
+          text: "優先使用模型服務回傳的上下文容量。容納得下的論文提供全文，較長論文兼顧各部分取材；回覆顯示本輪提供了全文、部分內容或僅摘要。",
         },
         {
-          label: "點擊引用查看原文",
-          text: "支援跳轉至 PDF 頁面或 EPUB 章節。歷史記錄保留引用；沒有可靠位置時，提供開啟來源的連結。",
+          label: "回答結構與按需引用",
+          text: "論文講解可按需使用標題、清單及必要細節，關鍵論點在有幫助時引用對應材料。簡單問題直接回答，保留既有自訂指令。",
         },
         {
-          label: "聊天記錄匯入與匯出",
-          text: "支援打包文字、螢幕截圖、圖片和上傳附件。匯入時合併新增訊息，保留雙方的對話分支，重複匯入避免重複新增。",
-        },
-        {
-          label: "更連貫的長對話",
-          text: "改進歷史摘要與快捷指令，並修復裁剪上下文時可能遺失召回記憶的問題。保留既有自訂指令。",
-        },
-        {
-          label: "更完整的回覆顯示",
-          text: "修復主題氣泡右側裁切，寬表格支援水平捲動，保持文字清晰可讀。",
+          label: "移除 Gemini CLI OAuth",
+          text: "舊接入已移除。先前使用此接入的使用者，請在模型設定中重新選擇並設定可用的接入方式；原 Gemini 授權無法轉移至其他服務。",
         },
       ],
-      note: "更新後請重新啟動 Zotero。聊天遷移需要手動匯出、匯入；在另一台裝置跳轉至原文，還需要對應文獻檔案可用。",
+      note: "更新後請重新啟動 Zotero。引用用於定位證據，不代表模型結論已經驗證。",
       confirm: "知道了",
       close: "關閉更新提示",
       exampleLabel: "",
@@ -1357,32 +1333,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "AIdea v3.6.0: 原文への引用リンクとチャット履歴の移行",
-      lead: "質問に応じて文献のコンテキストを更新し、引用から原文を開けます。画像や添付ファイルを含むチャット履歴を端末間で手動移行できます。",
+      title: "AIdea v3.6.1: 読解コンテキストと回答方針",
+      lead: "論文の内容をより広く取り込み、柔軟な回答構成と必要に応じた引用を促します。",
       alsoLabel: "今回の更新",
       alsoItems: [
         {
-          label: "質問に応じた文献コンテキスト",
-          text: "各質問に関連する文献内容を選び、追加質問や複数の文献に対応しながら、モデルのコンテキスト容量内で配分します。",
+          label: "読解コンテキスト",
+          text: "モデルサービスが返すコンテキスト容量を利用します。収まる論文は全文を、長い論文は各部分から抜粋を提供します。回答には全文・抜粋・要旨のみの区別が表示されます。",
         },
         {
-          label: "引用から原文を表示",
-          text: "PDF のページや EPUB の章に移動できます。保存済みの会話にも引用が残り、位置が不確かな場合は文献を開くリンクを表示します。",
+          label: "回答構成と引用",
+          text: "論文の説明では必要に応じて見出し、リスト、詳細を使い、重要な主張に根拠を引用します。簡単な質問には直接回答し、既存のカスタム指示を維持します。",
         },
         {
-          label: "チャット履歴のインポートとエクスポート",
-          text: "テキスト、スクリーンショット、画像、アップロードしたファイルをまとめて保存できます。インポートでは新しいメッセージを統合し、両端末の会話分岐を保持し、繰り返しても重複追加を避けます。",
-        },
-        {
-          label: "長い会話のつながりを改善",
-          text: "履歴の要約とクイック指示を改善し、コンテキスト削減時に呼び出した記憶が失われる問題を修正しました。既存のカスタム指示は保持されます。",
-        },
-        {
-          label: "回答の表示を改善",
-          text: "テーマ付き吹き出しの右端が切れる問題を修正しました。幅の広い表は横スクロールで読みやすく表示します。",
+          label: "Gemini CLI OAuth の削除",
+          text: "従来の接続を削除しました。ご利用だった場合は、モデル設定で利用可能な接続を選択し直して設定してください。Gemini の認証は他のサービスへ移行できません。",
         },
       ],
-      note: "更新後は Zotero を再起動してください。チャットの移行には手動のエクスポートとインポートが必要です。別の端末で原文を開くには、対応する文献ファイルも必要です。",
+      note: "更新後は Zotero を再起動してください。引用は根拠の確認に役立ちますが、モデルの結論の正しさを保証しません。",
       confirm: "了解",
       close: "更新のお知らせを閉じる",
       exampleLabel: "",
@@ -1390,32 +1358,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "AIdea v3.6.0: 원문 인용과 채팅 기록 이전",
-      lead: "질문에 따라 문헌 컨텍스트를 갱신하고 인용에서 원문을 열 수 있습니다. 이미지와 첨부 파일을 포함한 채팅 기록을 기기 간에 수동으로 이전할 수 있습니다.",
+      title: "AIdea v3.6.1: 읽기 컨텍스트와 응답 지침",
+      lead: "논문 내용의 범위를 개선하고 유연한 응답 구조와 필요한 근거 인용을 지원합니다.",
       alsoLabel: "이번 업데이트",
       alsoItems: [
         {
-          label: "질문에 맞는 문헌 컨텍스트",
-          text: "매 질문에 관련된 논문 내용을 선택하고 후속 질문과 여러 문헌을 지원하며 모델의 컨텍스트 용량에 맞춰 공간을 배분합니다.",
+          label: "읽기 컨텍스트",
+          text: "모델 서비스가 제공하는 컨텍스트 용량을 사용합니다. 용량 안에 들어가는 논문은 전문을, 긴 논문은 여러 부분의 발췌문을 제공합니다. 응답에 전문, 발췌문, 초록만 제공되었는지 표시합니다.",
         },
         {
-          label: "인용을 눌러 원문 열기",
-          text: "PDF 페이지나 EPUB 장으로 이동합니다. 저장된 대화에도 인용이 유지되며, 위치가 확실하지 않으면 문헌을 여는 링크를 제공합니다.",
+          label: "응답 구조와 인용",
+          text: "논문 설명에 필요한 제목, 목록, 세부 내용을 사용하고 중요한 주장에 도움이 되는 근거를 인용합니다. 간단한 질문에는 직접 답하며 기존 사용자 지침은 유지합니다.",
         },
         {
-          label: "채팅 기록 가져오기와 내보내기",
-          text: "텍스트, 스크린샷, 이미지, 업로드한 파일을 묶어 저장합니다. 가져올 때 새 메시지를 병합하고 양쪽 기기의 대화 분기를 유지하며 반복 가져오기 시 중복 추가를 방지합니다.",
-        },
-        {
-          label: "더 자연스럽게 이어지는 긴 대화",
-          text: "기록 요약과 빠른 지시를 개선하고 컨텍스트를 줄일 때 불러온 기억이 누락되는 문제를 수정했습니다. 기존 사용자 지정 지시는 유지됩니다.",
-        },
-        {
-          label: "더 나은 답변 표시",
-          text: "테마 말풍선 오른쪽이 잘리는 문제를 수정했습니다. 넓은 표는 가로 스크롤로 읽기 쉽게 표시됩니다.",
+          label: "Gemini CLI OAuth 제거",
+          text: "기존 연결이 제거되었습니다. 사용 중이었다면 모델 설정에서 사용 가능한 연결을 다시 선택하고 구성하세요. Gemini 인증은 다른 서비스로 이전되지 않습니다.",
         },
       ],
-      note: "업데이트 후 Zotero를 다시 시작하세요. 채팅 이전에는 수동 내보내기와 가져오기가 필요합니다. 다른 기기에서 원문을 열려면 해당 문헌 파일도 있어야 합니다.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 인용은 근거를 찾는 데 도움이 되지만 모델의 결론을 검증하지는 않습니다.",
       confirm: "확인",
       close: "업데이트 안내 닫기",
       exampleLabel: "",
@@ -1423,32 +1383,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "AIdea v3.6.0: Citations des sources et transfert de l’historique",
-      lead: "Le contexte de lecture suit vos questions, les citations ouvrent les sources et l’historique peut être transféré manuellement entre appareils avec les images et pièces jointes.",
+      title: "AIdea v3.6.1: Contexte de lecture et consignes de réponse",
+      lead: "Une couverture plus large des articles, une structure plus souple et des citations utiles à l’argumentation.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Un contexte adapté aux questions",
-          text: "Sélectionne le contenu pertinent pour chaque question, prend en charge les questions de suivi et plusieurs articles, et répartit l’espace dans la limite de contexte du modèle.",
+          label: "Contexte de lecture",
+          text: "Utilise la capacité de contexte indiquée par le service du modèle, si disponible. Fournit le texte intégral lorsqu’il tient, sinon des extraits répartis dans l’article. La réponse indique si le texte intégral, des extraits ou seulement le résumé ont été fournis.",
         },
         {
-          label: "Des citations cliquables",
-          text: "Ouvre les pages PDF ou les chapitres EPUB. Les conversations enregistrées conservent les citations ; sans emplacement fiable, un lien ouvre le document.",
+          label: "Structure et citations",
+          text: "Les explications peuvent utiliser des titres, listes et détails utiles, avec des citations à l’appui des affirmations importantes. Les réponses simples restent directes et vos consignes personnalisées sont conservées.",
         },
         {
-          label: "Importation et exportation des discussions",
-          text: "Regroupe texte, captures d’écran, images et fichiers téléversés. L’importation fusionne les nouveaux messages, conserve les branches des deux appareils et évite les doublons lors des imports répétés.",
-        },
-        {
-          label: "Des conversations longues plus cohérentes",
-          text: "Améliore les résumés et les commandes rapides, et corrige la perte des souvenirs rappelés lors de la réduction du contexte. Les instructions personnalisées existantes sont conservées.",
-        },
-        {
-          label: "Un meilleur affichage des réponses",
-          text: "Corrige les bulles de thème coupées à droite et permet de lire les tableaux larges grâce au défilement horizontal.",
+          label: "Suppression de Gemini CLI OAuth",
+          text: "L’ancienne connexion a été supprimée. Si vous l’utilisiez, sélectionnez et configurez une connexion disponible dans les paramètres du modèle. L’autorisation Gemini ne se transfère pas à un autre service.",
         },
       ],
-      note: "Redémarrez Zotero après la mise à jour. Le transfert nécessite une exportation et une importation manuelles. Pour ouvrir une source sur un autre appareil, le document correspondant doit aussi être disponible.",
+      note: "Redémarrez Zotero après la mise à jour. Les citations permettent de retrouver les preuves, sans vérifier à elles seules les conclusions du modèle.",
       confirm: "Compris",
       close: "Fermer l’avis de mise à jour",
       exampleLabel: "",
@@ -1456,32 +1408,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "AIdea v3.6.0: Quellenzitate und übertragbarer Chatverlauf",
-      lead: "Der Lesekontext folgt Ihren Fragen, Zitate öffnen die Quelle, und Chatverläufe lassen sich mit Bildern und Anhängen manuell zwischen Geräten übertragen.",
+      title: "AIdea v3.6.1: Lesekontext und Antwortvorgaben",
+      lead: "Breitere Abdeckung von Artikeln, flexiblere Antwortstruktur und Quellenangaben, wenn sie Belege liefern.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Fragebezogener Lesekontext",
-          text: "Wählt relevante Inhalte für jede Frage, berücksichtigt Folgefragen und mehrere Dokumente und verteilt den Platz innerhalb des Kontextbudgets des Modells.",
+          label: "Lesekontext",
+          text: "Nutzt die vom Modelldienst gemeldete Kontextkapazität, sofern verfügbar. Passende Artikel werden vollständig übergeben, längere durch Auszüge aus verschiedenen Teilen abgedeckt. Antworten kennzeichnen Volltext, Auszüge oder nur die Zusammenfassung.",
         },
         {
-          label: "Anklickbare Quellenzitate",
-          text: "Öffnet PDF-Seiten oder EPUB-Kapitel. Gespeicherte Gespräche behalten ihre Zitate; ohne verlässliche Position wird ein Link zum Dokument angeboten.",
+          label: "Struktur und Quellenangaben",
+          text: "Artikelerklärungen können hilfreiche Überschriften, Listen und Details nutzen. Wichtige Aussagen erhalten bei Bedarf passende Belege. Einfache Antworten bleiben direkt; eigene Anweisungen bleiben erhalten.",
         },
         {
-          label: "Chatverlauf importieren und exportieren",
-          text: "Bündelt Text, Screenshots, Bilder und hochgeladene Dateien. Importe führen neue Nachrichten zusammen, behalten Gesprächszweige beider Geräte und vermeiden Duplikate bei wiederholten Importen.",
-        },
-        {
-          label: "Zusammenhängendere lange Gespräche",
-          text: "Verbessert Verlaufszusammenfassungen und Schnellbefehle und behebt den Verlust abgerufener Erinnerungen beim Kürzen des Kontexts. Vorhandene eigene Anweisungen bleiben erhalten.",
-        },
-        {
-          label: "Verbesserte Antwortdarstellung",
-          text: "Behebt rechts abgeschnittene Sprechblasen in Designs und hält breite Tabellen durch horizontales Scrollen lesbar.",
+          label: "Gemini CLI OAuth entfernt",
+          text: "Die bisherige Verbindung wurde entfernt. Wählen und konfigurieren Sie bei bisheriger Nutzung eine verfügbare Verbindung in den Modelleinstellungen. Die Gemini-Autorisierung wird nicht auf andere Dienste übertragen.",
         },
       ],
-      note: "Starten Sie Zotero nach dem Update neu. Chats werden manuell exportiert und importiert. Zum Öffnen einer Quelle auf einem anderen Gerät muss dort auch das entsprechende Dokument verfügbar sein.",
+      note: "Starten Sie Zotero nach dem Update neu. Quellenangaben helfen beim Auffinden von Belegen, bestätigen aber nicht eigenständig die Schlussfolgerungen des Modells.",
       confirm: "Verstanden",
       close: "Update-Hinweis schließen",
       exampleLabel: "",
@@ -1489,32 +1433,24 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title: "AIdea v3.6.0: Citas de fuentes y traslado del historial",
-      lead: "El contexto de lectura sigue tus preguntas, las citas abren la fuente y el historial se puede transferir manualmente entre dispositivos con imágenes y archivos adjuntos.",
+      title: "AIdea v3.6.1: Contexto de lectura y pautas de respuesta",
+      lead: "Mayor cobertura de los artículos, estructura flexible y citas cuando ayudan a fundamentar la respuesta.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Contexto adaptado a cada pregunta",
-          text: "Selecciona contenido relevante para cada pregunta, admite preguntas de seguimiento y varios documentos, y distribuye el espacio dentro del límite de contexto del modelo.",
+          label: "Contexto de lectura",
+          text: "Utiliza la capacidad de contexto indicada por el servicio del modelo, si está disponible. Incluye el texto completo cuando cabe, o fragmentos de distintas partes si es más largo. La respuesta indica si recibió texto completo, fragmentos o solo el resumen.",
         },
         {
-          label: "Citas de fuentes accesibles",
-          text: "Abre páginas PDF o capítulos EPUB. Las conversaciones guardadas conservan las citas; sin una ubicación fiable, se ofrece un enlace al documento.",
+          label: "Estructura y citas",
+          text: "Las explicaciones pueden usar títulos, listas y detalles útiles, con citas que respalden afirmaciones importantes. Las respuestas sencillas siguen siendo directas y se conservan las instrucciones personalizadas.",
         },
         {
-          label: "Importación y exportación de chats",
-          text: "Agrupa texto, capturas de pantalla, imágenes y archivos subidos. La importación combina mensajes nuevos, conserva las ramas de conversación de ambos dispositivos y evita duplicados al repetirla.",
-        },
-        {
-          label: "Conversaciones largas más coherentes",
-          text: "Mejora los resúmenes y las instrucciones rápidas, y corrige la pérdida de recuerdos recuperados al reducir el contexto. Se conservan las instrucciones personalizadas existentes.",
-        },
-        {
-          label: "Mejor presentación de las respuestas",
-          text: "Corrige el recorte del borde derecho de las burbujas con tema y permite leer tablas anchas mediante desplazamiento horizontal.",
+          label: "Gemini CLI OAuth eliminado",
+          text: "Se ha eliminado la conexión anterior. Si la utilizaba, seleccione y configure una conexión disponible en los ajustes del modelo. La autorización de Gemini no se transfiere a otro servicio.",
         },
       ],
-      note: "Reinicia Zotero después de actualizar. La transferencia requiere exportar e importar manualmente. Para abrir una fuente en otro dispositivo, el documento correspondiente también debe estar disponible.",
+      note: "Reinicie Zotero tras actualizar. Las citas ayudan a localizar pruebas, pero no verifican por sí solas las conclusiones del modelo.",
       confirm: "Entendido",
       close: "Cerrar aviso de actualización",
       exampleLabel: "",
@@ -1522,65 +1458,74 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "AIdea v3.6.0: Ссылки на источники и перенос истории чата",
-      lead: "Контекст чтения обновляется под ваши вопросы, ссылки открывают источники, а историю чата можно вручную переносить между устройствами вместе с изображениями и вложениями.",
+      title: "AIdea v3.6.1: Контекст чтения и правила ответов",
+      lead: "Более полный охват статей, гибкая структура ответов и ссылки там, где нужны доказательства.",
       alsoLabel: "В этом обновлении",
       alsoItems: [
         {
-          label: "Контекст с учётом вопроса",
-          text: "Выбирает подходящие фрагменты для каждого вопроса, учитывает уточнения и несколько документов и распределяет место в пределах контекстного окна модели.",
+          label: "Контекст чтения",
+          text: "Используется размер контекста, сообщённый сервисом модели, если он доступен. Помещающиеся статьи передаются целиком, длинные — отрывками из разных частей. Ответ показывает, передан ли полный текст, отрывки или только аннотация.",
         },
         {
-          label: "Переход к источнику по ссылке",
-          text: "Открывает страницы PDF или главы EPUB. Сохранённые диалоги сохраняют ссылки; если точное положение неизвестно, предлагается ссылка на документ.",
+          label: "Структура и ссылки",
+          text: "Объяснения статей могут включать полезные заголовки, списки и детали, а важные утверждения — ссылки на подтверждающий материал. Простые ответы остаются прямыми; ваши инструкции сохраняются.",
         },
         {
-          label: "Импорт и экспорт чатов",
-          text: "Упаковывает текст, снимки экрана, изображения и загруженные файлы. Импорт объединяет новые сообщения, сохраняет ветви диалога с обоих устройств и не добавляет дубликаты при повторном импорте.",
-        },
-        {
-          label: "Более связные длинные диалоги",
-          text: "Улучшены сводки истории и быстрые команды, исправлена потеря извлечённых воспоминаний при сокращении контекста. Существующие пользовательские инструкции сохраняются.",
-        },
-        {
-          label: "Улучшенное отображение ответов",
-          text: "Исправлена обрезка правого края тематических блоков ответа. Широкие таблицы остаются читаемыми благодаря горизонтальной прокрутке.",
+          label: "Gemini CLI OAuth удалён",
+          text: "Прежнее подключение удалено. Если вы им пользовались, выберите и настройте доступное подключение в настройках модели. Авторизация Gemini не переносится в другие сервисы.",
         },
       ],
-      note: "После обновления перезапустите Zotero. Перенос чатов требует ручного экспорта и импорта. Для открытия источника на другом устройстве соответствующий файл документа также должен быть доступен.",
+      note: "Перезапустите Zotero после обновления. Ссылки помогают найти доказательства, но сами по себе не подтверждают выводы модели.",
       confirm: "Понятно",
       close: "Закрыть уведомление",
       exampleLabel: "",
       examplePrompt: "",
     },
+    "pt-BR": {
+      eyebrow: "Atualização",
+      title: "AIdea v3.6.1: Contexto de leitura e orientações de resposta",
+      lead: "Maior cobertura dos artigos, estrutura flexível e citações quando ajudam a fundamentar a resposta.",
+      alsoLabel: "Esta atualização inclui",
+      alsoItems: [
+        {
+          label: "Contexto de leitura",
+          text: "Usa a capacidade de contexto informada pelo serviço do modelo, quando disponível. Envia o texto completo quando cabe, ou trechos de diferentes partes de artigos maiores. A resposta indica se recebeu o texto completo, trechos ou apenas o resumo.",
+        },
+        {
+          label: "Estrutura e citações",
+          text: "As explicações podem usar títulos, listas e detalhes úteis, citando evidências para afirmações importantes quando necessário. Respostas simples continuam diretas e suas instruções personalizadas são preservadas.",
+        },
+        {
+          label: "Gemini CLI OAuth removido",
+          text: "A conexão anterior foi removida. Se você a utilizava, selecione e configure uma conexão disponível nas configurações do modelo. A autorização do Gemini não é transferida para outro serviço.",
+        },
+      ],
+      note: "Reinicie o Zotero após atualizar. As citações ajudam a localizar evidências, mas não verificam por si só as conclusões do modelo.",
+      confirm: "Entendi",
+      close: "Fechar aviso de atualização",
+      exampleLabel: "",
+      examplePrompt: "",
+    },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "AIdea v3.6.0: الاستشهاد بالمصادر ونقل سجل المحادثات",
-      lead: "يتغير سياق القراءة وفق أسئلتك، وتفتح الاستشهادات المصادر، ويمكن نقل سجل المحادثات يدويًا بين الأجهزة مع الصور والمرفقات.",
+      title: "AIdea v3.6.1: سياق القراءة وإرشادات الإجابة",
+      lead: "تغطية أوسع لمحتوى الأوراق، وبنية أكثر مرونة للإجابات، واستشهادات عند الحاجة إلى الأدلة.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "سياق قراءة ملائم للسؤال",
-          text: "يختار المحتوى المناسب لكل سؤال، ويدعم أسئلة المتابعة والمستندات المتعددة، ويوزع المساحة ضمن سعة سياق النموذج.",
+          label: "سياق القراءة",
+          text: "تُستخدم سعة السياق التي تعلنها خدمة النموذج عند توفرها. يُرسل النص الكامل إذا اتسع له السياق، وإلا فتُختار مقتطفات من أجزاء مختلفة. توضح الإجابة ما إذا كان المتاح نصاً كاملاً أو مقتطفات أو ملخصاً فقط.",
         },
         {
-          label: "استشهادات قابلة للنقر",
-          text: "تفتح صفحات PDF أو فصول EPUB. تحتفظ المحادثات المحفوظة بالاستشهادات؛ وعند غياب موقع موثوق، يتوفر رابط لفتح المستند.",
+          label: "البنية والاستشهادات",
+          text: "يمكن لشرح الأوراق استخدام عناوين وقوائم وتفاصيل مفيدة مع إسناد الادعاءات المهمة إلى أدلتها عند الحاجة. تبقى الإجابات البسيطة مباشرة وتُحفظ تعليماتك المخصصة.",
         },
         {
-          label: "استيراد المحادثات وتصديرها",
-          text: "يجمع النصوص ولقطات الشاشة والصور والملفات المرفوعة. يدمج الاستيراد الرسائل الجديدة ويحفظ فروع المحادثة من الجهازين ويتجنب التكرار عند إعادة الاستيراد.",
-        },
-        {
-          label: "محادثات طويلة أكثر ترابطًا",
-          text: "يحسن ملخصات السجل والتعليمات السريعة، ويصلح فقدان الذكريات المسترجعة عند تقليص السياق. تبقى التعليمات المخصصة الحالية محفوظة.",
-        },
-        {
-          label: "عرض أفضل للردود",
-          text: "يصلح اقتطاع الحافة اليمنى لفقاعات السمات، ويحافظ على وضوح الجداول العريضة باستخدام التمرير الأفقي.",
+          label: "إزالة Gemini CLI OAuth",
+          text: "أُزيل الاتصال السابق. إذا كنت تستخدمه، فاختر اتصالاً متاحاً واضبطه في إعدادات النموذج. لا ينتقل تفويض Gemini إلى خدمة أخرى.",
         },
       ],
-      note: "أعد تشغيل Zotero بعد التحديث. يتطلب نقل المحادثات تصديرًا واستيرادًا يدويين. ولفتح مصدر على جهاز آخر، يجب أن يكون ملف المستند المقابل متاحًا أيضًا.",
+      note: "أعد تشغيل Zotero بعد التحديث. تساعد الاستشهادات على العثور على الأدلة، لكنها لا تتحقق بمفردها من استنتاجات النموذج.",
       confirm: "فهمت",
       close: "إغلاق إشعار التحديث",
       exampleLabel: "",
@@ -1588,67 +1533,26 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "AIdea v3.6.0: स्रोत उद्धरण और चैट इतिहास का स्थानांतरण",
-      lead: "पठन संदर्भ आपके प्रश्नों के अनुसार बदलता है, उद्धरण स्रोत खोलते हैं और चित्रों तथा अटैचमेंट सहित चैट इतिहास को उपकरणों के बीच मैन्युअल रूप से स्थानांतरित किया जा सकता है।",
+      title: "AIdea v3.6.1: पठन संदर्भ और उत्तर निर्देश",
+      lead: "शोधपत्र की बेहतर कवरेज, उत्तर की लचीली संरचना और ज़रूरत पड़ने पर साक्ष्य के उद्धरण।",
       alsoLabel: "इस अपडेट में",
       alsoItems: [
         {
-          label: "प्रश्न के अनुसार पठन संदर्भ",
-          text: "हर प्रश्न के लिए प्रासंगिक सामग्री चुनता है, आगे के प्रश्नों और कई दस्तावेज़ों का समर्थन करता है तथा मॉडल की संदर्भ सीमा के भीतर स्थान बाँटता है।",
+          label: "पठन संदर्भ",
+          text: "उपलब्ध होने पर मॉडल सेवा द्वारा दी गई संदर्भ क्षमता का उपयोग होता है। समाने पर पूरा शोधपत्र, अन्यथा अलग-अलग हिस्सों के अंश दिए जाते हैं। उत्तर बताता है कि पूरा पाठ, अंश या केवल सार दिया गया था।",
         },
         {
-          label: "क्लिक करके स्रोत खोलें",
-          text: "PDF पृष्ठ या EPUB अध्याय खोलता है। सहेजी गई बातचीत में उद्धरण बने रहते हैं; विश्वसनीय स्थान न होने पर दस्तावेज़ खोलने का लिंक मिलता है।",
+          label: "संरचना और उद्धरण",
+          text: "शोधपत्र की व्याख्या में उपयोगी शीर्षक, सूचियाँ और आवश्यक विवरण हो सकते हैं। महत्वपूर्ण दावों के समर्थन में ज़रूरत के अनुसार उद्धरण दिए जाते हैं। सरल उत्तर सीधे रहते हैं और आपके कस्टम निर्देश सुरक्षित रहते हैं।",
         },
         {
-          label: "चैट का आयात और निर्यात",
-          text: "पाठ, स्क्रीनशॉट, चित्र और अपलोड की गई फ़ाइलें एक साथ रखता है। आयात नए संदेश जोड़ता है, दोनों उपकरणों की बातचीत की शाखाएँ बनाए रखता है और दोबारा आयात करने पर दोहराव से बचता है।",
-        },
-        {
-          label: "लंबी बातचीत में बेहतर निरंतरता",
-          text: "इतिहास के सारांश और त्वरित निर्देश बेहतर किए गए हैं। संदर्भ घटाते समय वापस लाई गई यादें खोने की समस्या ठीक की गई है। मौजूदा कस्टम निर्देश सुरक्षित रहते हैं।",
-        },
-        {
-          label: "उत्तर का बेहतर प्रदर्शन",
-          text: "थीम वाले संदेशों का दायाँ किनारा कटने की समस्या ठीक की गई है। चौड़ी तालिकाएँ क्षैतिज स्क्रॉल से पढ़ने योग्य रहती हैं।",
+          label: "Gemini CLI OAuth हटाया गया",
+          text: "पुराना कनेक्शन हटा दिया गया है। यदि आप उसका उपयोग करते थे, तो मॉडल सेटिंग में उपलब्ध कनेक्शन चुनकर कॉन्फ़िगर करें। Gemini का प्राधिकरण दूसरी सेवा में स्थानांतरित नहीं होता।",
         },
       ],
-      note: "अपडेट के बाद Zotero दोबारा शुरू करें। चैट स्थानांतरण के लिए मैन्युअल निर्यात और आयात आवश्यक हैं। दूसरे उपकरण पर स्रोत खोलने के लिए संबंधित दस्तावेज़ फ़ाइल भी उपलब्ध होनी चाहिए।",
+      note: "अपडेट के बाद Zotero को पुनः प्रारंभ करें। उद्धरण साक्ष्य खोजने में मदद करते हैं, लेकिन अपने आप मॉडल के निष्कर्षों को सत्यापित नहीं करते।",
       confirm: "समझ गया",
       close: "अपडेट सूचना बंद करें",
-      exampleLabel: "",
-      examplePrompt: "",
-    },
-    "pt-BR": {
-      eyebrow: "Atualização",
-      title: "AIdea v3.6.0: Citações de fontes e transferência do histórico",
-      lead: "O contexto de leitura acompanha suas perguntas, as citações abrem as fontes e o histórico pode ser transferido manualmente entre dispositivos com imagens e anexos.",
-      alsoLabel: "Esta atualização inclui",
-      alsoItems: [
-        {
-          label: "Contexto adaptado à pergunta",
-          text: "Seleciona conteúdo relevante para cada pergunta, considera perguntas de acompanhamento e vários documentos, e distribui o espaço dentro do limite de contexto do modelo.",
-        },
-        {
-          label: "Citações clicáveis",
-          text: "Abre páginas PDF ou capítulos EPUB. As conversas salvas mantêm as citações; sem uma localização confiável, é oferecido um link para o documento.",
-        },
-        {
-          label: "Importação e exportação de conversas",
-          text: "Agrupa texto, capturas de tela, imagens e arquivos enviados. A importação combina novas mensagens, preserva as ramificações de conversa dos dois dispositivos e evita duplicatas em importações repetidas.",
-        },
-        {
-          label: "Conversas longas mais coerentes",
-          text: "Melhora os resumos e as instruções rápidas, e corrige a perda de memórias recuperadas ao reduzir o contexto. As instruções personalizadas existentes são preservadas.",
-        },
-        {
-          label: "Melhor exibição das respostas",
-          text: "Corrige o corte do lado direito dos balões com tema e mantém as tabelas largas legíveis com rolagem horizontal.",
-        },
-      ],
-      note: "Reinicie o Zotero após atualizar. A transferência exige exportação e importação manuais. Para abrir uma fonte em outro dispositivo, o documento correspondente também precisa estar disponível.",
-      confirm: "Entendi",
-      close: "Fechar aviso de atualização",
       exampleLabel: "",
       examplePrompt: "",
     },
@@ -1982,7 +1886,7 @@ export function maybeShowOpenAIUpdateNotice(win: Window): void {
       ".llm-update-notice-body",
     ) as HTMLElement | null;
     if (noticeBody) applyCurrentThemeToRoot(noticeBody);
-    (globalThis as any).addon.data.dialog = dialog;
+    addon.data.dialog = dialog;
   } catch (err) {
     ztoolkit.log("AIdea: DialogHelper update notice failed", err);
     markNoticeSeen();

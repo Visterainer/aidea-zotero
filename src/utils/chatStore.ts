@@ -1209,44 +1209,45 @@ export async function appendMessageNode(
     normalizedKey,
     normalizedParent,
   );
-  await Zotero.DB.queryAsync(
-    `INSERT INTO ${CHAT_MESSAGES_TABLE}
-      (conversation_key, parent_id, active_child_id, branch_index, role, text, timestamp, selected_text, selected_texts_json, selected_text_sources_json, selected_text_paper_contexts_json, paper_contexts_json, screenshot_images, attachments_json, model_name, reasoning_summary, reasoning_details, context_refs_json)
-     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      normalizedKey,
-      normalizedParent,
-      branchIndex,
-      message.role,
-      persistedText,
-      serialized.timestamp,
-      serialized.selectedTexts[0] || message.selectedText || null,
-      serialized.selectedTexts.length
-        ? JSON.stringify(serialized.selectedTexts)
-        : null,
-      serialized.selectedTextSources.length
-        ? JSON.stringify(serialized.selectedTextSources)
-        : null,
-      serialized.selectedTextPaperContexts.some((entry) => Boolean(entry))
-        ? JSON.stringify(serialized.selectedTextPaperContexts)
-        : null,
-      serialized.paperContexts.length
-        ? JSON.stringify(serialized.paperContexts)
-        : null,
-      serialized.screenshotImages.length
-        ? JSON.stringify(serialized.screenshotImages)
-        : null,
-      serialized.attachments.length
-        ? JSON.stringify(serialized.attachments)
-        : null,
-      message.modelName || null,
-      null,
-      null,
-      persistedContextRefs ? JSON.stringify(persistedContextRefs) : null,
-    ],
-  );
+  // Capture the ID in the INSERT: Zotero shares this connection with background
+  // writers, so a later last_insert_rowid() can belong to an unrelated table.
   const insertedId = normalizeTreeId(
-    await Zotero.DB.valueQueryAsync(`SELECT last_insert_rowid()`),
+    await Zotero.DB.valueQueryAsync(
+      `INSERT INTO ${CHAT_MESSAGES_TABLE}
+      (conversation_key, parent_id, active_child_id, branch_index, role, text, timestamp, selected_text, selected_texts_json, selected_text_sources_json, selected_text_paper_contexts_json, paper_contexts_json, screenshot_images, attachments_json, model_name, reasoning_summary, reasoning_details, context_refs_json)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [
+        normalizedKey,
+        normalizedParent,
+        branchIndex,
+        message.role,
+        persistedText,
+        serialized.timestamp,
+        serialized.selectedTexts[0] || message.selectedText || null,
+        serialized.selectedTexts.length
+          ? JSON.stringify(serialized.selectedTexts)
+          : null,
+        serialized.selectedTextSources.length
+          ? JSON.stringify(serialized.selectedTextSources)
+          : null,
+        serialized.selectedTextPaperContexts.some((entry) => Boolean(entry))
+          ? JSON.stringify(serialized.selectedTextPaperContexts)
+          : null,
+        serialized.paperContexts.length
+          ? JSON.stringify(serialized.paperContexts)
+          : null,
+        serialized.screenshotImages.length
+          ? JSON.stringify(serialized.screenshotImages)
+          : null,
+        serialized.attachments.length
+          ? JSON.stringify(serialized.attachments)
+          : null,
+        message.modelName || null,
+        null,
+        null,
+        persistedContextRefs ? JSON.stringify(persistedContextRefs) : null,
+      ],
+    ),
   );
   if (!insertedId) return 0;
 

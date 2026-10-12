@@ -1,35 +1,31 @@
 ## ✨ What's Changed
 
-- 📖 **Question-aware reading context**: Refreshes paper content for each question, supports follow-ups and multiple documents, and shares a context budget across documents, history, and attachments. Short documents use full text when space permits; longer documents use relevant excerpts.
-- 🔗 **Clickable source citations**: Opens PDF pages or EPUB chapters when reliable locations are available. Citations persist in chat history and are retained as source links when copying, exporting, or saving notes.
-- 💾 **Portable chat archives**: Manually export and import conversations with optional screenshots, images, and uploaded files. Imports merge new messages, preserve conversation branches, and avoid duplicates on repeated imports. Existing chat records receive stable identifiers with a verified backup before migration. Thanks @siyuanj for the multi-device workflow suggestions in [#84](https://github.com/Visterainer/aidea-zotero/issues/84).
-- 💬 **Better conversation continuity**: Improves incremental history summaries and reading shortcuts while preserving custom instructions. Fixes recalled memories being lost during context-budget trimming.
-- 🛠️ **Citation and navigation fixes**: Improves EPUB chapter navigation, prevents unmatched backticks from suppressing citations, and uses the parent paper title instead of generic attachment names.
-- 🎨 **Improved response layout**: Fixes clipped themed bubbles while preserving their appearance. Wide tables scroll horizontally and keep words readable. Thanks @Dousongyao for reporting [#87](https://github.com/Visterainer/aidea-zotero/issues/87).
+- 📖 **Reading context and answer structure**: Uses model-service context capacity when available while preserving manual overrides. Supplies full text when it fits, improves excerpt coverage and overview follow-ups for longer papers, and distinguishes full text, excerpts, abstract-only input, and unavailable text. Paper explanations and complex analysis can use headings, lists, tables, and necessary detail; simple answers stay direct. Thanks @siyuanj for the feedback in #96.
+- 🔗 **Evidence where it helps**: Guides the model to cite supplied material near important methods, results, data, comparisons, and quotations, without mechanically repeating citations. Historical answers are not treated as original evidence. Existing source links, custom system prompts, and separate internal-task prompts are preserved.
+- 🔧 **Gemini CLI OAuth removed**: Removes the old connection and clears its obsolete configuration and cached credentials. Previous users must select and configure an available connection in model settings. This release does not add Antigravity or another replacement authentication provider. Thanks @jiang-gy for reporting #98.
+- 🛠️ **Startup and history reliability**: Fixes update-notice tracking and a message-ID race during concurrent Zotero background writes that could prevent replies from being saved correctly.
+- 📦 **Dependency maintenance**: Includes bundled KaTeX 0.18.7 and transitive dependency security fixes, with contributions from @dependabot[bot] in #88 and @Visterainer in #94.
+
+## ✅ Validation and Compatibility
+
+654 TypeScript tests and 110 Python checks passed, along with lint, production build, and diff checks. The local production XPI passed installation, restart, reading-state, citation navigation, history, and Gemini-configuration migration checks in an isolated Windows / Zotero 10.0.6 profile using a local simulated model service.
+
+A separate before/after comparison used the same real model and synthetic paper across six scenario types. This small sample does not establish restored answer quality across models or real-world papers, and citations do not independently verify model conclusions. See [validation details](https://github.com/Visterainer/aidea-zotero/blob/v3.6.1/doc/reading-context-validation.md).
+
+Declared compatibility: Zotero 7–10; this acceptance run covered Windows / Zotero 10.0.6. Install `AIdea-3.6.1.xpi` through **Tools → Plugins → Install Plugin From File**, then restart Zotero.
 
 ## 📝 更新内容
 
-- 📖 **阅读上下文随问题更新**：每轮重新选择论文材料，支持连续追问与多篇文献，统一分配文档、历史和附件的上下文预算。短文在空间允许时提供全文，长文选取相关片段。
-- 🔗 **点击引用查看原文**：有可靠位置时，支持跳转到 PDF 页面或 EPUB 章节。聊天历史保留引用，复制、导出和保存笔记时保留来源链接。
-- 💾 **聊天记录手动迁移**：支持导出、导入会话，可选择包含截图、图片和上传文件。导入合并新增消息，保留对话分支，重复导入避免重复添加。旧记录升级时增加稳定标识，迁移前生成并校验恢复备份。感谢 @siyuanj 在 [#84](https://github.com/Visterainer/aidea-zotero/issues/84) 中提出多设备使用建议。
-- 💬 **长对话更连贯**：改进增量历史摘要与阅读快捷指令，保留已有自定义指令；修复上下文预算裁剪时召回记忆丢失的问题。
-- 🛠️ **引用与导航修复**：改进 EPUB 章节跳转，修复未配对反引号导致引用失效的问题，并优先显示父文献标题，避免使用通用附件名称。
-- 🎨 **回复显示更完整**：修复主题气泡右侧裁切，保留原有外观。宽表格支持横向滚动，避免单词过度拆行。感谢 @Dousongyao 在 [#87](https://github.com/Visterainer/aidea-zotero/issues/87) 中反馈。
+- 📖 **阅读上下文与回答结构**：优先使用模型服务返回的上下文容量，同时保留手动设置。放得下的论文提供全文，较长论文改善取材覆盖及整体讲解的连续追问，并区分全文、部分内容、仅摘要和正文不可用。论文讲解与复杂分析按需使用标题、列表、表格和必要细节，简单问题直接回答。感谢 @siyuanj 在 #96 中提供反馈。
+- 🔗 **按需引用证据**：引导模型在关键方法、结果、数据、比较结论和直接引文附近引用本轮提供的对应材料，避免机械重复引用；历史回答不作为原文证据。保留现有来源链接、自定义系统提示词及内部任务的独立提示词。
+- 🔧 **移除 Gemini CLI OAuth**：移除旧接入，清理失效配置和缓存凭据。此前使用该接入的用户，需要在模型设置中重新选择并配置可用接入。本次不接入 Antigravity 或其他替代认证服务。感谢 @jiang-gy 在 #98 中报告问题。
+- 🛠️ **启动与历史可靠性**：修复更新弹窗状态记录，以及 Zotero 后台并发写入时消息 ID 获取错误导致回答无法正确保存的问题。
+- 📦 **依赖维护**：包含内置 KaTeX 0.18.7 更新及间接依赖安全修复，对应 @dependabot[bot] 的 #88 和 @Visterainer 的 #94。
 
-## ✅ Compatibility and Validation / 兼容性与验证
+## ✅ 验证与兼容性
 
-- Supports Zotero 7–10. / 支持 Zotero 7–10。
-- Passed 604 unit tests, the plugin/TypeScript build, Prettier, and ESLint. / 604 项单元测试、插件及 TypeScript 构建、Prettier 和 ESLint 通过。
-- Feature testing covered Windows / Zotero 10.0.2; archive transfer and branch merging were also tested with Linux / Zotero 9.0.1. This does not represent full validation on every supported platform or version. / 功能测试覆盖 Windows / Zotero 10.0.2；归档迁移与分支合并另在 Linux / Zotero 9.0.1 上验证，不代表所有支持平台及版本均已完整验收。
+654 项 TypeScript 测试、110 项 Python 检查，以及静态检查、生产构建和差异检查通过。本地生产 XPI 在独立 Windows / Zotero 10.0.6 配置中，通过安装、重启、阅读状态、引用跳转、历史恢复及 Gemini 配置迁移检查；实机流程使用本机模拟模型接口。
 
-## 📦 Installation / 安装
+另外使用同一真实模型与合成论文，完成六类场景的修改前后对照。小样本结果不代表所有模型或真实论文的回答质量已恢复，引用也不代表模型结论已经独立验证。详见[验收记录](https://github.com/Visterainer/aidea-zotero/blob/v3.6.1/doc/reading-context-validation.md)。
 
-Download `AIdea-3.6.0.xpi`, install through **Tools → Plugins → Install Plugin From File**, then restart Zotero.
-
-下载 `AIdea-3.6.0.xpi`，通过 **工具 → 插件 → 从文件安装插件** 安装，然后重启 Zotero。
-
-## ℹ️ Scope and Limitations / 范围与限制
-
-- Chat transfer is manual. Settings, credentials, and the Memory database are not included. / 聊天迁移为手动操作，不包含设置、认证凭据或 Memory 数据库。
-- Zotero-managed paper originals are not bundled. Cross-device citation navigation requires matching library items and unchanged source files; unavailable locations are not guessed. / 不打包 Zotero 管理的论文原件。跨设备引用跳转需要匹配的文献条目及内容一致的原文文件，不猜测缺失位置。
-- Citations identify sources; they do not independently verify the model’s conclusions. Exact passage highlighting is not included. / 引用用于标明来源，不等于模型结论已经验证；本次不包含精确原文高亮。
+声明兼容 Zotero 7–10；本轮实机验收覆盖 Windows / Zotero 10.0.6。通过 **工具 → 插件 → 从文件安装插件** 安装 `AIdea-3.6.1.xpi`，然后重启 Zotero。
