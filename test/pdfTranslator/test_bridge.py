@@ -735,6 +735,10 @@ assert_eq(no_output["error"], "no_output_generated", "uses stable no-output erro
 assert_eq("HTTP 502" in no_output["message"], True, "surfaces wrapped upstream status")
 assert_eq(no_output["logFile"], r"C:\temp\bridge.log", "keeps the diagnostic log path")
 
+print("\n=== token parameter contracts and loopback HTTP integration ===")
+from token_policy_cases import run_token_policy_tests
+run_token_policy_tests(assert_eq)
+
 print(f"\n{'=' * 40}")
 print(f"Results: {passed} passed, {failed} failed")
 if failed > 0:

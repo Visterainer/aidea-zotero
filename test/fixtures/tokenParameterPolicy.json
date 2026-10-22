@@ -1,0 +1,149 @@
+{
+  "selections": [
+    {
+      "model": "gpt-6.1-sol",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "gpt-6-luna",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "gpt-5.1",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "gpt-10",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "o3-mini",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "o12",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "gpt-4o",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_tokens"
+    },
+    {
+      "model": "my-reasoning-model",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_tokens"
+    },
+    {
+      "model": "custom-alias",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_tokens"
+    },
+    {
+      "model": "gemini-2.5-flash",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_tokens"
+    },
+    {
+      "model": "gpt-6fake",
+      "url": "https://proxy.test/v1/chat/completions",
+      "field": "max_tokens"
+    },
+    {
+      "model": "alias",
+      "url": "https://api.openai.com/v1/chat/completions",
+      "field": "max_completion_tokens"
+    },
+    {
+      "model": "alias",
+      "url": "https://api.openai.com.evil.test/v1/chat/completions",
+      "field": "max_tokens"
+    }
+  ],
+  "errors": [
+    {
+      "status": 400,
+      "current": "max_tokens",
+      "body": "{\"error\": {\"param\": \"max_tokens\", \"message\": \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\"}}",
+      "expected": "max_completion_tokens"
+    },
+    {
+      "status": 400,
+      "current": "max_tokens",
+      "body": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+      "expected": "max_completion_tokens"
+    },
+    {
+      "status": 422,
+      "current": "max_tokens",
+      "body": "{\"error\": {\"param\": \"max_tokens\", \"message\": \"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.\"}}",
+      "expected": "max_completion_tokens"
+    },
+    {
+      "status": 422,
+      "current": "max_tokens",
+      "body": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+      "expected": "max_completion_tokens"
+    },
+    {
+      "status": 400,
+      "current": "max_completion_tokens",
+      "body": "{\"error\": {\"param\": \"max_completion_tokens\", \"message\": \"Unsupported parameter: 'max_completion_tokens' is not supported with this model. Use 'max_tokens' instead.\"}}",
+      "expected": "max_tokens"
+    },
+    {
+      "status": 400,
+      "current": "max_completion_tokens",
+      "body": "Unsupported parameter: 'max_completion_tokens' is not supported with this model. Use 'max_tokens' instead.",
+      "expected": "max_tokens"
+    },
+    {
+      "status": 422,
+      "current": "max_completion_tokens",
+      "body": "{\"error\": {\"param\": \"max_completion_tokens\", \"message\": \"Unsupported parameter: 'max_completion_tokens' is not supported with this model. Use 'max_tokens' instead.\"}}",
+      "expected": "max_tokens"
+    },
+    {
+      "status": 422,
+      "current": "max_completion_tokens",
+      "body": "Unsupported parameter: 'max_completion_tokens' is not supported with this model. Use 'max_tokens' instead.",
+      "expected": "max_tokens"
+    },
+    {
+      "status": 400,
+      "current": "max_tokens",
+      "body": "max_tokens exceeds the maximum allowed budget; use fewer tokens",
+      "expected": null
+    },
+    {
+      "status": 400,
+      "current": "max_tokens",
+      "body": "max_tokens and max_completion_tokens are documented fields",
+      "expected": null
+    },
+    {
+      "status": 401,
+      "current": "max_tokens",
+      "body": "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead.",
+      "expected": null
+    },
+    {
+      "status": 500,
+      "current": "max_tokens",
+      "body": "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead.",
+      "expected": null
+    },
+    {
+      "status": 400,
+      "current": "max_tokens",
+      "body": "{\"error\": {\"param\": \"temperature\", \"message\": \"Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead.\"}}",
+      "expected": null
+    }
+  ]
+}

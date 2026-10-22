@@ -1,3 +1,4 @@
+import { fetchWithTokenPolicy } from "./tokenParameterPolicy";
 import {
   runShellCommand,
   currentPlatform,
@@ -2312,24 +2313,34 @@ async function postCopilotRequest(params: {
   payload: Record<string, unknown>;
   signal?: AbortSignal;
 }): Promise<Response> {
-  const res = await fetchWithTransientRetry(
-    getFetch(),
-    params.url,
+  const res = await fetchWithTokenPolicy(
     {
-      method: "POST",
-      headers: params.headers,
-      body: JSON.stringify(params.payload),
-      signal: params.signal,
+      provider: "github-copilot",
+      url: params.url,
+      model: String(params.payload.model || ""),
     },
-    {
-      signal: params.signal,
-      onRetry: ({ attempt, maxAttempts, error }) => {
-        ztoolkit?.log?.(
-          `AIdea: Copilot transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
-          error,
-        );
-      },
-    },
+    params.payload,
+    (payload) =>
+      fetchWithTransientRetry(
+        getFetch(),
+        params.url,
+        {
+          method: "POST",
+          headers: params.headers,
+          body: JSON.stringify(payload),
+          signal: params.signal,
+        },
+        {
+          signal: params.signal,
+          onRetry: ({ attempt, maxAttempts, error }) => {
+            ztoolkit?.log?.(
+              `AIdea: Copilot transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+              error,
+            );
+          },
+        },
+      ),
+    params.signal,
   );
   if (res.ok) return res;
   const errText = await res.text();
@@ -4815,22 +4826,34 @@ export async function pingModel(
     ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
     ...(extraHeaders || {}),
   };
-  const body = JSON.stringify({
+  const body = {
     model: modelId,
     messages: [{ role: "user", content: "hi" }],
     max_tokens: 1,
     stream: false,
-  });
+  };
 
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const fetchPromise = getFetch()(url, {
-      method: "POST",
-      headers,
+    const fetchPromise = fetchWithTokenPolicy(
+      { provider: "model-probe", url, model: modelId },
       body,
-    });
-    const timeoutPromise = new Promise<Response>((_resolve, reject) =>
-      setTimeout(() => reject(new Error("ping timeout")), 15_000),
+      (payload) =>
+        getFetch()(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        }),
+      controller.signal,
     );
+    const timeoutPromise = new Promise<Response>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("ping timeout"));
+      }, 15_000);
+    });
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     // 404 = model does not exist; anything else = server recognises the model
     if (res.status === 404) return "fail";
@@ -4848,6 +4871,8 @@ export async function pingModel(
     return "ok";
   } catch {
     return "fail";
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

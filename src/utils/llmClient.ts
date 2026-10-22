@@ -4,6 +4,7 @@
  * Provides streaming and non-streaming API calls to OpenAI-compatible endpoints.
  */
 
+import { TokenParameterPolicy } from "./tokenParameterPolicy";
 import { config } from "../../package.json";
 import { formatDocumentContext, resolveSystemPrompt } from "./llmPrompts";
 import {
@@ -124,6 +125,8 @@ export type ChatParams = {
   model?: string;
   /** Override API base for this request */
   apiBase?: string;
+  /** Optional stable provider configuration identity for capability isolation. */
+  providerConfigId?: string;
   /** Override API key for this request */
   apiKey?: string;
   /** Optional reasoning control from UI */
@@ -920,6 +923,20 @@ function normalizeStreamText(value: unknown): string {
 type ParameterSource =
   "explicit-task" | "omitted-provider-default" | "provider-required-fallback";
 
+function tokenProviderConfig(
+  params: ChatParams,
+  apiBase: string,
+  apiKey: string,
+): string {
+  if (params.providerConfigId)
+    return `openai-compatible:${params.providerConfigId}`;
+  const profile = Object.entries(getApiProfiles()).find(
+    ([, value]) =>
+      value.apiBase.replace(/\/+$/, "") === apiBase && value.apiKey === apiKey,
+  );
+  return `openai-compatible:${profile?.[0] || apiBase}`;
+}
+
 function buildTokenParam(model: string, maxTokens: number | undefined) {
   if (maxTokens === undefined) return {};
   return usesMaxCompletionTokens(model)
@@ -1551,56 +1568,22 @@ function getTemperatureRecoveryPolicy(
   return null;
 }
 
-async function postWithTemperatureFallback(params: {
+async function postChatRequest(params: {
   url: string;
   apiKey: string;
   payload: Record<string, unknown>;
   logPayload?: (payload: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }) {
-  const policyKey = getTemperaturePolicyKey(params.url, params.payload);
-  const hasTemperature = Object.prototype.hasOwnProperty.call(
-    params.payload,
-    "temperature",
-  );
-  const send = (bodyPayload: Record<string, unknown>) => {
-    params.logPayload?.(bodyPayload);
-    return fetchWithTransientRetry(getFetch(), params.url, {
-      method: "POST",
-      headers: buildHeaders(params.apiKey),
-      body: JSON.stringify(bodyPayload),
-      signal: params.signal,
-    });
-  };
-
-  let requestPayload = params.payload;
-  const cachedPolicy = temperaturePolicyCache.get(policyKey);
-  if (hasTemperature && cachedPolicy) {
-    requestPayload = applyTemperaturePolicy(params.payload, cachedPolicy);
-  }
-
-  let res = await send(requestPayload);
+  params.logPayload?.(params.payload);
+  const res = await fetchWithTransientRetry(getFetch(), params.url, {
+    method: "POST",
+    headers: buildHeaders(params.apiKey),
+    body: JSON.stringify(params.payload),
+    signal: params.signal,
+  });
   if (res.ok) return res;
-
-  const firstErr = await res.text();
-  const recoveryPolicy = hasTemperature
-    ? getTemperatureRecoveryPolicy(res.status, firstErr)
-    : null;
-  if (recoveryPolicy) {
-    const fallbackPayload = applyTemperaturePolicy(
-      params.payload,
-      recoveryPolicy,
-    );
-    res = await send(fallbackPayload);
-    if (res.ok) {
-      temperaturePolicyCache.set(policyKey, recoveryPolicy);
-      return res;
-    }
-    const secondErr = await res.text();
-    throw new Error(`${res.status} ${res.statusText} - ${secondErr}`);
-  }
-
-  throw new Error(`${res.status} ${res.statusText} - ${firstErr}`);
+  throw new Error(`${res.status} ${res.statusText} - ${await res.text()}`);
 }
 
 function isReasoningErrorMessage(errorMessage: string): boolean {
@@ -1638,6 +1621,7 @@ function getReasoningRecoverySelection(params: {
 }
 
 async function postWithReasoningFallback(params: {
+  providerConfigId: string;
   url: string;
   apiKey: string;
   modelName?: string;
@@ -1648,6 +1632,16 @@ async function postWithReasoningFallback(params: {
   logPayload?: (payload: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }) {
+  const tokenPolicy = new TokenParameterPolicy({
+    provider: params.providerConfigId,
+    url: params.url,
+    model: params.modelName || "",
+  });
+  const temperatureKey = getTemperaturePolicyKey(
+    params.url,
+    params.buildPayload(params.initialReasoning),
+  );
+  let temperaturePolicy = temperaturePolicyCache.get(temperatureKey);
   let reasoningSelection = params.initialReasoning;
   let retries = 0;
   const maxRetries = 3;
@@ -1660,22 +1654,43 @@ async function postWithReasoningFallback(params: {
   ]);
 
   while (retries <= maxRetries) {
-    const payload = applyProviderOutputCapabilities({
-      url: params.url,
-      model: params.modelName || "",
-      payload: params.buildPayload(reasoningSelection),
-    });
+    let payload = tokenPolicy.apply(
+      applyProviderOutputCapabilities({
+        url: params.url,
+        model: params.modelName || "",
+        payload: params.buildPayload(reasoningSelection),
+      }),
+    );
+    if (temperaturePolicy && "temperature" in payload)
+      payload = applyTemperaturePolicy(payload, temperaturePolicy);
     try {
-      return await postWithTemperatureFallback({
+      const response = await postChatRequest({
         url: params.url,
         apiKey: params.apiKey,
         payload,
         logPayload: params.logPayload,
         signal: params.signal,
       });
+      tokenPolicy.accept();
+      if (temperaturePolicy)
+        temperaturePolicyCache.set(temperatureKey, temperaturePolicy);
+      return response;
     } catch (err) {
       lastError = err;
+      if (
+        params.signal?.aborted ||
+        (err instanceof Error && err.name === "AbortError") ||
+        retries >= maxRetries
+      )
+        throw err;
       const message = err instanceof Error ? err.message : String(err);
+      if (
+        retries < maxRetries &&
+        tokenPolicy.recover(err, payload, params.signal?.aborted)
+      ) {
+        retries += 1;
+        continue;
+      }
       if (
         !retriedWithoutMiniMaxReasoningSplit &&
         Object.prototype.hasOwnProperty.call(payload, "reasoning_split") &&
@@ -1683,6 +1698,22 @@ async function postWithReasoningFallback(params: {
       ) {
         disableMiniMaxReasoningSplit(params.url, params.modelName || "");
         retriedWithoutMiniMaxReasoningSplit = true;
+        retries += 1;
+        continue;
+      }
+      const recoveredTemperature =
+        "temperature" in payload
+          ? getTemperatureRecoveryPolicy(
+              parseHttpStatusFromErrorMessage(message) || 0,
+              message,
+            )
+          : null;
+      if (
+        recoveredTemperature &&
+        JSON.stringify(recoveredTemperature) !==
+          JSON.stringify(temperaturePolicy)
+      ) {
+        temperaturePolicy = recoveredTemperature;
         retries += 1;
         continue;
       }
@@ -2015,6 +2046,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
     stream: false,
   });
   const res = await postWithReasoningFallback({
+    providerConfigId: tokenProviderConfig(params, apiBase, apiKey),
     url,
     apiKey,
     modelName: model,
@@ -2123,6 +2155,7 @@ function xhrStream(params: {
     };
 
     const processChunk = () => {
+      if (xhr.status < 200 || xhr.status >= 300) return;
       const currentText = xhr.responseText || "";
       if (currentText.length <= processedLength) return;
       const newData = currentText.slice(processedLength);
@@ -2147,7 +2180,7 @@ function xhrStream(params: {
       } else {
         reject(
           new Error(
-            `${xhr.status} ${xhr.statusText} - ${(xhr.responseText || "").slice(0, 200)}`,
+            `${xhr.status} ${xhr.statusText} - ${(xhr.responseText || "").slice(0, 8192)}`,
           ),
         );
       }
@@ -2306,8 +2339,15 @@ export async function callLLMStream(
       url,
       buildEffectivePayload(params.reasoning),
     );
-    const cachedPolicy = temperaturePolicyCache.get(policyKey);
+    let cachedPolicy = temperaturePolicyCache.get(policyKey);
 
+    const tokenPolicy = new TokenParameterPolicy({
+      provider: tokenProviderConfig(params, apiBase, apiKey),
+      url,
+      model,
+    });
+    let outputStarted = false;
+    let lastError: unknown;
     // Build payload with reasoning and temperature policies applied
     let currentReasoning = params.reasoning;
     let payload = buildEffectivePayload(currentReasoning);
@@ -2329,6 +2369,7 @@ export async function callLLMStream(
 
     while (retries <= maxRetries) {
       try {
+        payload = tokenPolicy.apply(payload);
         logLlmParameterPolicy({
           provider: "openai-compatible",
           model,
@@ -2344,12 +2385,19 @@ export async function callLLMStream(
               apiKey,
               payload,
               signal: params.signal,
-              onDelta: rawOnDelta,
-              onReasoning: rawOnReasoning,
+              onDelta: (delta) => {
+                outputStarted = true;
+                rawOnDelta(delta);
+              },
+              onReasoning: (event) => {
+                outputStarted = true;
+                rawOnReasoning(event);
+              },
             }),
           {
             signal: params.signal,
-            shouldRetryError: isRetryableTransientError,
+            shouldRetryError: (error) =>
+              !outputStarted && isRetryableTransientError(error),
             onRetry: ({ attempt, maxAttempts, error }) => {
               ztoolkit.log(
                 `LLM: transient XHR upstream error, retry ${attempt}/${maxAttempts - 1}`,
@@ -2358,8 +2406,16 @@ export async function callLLMStream(
             },
           },
         );
+        tokenPolicy.accept();
         return finishNormalizedOutput(rawText);
       } catch (err) {
+        lastError = err;
+        if (outputStarted || params.signal?.aborted || retries >= maxRetries)
+          throw err;
+        if (tokenPolicy.recover(err, payload)) {
+          retries += 1;
+          continue;
+        }
         const message = err instanceof Error ? err.message : String(err);
 
         if (
@@ -2419,6 +2475,7 @@ export async function callLLMStream(
               buildEffectivePayload(currentReasoning),
               recoveryPolicy,
             );
+            cachedPolicy = recoveryPolicy;
             temperaturePolicyCache.set(policyKey, recoveryPolicy);
             retries += 1;
             continue;
@@ -2429,10 +2486,12 @@ export async function callLLMStream(
         throw err;
       }
     }
+    throw lastError || new Error("Request failed after retries");
   }
 
   // ----- Fallback: fetch-based streaming or non-streaming -----
   const res = await postWithReasoningFallback({
+    providerConfigId: tokenProviderConfig(params, apiBase, apiKey),
     url,
     apiKey,
     modelName: model,

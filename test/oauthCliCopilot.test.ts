@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import { resetTokenPolicyCacheForTests } from "../src/utils/tokenParameterPolicy";
 import {
   buildCodexOAuthHeaders,
   chatWithProviderOAuth,
@@ -273,6 +274,7 @@ describe("oauthCli Copilot temperature handling", function () {
 
   beforeEach(function () {
     prefStore = new Map<string, unknown>();
+    resetTokenPolicyCacheForTests();
     globalThis.fetch = originalFetch as typeof globalThis.fetch;
   });
 
@@ -361,6 +363,66 @@ describe("oauthCli Copilot temperature handling", function () {
     assert.equal(second, "Second pass");
     assert.lengthOf(seenPayloads, 2);
   });
+
+  for (const model of ["gpt-6.1-sol", "copilot-alias"]) {
+    it(`adapts Copilot chat budgets for ${model} and caches accepted corrections`, async function () {
+      setOAuthPref("oauthCopilotGithubToken", "github-token");
+      setOAuthPref(
+        "oauthCopilotApiToken",
+        JSON.stringify({
+          token: "copilot-token;proxy-ep=proxy.token-policy.test;",
+          expiresAt: Date.now() + 3600000,
+        }),
+      );
+      setOAuthPref(
+        "oauthModelListCache",
+        JSON.stringify({
+          "github-copilot": [
+            {
+              id: model,
+              supportedEndpoints: ["/chat/completions"],
+              policyState: "enabled",
+            },
+          ],
+        }),
+      );
+      const payloads: Record<string, unknown>[] = [];
+      globalThis.fetch = (async (url, init) => {
+        assert.equal(
+          String(url),
+          "https://api.token-policy.test/chat/completions",
+        );
+        const body = JSON.parse(String(init?.body));
+        payloads.push(body);
+        if (body.max_tokens)
+          return new Response(
+            JSON.stringify({
+              error: {
+                param: "max_tokens",
+                message:
+                  "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead.",
+              },
+            }),
+            { status: 400 },
+          );
+        return buildOpenAICompatSseResponse("OK");
+      }) as typeof fetch;
+      for (let i = 0; i < 2; i++) {
+        assert.equal(
+          await chatWithProviderOAuth({
+            provider: "github-copilot",
+            model,
+            prompt: "Hello",
+            maxTokens: 2345,
+          }),
+          "OK",
+        );
+      }
+      assert.equal(payloads.length, model === "gpt-6.1-sol" ? 2 : 3);
+      assert.equal(payloads.at(-1)?.max_completion_tokens, 2345);
+      assert.notProperty(payloads.at(-1), "max_tokens");
+    });
+  }
 
   it("routes Copilot chat-completions models away from /responses", async function () {
     setOAuthPref("oauthCopilotGithubToken", "github-token");

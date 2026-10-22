@@ -17,7 +17,7 @@ import time
 import uuid
 import random
 import threading
-from collections import deque
+from collections import deque, OrderedDict
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1875,6 +1875,107 @@ def _to_openai_completion_stream_chunks(model, text):
     return [first, done]
 
 
+
+_TOKEN_FIELDS = ("max_tokens", "max_completion_tokens")
+_token_parameter_cache = OrderedDict()
+_token_parameter_lock = threading.Lock()
+
+
+def _token_budget(payload):
+    a, b = payload.get("max_tokens"), payload.get("max_completion_tokens")
+    if a is not None and b is not None and a != b:
+        raise ValueError("Conflicting max_tokens and max_completion_tokens budgets")
+    value = a if a is not None else b
+    if (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and float("-inf") < value < float("inf")):
+        return value
+    return None
+
+
+def _replacement_token_field(status, body, current):
+    if status not in (400, 422):
+        return None
+    message = body
+    try:
+        parsed = json.loads(body[body.index("{"):])
+        error = parsed.get("error", parsed)
+        if error.get("param") and error["param"] != current:
+            return None
+        if isinstance(error.get("message"), str):
+            message = error["message"]
+    except (ValueError, TypeError, AttributeError):
+        pass
+    other = next(field for field in _TOKEN_FIELDS if field != current)
+    text = message.lower()
+    quoted = rf"['\"`]?{current}['\"`]?"
+    rejected = re.search(
+        rf"(?:unsupported|unknown|unrecognized|not supported|not allowed)"
+        rf"(?:\s+(?:parameter|argument|field))?\s*:?\s*{quoted}\b|"
+        rf"{quoted}\s+(?:parameter\s+)?(?:is\s+)?"
+        rf"(?:not supported|unsupported|not allowed|unknown)", text,
+    )
+    requested = re.search(
+        rf"(?:use|replace\s+(?:it\s+)?with|instead\s+use)\s+['\"`]?{other}\b",
+        text,
+    )
+    return other if rejected and requested else None
+
+
+class _TokenParameterPolicy:
+    """One policy per logical request; only successful explicit corrections are cached."""
+
+    def __init__(self, provider, url, model):
+        parsed = urllib.parse.urlparse(url)
+        self.enabled = bool(re.search(r"/chat/completions/?$", parsed.path))
+        self.key = (provider, url, model)
+        name = model.strip().lower()
+        gpt = re.match(r"^gpt-(\d+)(?:[.\-]|$)", name)
+        modern = (gpt and int(gpt[1]) >= 5) or re.match(r"^o\d+(?:[.\-]|$)", name)
+        default = (
+            "max_completion_tokens"
+            if parsed.hostname == "api.openai.com" or modern else "max_tokens"
+        )
+        with _token_parameter_lock:
+            self.field = _token_parameter_cache.get(self.key, default)
+        self.corrected = False
+
+    def apply(self, payload):
+        if not self.enabled:
+            return payload
+        value = _token_budget(payload)
+        if value is None:
+            return payload
+        result = {key: value for key, value in payload.items() if key not in _TOKEN_FIELDS}
+        result[self.field] = value
+        return result
+
+    def recover(self, error, payload):
+        if not self.enabled or _token_budget(payload) is None:
+            return False
+        message = str(error)
+        status = re.search(r"^(\d{3})\b|\bHTTP\s+(\d{3})\b", message, re.I)
+        replacement = _replacement_token_field(
+            int(status.group(1) or status.group(2)) if status else None,
+            message, self.field,
+        )
+        if not replacement:
+            return False
+        with _token_parameter_lock:
+            _token_parameter_cache.pop(self.key, None)
+        if self.corrected:
+            return False
+        self.field, self.corrected = replacement, True
+        return True
+
+    def accept(self):
+        if self.corrected:
+            with _token_parameter_lock:
+                _token_parameter_cache.pop(self.key, None)
+                _token_parameter_cache[self.key] = self.field
+                if len(_token_parameter_cache) > 256:
+                    _token_parameter_cache.popitem(last=False)
+
+
 class OAuthCompatProxyServer:
     """Temporary local OpenAI-compatible adapter for OAuth and proxied API providers."""
 
@@ -1893,6 +1994,8 @@ class OAuthCompatProxyServer:
         self._debug_json_dedupe_count = 0
         self._debug_plain_dedupe_count = 0
         self._unsupported_minimax_reasoning_split = set()
+        # Each translation task owns a provider configuration; never key caches by secrets.
+        self._token_policy_id = uuid.uuid4().hex
 
     def _debug(self, message):
         if not self.debug_enabled:
@@ -2034,6 +2137,8 @@ class OAuthCompatProxyServer:
                         self.wfile.write(b"data: [DONE]\\n\\n")
                         return
                     self._send_json(200, _to_openai_completion_text_response(model, text))
+                except ValueError as err:
+                    self._send_json(400, {"error": {"message": str(err)}})
                 except Exception as err:
                     self._send_json(500, {"error": {"message": str(err)}})
 
@@ -2052,6 +2157,7 @@ class OAuthCompatProxyServer:
         self.thread = None
 
     def handle_chat_completion(self, payload):
+        _token_budget(payload)  # Reject contradictory budgets before dispatch.
         provider = str(self.proxy_cfg.get("provider", "")).strip()
         if provider == "openai-compatible":
             return self._forward_openai_compatible(payload)
@@ -2063,6 +2169,33 @@ class OAuthCompatProxyServer:
 
     def _normalize_provider_output(self, text):
         return _normalize_model_output(text)
+
+    def _post_chat_with_token_policy(self, url, payload, headers, minimax_key=None):
+        policy = _TokenParameterPolicy(
+            f"{self.proxy_cfg.get('provider', '')}:{self._token_policy_id}",
+            url, str(payload.get("model", "")),
+        )
+        request_payload = dict(payload)
+        removed_reasoning_split = False
+        for attempt in range(3):  # Initial request + at most one correction of each kind.
+            request_payload = policy.apply(request_payload)
+            try:
+                raw = _http_post_json_with_retry(url, request_payload, headers, timeout=300)
+                policy.accept()
+                return raw
+            except Exception as exc:
+                if attempt == 2:
+                    raise
+                if policy.recover(exc, request_payload):
+                    continue
+                if (minimax_key is not None and not removed_reasoning_split
+                        and "reasoning_split" in request_payload
+                        and _is_minimax_reasoning_split_rejection(exc)):
+                    self._unsupported_minimax_reasoning_split.add(minimax_key)
+                    request_payload.pop("reasoning_split", None)
+                    removed_reasoning_split = True
+                    continue
+                raise
 
     def _forward_openai_compatible(self, payload):
         base_url = str(self.proxy_cfg.get("apiBase", "")).strip().rstrip("/")
@@ -2093,27 +2226,10 @@ class OAuthCompatProxyServer:
                 request_payload.pop("reasoning_split", None)
             else:
                 request_payload["reasoning_split"] = True
-        try:
-            raw = _http_post_json_with_retry(
-                f"{base_url}/chat/completions",
-                request_payload,
-                headers,
-                timeout=300,
-            )
-        except Exception as exc:
-            if (
-                "reasoning_split" not in request_payload
-                or not _is_minimax_reasoning_split_rejection(exc)
-            ):
-                raise
-            self._unsupported_minimax_reasoning_split.add(capability_key)
-            request_payload.pop("reasoning_split", None)
-            raw = _http_post_json_with_retry(
-                f"{base_url}/chat/completions",
-                request_payload,
-                headers,
-                timeout=300,
-            )
+        raw = self._post_chat_with_token_policy(
+            f"{base_url}/chat/completions", request_payload, headers,
+            minimax_key=capability_key,
+        )
         try:
             data = json.loads(raw)
         except Exception:
@@ -2243,7 +2359,7 @@ class OAuthCompatProxyServer:
             model,
             self.proxy_cfg.get("supportedEndpoints"),
         )
-        max_tokens = payload.get("max_tokens")
+        max_tokens = _token_budget(payload)
         response_format = payload.get("response_format")
 
         if transport_kind == "anthropic-messages":
@@ -2291,11 +2407,10 @@ class OAuthCompatProxyServer:
                 req_body["max_tokens"] = max(1, int(max_tokens))
             if isinstance(response_format, dict) and response_format:
                 req_body["response_format"] = response_format
-            raw = _http_post_json_with_retry(
+            raw = self._post_chat_with_token_policy(
                 f"{base_url}/chat/completions",
                 req_body,
                 headers,
-                timeout=300,
             )
             try:
                 data = json.loads(raw)

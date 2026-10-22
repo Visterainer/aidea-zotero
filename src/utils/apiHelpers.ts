@@ -2,6 +2,8 @@
  * Shared API helpers used by both llmClient and preferenceScript.
  */
 
+import { modelUsesCompletionTokens } from "./tokenParameterPolicy";
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -133,14 +135,7 @@ export function buildHeaders(apiKey: string): Record<string, string> {
 
 /** Check whether a model name implies `max_completion_tokens` instead of `max_tokens`. */
 export function usesMaxCompletionTokens(model: string): boolean {
-  const name = model.toLowerCase();
-  return (
-    name.startsWith("gpt-5") ||
-    name.startsWith("o1") ||
-    name.startsWith("o3") ||
-    name.startsWith("o4") ||
-    name.includes("reasoning")
-  );
+  return modelUsesCompletionTokens(model);
 }
 
 /** Check whether the base URL points at a Responses API endpoint. */
