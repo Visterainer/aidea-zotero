@@ -517,6 +517,52 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   });
   trModelRow.append(trModelLabel, trModelDropdown);
 
+  // Reasoning effort row — options depend on the selected model, so the
+  // translate tab controller fills it and hides it for models without levels.
+  const trReasoningRow = createElement(doc, "div", "llm-tr-path-block", {
+    id: "llm-tr-reasoning-row",
+  });
+  trReasoningRow.style.display = "none";
+  const trReasoningLabel = createElement(doc, "div", "llm-tr-field-label", {
+    id: "llm-tr-reasoning-label",
+    textContent: i18n.reasoningEffort,
+  });
+  const trReasoningDropdown = createElement(doc, "div", "llm-tr-dropdown", {
+    id: "llm-tr-reasoning",
+  }) as HTMLDivElement;
+  const trReasoningTrigger = createElement(
+    doc,
+    "div",
+    "llm-tr-dropdown-trigger",
+  ) as HTMLDivElement;
+  trReasoningTrigger.textContent = "—";
+  const trReasoningArrow = createElement(
+    doc,
+    "span",
+    "llm-tr-dropdown-arrow",
+  ) as HTMLSpanElement;
+  trReasoningArrow.textContent = "▾";
+  trReasoningTrigger.appendChild(trReasoningArrow);
+  const trReasoningMenu = createElement(
+    doc,
+    "div",
+    "llm-tr-dropdown-menu",
+  ) as HTMLDivElement;
+  trReasoningMenu.style.display = "none";
+  trReasoningDropdown.append(trReasoningTrigger, trReasoningMenu);
+  trReasoningTrigger.addEventListener("click", () => {
+    const open = trReasoningMenu.style.display !== "none";
+    trReasoningMenu.style.display = open ? "none" : "block";
+    trReasoningDropdown.classList.toggle("open", !open);
+  });
+  doc.addEventListener("click", (e: Event) => {
+    if (!trReasoningDropdown.contains(e.target as Node)) {
+      trReasoningMenu.style.display = "none";
+      trReasoningDropdown.classList.remove("open");
+    }
+  });
+  trReasoningRow.append(trReasoningLabel, trReasoningDropdown);
+
   // ── Reusable custom dropdown builder ──
   const buildDropdown = (
     id: string,
@@ -640,6 +686,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     trInputPathSection,
     trSavePathSection,
     trModelRow,
+    trReasoningRow,
     trLangRow,
   );
 
@@ -1574,6 +1621,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     menuClassName: "llm-model-menu",
     disabled: !hasItem,
   });
+  const { slot: reasoningDropdown } = createActionDropdown(doc, {
+    slotId: "llm-reasoning-dropdown",
+    slotClassName: "llm-reasoning-dropdown",
+    buttonId: "llm-reasoning-toggle",
+    buttonClassName:
+      "llm-shortcut-btn llm-action-btn llm-action-btn-secondary llm-reasoning-btn",
+    buttonText: i18n.reasoningEffortDefault,
+    menuId: "llm-reasoning-menu",
+    menuClassName: "llm-reasoning-menu",
+    disabled: !hasItem,
+  });
 
   const sendBtn = createElement(
     doc,
@@ -1618,13 +1676,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const newChatSlot = createElement(doc, "div", "llm-action-slot");
   newChatSlot.appendChild(newChatBtn);
 
-  // Order: ➕ new chat, 📎 upload/attach, ✂️ screenshot, Add Text, Model
+  // Order: new chat, upload, screenshot, add text, model, reasoning
   actionsLeft.append(
     newChatSlot,
     uploadSlot,
     screenshotSlot,
     selectTextSlot,
     modelDropdown,
+    reasoningDropdown,
   );
   actionsRight.append(sendSlot);
   actionsRow.append(actionsLeft, actionsRight);

@@ -7,6 +7,11 @@ import {
 import { fetchWithTransientRetry } from "./transientRetry";
 import { formatDocumentContext } from "./llmPrompts";
 import { providerContextWindow } from "./modelContextWindow";
+import {
+  parseCatalogReasoningLevels,
+  cacheApiReasoningCatalog,
+  normalizeReasoningApiBase,
+} from "./reasoningEffort";
 import { recordOAuthEnvUpdateSuccess } from "./oauthEnvUpdateState";
 import {
   DEFAULT_PANEL_LANG,
@@ -224,6 +229,9 @@ export type ProviderModelOption = {
   apiBase?: string;
   apiKey?: string;
   supportedEndpoints?: string[];
+  /** Reasoning efforts the provider catalog lists for this model. */
+  reasoningLevels?: string[];
+  defaultReasoningLevel?: string;
   policyState?: "enabled" | "disabled";
   /** In-memory only — not persisted; set by ping test. */
   status?: "ok" | "fail" | "testing";
@@ -2834,6 +2842,12 @@ export function parseCodexModelsResponse(data: unknown): ProviderModelOption[] {
       const id = String(m.id || m.slug || m.model_id || "").trim();
       const label =
         String(m.name || m.title || m.display_name || id).trim() || id;
+      const reasoningLevels = parseCatalogReasoningLevels(
+        m.supported_reasoning_levels,
+      );
+      const defaultReasoningLevel = String(m.default_reasoning_level || "")
+        .trim()
+        .toLowerCase();
       return {
         id,
         label,
@@ -2841,6 +2855,12 @@ export function parseCodexModelsResponse(data: unknown): ProviderModelOption[] {
           m.context_window,
           m.effective_context_window_percent,
         ),
+        ...(Array.isArray(m.supported_reasoning_levels)
+          ? { reasoningLevels: reasoningLevels || [] }
+          : {}),
+        ...(reasoningLevels && defaultReasoningLevel
+          ? { defaultReasoningLevel }
+          : {}),
       };
     })
     .filter((m) => m.id);
@@ -2884,7 +2904,7 @@ export async function fetchAvailableModels(
             ztoolkit?.log?.(
               `AIdea: Codex dynamic models: ${rows.map((r) => r.id).join(", ")}`,
             );
-            return rows;
+            return dedupeModels(rows);
           }
         }
         return [];
@@ -2908,7 +2928,7 @@ export async function fetchAvailableModels(
         try {
           const rows = await fetchDynamicModels(headers);
           if (rows.length > 0) {
-            return dedupeModels(rows);
+            return rows;
           }
         } catch (err) {
           ztoolkit?.log?.("AIdea: Codex dynamic model fetch failed", err);
@@ -2966,7 +2986,9 @@ export async function fetchAvailableModels(
   }
 }
 
-function dedupeModels(models: ProviderModelOption[]): ProviderModelOption[] {
+export function dedupeModels(
+  models: ProviderModelOption[],
+): ProviderModelOption[] {
   const out: ProviderModelOption[] = [];
   const seen = new Set<string>();
   for (const row of models) {
@@ -2986,6 +3008,10 @@ function dedupeModels(models: ProviderModelOption[]): ProviderModelOption[] {
     if (row.status !== undefined) option.status = row.status;
     if (row.contextWindowTokens !== undefined)
       option.contextWindowTokens = row.contextWindowTokens;
+    if (Array.isArray(row.reasoningLevels))
+      option.reasoningLevels = [...row.reasoningLevels];
+    if (row.defaultReasoningLevel !== undefined)
+      option.defaultReasoningLevel = row.defaultReasoningLevel;
     out.push(option);
   }
   out.sort((a, b) => a.id.localeCompare(b.id));
@@ -3001,16 +3027,16 @@ export async function fetchCustomEndpointModels(
   apiBase: string,
   apiKey?: string,
 ): Promise<ProviderModelOption[]> {
-  const base = String(apiBase || "")
-    .trim()
-    .replace(/\/+$/, "");
+  const base = normalizeReasoningApiBase(apiBase);
   if (!base) return [];
+  const modelsUrl = new URL(base);
+  modelsUrl.pathname = modelsUrl.pathname.replace(/\/+$/, "") + "/models";
   const headers: Record<string, string> = { Accept: "application/json" };
   if (apiKey?.trim()) {
     headers.Authorization = `Bearer ${apiKey.trim()}`;
   }
   try {
-    const res = await getFetch()(`${base}/models`, {
+    const res = await getFetch()(modelsUrl.toString(), {
       method: "GET",
       headers,
     });
@@ -3041,6 +3067,7 @@ export async function fetchCustomEndpointModels(
       }
       return [];
     })();
+    cacheApiReasoningCatalog(apiBase, apiKey || "", entries);
     const rows: ProviderModelOption[] = entries
       .map((m: any) => {
         const id = String(m?.id || m?.model || m?.name || "").trim();
@@ -3058,6 +3085,7 @@ export async function fetchCustomEndpointModels(
     }
     return dedupeModels(rows);
   } catch (err) {
+    cacheApiReasoningCatalog(apiBase, apiKey || "", []);
     ztoolkit?.log?.("AIdea: fetchCustomEndpointModels failed", err);
     throw err;
   }
@@ -3925,6 +3953,15 @@ function buildCopilotResponsesInput(params: {
   return input;
 }
 
+export function isCodexReasoningRejection(
+  status: number,
+  errorText: string,
+): boolean {
+  return (
+    (status === 400 || status === 422) && /reasoning|effort/i.test(errorText)
+  );
+}
+
 /**
  * Build the top-level `instructions` string for the Codex backend.
  * The chatgpt.com/backend-api/codex/responses endpoint requires `instructions`
@@ -4492,6 +4529,8 @@ export async function chatWithProviderOAuth(params: {
   temperature?: number;
   images?: string[];
   imageGeneration?: boolean;
+  /** Wire-level reasoning effort; omitted means the model default. */
+  reasoningEffort?: string;
   onDelta?: (delta: string) => void;
 }): Promise<string> {
   const cred = await readProviderOAuthCredential(params.provider);
@@ -4516,6 +4555,9 @@ export async function chatWithProviderOAuth(params: {
       stream: true,
     };
     payload.tools = [{ type: "image_generation" }];
+    if (params.reasoningEffort) {
+      payload.reasoning = { effort: params.reasoningEffort };
+    }
     logOAuthRequestParameterPolicy({
       provider: params.provider,
       model: params.model,
@@ -4528,25 +4570,39 @@ export async function chatWithProviderOAuth(params: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     };
-    const res = await fetchWithTransientRetry(
-      getFetch(),
-      "https://chatgpt.com/backend-api/codex/responses",
-      {
-        method: "POST",
-        headers: codexHeaders,
-        body: JSON.stringify(payload),
-        signal: params.signal,
-      },
-      {
-        signal: params.signal,
-        onRetry: ({ attempt, maxAttempts, error }) => {
-          ztoolkit?.log?.(
-            `AIdea: Codex OAuth transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
-            error,
-          );
+    const postCodex = () =>
+      fetchWithTransientRetry(
+        getFetch(),
+        "https://chatgpt.com/backend-api/codex/responses",
+        {
+          method: "POST",
+          headers: codexHeaders,
+          body: JSON.stringify(payload),
+          signal: params.signal,
         },
-      },
-    );
+        {
+          signal: params.signal,
+          onRetry: ({ attempt, maxAttempts, error }) => {
+            ztoolkit?.log?.(
+              `AIdea: Codex OAuth transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+              error,
+            );
+          },
+        },
+      );
+    let res = await postCodex();
+    if (!res.ok && payload.reasoning) {
+      const errorText = await res.text();
+      if (!isCodexReasoningRejection(res.status, errorText)) {
+        throw new Error(`Codex OAuth HTTP ${res.status}: ${errorText}`);
+      }
+      // A rejected effort must not block the answer: retry on the model default.
+      ztoolkit?.log?.(
+        `AIdea: Codex rejected reasoning effort ${params.reasoningEffort}; retrying with the model default`,
+      );
+      delete payload.reasoning;
+      res = await postCodex();
+    }
     if (!res.ok) {
       throw new Error(`Codex OAuth HTTP ${res.status}: ${await res.text()}`);
     }

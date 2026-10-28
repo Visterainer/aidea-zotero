@@ -520,6 +520,106 @@ try:
 finally:
     bridge._http_post_json_with_retry = orig_post_with_retry
 
+print("\n=== Codex reasoning effort ===")
+codex_reasoning_payloads = []
+
+
+def capture_codex_reasoning_post(
+    url,
+    payload,
+    headers,
+    timeout=180,
+    max_attempts=4,
+    base_delay_sec=1.0,
+):
+    codex_reasoning_payloads.append(json.loads(json.dumps(payload)))
+    if "reasoning" in payload and payload["reasoning"].get("effort") == "max":
+        raise RuntimeError(
+            'HTTP 400 from https://chatgpt.com: {"detail":"Unsupported reasoning effort"}'
+        )
+    return json.dumps({"output_text": "translated text"})
+
+
+codex_request = {
+    "model": "gpt-6-luna",
+    "messages": [{"role": "user", "content": "hello"}],
+    "stream": False,
+}
+try:
+    bridge._http_post_json_with_retry = capture_codex_reasoning_post
+    OAuthCompatProxyServer({
+        "provider": "openai-codex",
+        "accessToken": "test-token",
+        "reasoningEffort": "high",
+    }).handle_chat_completion(dict(codex_request))
+    assert_eq(
+        codex_reasoning_payloads[-1].get("reasoning"),
+        {"effort": "high"},
+        "sends the selected Codex reasoning effort",
+    )
+    OAuthCompatProxyServer({
+        "provider": "openai-codex",
+        "accessToken": "test-token",
+    }).handle_chat_completion(dict(codex_request))
+    assert_eq(
+        "reasoning" in codex_reasoning_payloads[-1],
+        False,
+        "omits reasoning when the model default is selected",
+    )
+    codex_reasoning_payloads.clear()
+    rejecting_proxy = OAuthCompatProxyServer({
+        "provider": "openai-codex",
+        "accessToken": "test-token",
+        "reasoningEffort": "max",
+    })
+    text = rejecting_proxy.handle_chat_completion(dict(codex_request))
+    assert_eq(text, "translated text", "recovers when Codex rejects the effort")
+    assert_eq(
+        [("reasoning" in payload) for payload in codex_reasoning_payloads],
+        [True, False],
+        "retries the rejected request on the model default",
+    )
+    rejecting_proxy.handle_chat_completion(dict(codex_request))
+    assert_eq(
+        "reasoning" in codex_reasoning_payloads[-1],
+        False,
+        "keeps the model default for the rest of the task after a rejection",
+    )
+finally:
+    bridge._http_post_json_with_retry = orig_post_with_retry
+
+print("\n=== API Key reasoning effort ===")
+api_reasoning_payloads = []
+reject_api_effort = False
+
+def capture_api_reasoning_post(url, payload, headers, **kwargs):
+    api_reasoning_payloads.append(json.loads(json.dumps(payload)))
+    for wire in ("reasoning_effort", "reasoning", "verbosity"):
+        if reject_api_effort and wire in payload:
+            raise RuntimeError('HTTP 422: ' + json.dumps({"error": {"param": wire, "message": "Invalid value: high"}}))
+    return json.dumps({"choices": [{"message": {"content": "API translated text"}}]})
+
+try:
+    bridge._http_post_json_with_retry = capture_api_reasoning_post
+    for wire in ("reasoning_effort", "reasoning", "verbosity"):
+        reject_api_effort = False
+        proxy = OAuthCompatProxyServer({"provider": "openai-compatible", "apiBase": "https://example.test/v1", "reasoningEffort": "high", "reasoningWire": wire})
+        assert_eq(proxy.handle_chat_completion(dict(codex_request)), "API translated text", f"{wire}: returns normal translation")
+        assert_eq(api_reasoning_payloads[-1].get(wire), {"effort": "high"} if wire == "reasoning" else "high", f"{wire}: injects verified effort")
+        reject_api_effort = True
+        api_reasoning_payloads.clear()
+        assert_eq(proxy.handle_chat_completion(dict(codex_request)), "API translated text", f"{wire}: recovers after rejection")
+        assert_eq([wire in p for p in api_reasoning_payloads], [True, False], f"{wire}: retry omits rejected field")
+        proxy.handle_chat_completion(dict(codex_request))
+        assert_eq(wire in api_reasoning_payloads[-1], False, f"{wire}: remembers rejection for remaining translation batches")
+    proxy = OAuthCompatProxyServer({"provider": "openai-compatible", "apiBase": "https://example.test/v1", "reasoningEffort": "high"})
+    assert_eq(proxy.handle_chat_completion(dict(codex_request)), "API translated text", "unknown capability still translates")
+    assert_eq(any(w in api_reasoning_payloads[-1] for w in ("reasoning", "reasoning_effort", "verbosity")), False, "no guessed wire when capability is unknown")
+    for status in (401, 403, 429, 500):
+        assert_eq(bridge._is_api_reasoning_rejection(RuntimeError(f"HTTP {status}: unsupported reasoning_effort"), "reasoning_effort"), False, f"HTTP {status} is not an effort rejection")
+finally:
+    bridge._http_post_json_with_retry = orig_post_with_retry
+
 print("\n=== Copilot retry helpers ===")
 assert_eq(
     _is_retryable_transport_error(RuntimeError("HTTP 500 from https://example.test: boom")),

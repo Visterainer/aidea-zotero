@@ -120,6 +120,9 @@ export interface BridgeTask {
     apiBase?: string;
     apiKey?: string;
     supportedEndpoints?: string[];
+    /** Codex reasoning effort injected by the bridge; omitted = model default. */
+    reasoningEffort?: string;
+    reasoningWire?: "reasoning_effort" | "reasoning" | "verbosity";
   };
 }
 

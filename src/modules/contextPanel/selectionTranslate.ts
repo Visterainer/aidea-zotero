@@ -1,5 +1,9 @@
 import { callLLM, callLLMStream } from "../../utils/llmClient";
 import {
+  getSelectionTranslateReasoningEffort,
+  resolveRequestReasoningEffort,
+} from "../../utils/reasoningEffort";
+import {
   COLD_START_SYSTEM_PROMPT,
   SELECTION_TRANSLATION_SYSTEM_PROMPT,
 } from "../../utils/llmPrompts";
@@ -589,6 +593,12 @@ export async function translateSelectedTextForReader(params: {
         apiKey: modelConfig.apiKey,
         temperature: 0.2,
         maxTokens: 1200,
+        reasoningEffort: resolveRequestReasoningEffort(
+          modelConfig.apiBase,
+          modelConfig.model,
+          getSelectionTranslateReasoningEffort(),
+          modelConfig.apiKey,
+        ),
       },
       (delta) => {
         if (delta) params.callbacks?.onDelta?.(delta);
