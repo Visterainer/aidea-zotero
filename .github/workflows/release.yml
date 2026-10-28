@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version already committed on master (without v)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -27,8 +33,35 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Validate manual release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/master"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const requested = process.env.RELEASE_VERSION;
+            const actual = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+            if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(requested) || requested !== actual) {
+              throw new Error("Requested release version must match package.json");
+            }
+          '
+
       - name: Build
         run: npm run build
+
+      - name: Create manual release tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          # Creating a ref fails if the tag exists; never move a published tag.
+          # GITHUB_TOKEN does not trigger another push workflow for this tag.
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/v$RELEASE_VERSION" -f sha="$GITHUB_SHA"
+          git tag "v$RELEASE_VERSION" "$GITHUB_SHA"
 
       - name: Publish release assets
         env:
