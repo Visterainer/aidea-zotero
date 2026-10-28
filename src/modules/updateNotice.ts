@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.6.1-reading-guidance-gemini-removal-v1";
+export const NOTICE_ID = "v3.7.0-reasoning-effort-model-compatibility-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -1258,24 +1258,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "AIdea v3.6.1: Reading Context and Answer Guidance",
-      lead: "Improved paper coverage, more flexible answer structure, and citations where evidence helps.",
+      title: "AIdea v3.7.0: Reasoning Effort and Model Compatibility",
+      lead: "Set reasoning effort separately for chat, full-document translation, and selection translation to balance response speed and reasoning depth.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "Reading context",
-          text: "Uses context capacity reported by the model service when available. Papers that fit are supplied in full; longer papers receive broader excerpt coverage. Replies show whether full text, excerpts, or only an abstract was supplied.",
+          label: "Dedicated reasoning control",
+          text: "A colored bulb beside the chat model selector indicates effort. Switching models preserves your saved choice; when that level is unavailable, a supported level is used with an explanatory hint.",
         },
         {
-          label: "Answer structure and citations",
-          text: "Paper explanations can use helpful headings, lists, and necessary detail. Key claims cite supporting material where useful. Simple answers stay direct; existing custom instructions are preserved.",
+          label: "Model-specific effort levels",
+          text: "Codex OAuth and API key connections use capability information returned by the model service. When support is unavailable or unknown, the control is disabled while ordinary model requests remain available.",
         },
         {
-          label: "Gemini CLI OAuth removed",
-          text: "The old connection has been removed. If you used it, select and configure an available connection in model settings. Gemini authorization does not transfer to another service.",
+          label: "Faster selection translation",
+          text: "The lowest reasoning effort is recommended for faster translation, usually with little impact on translation accuracy.",
+        },
+        {
+          label: "Model compatibility fixes",
+          text: "Fixes chat and full-document translation failures caused by incompatible output-length parameters on some models.",
         },
       ],
-      note: "Restart Zotero after updating. Source citations help locate evidence; they do not independently verify the model’s conclusions.",
+      note: "Restart Zotero after updating. Refresh the model list in model settings to retrieve the latest reasoning-effort capabilities.",
       confirm: "Got it",
       close: "Close update notice",
       exampleLabel: "",
@@ -1283,24 +1287,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "AIdea v3.6.1: 阅读上下文与回答指引",
-      lead: "改进论文材料覆盖，让回答结构更灵活，并在需要证据说明时提供引用。",
+      title: "AIdea v3.7.0: 思考强度与模型兼容性",
+      lead: "聊天、全文翻译和划词翻译现在可以分别设置思考强度，按任务需要平衡响应速度与推理深度。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "阅读上下文",
-          text: "优先使用模型服务返回的上下文容量。放得下的论文提供全文，较长论文兼顾各部分取材；回复显示本轮提供了全文、部分内容还是仅摘要。",
+          label: "独立思考强度按钮",
+          text: "聊天模型旁新增灯泡按钮，以颜色区分强度。切换模型保留已选设置；新模型不支持该档位时，使用支持的档位并显示提示。",
         },
         {
-          label: "回答结构与按需引用",
-          text: "论文讲解可按需使用标题、列表和必要细节，关键论点在有帮助时引用对应材料。简单问题直接回答，保留已有自定义指令。",
+          label: "按模型显示支持范围",
+          text: "Codex OAuth 和 API Key 接入依据模型服务返回的能力显示可选档位。不支持或无法确认时，控件置灰，仍可正常使用模型。",
         },
         {
-          label: "移除 Gemini CLI OAuth",
-          text: "旧接入已移除。此前使用该接入的用户，请在模型设置中重新选择并配置可用的接入方式；原 Gemini 授权不能转移到其他服务。",
+          label: "划词翻译速度建议",
+          text: "建议使用最低推理强度以加快翻译，通常对翻译准确性的影响较小。",
+        },
+        {
+          label: "模型兼容性修复",
+          text: "修复部分模型因输出长度参数不兼容而导致聊天或全文翻译失败的问题。",
         },
       ],
-      note: "更新后请重启 Zotero。引用用于定位证据，不等于模型结论已经验证。",
+      note: "更新后请重启 Zotero。可在模型设置中刷新模型列表，获取最新的思考强度支持信息。",
       confirm: "知道了",
       close: "关闭更新提示",
       exampleLabel: "",
@@ -1308,24 +1316,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "AIdea v3.6.1: 閱讀上下文與回答指引",
-      lead: "改善論文材料涵蓋範圍，讓回答結構更靈活，並在需要證據說明時提供引用。",
+      title: "AIdea v3.7.0: 思考強度與模型相容性",
+      lead: "聊天、全文翻譯和劃詞翻譯現在可以分別設定思考強度，依任務需求平衡回應速度與推理深度。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "閱讀上下文",
-          text: "優先使用模型服務回傳的上下文容量。容納得下的論文提供全文，較長論文兼顧各部分取材；回覆顯示本輪提供了全文、部分內容或僅摘要。",
+          label: "獨立思考強度按鈕",
+          text: "聊天模型旁新增燈泡按鈕，以顏色區分強度。切換模型會保留已選設定；新模型不支援該等級時，使用支援的等級並顯示提示。",
         },
         {
-          label: "回答結構與按需引用",
-          text: "論文講解可按需使用標題、清單及必要細節，關鍵論點在有幫助時引用對應材料。簡單問題直接回答，保留既有自訂指令。",
+          label: "依模型顯示支援範圍",
+          text: "Codex OAuth 和 API Key 接入依據模型服務回傳的能力顯示可選等級。不支援或無法確認時，控制項會變灰，仍可正常使用模型。",
         },
         {
-          label: "移除 Gemini CLI OAuth",
-          text: "舊接入已移除。先前使用此接入的使用者，請在模型設定中重新選擇並設定可用的接入方式；原 Gemini 授權無法轉移至其他服務。",
+          label: "劃詞翻譯速度建議",
+          text: "建議使用最低推理強度以加快翻譯，通常對翻譯準確性的影響較小。",
+        },
+        {
+          label: "模型相容性修復",
+          text: "修復部分模型因輸出長度參數不相容而導致聊天或全文翻譯失敗的問題。",
         },
       ],
-      note: "更新後請重新啟動 Zotero。引用用於定位證據，不代表模型結論已經驗證。",
+      note: "更新後請重新啟動 Zotero。可在模型設定中重新整理模型清單，取得最新的思考強度支援資訊。",
       confirm: "知道了",
       close: "關閉更新提示",
       exampleLabel: "",
@@ -1333,24 +1345,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "AIdea v3.6.1: 読解コンテキストと回答方針",
-      lead: "論文の内容をより広く取り込み、柔軟な回答構成と必要に応じた引用を促します。",
+      title: "AIdea v3.7.0: 推論強度とモデル互換性",
+      lead: "チャット、全文翻訳、選択範囲の翻訳で推論強度を個別に設定し、応答速度と推論の深さを調整できるようになりました。",
       alsoLabel: "今回の更新",
       alsoItems: [
         {
-          label: "読解コンテキスト",
-          text: "モデルサービスが返すコンテキスト容量を利用します。収まる論文は全文を、長い論文は各部分から抜粋を提供します。回答には全文・抜粋・要旨のみの区別が表示されます。",
+          label: "独立した推論強度ボタン",
+          text: "チャットのモデル選択の横に、強度を色で示す電球ボタンを追加しました。モデルを切り替えても設定を保持します。選択した強度に対応していない場合は、対応する強度を使用し、説明を表示します。",
         },
         {
-          label: "回答構成と引用",
-          text: "論文の説明では必要に応じて見出し、リスト、詳細を使い、重要な主張に根拠を引用します。簡単な質問には直接回答し、既存のカスタム指示を維持します。",
+          label: "モデルごとの対応範囲",
+          text: "Codex OAuth と API キー接続では、モデルサービスが返す機能情報から選択肢を表示します。非対応または対応状況が不明な場合は操作を無効にしますが、通常のモデル利用は継続できます。",
         },
         {
-          label: "Gemini CLI OAuth の削除",
-          text: "従来の接続を削除しました。ご利用だった場合は、モデル設定で利用可能な接続を選択し直して設定してください。Gemini の認証は他のサービスへ移行できません。",
+          label: "選択範囲の翻訳を高速化",
+          text: "翻訳速度を上げるには、最も低い推論強度をおすすめします。通常、翻訳精度への影響は小さくなります。",
+        },
+        {
+          label: "モデル互換性の修正",
+          text: "一部のモデルで出力長パラメーターの互換性が原因でチャットや全文翻訳が失敗する問題を修正しました。",
         },
       ],
-      note: "更新後は Zotero を再起動してください。引用は根拠の確認に役立ちますが、モデルの結論の正しさを保証しません。",
+      note: "更新後は Zotero を再起動してください。モデル設定でモデル一覧を更新すると、最新の推論強度の対応情報を取得できます。",
       confirm: "了解",
       close: "更新のお知らせを閉じる",
       exampleLabel: "",
@@ -1358,24 +1374,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "AIdea v3.6.1: 읽기 컨텍스트와 응답 지침",
-      lead: "논문 내용의 범위를 개선하고 유연한 응답 구조와 필요한 근거 인용을 지원합니다.",
+      title: "AIdea v3.7.0: 추론 강도와 모델 호환성",
+      lead: "채팅, 전체 문서 번역, 선택 영역 번역의 추론 강도를 각각 설정하여 응답 속도와 추론 깊이를 조절할 수 있습니다.",
       alsoLabel: "이번 업데이트",
       alsoItems: [
         {
-          label: "읽기 컨텍스트",
-          text: "모델 서비스가 제공하는 컨텍스트 용량을 사용합니다. 용량 안에 들어가는 논문은 전문을, 긴 논문은 여러 부분의 발췌문을 제공합니다. 응답에 전문, 발췌문, 초록만 제공되었는지 표시합니다.",
+          label: "독립된 추론 강도 버튼",
+          text: "채팅 모델 선택 옆의 전구 버튼이 색상으로 강도를 표시합니다. 모델을 바꿔도 저장된 선택은 유지됩니다. 해당 강도를 지원하지 않으면 지원되는 강도를 사용하고 안내를 표시합니다.",
         },
         {
-          label: "응답 구조와 인용",
-          text: "논문 설명에 필요한 제목, 목록, 세부 내용을 사용하고 중요한 주장에 도움이 되는 근거를 인용합니다. 간단한 질문에는 직접 답하며 기존 사용자 지침은 유지합니다.",
+          label: "모델별 지원 범위",
+          text: "Codex OAuth와 API 키 연결은 모델 서비스가 반환하는 기능 정보를 바탕으로 선택 가능한 강도를 표시합니다. 지원하지 않거나 확인할 수 없으면 컨트롤이 비활성화되지만 일반적인 모델 사용은 가능합니다.",
         },
         {
-          label: "Gemini CLI OAuth 제거",
-          text: "기존 연결이 제거되었습니다. 사용 중이었다면 모델 설정에서 사용 가능한 연결을 다시 선택하고 구성하세요. Gemini 인증은 다른 서비스로 이전되지 않습니다.",
+          label: "더 빠른 선택 영역 번역",
+          text: "번역 속도를 높이려면 가장 낮은 추론 강도를 권장합니다. 보통 번역 정확도에 미치는 영향은 작습니다.",
+        },
+        {
+          label: "모델 호환성 수정",
+          text: "일부 모델에서 출력 길이 매개변수의 호환성 문제로 채팅이나 전체 문서 번역이 실패하던 문제를 수정했습니다.",
         },
       ],
-      note: "업데이트 후 Zotero를 다시 시작하세요. 인용은 근거를 찾는 데 도움이 되지만 모델의 결론을 검증하지는 않습니다.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 모델 설정에서 모델 목록을 새로 고치면 최신 추론 강도 지원 정보를 가져올 수 있습니다.",
       confirm: "확인",
       close: "업데이트 안내 닫기",
       exampleLabel: "",
@@ -1383,24 +1403,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "AIdea v3.6.1: Contexte de lecture et consignes de réponse",
-      lead: "Une couverture plus large des articles, une structure plus souple et des citations utiles à l’argumentation.",
+      title:
+        "AIdea v3.7.0: Effort de raisonnement et compatibilité des modèles",
+      lead: "Réglez séparément l’effort de raisonnement du chat, de la traduction intégrale et de la traduction de sélection pour équilibrer vitesse et profondeur.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Contexte de lecture",
-          text: "Utilise la capacité de contexte indiquée par le service du modèle, si disponible. Fournit le texte intégral lorsqu’il tient, sinon des extraits répartis dans l’article. La réponse indique si le texte intégral, des extraits ou seulement le résumé ont été fournis.",
+          label: "Commande de raisonnement dédiée",
+          text: "Une ampoule colorée près du sélecteur de modèle indique l’effort. Changer de modèle conserve votre choix ; si ce niveau est indisponible, un niveau pris en charge est utilisé avec une indication explicative.",
         },
         {
-          label: "Structure et citations",
-          text: "Les explications peuvent utiliser des titres, listes et détails utiles, avec des citations à l’appui des affirmations importantes. Les réponses simples restent directes et vos consignes personnalisées sont conservées.",
+          label: "Niveaux propres à chaque modèle",
+          text: "Les connexions Codex OAuth et par clé API utilisent les capacités renvoyées par le service du modèle. Si la prise en charge est absente ou inconnue, la commande est désactivée, mais les requêtes ordinaires restent possibles.",
         },
         {
-          label: "Suppression de Gemini CLI OAuth",
-          text: "L’ancienne connexion a été supprimée. Si vous l’utilisiez, sélectionnez et configurez une connexion disponible dans les paramètres du modèle. L’autorisation Gemini ne se transfère pas à un autre service.",
+          label: "Traduction de sélection plus rapide",
+          text: "Le niveau d’effort le plus faible est recommandé pour accélérer la traduction, avec généralement peu d’effet sur sa précision.",
+        },
+        {
+          label: "Corrections de compatibilité",
+          text: "Corrige les échecs du chat et de la traduction intégrale dus à des paramètres de longueur de sortie incompatibles avec certains modèles.",
         },
       ],
-      note: "Redémarrez Zotero après la mise à jour. Les citations permettent de retrouver les preuves, sans vérifier à elles seules les conclusions du modèle.",
+      note: "Redémarrez Zotero après la mise à jour. Actualisez la liste dans les paramètres des modèles pour obtenir les dernières capacités de raisonnement.",
       confirm: "Compris",
       close: "Fermer l’avis de mise à jour",
       exampleLabel: "",
@@ -1408,24 +1433,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "AIdea v3.6.1: Lesekontext und Antwortvorgaben",
-      lead: "Breitere Abdeckung von Artikeln, flexiblere Antwortstruktur und Quellenangaben, wenn sie Belege liefern.",
+      title: "AIdea v3.7.0: Denkaufwand und Modellkompatibilität",
+      lead: "Stellen Sie den Denkaufwand für Chat, vollständige Dokumentübersetzung und Auswahlübersetzung getrennt ein, um Antwortgeschwindigkeit und Denktiefe abzustimmen.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Lesekontext",
-          text: "Nutzt die vom Modelldienst gemeldete Kontextkapazität, sofern verfügbar. Passende Artikel werden vollständig übergeben, längere durch Auszüge aus verschiedenen Teilen abgedeckt. Antworten kennzeichnen Volltext, Auszüge oder nur die Zusammenfassung.",
+          label: "Eigene Steuerung für den Denkaufwand",
+          text: "Eine farbige Glühbirne neben der Modellauswahl zeigt den Aufwand an. Beim Modellwechsel bleibt Ihre Auswahl gespeichert. Ist die Stufe nicht verfügbar, wird eine unterstützte Stufe mit einem erklärenden Hinweis verwendet.",
         },
         {
-          label: "Struktur und Quellenangaben",
-          text: "Artikelerklärungen können hilfreiche Überschriften, Listen und Details nutzen. Wichtige Aussagen erhalten bei Bedarf passende Belege. Einfache Antworten bleiben direkt; eigene Anweisungen bleiben erhalten.",
+          label: "Modellspezifische Stufen",
+          text: "Codex-OAuth- und API-Schlüssel-Verbindungen verwenden die vom Modelldienst gemeldeten Fähigkeiten. Bei fehlender oder unbekannter Unterstützung ist die Steuerung deaktiviert; normale Modellanfragen bleiben möglich.",
         },
         {
-          label: "Gemini CLI OAuth entfernt",
-          text: "Die bisherige Verbindung wurde entfernt. Wählen und konfigurieren Sie bei bisheriger Nutzung eine verfügbare Verbindung in den Modelleinstellungen. Die Gemini-Autorisierung wird nicht auf andere Dienste übertragen.",
+          label: "Schnellere Auswahlübersetzung",
+          text: "Für schnellere Übersetzungen wird die niedrigste Denkstufe empfohlen. Die Übersetzungsgenauigkeit wird dadurch meist nur wenig beeinflusst.",
+        },
+        {
+          label: "Verbesserte Modellkompatibilität",
+          text: "Behebt Fehler bei Chat und vollständiger Dokumentübersetzung, die bei einigen Modellen durch inkompatible Parameter für die Ausgabelänge verursacht wurden.",
         },
       ],
-      note: "Starten Sie Zotero nach dem Update neu. Quellenangaben helfen beim Auffinden von Belegen, bestätigen aber nicht eigenständig die Schlussfolgerungen des Modells.",
+      note: "Starten Sie Zotero nach dem Update neu. Aktualisieren Sie die Modellliste in den Modelleinstellungen, um die neuesten Angaben zu unterstützten Denkstufen abzurufen.",
       confirm: "Verstanden",
       close: "Update-Hinweis schließen",
       exampleLabel: "",
@@ -1433,24 +1462,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title: "AIdea v3.6.1: Contexto de lectura y pautas de respuesta",
-      lead: "Mayor cobertura de los artículos, estructura flexible y citas cuando ayudan a fundamentar la respuesta.",
+      title:
+        "AIdea v3.7.0: Esfuerzo de razonamiento y compatibilidad de modelos",
+      lead: "Ajuste por separado el esfuerzo de razonamiento del chat, la traducción completa y la traducción de selección para equilibrar velocidad y profundidad.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Contexto de lectura",
-          text: "Utiliza la capacidad de contexto indicada por el servicio del modelo, si está disponible. Incluye el texto completo cuando cabe, o fragmentos de distintas partes si es más largo. La respuesta indica si recibió texto completo, fragmentos o solo el resumen.",
+          label: "Control de razonamiento independiente",
+          text: "Una bombilla de color junto al selector de modelo indica el esfuerzo. Al cambiar de modelo se conserva su elección; si ese nivel no está disponible, se usa uno compatible y se muestra una explicación.",
         },
         {
-          label: "Estructura y citas",
-          text: "Las explicaciones pueden usar títulos, listas y detalles útiles, con citas que respalden afirmaciones importantes. Las respuestas sencillas siguen siendo directas y se conservan las instrucciones personalizadas.",
+          label: "Niveles específicos de cada modelo",
+          text: "Las conexiones Codex OAuth y mediante clave API usan las capacidades que devuelve el servicio del modelo. Si no hay soporte o se desconoce, el control se desactiva, pero las solicitudes habituales siguen disponibles.",
         },
         {
-          label: "Gemini CLI OAuth eliminado",
-          text: "Se ha eliminado la conexión anterior. Si la utilizaba, seleccione y configure una conexión disponible en los ajustes del modelo. La autorización de Gemini no se transfiere a otro servicio.",
+          label: "Traducción de selección más rápida",
+          text: "Se recomienda el esfuerzo de razonamiento más bajo para acelerar la traducción, normalmente con poco impacto en su precisión.",
+        },
+        {
+          label: "Correcciones de compatibilidad",
+          text: "Corrige fallos del chat y de la traducción completa causados por parámetros de longitud de salida incompatibles con algunos modelos.",
         },
       ],
-      note: "Reinicie Zotero tras actualizar. Las citas ayudan a localizar pruebas, pero no verifican por sí solas las conclusiones del modelo.",
+      note: "Reinicie Zotero tras actualizar. Actualice la lista en los ajustes de modelos para obtener las capacidades de razonamiento más recientes.",
       confirm: "Entendido",
       close: "Cerrar aviso de actualización",
       exampleLabel: "",
@@ -1458,24 +1492,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "AIdea v3.6.1: Контекст чтения и правила ответов",
-      lead: "Более полный охват статей, гибкая структура ответов и ссылки там, где нужны доказательства.",
+      title: "AIdea v3.7.0: Уровень рассуждений и совместимость моделей",
+      lead: "Настраивайте уровень рассуждений отдельно для чата, полного перевода документа и перевода выделенного текста, выбирая баланс скорости и глубины.",
       alsoLabel: "В этом обновлении",
       alsoItems: [
         {
-          label: "Контекст чтения",
-          text: "Используется размер контекста, сообщённый сервисом модели, если он доступен. Помещающиеся статьи передаются целиком, длинные — отрывками из разных частей. Ответ показывает, передан ли полный текст, отрывки или только аннотация.",
+          label: "Отдельная настройка рассуждений",
+          text: "Цветная лампочка рядом с выбором модели показывает уровень. При смене модели ваш выбор сохраняется; если уровень недоступен, используется поддерживаемый уровень с пояснением.",
         },
         {
-          label: "Структура и ссылки",
-          text: "Объяснения статей могут включать полезные заголовки, списки и детали, а важные утверждения — ссылки на подтверждающий материал. Простые ответы остаются прямыми; ваши инструкции сохраняются.",
+          label: "Уровни для каждой модели",
+          text: "Подключения Codex OAuth и по API-ключу используют сведения о возможностях, возвращаемые сервисом модели. Если поддержка отсутствует или неизвестна, настройка отключается, но обычные запросы остаются доступны.",
         },
         {
-          label: "Gemini CLI OAuth удалён",
-          text: "Прежнее подключение удалено. Если вы им пользовались, выберите и настройте доступное подключение в настройках модели. Авторизация Gemini не переносится в другие сервисы.",
+          label: "Быстрый перевод выделенного текста",
+          text: "Для ускорения перевода рекомендуется самый низкий уровень рассуждений. Обычно это мало влияет на точность перевода.",
+        },
+        {
+          label: "Исправления совместимости",
+          text: "Исправлены сбои чата и полного перевода, вызванные несовместимыми параметрами длины ответа у некоторых моделей.",
         },
       ],
-      note: "Перезапустите Zotero после обновления. Ссылки помогают найти доказательства, но сами по себе не подтверждают выводы модели.",
+      note: "Перезапустите Zotero после обновления. Обновите список моделей в настройках, чтобы получить актуальные сведения о поддерживаемых уровнях рассуждений.",
       confirm: "Понятно",
       close: "Закрыть уведомление",
       exampleLabel: "",
@@ -1483,24 +1521,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title: "AIdea v3.6.1: Contexto de leitura e orientações de resposta",
-      lead: "Maior cobertura dos artigos, estrutura flexível e citações quando ajudam a fundamentar a resposta.",
+      title: "AIdea v3.7.0: Esforço de raciocínio e compatibilidade de modelos",
+      lead: "Defina separadamente o esforço de raciocínio do chat, da tradução completa e da tradução de seleção para equilibrar velocidade e profundidade.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Contexto de leitura",
-          text: "Usa a capacidade de contexto informada pelo serviço do modelo, quando disponível. Envia o texto completo quando cabe, ou trechos de diferentes partes de artigos maiores. A resposta indica se recebeu o texto completo, trechos ou apenas o resumo.",
+          label: "Controle de raciocínio dedicado",
+          text: "Uma lâmpada colorida ao lado do seletor de modelo indica o esforço. Trocar de modelo preserva sua escolha; se o nível não estiver disponível, será usado um nível compatível com uma explicação.",
         },
         {
-          label: "Estrutura e citações",
-          text: "As explicações podem usar títulos, listas e detalhes úteis, citando evidências para afirmações importantes quando necessário. Respostas simples continuam diretas e suas instruções personalizadas são preservadas.",
+          label: "Níveis específicos por modelo",
+          text: "As conexões Codex OAuth e por chave API usam as capacidades retornadas pelo serviço do modelo. Quando não há suporte ou ele é desconhecido, o controle fica desativado, mas as solicitações normais continuam disponíveis.",
         },
         {
-          label: "Gemini CLI OAuth removido",
-          text: "A conexão anterior foi removida. Se você a utilizava, selecione e configure uma conexão disponível nas configurações do modelo. A autorização do Gemini não é transferida para outro serviço.",
+          label: "Tradução de seleção mais rápida",
+          text: "Recomenda-se o menor esforço de raciocínio para acelerar a tradução, geralmente com pouco impacto na precisão.",
+        },
+        {
+          label: "Correções de compatibilidade",
+          text: "Corrige falhas no chat e na tradução completa causadas por parâmetros de comprimento de saída incompatíveis com alguns modelos.",
         },
       ],
-      note: "Reinicie o Zotero após atualizar. As citações ajudam a localizar evidências, mas não verificam por si só as conclusões do modelo.",
+      note: "Reinicie o Zotero após atualizar. Atualize a lista nas configurações de modelos para obter as capacidades de raciocínio mais recentes.",
       confirm: "Entendi",
       close: "Fechar aviso de atualização",
       exampleLabel: "",
@@ -1508,24 +1550,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "AIdea v3.6.1: سياق القراءة وإرشادات الإجابة",
-      lead: "تغطية أوسع لمحتوى الأوراق، وبنية أكثر مرونة للإجابات، واستشهادات عند الحاجة إلى الأدلة.",
+      title: "AIdea v3.7.0: جهد الاستدلال وتوافق النماذج",
+      lead: "يمكنك ضبط جهد الاستدلال بشكل مستقل للمحادثة وترجمة المستند بالكامل وترجمة النص المحدد، للموازنة بين سرعة الاستجابة وعمق الاستدلال.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "سياق القراءة",
-          text: "تُستخدم سعة السياق التي تعلنها خدمة النموذج عند توفرها. يُرسل النص الكامل إذا اتسع له السياق، وإلا فتُختار مقتطفات من أجزاء مختلفة. توضح الإجابة ما إذا كان المتاح نصاً كاملاً أو مقتطفات أو ملخصاً فقط.",
+          label: "تحكم مستقل في الاستدلال",
+          text: "يشير مصباح ملوّن بجوار محدد نموذج المحادثة إلى مستوى الجهد. يُحفظ اختيارك عند تبديل النموذج؛ وإذا لم يكن المستوى مدعوماً، يُستخدم مستوى مدعوم مع توضيح ذلك.",
         },
         {
-          label: "البنية والاستشهادات",
-          text: "يمكن لشرح الأوراق استخدام عناوين وقوائم وتفاصيل مفيدة مع إسناد الادعاءات المهمة إلى أدلتها عند الحاجة. تبقى الإجابات البسيطة مباشرة وتُحفظ تعليماتك المخصصة.",
+          label: "مستويات خاصة بكل نموذج",
+          text: "تستخدم اتصالات Codex OAuth ومفتاح API معلومات القدرات التي تعيدها خدمة النموذج. عند غياب الدعم أو تعذّر تحديده، يُعطّل عنصر التحكم مع بقاء الطلبات العادية متاحة.",
         },
         {
-          label: "إزالة Gemini CLI OAuth",
-          text: "أُزيل الاتصال السابق. إذا كنت تستخدمه، فاختر اتصالاً متاحاً واضبطه في إعدادات النموذج. لا ينتقل تفويض Gemini إلى خدمة أخرى.",
+          label: "ترجمة أسرع للنص المحدد",
+          text: "يُنصح بأدنى جهد استدلال لتسريع الترجمة، مع تأثير محدود عادةً على دقتها.",
+        },
+        {
+          label: "إصلاحات توافق النماذج",
+          text: "أُصلحت حالات فشل المحادثة وترجمة المستند بالكامل الناتجة عن عدم توافق معاملات طول المخرجات مع بعض النماذج.",
         },
       ],
-      note: "أعد تشغيل Zotero بعد التحديث. تساعد الاستشهادات على العثور على الأدلة، لكنها لا تتحقق بمفردها من استنتاجات النموذج.",
+      note: "أعد تشغيل Zotero بعد التحديث. حدّث قائمة النماذج في إعداداتها للحصول على أحدث معلومات دعم جهد الاستدلال.",
       confirm: "فهمت",
       close: "إغلاق إشعار التحديث",
       exampleLabel: "",
@@ -1533,24 +1579,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "AIdea v3.6.1: पठन संदर्भ और उत्तर निर्देश",
-      lead: "शोधपत्र की बेहतर कवरेज, उत्तर की लचीली संरचना और ज़रूरत पड़ने पर साक्ष्य के उद्धरण।",
+      title: "AIdea v3.7.0: तर्क प्रयास और मॉडल संगतता",
+      lead: "प्रतिक्रिया की गति और तर्क की गहराई में संतुलन के लिए चैट, पूरे दस्तावेज़ के अनुवाद और चुने हुए पाठ के अनुवाद का तर्क प्रयास अलग-अलग सेट करें।",
       alsoLabel: "इस अपडेट में",
       alsoItems: [
         {
-          label: "पठन संदर्भ",
-          text: "उपलब्ध होने पर मॉडल सेवा द्वारा दी गई संदर्भ क्षमता का उपयोग होता है। समाने पर पूरा शोधपत्र, अन्यथा अलग-अलग हिस्सों के अंश दिए जाते हैं। उत्तर बताता है कि पूरा पाठ, अंश या केवल सार दिया गया था।",
+          label: "अलग तर्क प्रयास नियंत्रण",
+          text: "चैट मॉडल चयन के पास रंगीन बल्ब प्रयास का स्तर दिखाता है। मॉडल बदलने पर आपकी पसंद सुरक्षित रहती है; वह स्तर उपलब्ध न होने पर समर्थित स्तर इस्तेमाल होता है और उसका स्पष्टीकरण दिखता है।",
         },
         {
-          label: "संरचना और उद्धरण",
-          text: "शोधपत्र की व्याख्या में उपयोगी शीर्षक, सूचियाँ और आवश्यक विवरण हो सकते हैं। महत्वपूर्ण दावों के समर्थन में ज़रूरत के अनुसार उद्धरण दिए जाते हैं। सरल उत्तर सीधे रहते हैं और आपके कस्टम निर्देश सुरक्षित रहते हैं।",
+          label: "हर मॉडल के समर्थित स्तर",
+          text: "Codex OAuth और API कुंजी कनेक्शन मॉडल सेवा से मिली क्षमता की जानकारी का उपयोग करते हैं। समर्थन न होने या अज्ञात होने पर नियंत्रण निष्क्रिय रहता है, लेकिन सामान्य मॉडल अनुरोध उपलब्ध रहते हैं।",
         },
         {
-          label: "Gemini CLI OAuth हटाया गया",
-          text: "पुराना कनेक्शन हटा दिया गया है। यदि आप उसका उपयोग करते थे, तो मॉडल सेटिंग में उपलब्ध कनेक्शन चुनकर कॉन्फ़िगर करें। Gemini का प्राधिकरण दूसरी सेवा में स्थानांतरित नहीं होता।",
+          label: "चुने हुए पाठ का तेज़ अनुवाद",
+          text: "तेज़ अनुवाद के लिए सबसे कम तर्क प्रयास की सलाह दी जाती है। आमतौर पर इससे अनुवाद की सटीकता पर कम प्रभाव पड़ता है।",
+        },
+        {
+          label: "मॉडल संगतता सुधार",
+          text: "कुछ मॉडलों में आउटपुट लंबाई के असंगत पैरामीटर के कारण चैट या पूरे दस्तावेज़ का अनुवाद विफल होने की समस्या ठीक की गई है।",
         },
       ],
-      note: "अपडेट के बाद Zotero को पुनः प्रारंभ करें। उद्धरण साक्ष्य खोजने में मदद करते हैं, लेकिन अपने आप मॉडल के निष्कर्षों को सत्यापित नहीं करते।",
+      note: "अपडेट के बाद Zotero को पुनः प्रारंभ करें। तर्क प्रयास की नवीनतम समर्थन जानकारी पाने के लिए मॉडल सेटिंग में मॉडल सूची रीफ़्रेश करें।",
       confirm: "समझ गया",
       close: "अपडेट सूचना बंद करें",
       exampleLabel: "",

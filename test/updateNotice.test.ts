@@ -2,7 +2,7 @@ import { assert } from "chai";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { config } from "../package.json";
+import { config, version } from "../package.json";
 
 import {
   CURRENT_UPDATE_NOTICE_COPIES,
@@ -108,8 +108,9 @@ function loadNoticeRuntime(prefs = new Map<string, unknown>(), lang = "en-US") {
 }
 
 describe("one-time update notice", function () {
-  it("uses the v3.6.1 notice id", function () {
-    assert.equal(NOTICE_ID, "v3.6.1-reading-guidance-gemini-removal-v1");
+  it("uses the v3.7.0 notice id matching the package version", function () {
+    assert.equal(NOTICE_ID, "v3.7.0-reasoning-effort-model-compatibility-v1");
+    assert.isTrue(NOTICE_ID.startsWith(`v${version}-`));
   });
 
   it("provides complete localized copy for every panel language", function () {
@@ -127,13 +128,13 @@ describe("one-time update notice", function () {
       assert.isAbove(copy.note.trim().length, 0, `${uiCode}.note`);
       assert.isAbove(copy.confirm.trim().length, 0, `${uiCode}.confirm`);
       assert.isAbove(copy.close.trim().length, 0, `${uiCode}.close`);
-      assert.include(copy.title, "v3.6.1", `${uiCode}.version`);
+      assert.include(copy.title, `v${version}`, `${uiCode}.version`);
       assert.isAbove(
         copy.alsoLabel?.trim().length || 0,
         0,
         `${uiCode}.alsoLabel`,
       );
-      assert.lengthOf(copy.alsoItems || [], 3, `${uiCode}.alsoItems`);
+      assert.lengthOf(copy.alsoItems || [], 4, `${uiCode}.alsoItems`);
       for (const item of copy.alsoItems || []) {
         assert.isAbove(item.label.trim().length, 0, `${uiCode}.item.label`);
         assert.isAbove(item.text.trim().length, 0, `${uiCode}.item.text`);
@@ -155,7 +156,7 @@ describe("one-time update notice", function () {
       assert.include(allCopy, "Zotero", `${uiCode}.zotero`);
       assert.notMatch(
         allCopy,
-        /@[A-Za-z0-9_-]+|#\d+|Aaaanano|siyuanj|dependabot/i,
+        /@[A-Za-z0-9_-]+|#\d+|wintermydream|jbq8814-lab|dependabot/i,
         `${uiCode}.attribution`,
       );
     }
@@ -164,20 +165,35 @@ describe("one-time update notice", function () {
     assert.deepEqual(
       english.alsoItems?.map((item) => item.label),
       [
-        "Reading context",
-        "Answer structure and citations",
-        "Gemini CLI OAuth removed",
+        "Dedicated reasoning control",
+        "Model-specific effort levels",
+        "Faster selection translation",
+        "Model compatibility fixes",
       ],
     );
-    assert.include(english.alsoItems?.[2].text, "select and configure");
-    assert.include(english.alsoItems?.[2].text, "does not transfer");
+    assert.include(english.alsoItems?.[0].text, "preserves your saved choice");
+    assert.include(english.alsoItems?.[1].text, "unavailable or unknown");
+    assert.include(
+      english.alsoItems?.[1].text,
+      "ordinary model requests remain available",
+    );
+    assert.include(english.alsoItems?.[2].text, "lowest reasoning effort");
+    assert.include(english.alsoItems?.[3].text, "output-length parameters");
     const chinese = CURRENT_UPDATE_NOTICE_COPIES["zh-CN"];
     assert.deepEqual(
       chinese.alsoItems?.map((item) => item.label),
-      ["阅读上下文", "回答结构与按需引用", "移除 Gemini CLI OAuth"],
+      [
+        "独立思考强度按钮",
+        "按模型显示支持范围",
+        "划词翻译速度建议",
+        "模型兼容性修复",
+      ],
     );
-    assert.include(chinese.alsoItems?.[2].text, "重新选择并配置");
-    assert.include(chinese.alsoItems?.[2].text, "不能转移");
+    assert.include(chinese.alsoItems?.[0].text, "切换模型保留已选设置");
+    assert.include(chinese.alsoItems?.[1].text, "不支持或无法确认");
+    assert.include(chinese.alsoItems?.[1].text, "仍可正常使用模型");
+    assert.include(chinese.alsoItems?.[2].text, "最低推理强度");
+    assert.include(chinese.alsoItems?.[3].text, "输出长度参数");
   });
 
   describe("one-time update notice runtime", function () {
@@ -199,7 +215,7 @@ describe("one-time update notice", function () {
 
     it("shows the new version after an old notice and persists confirmation across restart", function () {
       const prefs = new Map<string, unknown>([
-        [noticePref, "v3.6.0-citations-chat-transfer-v1"],
+        [noticePref, "v3.6.1-reading-guidance-gemini-removal-v1"],
       ]);
       const runtime = loadNoticeRuntime(prefs);
       runtime.show();
@@ -234,7 +250,7 @@ describe("one-time update notice", function () {
       }
     });
 
-    it("renders three localized items, the language direction, and only one confirmation button", function () {
+    it("renders four localized items, the language direction, and only one confirmation button", function () {
       for (const { uiCode } of UI_LANGUAGE_OPTIONS) {
         const runtime = loadNoticeRuntime(undefined, uiCode);
         runtime.show();
@@ -248,7 +264,7 @@ describe("one-time update notice", function () {
           uiCode,
         );
         const card = dialog.body.children[3];
-        assert.lengthOf(card.children, 4, uiCode);
+        assert.lengthOf(card.children, 5, uiCode);
         for (const [index, item] of (copy.alsoItems || []).entries()) {
           assert.include(
             card.children[index + 1].children[0].properties.innerText,
