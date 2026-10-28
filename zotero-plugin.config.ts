@@ -15,7 +15,7 @@ export default defineConfig({
     "https://github.com/{{owner}}/{{repo}}/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
-    assets: ["addon/**/*.*"],
+    assets: ["addon/**/*.*", "!addon/**/__pycache__/**", "!addon/**/*.pyc"],
     define: {
       ...pkg.config,
       author: pkg.author,
@@ -44,7 +44,13 @@ export default defineConfig({
   },
 
   test: {
+    entries: "test/zotero",
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
+    prefs: {
+      // The scaffold recreates this disposable test data directory each run.
+      // Avoid a modal warning blocking tests in a cloud-synced checkout.
+      "extensions.zotero.warnOnUnsafeDataDir": false,
+    },
   },
 
   // If you need to see a more detailed log, uncomment the following line:

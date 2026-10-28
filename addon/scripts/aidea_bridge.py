@@ -1227,6 +1227,35 @@ def _is_retryable_transport_error(exc):
     return any(fragment in message for fragment in _RETRYABLE_ERROR_MESSAGE_FRAGMENTS)
 
 
+def _is_api_reasoning_rejection(exc, wire):
+    if wire not in ("reasoning_effort", "reasoning", "verbosity") or _extract_http_status_code(exc) not in (400, 422):
+        return False
+    message = str(exc).lower()
+    parameter_matches = False
+    try:
+        parsed = json.loads(message[message.index("{"):])
+        err = parsed.get("error", parsed)
+        if err.get("param"):
+            parameter_matches = err["param"] == wire or (wire == "reasoning" and err["param"] == "reasoning.effort")
+            if not parameter_matches:
+                return False
+        message = err.get("message", message)
+    except (ValueError, TypeError, AttributeError):
+        pass
+    if not parameter_matches and re.search(r"temperature|max_tokens|max_completion_tokens|max_output_tokens", message):
+        return False
+    return bool((parameter_matches or re.search(r"\b" + re.escape(wire) + r"\b", message)) and re.search(
+        r"unsupported|not supported|not allowed|unknown|unrecognized|invalid|allowed values|must be|extra (?:inputs|fields).*not permitted", message))
+
+
+def _is_codex_reasoning_rejection(exc):
+    status_code = _extract_http_status_code(exc)
+    if status_code not in (400, 422):
+        return False
+    message = str(exc).lower()
+    return "reasoning" in message or "effort" in message
+
+
 def _http_post_json_with_retry(
     url,
     payload,
@@ -1994,6 +2023,8 @@ class OAuthCompatProxyServer:
         self._debug_json_dedupe_count = 0
         self._debug_plain_dedupe_count = 0
         self._unsupported_minimax_reasoning_split = set()
+        self._codex_reasoning_rejected = False
+        self._api_reasoning_rejected = set()
         # Each translation task owns a provider configuration; never key caches by secrets.
         self._token_policy_id = uuid.uuid4().hex
 
@@ -2170,23 +2201,27 @@ class OAuthCompatProxyServer:
     def _normalize_provider_output(self, text):
         return _normalize_model_output(text)
 
-    def _post_chat_with_token_policy(self, url, payload, headers, minimax_key=None):
+    def _post_chat_with_token_policy(self, url, payload, headers, minimax_key=None, reasoning_wire=None):
         policy = _TokenParameterPolicy(
             f"{self.proxy_cfg.get('provider', '')}:{self._token_policy_id}",
             url, str(payload.get("model", "")),
         )
         request_payload = dict(payload)
         removed_reasoning_split = False
-        for attempt in range(3):  # Initial request + at most one correction of each kind.
+        for attempt in range(4):  # Token, output capability, and reasoning corrections at most once each.
             request_payload = policy.apply(request_payload)
             try:
                 raw = _http_post_json_with_retry(url, request_payload, headers, timeout=300)
                 policy.accept()
                 return raw
             except Exception as exc:
-                if attempt == 2:
+                if attempt == 3:
                     raise
                 if policy.recover(exc, request_payload):
+                    continue
+                if reasoning_wire in request_payload and _is_api_reasoning_rejection(exc, reasoning_wire):
+                    self._api_reasoning_rejected.add(str(payload.get("model", "")))
+                    request_payload.pop(reasoning_wire, None)
                     continue
                 if (minimax_key is not None and not removed_reasoning_split
                         and "reasoning_split" in request_payload
@@ -2221,6 +2256,10 @@ class OAuthCompatProxyServer:
             "/chat/completions",
         )
         request_payload = dict(payload)
+        effort = str(self.proxy_cfg.get("reasoningEffort") or "").strip()
+        wire = self.proxy_cfg.get("reasoningWire")
+        if effort and wire in ("reasoning_effort", "reasoning", "verbosity") and model not in self._api_reasoning_rejected:
+            request_payload[wire] = {"effort": effort} if wire == "reasoning" else effort
         if _is_official_minimax_reasoning_model(base_url, model):
             if capability_key in self._unsupported_minimax_reasoning_split:
                 request_payload.pop("reasoning_split", None)
@@ -2228,7 +2267,7 @@ class OAuthCompatProxyServer:
                 request_payload["reasoning_split"] = True
         raw = self._post_chat_with_token_policy(
             f"{base_url}/chat/completions", request_payload, headers,
-            minimax_key=capability_key,
+            minimax_key=capability_key, reasoning_wire=wire,
         )
         try:
             data = json.loads(raw)
@@ -2274,6 +2313,9 @@ class OAuthCompatProxyServer:
             "store": False,
             "stream": True,
         }
+        reasoning_effort = str(self.proxy_cfg.get("reasoningEffort") or "").strip()
+        if reasoning_effort and not self._codex_reasoning_rejected:
+            req_body["reasoning"] = {"effort": reasoning_effort}
         if request_json_mode and input_mentions_json and not prompt_requests_json_array:
             req_body["text"] = {"format": {"type": "json_object"}}
         elif request_json_mode:
@@ -2303,13 +2345,28 @@ class OAuthCompatProxyServer:
             "Accept": "text/event-stream",
         }
 
-        raw = _http_post_json_with_retry(
-            self.CODEX_URL,
-            req_body,
-            headers,
-            timeout=300,
-            max_attempts=6,
-        )
+        try:
+            raw = _http_post_json_with_retry(
+                self.CODEX_URL,
+                req_body,
+                headers,
+                timeout=300,
+                max_attempts=6,
+            )
+        except Exception as exc:
+            if "reasoning" not in req_body or not _is_codex_reasoning_rejection(exc):
+                raise
+            # Keep translating on the model default for the rest of this task.
+            self._codex_reasoning_rejected = True
+            self._debug(f"Codex rejected reasoning effort {reasoning_effort}; using model default")
+            req_body.pop("reasoning", None)
+            raw = _http_post_json_with_retry(
+                self.CODEX_URL,
+                req_body,
+                headers,
+                timeout=300,
+                max_attempts=6,
+            )
         text = _extract_codex_output_text_from_sse(raw)
         if not text.strip():
             try:

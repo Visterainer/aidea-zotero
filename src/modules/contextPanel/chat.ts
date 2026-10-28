@@ -160,6 +160,10 @@ import {
 } from "./attachmentStorage";
 import { toFileUrl } from "../../utils/pathFileUrl";
 import { replaceOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
+import {
+  getChatReasoningEffort,
+  resolveRequestReasoningEffort,
+} from "../../utils/reasoningEffort";
 import { getPanelI18n, getPanelLang } from "./i18n";
 import { getUiLanguageOption } from "./languages";
 import {
@@ -1090,6 +1094,7 @@ type EffectiveRequestConfig = {
   apiBase: string;
   apiKey: string;
   advanced?: AdvancedModelParams;
+  reasoningEffort?: string;
 };
 
 function shouldRewriteApiBaseForDetectedProvider(apiBase: string): boolean {
@@ -1151,7 +1156,19 @@ export function resolveEffectiveRequestConfig(params: {
     }
   }
 
-  return { model, apiBase, apiKey, advanced: params.advanced };
+  const reasoningEffort = resolveRequestReasoningEffort(
+    apiBase,
+    model,
+    getChatReasoningEffort(),
+    apiKey,
+  );
+  return {
+    model,
+    apiBase,
+    apiKey,
+    advanced: params.advanced,
+    ...(reasoningEffort ? { reasoningEffort } : {}),
+  };
 }
 
 /**
@@ -2475,6 +2492,7 @@ export async function editUserMessageAndRetry(
         apiKey: effectiveRequestConfig.apiKey,
         temperature: effectiveRequestConfig.advanced?.temperature,
         maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+        reasoningEffort: effectiveRequestConfig.reasoningEffort,
       },
       (delta) => {
         streamedAnswer += sanitizeText(delta);
@@ -2848,6 +2866,7 @@ export async function retryLatestAssistantResponse(
         apiKey: effectiveRequestConfig.apiKey,
         temperature: effectiveRequestConfig.advanced?.temperature,
         maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+        reasoningEffort: effectiveRequestConfig.reasoningEffort,
       },
       (delta) => {
         streamedAnswer += sanitizeText(delta);
@@ -3262,6 +3281,7 @@ export async function sendQuestion(
         apiKey: effectiveRequestConfig.apiKey,
         temperature: effectiveRequestConfig.advanced?.temperature,
         maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+        reasoningEffort: effectiveRequestConfig.reasoningEffort,
       },
       (delta) => {
         assistantMessage.text += sanitizeText(delta);

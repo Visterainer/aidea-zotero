@@ -32,6 +32,11 @@ import { renderShortcuts } from "./contextPanel/shortcuts";
 import { shortcutRenderItemState } from "./contextPanel/state";
 import { getPanelI18n, getPanelLang } from "./contextPanel/i18n";
 import { refreshTranslateTabI18n } from "./contextPanel/i18n";
+import { renderReasoningEffortDropdown } from "./contextPanel/reasoningDropdown";
+import {
+  getSelectionTranslateReasoningEffort,
+  setSelectionTranslateReasoningEffort,
+} from "../utils/reasoningEffort";
 import { clearSelectionTranslateColdStartFallbackState } from "./contextPanel/selectionTranslateColdStart";
 import { AUTHOR_PROFILE_SETTINGS_I18N } from "./authorProfiles/i18n";
 import {
@@ -109,8 +114,12 @@ type PrefKey =
   | "apiKeyQuaternary"
   | "modelQuaternary"
   | "systemPrompt"
+  | "apiReasoningCapabilities"
   | "oauthModelListCache"
   | "oauthModelSelectionCache"
+  | "chatReasoningEffortByModel"
+  | "chatReasoningEffort"
+  | "translateReasoningEffort"
   | "oauthSetupLog"
   | "oauthEnvUpdateMode"
   | "oauthRiskAccepted"
@@ -141,6 +150,7 @@ type PrefKey =
   | "font.chatImageScale"
   | "selectionTranslate.model"
   | "selectionTranslate.provider"
+  | "selectionTranslate.reasoningEffort"
   | "selectionTranslate.sourceLang"
   | "selectionTranslate.targetLang"
   | "translate.sourceLang"
@@ -4901,6 +4911,16 @@ export async function bootstrapSettingTab(
       `#${config.addonRef}-selection-translate-model-hint`,
     );
     if (stModelHint) stModelHint.textContent = L.selectionTranslateModelHint;
+    const stReasoning = doc.querySelector(
+      `#${config.addonRef}-selection-translate-reasoning-label`,
+    );
+    if (stReasoning) stReasoning.textContent = getPanelI18n().reasoningEffort;
+    const stReasoningHint = doc.querySelector(
+      `#${config.addonRef}-selection-translate-reasoning-hint`,
+    );
+    if (stReasoningHint)
+      stReasoningHint.textContent =
+        getPanelI18n().selectionTranslateReasoningHint;
     const stSource = doc.querySelector(
       `#${config.addonRef}-selection-translate-source-label`,
     );
@@ -5058,6 +5078,8 @@ export async function bootstrapSettingTab(
   // Map to hold per-provider status elements across renderModels() rebuilds
   const providerStatusRefs = new Map<string, HTMLSpanElement>();
   let selectionTranslateModelDropdown: HTMLDivElement | null = null;
+  let selectionTranslateReasoningDropdown: HTMLDivElement | null = null;
+  let selectionTranslateReasoningField: HTMLDivElement | null = null;
   let selectionTranslateSourceDropdown: HTMLDivElement | null = null;
   let selectionTranslateTargetDropdown: HTMLDivElement | null = null;
   let authorProfilesModelDropdown: HTMLDivElement | null = null;
@@ -5149,6 +5171,31 @@ export async function bootstrapSettingTab(
     dropdown.classList.remove("open");
   };
 
+  const renderSelectionTranslateReasoningOptions = (
+    model: string,
+    providerId: string,
+  ) => {
+    if (
+      !selectionTranslateReasoningDropdown ||
+      !selectionTranslateReasoningField
+    )
+      return;
+    const choice = getModelChoices().choices.find(
+      (entry) =>
+        entry.model === model && (entry.providerId || "") === providerId,
+    );
+    renderReasoningEffortDropdown({
+      apiBase: choice?.apiBase,
+      apiKey: choice?.apiKey,
+      dropdown: selectionTranslateReasoningDropdown,
+      row: selectionTranslateReasoningField,
+      providerId,
+      model,
+      selected: getSelectionTranslateReasoningEffort(),
+      onSelect: setSelectionTranslateReasoningEffort,
+    });
+  };
+
   const renderSelectionTranslateModelOptions = () => {
     if (!selectionTranslateModelDropdown) return;
     const dropdown = selectionTranslateModelDropdown;
@@ -5162,6 +5209,7 @@ export async function bootstrapSettingTab(
       dropdown.dataset.value = "";
       dropdown.dataset.providerId = "";
       setDropdownTriggerText(dropdown, L.selectionTranslateNoModels);
+      renderSelectionTranslateReasoningOptions("", "");
       return;
     }
 
@@ -5212,6 +5260,7 @@ export async function bootstrapSettingTab(
         setPref("selectionTranslate.model", model);
         setPref("selectionTranslate.provider", providerId);
       }
+      renderSelectionTranslateReasoningOptions(model, providerId);
     };
 
     let lastProvider = "";
@@ -6151,7 +6200,11 @@ export async function bootstrapSettingTab(
       systemPrompt: "",
       modelContextWindows: "{}",
       oauthModelListCache: "",
+      apiReasoningCapabilities: "{}",
       oauthModelSelectionCache: "",
+      chatReasoningEffortByModel: "{}",
+      chatReasoningEffort: "",
+      translateReasoningEffort: "",
       oauthSetupLog: "",
       oauthEnvUpdateMode: "notify",
       oauthRiskAccepted: "",
@@ -6181,6 +6234,7 @@ export async function bootstrapSettingTab(
       "font.chatImageScale": "1",
       "selectionTranslate.model": "",
       "selectionTranslate.provider": "",
+      "selectionTranslate.reasoningEffort": "",
       "selectionTranslate.sourceLang": "auto",
       "selectionTranslate.targetLang": "zh-CN",
       "authorProfiles.model": "",
@@ -6923,6 +6977,45 @@ export async function bootstrapSettingTab(
     selectionTranslateModelHint,
   );
 
+  // Hidden until the selected model offers reasoning efforts.
+  const selectionTranslateReasoningFieldEl = createEl(
+    doc,
+    "div",
+    "llm-tr-path-block llm-set-subsection",
+  ) as HTMLDivElement;
+  selectionTranslateReasoningFieldEl.style.display = "none";
+  const selectionTranslateReasoningHeading = createEl(
+    doc,
+    "div",
+    "llm-tr-field-label",
+  );
+  const selectionTranslateReasoningLabel = createEl(
+    doc,
+    "span",
+    "",
+    getPanelI18n().reasoningEffort,
+  );
+  selectionTranslateReasoningLabel.id = `${config.addonRef}-selection-translate-reasoning-label`;
+  const selectionTranslateReasoningHint = createEl(
+    doc,
+    "span",
+    "llm-set-hint llm-selection-reasoning-hint",
+    getPanelI18n().selectionTranslateReasoningHint,
+  );
+  selectionTranslateReasoningHint.id = `${config.addonRef}-selection-translate-reasoning-hint`;
+  selectionTranslateReasoningHeading.append(
+    selectionTranslateReasoningLabel,
+    selectionTranslateReasoningHint,
+  );
+  selectionTranslateReasoningDropdown = createTranslateStyleDropdown(
+    `${config.addonRef}-selection-translate-reasoning`,
+  );
+  selectionTranslateReasoningFieldEl.append(
+    selectionTranslateReasoningHeading,
+    selectionTranslateReasoningDropdown,
+  );
+  selectionTranslateReasoningField = selectionTranslateReasoningFieldEl;
+
   const languageRow = createEl(
     doc,
     "div",
@@ -7105,6 +7198,7 @@ export async function bootstrapSettingTab(
   selectionTranslateWrap.append(
     selectionTranslateEnableField,
     selectionTranslateModelField,
+    selectionTranslateReasoningFieldEl,
     languageRow,
     selectionTranslateShowCopyField,
     selectionTranslateShowAddToNoteField,

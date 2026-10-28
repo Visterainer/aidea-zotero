@@ -41,6 +41,7 @@ pref("selectionTranslate.showAddToNoteButton", true);
 pref("selectionTranslate.writeToAnnotation", false);
 pref("selectionTranslate.model", "");
 pref("selectionTranslate.provider", "");
+pref("selectionTranslate.reasoningEffort", "");
 pref("selectionTranslate.sourceLang", "auto");
 pref("selectionTranslate.targetLang", "zh-CN");
 pref("temperaturePrimary", "0.3");
@@ -100,3 +101,7 @@ pref("font.selectionPopupHeight", "0");
 pref("font.chatImageScale", "1");
 
 pref("modelContextWindows", "{}");
+pref("chatReasoningEffortByModel", "{}");
+pref("chatReasoningEffort", "");
+pref("apiReasoningCapabilities", "{}");
+pref("translateReasoningEffort", "");

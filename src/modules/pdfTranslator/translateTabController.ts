@@ -9,6 +9,14 @@
 
 import { getModelChoices } from "../contextPanel/setupHandlers/controllers/modelSelectionController";
 import { getPanelI18n } from "../contextPanel/i18n";
+import { renderReasoningEffortDropdown } from "../contextPanel/reasoningDropdown";
+import {
+  formatReasoningEffort,
+  getTranslateReasoningEffort,
+  resolveRequestReasoningEffort,
+  getApiReasoningSupport,
+  setTranslateReasoningEffort,
+} from "../../utils/reasoningEffort";
 import type { ProgressData, TranslationStats, WarningStats } from "./types";
 import { restartPausedTranslation } from "./translationLifecycle";
 
@@ -488,6 +496,7 @@ export function populateTranslateModelSelector(
     }
     dropdownEl.dataset.value = "";
     dropdownEl.dataset.providerId = "";
+    refreshTranslateReasoningSelector(dropdownEl, "", "");
     return "";
   }
 
@@ -519,6 +528,7 @@ export function populateTranslateModelSelector(
     // Persist
     persistTranslateModel(model);
     persistTranslateProvider(providerId);
+    refreshTranslateReasoningSelector(dropdownEl, model, providerId);
   };
 
   for (const entry of choices) {
@@ -575,6 +585,36 @@ export function populateTranslateModelSelector(
   }
 
   return selectedModel;
+}
+
+/** Show the reasoning efforts the selected translate model supports. */
+function refreshTranslateReasoningSelector(
+  modelDropdown: HTMLElement,
+  model: string,
+  providerId: string,
+): void {
+  const root =
+    modelDropdown.closest("#llm-main") || modelDropdown.ownerDocument;
+  const row = root?.querySelector(
+    "#llm-tr-reasoning-row",
+  ) as HTMLElement | null;
+  const dropdown = root?.querySelector(
+    "#llm-tr-reasoning",
+  ) as HTMLElement | null;
+  if (!row || !dropdown) return;
+  const choice = getModelChoices().choices.find(
+    (entry) => entry.model === model && (entry.providerId || "") === providerId,
+  );
+  renderReasoningEffortDropdown({
+    apiBase: choice?.apiBase,
+    apiKey: choice?.apiKey,
+    dropdown,
+    row,
+    providerId,
+    model,
+    selected: getTranslateReasoningEffort(),
+    onSelect: setTranslateReasoningEffort,
+  });
 }
 
 /**
@@ -1624,6 +1664,34 @@ async function startTranslation(body: Element): Promise<void> {
   consoleLog(body, `🔑 ${i18n.trLogAuthLabel}: ${authMode}`, "success");
   consoleLog(body, `   ${i18n.trLogModelIdLabel}: ${creds.modelId}`, "info");
   consoleLog(body, `   ${i18n.trLogApiBaseLabel}: ${creds.apiUrl}`, "info");
+  if (
+    creds.oauthProxy?.provider === "openai-codex" ||
+    creds.oauthProxy?.provider === "openai-compatible"
+  ) {
+    const reasoningEffort = resolveRequestReasoningEffort(
+      creds.oauthProxy.provider === "openai-codex"
+        ? "oauth://openai-codex"
+        : creds.oauthProxy.apiBase,
+      creds.modelId,
+      getTranslateReasoningEffort(),
+      creds.oauthProxy.apiKey,
+    );
+    if (reasoningEffort) {
+      creds.oauthProxy.reasoningEffort = reasoningEffort;
+      if (creds.oauthProxy.provider === "openai-compatible") {
+        creds.oauthProxy.reasoningWire = getApiReasoningSupport(
+          creds.oauthProxy.apiBase || "",
+          creds.modelId,
+          creds.oauthProxy.apiKey,
+        ).wire;
+      }
+      consoleLog(
+        body,
+        `   ${i18n.reasoningEffort}: ${formatReasoningEffort(reasoningEffort)}`,
+        "info",
+      );
+    }
+  }
 
   // Check environment
   consoleLog(body, `🔍 ${i18n.trLogCheckingEnvironment}`, "info");

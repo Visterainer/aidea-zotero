@@ -4,6 +4,7 @@
  * Provides streaming and non-streaming API calls to OpenAI-compatible endpoints.
  */
 
+import { ApiReasoningPolicy } from "./apiReasoningPolicy";
 import { TokenParameterPolicy } from "./tokenParameterPolicy";
 import { config } from "../../package.json";
 import { formatDocumentContext, resolveSystemPrompt } from "./llmPrompts";
@@ -131,6 +132,8 @@ export type ChatParams = {
   apiKey?: string;
   /** Optional reasoning control from UI */
   reasoning?: ReasoningConfig;
+  /** Explicit effort, validated against the active connection's model catalog. */
+  reasoningEffort?: string;
   /** Optional custom sampling temperature. Omitted values are not sent. */
   temperature?: number;
   /** Optional custom token budget for completion/output. Omitted values are not sent. */
@@ -1436,6 +1439,7 @@ function createChatPayloadBuilder(params: {
   effectiveTemperature?: number;
   effectiveMaxTokens?: number;
   stream: boolean;
+  apiReasoning?: ApiReasoningPolicy;
 }) {
   const {
     model,
@@ -1476,12 +1480,10 @@ function createChatPayloadBuilder(params: {
         };
 
     if (stream) {
-      return {
-        ...payload,
-        stream: true,
-      } as Record<string, unknown>;
+      const streamed = { ...payload, stream: true };
+      return params.apiReasoning?.apply(streamed) || streamed;
     }
-    return payload as Record<string, unknown>;
+    return params.apiReasoning?.apply(payload) || payload;
   };
 }
 
@@ -1626,6 +1628,7 @@ async function postWithReasoningFallback(params: {
   apiKey: string;
   modelName?: string;
   initialReasoning: ReasoningConfig | undefined;
+  apiReasoning?: ApiReasoningPolicy;
   buildPayload: (
     reasoningOverride: ReasoningConfig | undefined,
   ) => Record<string, unknown>;
@@ -1714,6 +1717,10 @@ async function postWithReasoningFallback(params: {
           JSON.stringify(temperaturePolicy)
       ) {
         temperaturePolicy = recoveredTemperature;
+        retries += 1;
+        continue;
+      }
+      if (params.apiReasoning?.recover(err)) {
         retries += 1;
         continue;
       }
@@ -2011,6 +2018,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
       maxTokens: params.maxTokens,
       temperature: params.temperature,
       images: params.images,
+      reasoningEffort: params.reasoningEffort,
     });
     return normalizeModelOutput(rawText).text;
   }
@@ -2035,7 +2043,15 @@ export async function callLLM(params: ChatParams): Promise<string> {
     apiBase,
     useResponses ? RESPONSES_ENDPOINT : API_ENDPOINT,
   );
+  const apiReasoning = new ApiReasoningPolicy({
+    apiBase,
+    apiKey,
+    model,
+    selected: params.reasoningEffort,
+    useResponses,
+  });
   const buildPayload = createChatPayloadBuilder({
+    apiReasoning,
     model,
     messages,
     useResponses,
@@ -2051,6 +2067,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
     apiKey,
     modelName: model,
     initialReasoning: params.reasoning,
+    apiReasoning,
     buildPayload,
     logPayload: (payload) =>
       logLlmParameterPolicy({
@@ -2278,6 +2295,7 @@ export async function callLLMStream(
       maxTokens: params.maxTokens,
       temperature: params.temperature,
       images: params.images,
+      reasoningEffort: params.reasoningEffort,
       onDelta: rawOnDelta,
     });
     return finishNormalizedOutput(rawText);
@@ -2303,7 +2321,15 @@ export async function callLLMStream(
     apiBase,
     useResponses ? RESPONSES_ENDPOINT : API_ENDPOINT,
   );
+  const apiReasoning = new ApiReasoningPolicy({
+    apiBase,
+    apiKey,
+    model,
+    selected: params.reasoningEffort,
+    useResponses,
+  });
   const buildPayload = createChatPayloadBuilder({
+    apiReasoning,
     model,
     messages,
     useResponses,
@@ -2436,6 +2462,14 @@ export async function callLLMStream(
           continue;
         }
 
+        if (apiReasoning.recover(err)) {
+          payload = buildEffectivePayload(currentReasoning);
+          if (cachedPolicy && "temperature" in payload)
+            payload = applyTemperaturePolicy(payload, cachedPolicy);
+          retries += 1;
+          continue;
+        }
+
         // Check for recoverable reasoning errors (400/422 with reasoning keywords)
         if (isReasoningErrorMessage(message)) {
           const recovered = getReasoningRecoverySelection({
@@ -2496,6 +2530,7 @@ export async function callLLMStream(
     apiKey,
     modelName: model,
     initialReasoning: params.reasoning,
+    apiReasoning,
     buildPayload,
     logPayload: (payload) =>
       logLlmParameterPolicy({

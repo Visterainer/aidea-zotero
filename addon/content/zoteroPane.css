@@ -262,6 +262,11 @@
   padding-left: 2px;
 }
 
+.llm-selection-reasoning-hint {
+  margin-inline-start: 8px;
+  font-weight: 400;
+}
+
 .llm-set-status {
   font-size: var(--llm-fs-10, 10px);
   color: #6b7280;
@@ -5911,8 +5916,8 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 
 .llm-action-slot.llm-reasoning-dropdown
   > .llm-reasoning-btn.llm-reasoning-btn-collapsed::before {
-  mask-image: url("icons/action-reasoning-brain.svg");
-  -webkit-mask-image: url("icons/action-reasoning-brain.svg");
+  mask-image: url("icons/action-reasoning-bulb.svg");
+  -webkit-mask-image: url("icons/action-reasoning-bulb.svg");
 }
 
 .llm-model-btn::after,
@@ -5966,6 +5971,55 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 .llm-reasoning-btn-active:hover:not(:disabled) {
   background: transparent;
   border-color: transparent;
+}
+
+/* The lightbulb icon alone carries the saved chat effort. */
+.llm-action-slot.llm-reasoning-dropdown,
+.llm-action-slot.llm-reasoning-dropdown.llm-reasoning-dropdown-collapsed {
+  flex: 0 0 36px;
+  min-width: 36px;
+  max-width: 36px;
+}
+
+.llm-action-slot.llm-reasoning-dropdown
+  > .llm-reasoning-btn.llm-reasoning-btn-collapsed {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  padding: 0;
+  justify-content: center;
+  color: var(--fill-tertiary);
+}
+
+.llm-reasoning-btn.llm-reasoning-btn-collapsed::after {
+  display: none;
+}
+
+.llm-reasoning-btn[data-reasoning-effort="low"]:not(:disabled) {
+  color: #2e9d62 !important;
+}
+.llm-reasoning-btn[data-reasoning-effort="medium"]:not(:disabled) {
+  color: #287bbd !important;
+}
+.llm-reasoning-btn[data-reasoning-effort="high"]:not(:disabled) {
+  color: #8851bd !important;
+}
+.llm-reasoning-btn[data-reasoning-effort="xhigh"]:not(:disabled) {
+  color: #cb751f !important;
+}
+.llm-reasoning-btn[data-reasoning-effort="max"]:not(:disabled) {
+  color: #bd4343 !important;
+}
+.llm-reasoning-btn[data-reasoning-effort="ultra"]:not(:disabled) {
+  color: #a53677 !important;
+}
+.llm-reasoning-btn[data-reasoning-effort="none"]:not(:disabled),
+.llm-reasoning-btn[data-reasoning-effort="minimal"]:not(:disabled) {
+  color: #7d9297 !important;
+}
+
+.llm-reasoning-btn.llm-reasoning-btn-unavailable {
+  color: #819098 !important;
 }
 
 .llm-action-slot {
@@ -6077,13 +6131,15 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
   background: var(--fill-quinary);
 }
 
-.llm-model-option.llm-model-option-selected {
+.llm-model-option.llm-model-option-selected,
+.llm-reasoning-option.llm-model-option-selected {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   color: var(--color-accent);
   font-weight: 600;
 }
 
-.llm-model-option.llm-model-option-selected:hover {
+.llm-model-option.llm-model-option-selected:hover,
+.llm-reasoning-option.llm-model-option-selected:hover {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 

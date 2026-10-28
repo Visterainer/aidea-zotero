@@ -176,6 +176,7 @@ import {
 } from "./portalScope";
 import { getPanelDomRefs } from "./setupHandlers/domRefs";
 import { getPanelI18n } from "./i18n";
+import { updateReasoningEffortButton } from "./reasoningDropdown";
 import { pickChatInputPlaceholder } from "./placeholderTips";
 import {
   MODEL_MENU_OPEN_CLASS,
@@ -221,6 +222,14 @@ import {
   getPersistedModelName,
   pickBestDefaultModel,
 } from "./setupHandlers/controllers/modelSelectionController";
+import {
+  formatReasoningEffort,
+  getCachedModelReasoningSupport,
+  getChatReasoningEffort,
+  initializeReasoningEffort,
+  resolveReasoningEffort,
+  setChatReasoningEffort,
+} from "../../utils/reasoningEffort";
 import { bootstrapSettingTab } from "../preferenceScript";
 import { initTranslateTab } from "../pdfTranslator/translateTabController";
 import { createHeightSync } from "./heightSync";
@@ -285,6 +294,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     modelBtn,
     modelSlot,
     modelMenu,
+    reasoningBtn,
+    reasoningSlot,
+    reasoningMenu,
     actionsRow,
     actionsLeft,
     actionsRight,
@@ -4292,6 +4304,32 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const getSelectedModelInfo = () =>
     getSelectedModelInfoFromController(item?.id ?? null);
 
+  /** Reasoning capability and saved choice for the selected chat model. */
+  const getChatReasoningTarget = () => {
+    const { choices, currentModel, currentProvider } = getSelectedModelInfo();
+    const entry = choices.find(
+      (choice) =>
+        choice.model.trim().toLowerCase() ===
+          currentModel.trim().toLowerCase() &&
+        (choice.provider || "").toLowerCase() ===
+          (currentProvider || "").toLowerCase(),
+    );
+    const providerId = entry?.providerId || "";
+    const model = entry?.model || currentModel;
+    const support = getCachedModelReasoningSupport(
+      providerId,
+      model,
+      entry?.apiBase,
+      entry?.apiKey,
+    );
+    const selected = initializeReasoningEffort(
+      getChatReasoningEffort(),
+      support,
+      setChatReasoningEffort,
+    );
+    return { providerId, model, support, selected };
+  };
+
   type LiveSettingsReadinessState = {
     primaryConnectionMode?: "oauth" | "custom";
     customMissingApiBase?: boolean;
@@ -4520,6 +4558,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       Math.round(immediateAvailableWidth),
       modelLabel,
       modelHint,
+      reasoningBtn?.dataset.reasoningEffort || "",
       modelCanUseTwoLineWrap ? "wrap" : "nowrap",
       uploadBtn?.disabled ? "upload-disabled" : "upload-enabled",
       selectTextBtn?.disabled ? "text-disabled" : "text-enabled",
@@ -4678,6 +4717,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         maxLines,
       );
     };
+    const getReasoningWidth = () =>
+      reasoningBtn ? ACTION_LAYOUT_CONTEXT_ICON_WIDTH_PX : 0;
 
     const getContextButtonWidth = (
       slot: HTMLElement | null,
@@ -4732,6 +4773,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           state.selectText,
         ),
         getModelWidth(state.model),
+        getReasoningWidth(),
       ].filter((width) => width > 0);
       const leftGap = getElementGapPx(actionsLeft);
       const leftRequiredWidth =
@@ -4784,6 +4826,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       modelBtn.classList.toggle("llm-model-btn-wrap-2line", false);
       modelBtn.textContent = modelLabel;
       modelBtn.title = modelHint;
+      reasoningBtn?.classList.add("llm-reasoning-btn-collapsed");
+      reasoningSlot?.classList.add("llm-reasoning-dropdown-collapsed");
+      if (reasoningBtn) reasoningBtn.textContent = "";
     };
 
     const applyState = (state: ActionRevealState) => {
@@ -4824,6 +4869,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         modelBtn.textContent = modelLabel;
         modelBtn.title = modelHint;
       }
+      reasoningBtn?.classList.add("llm-reasoning-btn-collapsed");
+      reasoningSlot?.classList.add("llm-reasoning-dropdown-collapsed");
+      if (reasoningBtn) reasoningBtn.textContent = "";
 
       setPanelActionLayoutMode(getPanelLayoutMode(state));
     };
@@ -4910,6 +4958,19 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           : i18n.modelOnlyOne
         : i18n.modelNoModels;
       modelBtn.disabled = !item || !hasModels;
+      if (reasoningBtn) {
+        const target = getChatReasoningTarget();
+        updateReasoningEffortButton({
+          button: reasoningBtn,
+          slot: reasoningSlot,
+          support: target.support,
+          selected: target.selected,
+          labels: i18n,
+        });
+        if (reasoningBtn.disabled) {
+          setFloatingMenuOpen(reasoningMenu, "llm-reasoning-menu-open", false);
+        }
+      }
       applyResponsiveActionButtonsLayout();
       updateImagePreview();
       updateChatReadinessPrompt();
@@ -5022,6 +5083,59 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       option.addEventListener("pointerdown", applyModelSelection);
       option.addEventListener("click", applyModelSelection);
       modelMenu.appendChild(option);
+    }
+  };
+
+  const rebuildReasoningMenu = () => {
+    if (!reasoningMenu) return;
+    reasoningMenu.innerHTML = "";
+    const target = getChatReasoningTarget();
+    if (!target.support.efforts.length) return;
+    const doc = body.ownerDocument as Document;
+    appendDropdownInstruction(
+      reasoningMenu,
+      i18n.reasoningEffort,
+      "llm-reasoning-menu-hint",
+    );
+    const entries = target.support.efforts.map((effort) => ({
+      effort,
+      label: formatReasoningEffort(effort),
+    }));
+    if (target.selected && !target.support.efforts.includes(target.selected)) {
+      const effective = resolveReasoningEffort(
+        target.selected,
+        target.support.efforts,
+        target.support.defaultEffort,
+      );
+      entries.push({
+        effort: target.selected,
+        label: `${formatReasoningEffort(target.selected)} → ${formatReasoningEffort(effective!)}`,
+      });
+    }
+    for (const entry of entries) {
+      const isSelected = entry.effort === target.selected;
+      const option = createElement(
+        doc,
+        "button",
+        isSelected
+          ? "llm-response-menu-item llm-reasoning-option llm-model-option-selected"
+          : "llm-response-menu-item llm-reasoning-option",
+        {
+          type: "button",
+          textContent: isSelected ? `✓  ${entry.label}` : `    ${entry.label}`,
+        },
+      );
+      const applyEffort = (e: Event) => {
+        if (!isPrimaryPointerEvent(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setChatReasoningEffort(entry.effort);
+        setFloatingMenuOpen(reasoningMenu, "llm-reasoning-menu-open", false);
+        updateModelButton();
+      };
+      option.addEventListener("pointerdown", applyEffort);
+      option.addEventListener("click", applyEffort);
+      reasoningMenu.appendChild(option);
     }
   };
 
@@ -6755,6 +6869,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     closeRetryModelMenu();
     closePromptMenu();
     closeHistoryMenu();
+    setFloatingMenuOpen(reasoningMenu, "llm-reasoning-menu-open", false);
     updateModelButton();
     rebuildModelMenu();
     if (!modelMenu.childElementCount) {
@@ -6767,6 +6882,18 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   const closeModelMenu = () => {
     setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
+  };
+
+  const openReasoningMenu = () => {
+    if (!reasoningMenu || !reasoningBtn || reasoningBtn.disabled) return;
+    closeModelMenu();
+    closeSlashMenu();
+    closeRetryModelMenu();
+    closePromptMenu();
+    closeHistoryMenu();
+    rebuildReasoningMenu();
+    positionFloatingMenu(body, reasoningMenu, reasoningBtn);
+    setFloatingMenuOpen(reasoningMenu, "llm-reasoning-menu-open", true);
   };
 
   const openRetryModelMenu = (anchor: HTMLButtonElement) => {
@@ -7211,6 +7338,15 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
     });
   }
+  reasoningBtn?.addEventListener("click", (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isFloatingMenuOpen(reasoningMenu)) {
+      setFloatingMenuOpen(reasoningMenu, "llm-reasoning-menu-open", false);
+    } else {
+      openReasoningMenu();
+    }
+  });
 
   const doc = body.ownerDocument;
   if (
@@ -7222,6 +7358,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       const me = e as MouseEvent;
       const modelMenus = Array.from(
         doc.querySelectorAll("#llm-model-menu"),
+      ) as HTMLDivElement[];
+      const reasoningMenus = Array.from(
+        doc.querySelectorAll("#llm-reasoning-menu"),
       ) as HTMLDivElement[];
       const target = e.target as Node | null;
       const retryButtonTarget = isElementNode(target)
@@ -7256,6 +7395,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           (!modelMenuEl.contains(target) && !modelButtonEl?.contains(target))
         ) {
           setFloatingMenuOpen(modelMenuEl, MODEL_MENU_OPEN_CLASS, false);
+        }
+      }
+      for (const reasoningMenuEl of reasoningMenus) {
+        if (!isFloatingMenuOpen(reasoningMenuEl)) continue;
+        const panelRoot = reasoningMenuEl.closest("#llm-main");
+        const button = panelRoot?.querySelector("#llm-reasoning-toggle");
+        if (
+          !target ||
+          (!reasoningMenuEl.contains(target) && !button?.contains(target))
+        ) {
+          setFloatingMenuOpen(
+            reasoningMenuEl,
+            "llm-reasoning-menu-open",
+            false,
+          );
         }
       }
       for (const retryModelMenuEl of retryModelMenus) {

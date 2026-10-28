@@ -41,6 +41,12 @@ export type PanelI18n = {
   placeholderGlobalTips: readonly string[];
   placeholderPaperTips: readonly string[];
   modelSelectHint: string;
+  reasoningEffort: string;
+  selectionTranslateReasoningHint: string;
+  reasoningEffortDefault: string;
+  reasoningEffortModelDefault: string;
+  reasoningEffortUnavailable: string;
+  reasoningEffortUnknown: string;
   modelNoModels: string;
   modelClickChoose: string;
   modelOnlyOne: string;
@@ -316,6 +322,151 @@ type PanelI18nReadinessKeys = Pick<
   | "chatReadinessCustomConfig"
   | "chatReadinessOpenSettings"
 >;
+
+type PanelI18nReasoningKeys = Pick<
+  PanelI18n,
+  | "reasoningEffort"
+  | "selectionTranslateReasoningHint"
+  | "reasoningEffortDefault"
+  | "reasoningEffortModelDefault"
+  | "reasoningEffortUnavailable"
+  | "reasoningEffortUnknown"
+>;
+
+const PANEL_I18N_REASONING: Record<PanelLang, PanelI18nReasoningKeys> = {
+  "en-US": {
+    selectionTranslateReasoningHint:
+      "Use the lowest reasoning effort for faster translation; the impact on accuracy is usually small.",
+    reasoningEffort: "Reasoning effort",
+    reasoningEffortDefault: "Default",
+    reasoningEffortModelDefault: "model decides",
+    reasoningEffortUnavailable:
+      "Reasoning effort cannot be adjusted for this model or connection. Chat is still available.",
+    reasoningEffortUnknown:
+      "Refresh the model list to load this model's reasoning levels. Chat is still available.",
+  },
+  "zh-CN": {
+    selectionTranslateReasoningHint:
+      "建议使用最低推理强度以加快翻译；通常对翻译准确性的影响较小。",
+    reasoningEffort: "思考强度",
+    reasoningEffortDefault: "默认",
+    reasoningEffortModelDefault: "由模型决定",
+    reasoningEffortUnavailable:
+      "当前模型或调用方式不支持在此调节思考强度，聊天仍可正常使用。",
+    reasoningEffortUnknown:
+      "尚未获取此模型的思考强度档位，请刷新模型列表；聊天仍可正常使用。",
+  },
+  "zh-TW": {
+    selectionTranslateReasoningHint:
+      "建議使用最低推理強度以加快翻譯；通常對翻譯準確性的影響較小。",
+    reasoningEffort: "思考強度",
+    reasoningEffortDefault: "預設",
+    reasoningEffortModelDefault: "由模型決定",
+    reasoningEffortUnavailable:
+      "目前模型或連線方式不支援在此調整思考強度，聊天仍可正常使用。",
+    reasoningEffortUnknown:
+      "尚未取得此模型的思考強度選項，請重新整理模型清單；聊天仍可正常使用。",
+  },
+  "ja-JP": {
+    selectionTranslateReasoningHint:
+      "翻訳を速くするには、最も低い推論レベルをおすすめします。通常、翻訳精度への影響は小さいです。",
+    reasoningEffort: "推論レベル",
+    reasoningEffortDefault: "デフォルト",
+    reasoningEffortModelDefault: "モデルに任せる",
+    reasoningEffortUnavailable:
+      "このモデルまたは接続方式では推論レベルを調整できません。チャットは引き続き利用できます。",
+    reasoningEffortUnknown:
+      "モデル一覧を更新して推論レベルを取得してください。チャットは引き続き利用できます。",
+  },
+  "ko-KR": {
+    selectionTranslateReasoningHint:
+      "더 빠른 번역을 위해 가장 낮은 추론 강도를 권장합니다. 일반적으로 번역 정확도에 미치는 영향은 적습니다.",
+    reasoningEffort: "추론 강도",
+    reasoningEffortDefault: "기본값",
+    reasoningEffortModelDefault: "모델이 결정",
+    reasoningEffortUnavailable:
+      "이 모델 또는 연결 방식에서는 추론 강도를 조절할 수 없습니다. 채팅은 계속 사용할 수 있습니다.",
+    reasoningEffortUnknown:
+      "모델 목록을 새로 고쳐 추론 강도를 불러오세요. 채팅은 계속 사용할 수 있습니다.",
+  },
+  "fr-FR": {
+    selectionTranslateReasoningHint:
+      "Pour traduire plus vite, choisissez le niveau de raisonnement le plus bas ; son impact sur la précision est généralement faible.",
+    reasoningEffort: "Effort de raisonnement",
+    reasoningEffortDefault: "Par défaut",
+    reasoningEffortModelDefault: "selon le modèle",
+    reasoningEffortUnavailable:
+      "Ce modèle ou cette connexion ne permet pas de régler le raisonnement. Le chat reste disponible.",
+    reasoningEffortUnknown:
+      "Actualisez la liste des modèles pour charger les niveaux de raisonnement. Le chat reste disponible.",
+  },
+  "de-DE": {
+    selectionTranslateReasoningHint:
+      "Für schnellere Übersetzungen empfehlen wir die niedrigste Denkstufe; die Genauigkeit wird meist nur geringfügig beeinflusst.",
+    reasoningEffort: "Denkaufwand",
+    reasoningEffortDefault: "Standard",
+    reasoningEffortModelDefault: "vom Modell bestimmt",
+    reasoningEffortUnavailable:
+      "Für dieses Modell oder diese Verbindung lässt sich der Denkaufwand nicht einstellen. Der Chat bleibt verfügbar.",
+    reasoningEffortUnknown:
+      "Aktualisieren Sie die Modellliste, um die Denkstufen zu laden. Der Chat bleibt verfügbar.",
+  },
+  "es-ES": {
+    selectionTranslateReasoningHint:
+      "Para traducir más rápido, elige el nivel de razonamiento más bajo; normalmente afecta poco a la precisión.",
+    reasoningEffort: "Esfuerzo de razonamiento",
+    reasoningEffortDefault: "Predeterminado",
+    reasoningEffortModelDefault: "según el modelo",
+    reasoningEffortUnavailable:
+      "Este modelo o conexión no permite ajustar el razonamiento. El chat sigue disponible.",
+    reasoningEffortUnknown:
+      "Actualiza la lista de modelos para cargar los niveles de razonamiento. El chat sigue disponible.",
+  },
+  "ru-RU": {
+    selectionTranslateReasoningHint:
+      "Для более быстрого перевода рекомендуем минимальную глубину рассуждений; обычно это мало влияет на точность.",
+    reasoningEffort: "Глубина рассуждений",
+    reasoningEffortDefault: "По умолчанию",
+    reasoningEffortModelDefault: "определяет модель",
+    reasoningEffortUnavailable:
+      "Для этой модели или подключения нельзя настроить глубину рассуждений. Чат по-прежнему доступен.",
+    reasoningEffortUnknown:
+      "Обновите список моделей, чтобы загрузить уровни рассуждений. Чат по-прежнему доступен.",
+  },
+  "pt-BR": {
+    selectionTranslateReasoningHint:
+      "Para traduzir mais rápido, use o menor nível de raciocínio; o impacto na precisão geralmente é pequeno.",
+    reasoningEffort: "Esforço de raciocínio",
+    reasoningEffortDefault: "Padrão",
+    reasoningEffortModelDefault: "definido pelo modelo",
+    reasoningEffortUnavailable:
+      "Este modelo ou conexão não permite ajustar o raciocínio. O chat continua disponível.",
+    reasoningEffortUnknown:
+      "Atualize a lista de modelos para carregar os níveis de raciocínio. O chat continua disponível.",
+  },
+  "ar-SA": {
+    selectionTranslateReasoningHint:
+      "لترجمة أسرع، يُنصح باختيار أدنى مستوى للتفكير؛ وعادةً ما يكون تأثيره في دقة الترجمة محدودًا.",
+    reasoningEffort: "مستوى التفكير",
+    reasoningEffortDefault: "افتراضي",
+    reasoningEffortModelDefault: "يحدده النموذج",
+    reasoningEffortUnavailable:
+      "لا يمكن ضبط مستوى التفكير لهذا النموذج أو الاتصال. لا تزال الدردشة متاحة.",
+    reasoningEffortUnknown:
+      "حدّث قائمة النماذج لتحميل مستويات التفكير. لا تزال الدردشة متاحة.",
+  },
+  "hi-IN": {
+    selectionTranslateReasoningHint:
+      "तेज़ अनुवाद के लिए सबसे कम तर्क स्तर चुनें; आम तौर पर अनुवाद की सटीकता पर इसका असर कम होता है।",
+    reasoningEffort: "तर्क स्तर",
+    reasoningEffortDefault: "डिफ़ॉल्ट",
+    reasoningEffortModelDefault: "मॉडल तय करेगा",
+    reasoningEffortUnavailable:
+      "इस मॉडल या कनेक्शन के लिए तर्क स्तर समायोजित नहीं किया जा सकता। चैट उपलब्ध है।",
+    reasoningEffortUnknown:
+      "तर्क स्तर लोड करने के लिए मॉडल सूची रीफ़्रेश करें। चैट उपलब्ध है।",
+  },
+};
 
 type PanelI18nPlaceholderTips = Pick<
   PanelI18n,
@@ -3855,6 +4006,7 @@ export function getPanelI18n(): PanelI18n {
       emptyPromptStatus:
         "Type a question, or add text, PDFs, or images as context first.",
       modelSelectHint: "Select model",
+      ...PANEL_I18N_REASONING["en-US"],
       modelNoModels: "No models available. Login and refresh in Settings.",
       modelClickChoose: "Click to choose a model",
       modelOnlyOne: "Only one model is configured",
@@ -4125,6 +4277,7 @@ export function getPanelI18n(): PanelI18n {
       ...(PANEL_I18N_EXTRA_OVERRIDES[lang] || {}),
       ...(PANEL_I18N_RUNTIME_OVERRIDES[lang] || {}),
       ...PANEL_I18N_LOG_OVERRIDES[lang],
+      ...PANEL_I18N_REASONING[lang],
     };
   }
   return {
@@ -4162,6 +4315,7 @@ export function getPanelI18n(): PanelI18n {
     emptyPromptStatus:
       "\u8bf7\u8f93\u5165\u95ee\u9898\uff0c\u6216\u5148\u6dfb\u52a0\u6587\u672c\u3001PDF \u6216\u56fe\u7247\u4e0a\u4e0b\u6587\u3002",
     modelSelectHint: "选择模型",
+    ...PANEL_I18N_REASONING["zh-CN"],
     modelNoModels: "暂无模型，请在设置中登录 OAuth 并刷新模型列表。",
     modelClickChoose: "点击选择模型",
     modelOnlyOne: "当前仅配置了一个模型",
@@ -4458,6 +4612,7 @@ export function refreshTranslateTabI18n(doc: Document): void {
   ) as HTMLInputElement | null;
   if (outputDir) outputDir.placeholder = i18n.requiredOutputFolder;
   setText("llm-tr-model-label", i18n.modelSelectHint);
+  setText("llm-tr-reasoning-label", i18n.reasoningEffort);
   setText("llm-tr-src-lang-label", i18n.trSourceLang);
   setText("llm-tr-tgt-lang-label", i18n.trTargetLang);
   setText("llm-tr-output-title", i18n.trOutputFormat);

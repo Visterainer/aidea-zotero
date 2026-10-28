@@ -50,6 +50,7 @@ declare namespace _ZoteroTypes {
       "selectionTranslate.writeToAnnotation": boolean;
       "selectionTranslate.model": string;
       "selectionTranslate.provider": string;
+      "selectionTranslate.reasoningEffort": string;
       "selectionTranslate.sourceLang": string;
       "selectionTranslate.targetLang": string;
       "temperaturePrimary": string;
@@ -108,6 +109,10 @@ declare namespace _ZoteroTypes {
       "font.selectionPopupHeight": string;
       "font.chatImageScale": string;
       "modelContextWindows": string;
+      "chatReasoningEffortByModel": string;
+      "chatReasoningEffort": string;
+      "apiReasoningCapabilities": string;
+      "translateReasoningEffort": string;
     };
   }
 }
