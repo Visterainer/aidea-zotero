@@ -1223,7 +1223,8 @@ export function registerReaderSelectionTracking() {
             "max-width:calc(100vw - 20px)",
             "margin:0",
             "box-sizing:border-box",
-            "color:inherit",
+            "color:var(--llm-theme-chat-fg, inherit)",
+            "background:var(--llm-theme-menu-bg, transparent)",
           ].join(";");
           applyCurrentThemeToRoot(wrap);
 
@@ -1245,12 +1246,12 @@ export function registerReaderSelectionTracking() {
             "resize:both",
             "box-sizing:border-box",
             "padding:10px 12px",
-            "border:1px solid rgba(130,130,130,0.32)",
+            "border:1px solid var(--llm-theme-border, rgba(130,130,130,0.32))",
             "border-radius:8px",
             "outline:none",
             "outline-offset:-2px",
-            "background:rgba(127,127,127,0.08)",
-            "color:inherit",
+            "background:var(--llm-theme-chip-bg, rgba(127,127,127,0.08))",
+            "color:var(--llm-theme-chat-fg, inherit)",
             `font-size:${typography.selectionFontSize}px`,
             `line-height:${typography.selectionLineHeight}`,
             "white-space:pre-wrap",
@@ -1261,7 +1262,7 @@ export function registerReaderSelectionTracking() {
           ].join(";");
           const setResultBoxFocusRing = (focused: boolean) => {
             resultBox.style.outline = focused
-              ? "2px solid var(--accent-blue8, #0a84ff)"
+              ? "2px solid var(--llm-theme-accent, var(--accent-blue8, #0a84ff))"
               : "none";
           };
           resultBox.addEventListener("focus", () => {
@@ -1362,7 +1363,7 @@ export function registerReaderSelectionTracking() {
               "width:15px",
               "height:15px",
               "margin:0",
-              "accent-color:var(--accent-blue8, #0a84ff)",
+              "accent-color:var(--llm-theme-accent, var(--accent-blue8, #0a84ff))",
               "cursor:pointer",
             ].join(";");
             const writeToAnnotationText = event.doc.createElementNS(
@@ -1392,10 +1393,10 @@ export function registerReaderSelectionTracking() {
             "margin:0",
             "padding:5px 10px",
             "box-sizing:border-box",
-            "border:1px solid rgba(130,130,130,0.38)",
+            "border:1px solid var(--llm-theme-border, rgba(130,130,130,0.38))",
             "border-radius:6px",
-            "background:rgba(127,127,127,0.08)",
-            "color:inherit",
+            "background:var(--llm-theme-chip-bg, rgba(127,127,127,0.08))",
+            "color:var(--llm-theme-chat-fg, inherit)",
             `font-size:${typography.selectionFontSize}px`,
             "line-height:1.25",
             "text-align:center",
@@ -1414,10 +1415,21 @@ export function registerReaderSelectionTracking() {
             "margin:0",
             "padding:5px 10px",
             "box-sizing:border-box",
-            "border:1px solid rgba(130,130,130,0.38)",
+            // Accent fill and its foreground must switch together: with a
+            // "system" accent the fill is unset, and a themed (white) label
+            // on the neutral fallback would be unreadable.
+            ...(wrap.style.getPropertyValue("--llm-theme-accent").trim()
+              ? [
+                  "border:1px solid var(--llm-theme-accent)",
+                  "background:var(--llm-theme-accent)",
+                  "color:var(--llm-theme-user-bubble-fg, #fff)",
+                ]
+              : [
+                  "border:1px solid rgba(130,130,130,0.38)",
+                  "background:rgba(255,255,255,0.04)",
+                  "color:inherit",
+                ]),
             "border-radius:6px",
-            "background:rgba(255,255,255,0.04)",
-            "color:inherit",
             `font-size:${typography.selectionFontSize}px`,
             "line-height:1.25",
             "text-align:center",

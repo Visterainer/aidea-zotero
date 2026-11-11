@@ -190,6 +190,73 @@ describe("plugin theme state", function () {
     assert.equal(state.palette.text, "#445566");
   });
 
+  it("keeps only edited colors from a legacy full-palette override", function () {
+    const legacy = {
+      ...theme.BUILTIN_COMPOSER_THEME_PALETTES["blue-porcelain"],
+      accent: "#112233",
+      inputText: "system",
+      inputPlaceholder: "system",
+    };
+    const state = theme.resolvePluginThemeState(
+      "blue-porcelain",
+      "",
+      JSON.stringify({ "blue-porcelain": legacy }),
+    );
+
+    assert.deepEqual(state.builtinOverrides["blue-porcelain"], {
+      accent: "#112233",
+    });
+    assert.equal(state.palette.accent, "#112233");
+    assert.equal(state.palette.inputText, "#1f3342");
+    assert.equal(state.palette.inputPlaceholder, "#657985");
+    assert.deepEqual(
+      JSON.parse(
+        theme.serializeBuiltinComposerThemeOverrides(state.builtinOverrides),
+      ),
+      { "blue-porcelain": { accent: "#112233" } },
+    );
+  });
+
+  it("provides solid, readable surfaces for the redesigned themes", function () {
+    const contrast = (foreground: string, background: string) => {
+      const luminance = (hex: string) => {
+        const channels = [1, 3, 5].map((start) => {
+          const channel = parseInt(hex.slice(start, start + 2), 16) / 255;
+          return channel <= 0.04045
+            ? channel / 12.92
+            : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return (
+          channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+        );
+      };
+      const values = [luminance(foreground), luminance(background)].sort(
+        (a, b) => b - a,
+      );
+      return (values[0] + 0.05) / (values[1] + 0.05);
+    };
+    for (const id of [
+      "eye-green",
+      "warm-cream",
+      "premium-gray",
+      "midnight-black",
+      "sakura-pink",
+    ] as const) {
+      const palette = theme.BUILTIN_COMPOSER_THEME_PALETTES[id];
+      assert.match(palette.chatBg, /^#[0-9a-f]{6}$/i, id);
+      for (const [foreground, background] of [
+        [palette.text, palette.chatBg],
+        [palette.mutedText, palette.chatBg],
+        [palette.userBubbleText, palette.userBubbleBg],
+        [palette.assistantBubbleText, palette.assistantBubbleBg],
+        [palette.inputText, palette.inputBg],
+        [palette.codeText, palette.codeBg],
+      ]) {
+        assert.isAtLeast(contrast(foreground, background), 4.5, id);
+      }
+    }
+  });
+
   it("reads current prefs and applies the effective palette to one root", function () {
     setPluginPref("composerTheme", "blue-porcelain");
     setPluginPref(

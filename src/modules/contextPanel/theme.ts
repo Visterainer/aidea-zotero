@@ -191,7 +191,9 @@ const palette = (
   values: Record<ThemeColorKey, ThemeColorValue>,
 ): ComposerThemePalette => values;
 
-export const BUILTIN_COMPOSER_THEME_PALETTES: Record<
+// The 3.6.1 palettes let us distinguish colors a user changed from the
+// unchanged values in the full-palette overrides written by older versions.
+const LEGACY_BUILTIN_COMPOSER_THEME_PALETTES: Record<
   BuiltinComposerThemeId,
   ComposerThemePalette
 > = {
@@ -365,6 +367,135 @@ export const BUILTIN_COMPOSER_THEME_PALETTES: Record<
   }),
 };
 
+export const BUILTIN_COMPOSER_THEME_PALETTES: Record<
+  BuiltinComposerThemeId,
+  ComposerThemePalette
+> = {
+  default: LEGACY_BUILTIN_COMPOSER_THEME_PALETTES.default,
+  "blue-porcelain": palette({
+    ...LEGACY_BUILTIN_COMPOSER_THEME_PALETTES["blue-porcelain"],
+    inputText: "#1f3342",
+    inputPlaceholder: "#657985",
+  }),
+  "eye-green": palette({
+    ...LEGACY_BUILTIN_COMPOSER_THEME_PALETTES["eye-green"],
+    chatBg: "#f4f7f2",
+    text: "#26342c",
+    mutedText: "#607168",
+    border: "#cfdbd0",
+    shadowColor: "#405e4b",
+    accent: "#3e6f57",
+    keyword: "#356b50",
+    link: "#2d6d5a",
+    userBubbleBg: "#3e6f57",
+    userBubbleBorder: "#3e6f57",
+    assistantBubbleBg: "#fffefd",
+    assistantBubbleText: "#26342c",
+    assistantBubbleBorder: "#d7e0d4",
+    composerBg: "#e9f0e9",
+    inputBg: "#ffffff",
+    inputText: "#26342c",
+    inputPlaceholder: "#68796d",
+    codeBg: "#e9f0e9",
+    codeText: "#263a2d",
+    menuBg: "#fffefd",
+    chipBg: "#edf3eb",
+  }),
+  "warm-cream": palette({
+    ...LEGACY_BUILTIN_COMPOSER_THEME_PALETTES["warm-cream"],
+    chatBg: "#f7f4ed",
+    text: "#383128",
+    mutedText: "#746b5e",
+    border: "#dfd6c7",
+    shadowColor: "#665840",
+    accent: "#765b42",
+    keyword: "#765b42",
+    link: "#526878",
+    userBubbleBg: "#765b42",
+    userBubbleBorder: "#765b42",
+    assistantBubbleBg: "#fffefa",
+    assistantBubbleText: "#383128",
+    assistantBubbleBorder: "#e7decf",
+    composerBg: "#f0e9dc",
+    inputBg: "#fffdf8",
+    inputText: "#383128",
+    inputPlaceholder: "#807466",
+    codeBg: "#efe8dc",
+    codeText: "#40372d",
+    menuBg: "#fffefa",
+    chipBg: "#f3ecdf",
+  }),
+  "premium-gray": palette({
+    ...LEGACY_BUILTIN_COMPOSER_THEME_PALETTES["premium-gray"],
+    chatBg: "#f4f5f6",
+    text: "#252d33",
+    mutedText: "#65717a",
+    border: "#d4dbe0",
+    shadowColor: "#3d4b55",
+    accent: "#455e6b",
+    keyword: "#455e6b",
+    link: "#315f72",
+    userBubbleBg: "#455e6b",
+    userBubbleBorder: "#455e6b",
+    assistantBubbleText: "#252d33",
+    assistantBubbleBorder: "#dce1e4",
+    composerBg: "#e9edef",
+    inputBg: "#ffffff",
+    inputText: "#252d33",
+    inputPlaceholder: "#6d7980",
+    codeBg: "#eceff1",
+    codeText: "#2b3338",
+    chipBg: "#eef1f2",
+  }),
+  "midnight-black": palette({
+    ...LEGACY_BUILTIN_COMPOSER_THEME_PALETTES["midnight-black"],
+    chatBg: "#151d22",
+    text: "#e8eef0",
+    mutedText: "#a9b9c0",
+    border: "#35444b",
+    shadowColor: "#05090b",
+    accent: "#176d72",
+    keyword: "#88d6d0",
+    link: "#8ad8d6",
+    userBubbleBg: "#176d72",
+    userBubbleText: "#ffffff",
+    userBubbleBorder: "#31868a",
+    assistantBubbleBg: "#202a30",
+    assistantBubbleText: "#e8eef0",
+    assistantBubbleBorder: "#35444b",
+    composerBg: "#1d272d",
+    inputBg: "#28353b",
+    inputText: "#edf4f5",
+    inputPlaceholder: "#aabac0",
+    codeBg: "#111b20",
+    codeText: "#e1edef",
+    menuBg: "#202a30",
+    chipBg: "#28363b",
+  }),
+  "sakura-pink": palette({
+    ...LEGACY_BUILTIN_COMPOSER_THEME_PALETTES["sakura-pink"],
+    chatBg: "#fbf6f7",
+    text: "#382e33",
+    mutedText: "#796a70",
+    border: "#e7d9dd",
+    shadowColor: "#8a6673",
+    accent: "#9d536c",
+    keyword: "#98536b",
+    link: "#79566f",
+    userBubbleBg: "#9d536c",
+    userBubbleBorder: "#9d536c",
+    assistantBubbleText: "#382e33",
+    assistantBubbleBorder: "#ecdee2",
+    composerBg: "#f5ecef",
+    inputBg: "#fffbfc",
+    inputText: "#382e33",
+    inputPlaceholder: "#85747b",
+    codeBg: "#f7f0f2",
+    codeText: "#403139",
+    chipBg: "#f8f0f2",
+  }),
+};
+
 const normalizeHexColor = (value: string): `#${string}` | null => {
   const trimmed = value.trim();
   return HEX_COLOR_RE.test(trimmed)
@@ -478,7 +609,7 @@ export function serializeCustomComposerThemes(
 }
 
 export type BuiltinComposerThemeOverrides = Partial<
-  Record<BuiltinComposerThemeId, ComposerThemePalette>
+  Record<BuiltinComposerThemeId, Partial<ComposerThemePalette>>
 >;
 
 export function parseBuiltinComposerThemeOverrides(
@@ -492,14 +623,32 @@ export function parseBuiltinComposerThemeOverrides(
     const overrides: BuiltinComposerThemeOverrides = {};
     for (const id of BUILTIN_THEME_IDS) {
       const override = record[id];
-      if (!override) continue;
-      const normalized = normalizePalette(
-        override,
+      if (!override || typeof override !== "object") continue;
+      const source = override as Partial<Record<ThemeColorKey, unknown>>;
+      const keys = Object.keys(
         BUILTIN_COMPOSER_THEME_PALETTES[id],
+      ) as ThemeColorKey[];
+      const isLegacyFullPalette = keys.every((key) =>
+        Object.prototype.hasOwnProperty.call(source, key),
       );
-      if (!palettesEqual(normalized, BUILTIN_COMPOSER_THEME_PALETTES[id])) {
-        overrides[id] = normalized;
+      const changed: Partial<ComposerThemePalette> = {};
+      for (const key of keys) {
+        if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+        const next = normalizeThemeColorValue(
+          source[key],
+          BUILTIN_COMPOSER_THEME_PALETTES[id][key],
+        );
+        if (
+          isLegacyFullPalette &&
+          next === LEGACY_BUILTIN_COMPOSER_THEME_PALETTES[id][key]
+        ) {
+          continue;
+        }
+        if (next !== BUILTIN_COMPOSER_THEME_PALETTES[id][key]) {
+          changed[key] = next;
+        }
       }
+      if (Object.keys(changed).length) overrides[id] = changed;
     }
     return overrides;
   } catch {
@@ -514,13 +663,20 @@ export function serializeBuiltinComposerThemeOverrides(
   for (const id of BUILTIN_THEME_IDS) {
     const override = overrides[id];
     if (!override) continue;
-    const palette = normalizePalette(
-      override,
+    const changed: Partial<ComposerThemePalette> = {};
+    for (const key of Object.keys(
       BUILTIN_COMPOSER_THEME_PALETTES[id],
-    );
-    if (!palettesEqual(palette, BUILTIN_COMPOSER_THEME_PALETTES[id])) {
-      normalized[id] = palette;
+    ) as ThemeColorKey[]) {
+      if (!Object.prototype.hasOwnProperty.call(override, key)) continue;
+      const next = normalizeThemeColorValue(
+        override[key],
+        BUILTIN_COMPOSER_THEME_PALETTES[id][key],
+      );
+      if (next !== BUILTIN_COMPOSER_THEME_PALETTES[id][key]) {
+        changed[key] = next;
+      }
     }
+    if (Object.keys(changed).length) normalized[id] = changed;
   }
   return Object.keys(normalized).length ? JSON.stringify(normalized) : "";
 }
