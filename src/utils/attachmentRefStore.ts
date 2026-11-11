@@ -99,12 +99,16 @@ export async function replaceOwnerAttachmentRefs(
   ownerType: AttachmentRefOwnerType,
   ownerId: number,
   hashes: readonly string[],
+  // Zotero transactions do not nest: a nested executeTransaction waits for
+  // the outer one until it times out. Callers already inside a transaction
+  // must say so.
+  options?: { inTransaction?: boolean },
 ): Promise<void> {
   const normalizedOwnerId = normalizeOwnerId(ownerId);
   if (!normalizedOwnerId) return;
   await ensureAttachmentRefTables();
   const normalizedHashes = await filterKnownBlobHashes(normalizeHashes(hashes));
-  await Zotero.DB.executeTransaction(async () => {
+  const write = async () => {
     await Zotero.DB.queryAsync(
       `DELETE FROM ${ATTACHMENT_REFS_TABLE}
        WHERE owner_type = ?
@@ -121,7 +125,9 @@ export async function replaceOwnerAttachmentRefs(
         [ownerType, normalizedOwnerId, hash, now],
       );
     }
-  });
+  };
+  if (options?.inTransaction) await write();
+  else await Zotero.DB.executeTransaction(write);
 }
 
 export async function clearOwnerAttachmentRefs(
@@ -175,6 +181,7 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
 /** Rebuild from every branch, including archives imported by older builds. */
 export async function reconcileConversationAttachmentRefs(
   conversationKeys?: readonly number[],
+  options?: { inTransaction?: boolean },
 ): Promise<void> {
   await ensureAttachmentRefTables();
   const exists = await Zotero.DB.valueQueryAsync(
@@ -201,7 +208,19 @@ export async function reconcileConversationAttachmentRefs(
     }
   }
   for (const [key, hashes] of owners)
-    await replaceOwnerAttachmentRefs("conversation", key, [...hashes]);
+    await replaceOwnerAttachmentRefs("conversation", key, [...hashes], options);
+  if (!wanted) {
+    // A full rebuild also drops refs owned by conversations that no longer
+    // have any message (deleted, or wiped by "clear all history"); otherwise
+    // their blobs stay referenced forever and are never collected.
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${ATTACHMENT_REFS_TABLE}
+       WHERE owner_type = 'conversation'
+         AND owner_id NOT IN (
+           SELECT DISTINCT conversation_key FROM zotero_ai_chat_messages
+         )`,
+    );
+  }
 }
 
 export async function collectAndDeleteUnreferencedBlobs(

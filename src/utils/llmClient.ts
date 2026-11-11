@@ -238,6 +238,33 @@ const DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2";
 const prefKey = (key: string) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: string) => Zotero.Prefs.get(prefKey(key), true) as string;
 
+const normalizeApiBaseForCompare = (value: string | undefined) =>
+  String(value || "")
+    .trim()
+    .replace(/\/+$/, "")
+    .toLowerCase();
+
+/**
+ * An explicit key always wins. The primary profile's key is only a fallback
+ * for the primary profile's own endpoint: a keyless request to a different
+ * base (a local server, another provider) must not carry it.
+ */
+function resolveApiKeyForBase(
+  overrides: { apiBase?: string; apiKey?: string } | undefined,
+  primaryProfile: { apiBase?: string; apiKey?: string },
+): string {
+  const explicit = (overrides?.apiKey || "").trim();
+  if (explicit) return explicit;
+  const overrideBase = normalizeApiBaseForCompare(overrides?.apiBase);
+  if (
+    overrideBase &&
+    overrideBase !== normalizeApiBaseForCompare(primaryProfile.apiBase)
+  ) {
+    return "";
+  }
+  return (primaryProfile.apiKey || "").trim();
+}
+
 export function getApiConfig(overrides?: {
   apiBase?: string;
   apiKey?: string;
@@ -249,7 +276,7 @@ export function getApiConfig(overrides?: {
   const apiBase = (overrides?.apiBase || primaryProfile.apiBase)
     .trim()
     .replace(/\/+$/, "");
-  const apiKey = (overrides?.apiKey || primaryProfile.apiKey || "").trim();
+  const apiKey = resolveApiKeyForBase(overrides, primaryProfile);
   const model = (overrides?.model || primaryProfile.model).trim();
   const embeddingModel = getPref("embeddingModel") || DEFAULT_EMBEDDING_MODEL;
   const customSystemPrompt = getPref("systemPrompt") || "";
@@ -284,7 +311,7 @@ function getImageApiConfig(overrides?: {
   const apiBase = (overrides?.apiBase || primaryProfile.apiBase)
     .trim()
     .replace(/\/+$/, "");
-  const apiKey = (overrides?.apiKey || primaryProfile.apiKey || "").trim();
+  const apiKey = resolveApiKeyForBase(overrides, primaryProfile);
   const model = (
     overrides?.model ||
     getPref("imageGenerationModel") ||
@@ -2095,6 +2122,139 @@ export async function callLLM(params: ChatParams): Promise<string> {
 }
 
 /**
+ * Pull a provider error out of a stream event. Gateways report quota and
+ * context-window failures inside an HTTP 200 stream, either as a bare
+ * `{"error": ...}` chunk or as a Responses `error` / `response.failed` event.
+ */
+function extractStreamErrorMessage(parsed: unknown): string {
+  if (!parsed || typeof parsed !== "object") return "";
+  const row = parsed as {
+    type?: unknown;
+    message?: unknown;
+    code?: unknown;
+    error?: unknown;
+    response?: { error?: unknown };
+  };
+  const describe = (value: unknown): string => {
+    if (typeof value === "string") return value.trim();
+    if (!value || typeof value !== "object") return "";
+    const err = value as { message?: unknown; code?: unknown; type?: unknown };
+    const message = typeof err.message === "string" ? err.message.trim() : "";
+    if (message) return message;
+    const code = err.code ?? err.type;
+    return typeof code === "string" || typeof code === "number"
+      ? String(code)
+      : "";
+  };
+  if (row.error) return describe(row.error) || "Provider returned an error";
+  if (row.type === "error") {
+    return describe({ message: row.message, code: row.code }) || "Stream error";
+  }
+  if (row.type === "response.failed") {
+    return describe(row.response?.error) || "Response failed";
+  }
+  return "";
+}
+
+/**
+ * Line handler shared by the XHR and fetch chat-completions stream readers.
+ * `handleLine` throws only for a provider error that arrives before any
+ * answer text; once text has streamed, the partial answer is kept instead.
+ */
+function createChatSseLineHandler(
+  onDelta: (delta: string) => void,
+  onReasoning: ((event: ReasoningEvent) => void) | undefined,
+  logLabel: string,
+) {
+  let fullText = "";
+  let sawDataLine = false;
+  let nonSseBody = "";
+  const NON_SSE_BODY_LIMIT = 1024 * 1024;
+
+  const handleChoice = (choice: StreamChoice | undefined) => {
+    const reasoningDelta = normalizeStreamText(
+      choice?.delta?.reasoning_content ??
+        choice?.delta?.reasoning_details ??
+        choice?.delta?.reasoning ??
+        choice?.delta?.thinking ??
+        choice?.delta?.thought ??
+        choice?.message?.reasoning_content ??
+        choice?.message?.reasoning_details ??
+        choice?.message?.reasoning ??
+        choice?.message?.thinking ??
+        choice?.message?.thought ??
+        "",
+    );
+    if (reasoningDelta && onReasoning) {
+      onReasoning({ details: reasoningDelta });
+    }
+    const deltaRaw = normalizeStreamText(
+      choice?.delta?.content ?? choice?.message?.content ?? "",
+    );
+    if (deltaRaw) {
+      fullText += deltaRaw;
+      onDelta(deltaRaw);
+    }
+  };
+
+  const handleParsed = (parsed: unknown) => {
+    const streamError = extractStreamErrorMessage(parsed);
+    if (streamError) {
+      if (!fullText) throw new Error(streamError);
+      ztoolkit.log(`${logLabel} error after partial output:`, streamError);
+      return;
+    }
+    try {
+      handleChoice((parsed as { choices?: StreamChoice[] })?.choices?.[0]);
+    } catch (err) {
+      ztoolkit.log(`${logLabel} parse error:`, err);
+    }
+  };
+
+  return {
+    handleLine(line: string) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) {
+        if (!sawDataLine && nonSseBody.length < NON_SSE_BODY_LIMIT) {
+          nonSseBody += `${line}\n`;
+        }
+        return;
+      }
+      sawDataLine = true;
+      nonSseBody = "";
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") return;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(data);
+      } catch (err) {
+        ztoolkit.log(`${logLabel} parse error:`, err);
+        return;
+      }
+      handleParsed(parsed);
+    },
+    /**
+     * Some servers ignore `stream: true` and answer with one plain JSON
+     * body. Without this the call would resolve with an empty string.
+     */
+    finish(): string {
+      const body = nonSseBody.trim();
+      nonSseBody = "";
+      if (!sawDataLine && body.startsWith("{")) {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          return fullText;
+        }
+        handleParsed(parsed);
+      }
+      return fullText;
+    },
+  };
+}
+
+/**
  * Execute a single XHR streaming request. Returns the accumulated text.
  * Rejects on HTTP errors, network errors, or abort.
  */
@@ -2119,9 +2279,28 @@ function xhrStream(params: {
     }
 
     xhr.responseType = "text";
-    let fullText = "";
     let processedLength = 0;
     let sseBuffer = "";
+    let settled = false;
+    const sse = createChatSseLineHandler(
+      onDelta,
+      onReasoning,
+      "LLM XHR stream",
+    );
+
+    const onAbortSignal = () => {
+      xhr.abort();
+      fail(createAbortError());
+    };
+    const settle = () => {
+      settled = true;
+      signal?.removeEventListener("abort", onAbortSignal);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settle();
+      reject(error);
+    };
 
     // Handle abort signal
     if (signal) {
@@ -2129,49 +2308,11 @@ function xhrStream(params: {
         reject(createAbortError());
         return;
       }
-      signal.addEventListener("abort", () => {
-        xhr.abort();
-        reject(createAbortError());
-      });
+      signal.addEventListener("abort", onAbortSignal, { once: true });
     }
 
-    const processSseLine = (line: string) => {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) return;
-      const data = trimmed.slice(5).trim();
-      if (!data || data === "[DONE]") return;
-      try {
-        const parsed = JSON.parse(data) as { choices?: StreamChoice[] };
-        const choice = parsed?.choices?.[0];
-        const reasoningDelta = normalizeStreamText(
-          choice?.delta?.reasoning_content ??
-            choice?.delta?.reasoning_details ??
-            choice?.delta?.reasoning ??
-            choice?.delta?.thinking ??
-            choice?.delta?.thought ??
-            choice?.message?.reasoning_content ??
-            choice?.message?.reasoning_details ??
-            choice?.message?.reasoning ??
-            choice?.message?.thinking ??
-            choice?.message?.thought ??
-            "",
-        );
-        if (reasoningDelta && onReasoning) {
-          onReasoning({ details: reasoningDelta });
-        }
-        const deltaRaw = normalizeStreamText(
-          choice?.delta?.content ?? choice?.message?.content ?? "",
-        );
-        if (deltaRaw) {
-          fullText += deltaRaw;
-          onDelta(deltaRaw);
-        }
-      } catch (err) {
-        ztoolkit.log("LLM XHR stream parse error:", err);
-      }
-    };
-
     const processChunk = () => {
+      if (settled) return;
       if (xhr.status < 200 || xhr.status >= 300) return;
       const currentText = xhr.responseText || "";
       if (currentText.length <= processedLength) return;
@@ -2180,7 +2321,13 @@ function xhrStream(params: {
       sseBuffer += newData;
       const lines = sseBuffer.split(/\r?\n/);
       sseBuffer = lines.pop() || "";
-      for (const line of lines) processSseLine(line);
+      try {
+        for (const line of lines) sse.handleLine(line);
+      } catch (error) {
+        // A provider error inside the stream: stop reading and surface it.
+        fail(error);
+        xhr.abort();
+      }
     };
 
     xhr.onprogress = processChunk;
@@ -2188,14 +2335,21 @@ function xhrStream(params: {
     xhr.onload = () => {
       // Process any remaining data
       processChunk();
-      if (sseBuffer.trim()) {
-        processSseLine(sseBuffer);
-        sseBuffer = "";
-      }
+      if (settled) return;
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(fullText);
+        let text: string;
+        try {
+          if (sseBuffer.trim()) sse.handleLine(sseBuffer);
+          sseBuffer = "";
+          text = sse.finish();
+        } catch (error) {
+          fail(error);
+          return;
+        }
+        settle();
+        resolve(text);
       } else {
-        reject(
+        fail(
           new Error(
             `${xhr.status} ${xhr.statusText} - ${(xhr.responseText || "").slice(0, 8192)}`,
           ),
@@ -2204,11 +2358,11 @@ function xhrStream(params: {
     };
 
     xhr.onerror = () => {
-      reject(new Error("Network error during streaming request"));
+      fail(new Error("Network error during streaming request"));
     };
 
     xhr.onabort = () => {
-      reject(createAbortError());
+      fail(createAbortError());
     };
 
     xhr.send(JSON.stringify(payload));
@@ -2599,8 +2753,8 @@ async function parseStreamResponse(
 ): Promise<string> {
   const reader = body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder = new TextDecoder("utf-8");
+  const sse = createChatSseLineHandler(onDelta, onReasoning, "LLM stream");
   let buffer = "";
-  let fullText = "";
 
   try {
     while (true) {
@@ -2610,51 +2764,15 @@ async function parseStreamResponse(
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data) as { choices?: StreamChoice[] };
-          const choice = parsed?.choices?.[0];
-          const reasoningDelta = normalizeStreamText(
-            choice?.delta?.reasoning_content ??
-              choice?.delta?.reasoning_details ??
-              choice?.delta?.reasoning ??
-              choice?.delta?.thinking ??
-              choice?.delta?.thought ??
-              choice?.message?.reasoning_content ??
-              choice?.message?.reasoning_details ??
-              choice?.message?.reasoning ??
-              choice?.message?.thinking ??
-              choice?.message?.thought ??
-              "",
-          );
-          if (reasoningDelta && onReasoning) {
-            onReasoning({ details: reasoningDelta });
-          }
-
-          const deltaRaw = normalizeStreamText(
-            choice?.delta?.content ?? choice?.message?.content ?? "",
-          );
-          if (deltaRaw) {
-            fullText += deltaRaw;
-            onDelta(deltaRaw);
-          }
-        } catch (err) {
-          ztoolkit.log("LLM stream parse error:", err);
-        }
-      }
+      for (const line of lines) sse.handleLine(line);
     }
+    // A stream may end without a trailing newline; do not drop that line.
+    buffer += decoder.decode();
+    if (buffer.trim()) sse.handleLine(buffer);
+    return sse.finish();
   } finally {
     reader.releaseLock();
   }
-
-  return fullText;
 }
 
 async function parseResponsesStream(
@@ -2673,62 +2791,54 @@ async function parseResponsesStream(
   let sawDetailsFinal = false;
   const emittedImageMarkdown = new Set<string>();
 
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
+  const handleLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") return;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
+    let parsedEvent: unknown;
+    try {
+      parsedEvent = JSON.parse(data);
+    } catch (err) {
+      ztoolkit.log("LLM responses stream parse error:", err);
+      return;
+    }
+    const streamError = extractStreamErrorMessage(parsedEvent);
+    if (streamError) {
+      // Surface a failure that arrives before any answer text; after text
+      // has streamed, keep the partial answer.
+      if (!fullText) throw new Error(streamError);
+      ztoolkit.log("LLM responses stream error after output:", streamError);
+      return;
+    }
 
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data) as {
+    try {
+      const parsed = parsedEvent as {
+        type?: string;
+        delta?: string;
+        text?: string;
+        summary?: Array<{ type?: string; text?: string }> | string;
+        reasoning?: string | Array<{ text?: string; summary?: string }>;
+        message?: { content?: string };
+        response?: {
+          output_text?: string;
+          output?: Array<{
             type?: string;
-            delta?: string;
-            text?: string;
-            summary?: Array<{ type?: string; text?: string }> | string;
-            reasoning?: string | Array<{ text?: string; summary?: string }>;
-            message?: { content?: string };
-            response?: {
-              output_text?: string;
-              output?: Array<{
-                type?: string;
-                result?: string;
-                b64_json?: string;
-                data?: string;
-                image_url?: string | { url?: string };
-                url?: string;
-                mime_type?: string;
-                media_type?: string;
-                output_format?: string;
-                format?: string;
-                content?: Array<{
-                  type?: string;
-                  text?: string;
-                  summary?: string;
-                  result?: string;
-                  b64_json?: string;
-                  data?: string;
-                  image_url?: string | { url?: string };
-                  url?: string;
-                  mime_type?: string;
-                  media_type?: string;
-                  output_format?: string;
-                  format?: string;
-                }>;
-                summary?: Array<{ type?: string; text?: string }> | string;
-              }>;
-            };
-            item?: {
+            result?: string;
+            b64_json?: string;
+            data?: string;
+            image_url?: string | { url?: string };
+            url?: string;
+            mime_type?: string;
+            media_type?: string;
+            output_format?: string;
+            format?: string;
+            content?: Array<{
               type?: string;
+              text?: string;
+              summary?: string;
               result?: string;
               b64_json?: string;
               data?: string;
@@ -2738,198 +2848,226 @@ async function parseResponsesStream(
               media_type?: string;
               output_format?: string;
               format?: string;
-              content?: Array<{
-                type?: string;
-                text?: string;
-                result?: string;
-                b64_json?: string;
-                data?: string;
-                image_url?: string | { url?: string };
-                url?: string;
-                mime_type?: string;
-                media_type?: string;
-                output_format?: string;
-                format?: string;
-              }>;
-            };
-          };
+            }>;
+            summary?: Array<{ type?: string; text?: string }> | string;
+          }>;
+        };
+        item?: {
+          type?: string;
+          result?: string;
+          b64_json?: string;
+          data?: string;
+          image_url?: string | { url?: string };
+          url?: string;
+          mime_type?: string;
+          media_type?: string;
+          output_format?: string;
+          format?: string;
+          content?: Array<{
+            type?: string;
+            text?: string;
+            result?: string;
+            b64_json?: string;
+            data?: string;
+            image_url?: string | { url?: string };
+            url?: string;
+            mime_type?: string;
+            media_type?: string;
+            output_format?: string;
+            format?: string;
+          }>;
+        };
+      };
 
-          const normalizeReasoningText = (value: unknown): string => {
-            if (typeof value === "string") return value;
-            if (Array.isArray(value)) {
-              return value
-                .map((entry) => {
-                  if (typeof entry === "string") return entry;
-                  if (entry && typeof entry === "object") {
-                    const row = entry as { text?: string; summary?: string };
-                    return row.text || row.summary || "";
-                  }
-                  return "";
-                })
-                .filter(Boolean)
-                .join("\n");
-            }
-            if (value && typeof value === "object") {
-              const row = value as { text?: string; summary?: string };
-              return row.text || row.summary || "";
-            }
-            return "";
-          };
-
-          const extractSummary = (
-            value: Array<{ type?: string; text?: string }> | string | undefined,
-          ): string => {
-            if (!value) return "";
-            if (typeof value === "string") return value;
-            return value
-              .map((entry) => entry.text || "")
-              .filter(Boolean)
-              .join("\n");
-          };
-
-          const emitReasoning = (event: ReasoningEvent) => {
-            if (!onReasoning) return;
-            const summary =
-              typeof event.summary === "string" && event.summary.length > 0
-                ? event.summary
-                : undefined;
-            const details =
-              typeof event.details === "string" && event.details.length > 0
-                ? event.details
-                : undefined;
-            if (!summary && !details) return;
-            onReasoning({ summary, details });
-          };
-
-          const emitImageMarkdown = (value: unknown) => {
-            const markdown = extractOutputImageMarkdown(
-              value,
-              emittedImageMarkdown.size + 1,
-            );
-            if (!markdown || emittedImageMarkdown.has(markdown)) return;
-            emittedImageMarkdown.add(markdown);
-            const delta = fullText ? `\n\n${markdown}` : markdown;
-            fullText += delta;
-            onDelta(delta);
-          };
-
-          if (parsed.type === "response.output_text.delta" && parsed.delta) {
-            sawOutputTextDelta = true;
-            fullText += parsed.delta;
-            onDelta(parsed.delta);
-            continue;
-          }
-
-          if (parsed.type === "response.output_text.done" && parsed.text) {
-            // Some providers emit full text in `done` after streaming deltas.
-            // Ignore it when delta events have already been consumed.
-            if (sawOutputTextDelta) {
-              continue;
-            }
-            fullText += parsed.text;
-            onDelta(parsed.text);
-            continue;
-          }
-
-          if (
-            parsed.type === "response.completed" &&
-            parsed.response?.output_text
-          ) {
-            if (!fullText) {
-              fullText = parsed.response.output_text;
-              onDelta(parsed.response.output_text);
-            }
-          }
-
-          if (
-            (parsed.type === "response.reasoning_summary.delta" ||
-              parsed.type === "response.reasoning_summary_text.delta") &&
-            parsed.delta
-          ) {
-            sawSummaryDelta = true;
-            emitReasoning({ summary: parsed.delta });
-            continue;
-          }
-
-          if (
-            (parsed.type === "response.reasoning_summary.done" ||
-              parsed.type === "response.reasoning_summary_text.done") &&
-            (parsed.text || parsed.delta)
-          ) {
-            sawSummaryFinal = true;
-            if (!sawSummaryDelta) {
-              emitReasoning({ summary: parsed.text || parsed.delta });
-            }
-            continue;
-          }
-
-          if (
-            (parsed.type === "response.reasoning.delta" ||
-              parsed.type === "response.reasoning_text.delta") &&
-            parsed.delta
-          ) {
-            sawDetailsDelta = true;
-            emitReasoning({ details: parsed.delta });
-            continue;
-          }
-
-          if (
-            (parsed.type === "response.reasoning.done" ||
-              parsed.type === "response.reasoning_text.done") &&
-            (parsed.text || parsed.delta)
-          ) {
-            sawDetailsFinal = true;
-            if (!sawDetailsDelta) {
-              emitReasoning({ details: parsed.text || parsed.delta });
-            }
-            continue;
-          }
-
-          if (parsed.type === "response.reasoning" && parsed.reasoning) {
-            sawDetailsFinal = true;
-            if (!sawDetailsDelta) {
-              emitReasoning({
-                details: normalizeReasoningText(parsed.reasoning),
-              });
-            }
-            continue;
-          }
-
-          if (
-            parsed.type === "response.output_item.added" ||
-            parsed.type === "response.output_item.done" ||
-            parsed.type === "response.completed"
-          ) {
-            if (parsed.item) {
-              emitImageMarkdown(parsed.item);
-              for (const content of parsed.item.content || []) {
-                emitImageMarkdown(content);
+      const normalizeReasoningText = (value: unknown): string => {
+        if (typeof value === "string") return value;
+        if (Array.isArray(value)) {
+          return value
+            .map((entry) => {
+              if (typeof entry === "string") return entry;
+              if (entry && typeof entry === "object") {
+                const row = entry as { text?: string; summary?: string };
+                return row.text || row.summary || "";
               }
-            }
-            const outputs = parsed.response?.output || [];
-            for (const out of outputs) {
-              emitImageMarkdown(out);
-              for (const content of out.content || []) {
-                emitImageMarkdown(content);
-              }
-              if (out.type !== "reasoning") continue;
-              if (!sawSummaryDelta && !sawSummaryFinal) {
-                emitReasoning({
-                  summary: extractSummary(out.summary),
-                });
-              }
-              if (!sawDetailsDelta && !sawDetailsFinal) {
-                emitReasoning({
-                  details: normalizeReasoningText(out.content),
-                });
-              }
-            }
-          }
-        } catch (err) {
-          ztoolkit.log("LLM responses stream parse error:", err);
+              return "";
+            })
+            .filter(Boolean)
+            .join("\n");
+        }
+        if (value && typeof value === "object") {
+          const row = value as { text?: string; summary?: string };
+          return row.text || row.summary || "";
+        }
+        return "";
+      };
+
+      const extractSummary = (
+        value: Array<{ type?: string; text?: string }> | string | undefined,
+      ): string => {
+        if (!value) return "";
+        if (typeof value === "string") return value;
+        return value
+          .map((entry) => entry.text || "")
+          .filter(Boolean)
+          .join("\n");
+      };
+
+      const emitReasoning = (event: ReasoningEvent) => {
+        if (!onReasoning) return;
+        const summary =
+          typeof event.summary === "string" && event.summary.length > 0
+            ? event.summary
+            : undefined;
+        const details =
+          typeof event.details === "string" && event.details.length > 0
+            ? event.details
+            : undefined;
+        if (!summary && !details) return;
+        onReasoning({ summary, details });
+      };
+
+      const emitImageMarkdown = (value: unknown) => {
+        const markdown = extractOutputImageMarkdown(
+          value,
+          emittedImageMarkdown.size + 1,
+        );
+        if (!markdown || emittedImageMarkdown.has(markdown)) return;
+        emittedImageMarkdown.add(markdown);
+        const delta = fullText ? `\n\n${markdown}` : markdown;
+        fullText += delta;
+        onDelta(delta);
+      };
+
+      if (parsed.type === "response.output_text.delta" && parsed.delta) {
+        sawOutputTextDelta = true;
+        fullText += parsed.delta;
+        onDelta(parsed.delta);
+        return;
+      }
+
+      if (parsed.type === "response.output_text.done" && parsed.text) {
+        // Some providers emit full text in `done` after streaming deltas.
+        // Ignore it when delta events have already been consumed.
+        if (sawOutputTextDelta) {
+          return;
+        }
+        fullText += parsed.text;
+        onDelta(parsed.text);
+        return;
+      }
+
+      if (
+        parsed.type === "response.completed" &&
+        parsed.response?.output_text
+      ) {
+        if (!fullText) {
+          fullText = parsed.response.output_text;
+          onDelta(parsed.response.output_text);
         }
       }
+
+      if (
+        (parsed.type === "response.reasoning_summary.delta" ||
+          parsed.type === "response.reasoning_summary_text.delta") &&
+        parsed.delta
+      ) {
+        sawSummaryDelta = true;
+        emitReasoning({ summary: parsed.delta });
+        return;
+      }
+
+      if (
+        (parsed.type === "response.reasoning_summary.done" ||
+          parsed.type === "response.reasoning_summary_text.done") &&
+        (parsed.text || parsed.delta)
+      ) {
+        sawSummaryFinal = true;
+        if (!sawSummaryDelta) {
+          emitReasoning({ summary: parsed.text || parsed.delta });
+        }
+        return;
+      }
+
+      if (
+        (parsed.type === "response.reasoning.delta" ||
+          parsed.type === "response.reasoning_text.delta") &&
+        parsed.delta
+      ) {
+        sawDetailsDelta = true;
+        emitReasoning({ details: parsed.delta });
+        return;
+      }
+
+      if (
+        (parsed.type === "response.reasoning.done" ||
+          parsed.type === "response.reasoning_text.done") &&
+        (parsed.text || parsed.delta)
+      ) {
+        sawDetailsFinal = true;
+        if (!sawDetailsDelta) {
+          emitReasoning({ details: parsed.text || parsed.delta });
+        }
+        return;
+      }
+
+      if (parsed.type === "response.reasoning" && parsed.reasoning) {
+        sawDetailsFinal = true;
+        if (!sawDetailsDelta) {
+          emitReasoning({
+            details: normalizeReasoningText(parsed.reasoning),
+          });
+        }
+        return;
+      }
+
+      if (
+        parsed.type === "response.output_item.added" ||
+        parsed.type === "response.output_item.done" ||
+        parsed.type === "response.completed"
+      ) {
+        if (parsed.item) {
+          emitImageMarkdown(parsed.item);
+          for (const content of parsed.item.content || []) {
+            emitImageMarkdown(content);
+          }
+        }
+        const outputs = parsed.response?.output || [];
+        for (const out of outputs) {
+          emitImageMarkdown(out);
+          for (const content of out.content || []) {
+            emitImageMarkdown(content);
+          }
+          if (out.type !== "reasoning") return;
+          if (!sawSummaryDelta && !sawSummaryFinal) {
+            emitReasoning({
+              summary: extractSummary(out.summary),
+            });
+          }
+          if (!sawDetailsDelta && !sawDetailsFinal) {
+            emitReasoning({
+              details: normalizeReasoningText(out.content),
+            });
+          }
+        }
+      }
+    } catch (err) {
+      ztoolkit.log("LLM responses stream parse error:", err);
     }
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) handleLine(line);
+    }
+    // A stream may end without a trailing newline; do not drop that line.
+    buffer += decoder.decode();
+    if (buffer.trim()) handleLine(buffer);
   } finally {
     reader.releaseLock();
   }

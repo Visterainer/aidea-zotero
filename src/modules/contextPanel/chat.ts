@@ -703,6 +703,21 @@ function toPanelMessage(message: StoredChatMessage): Message {
   };
 }
 
+/**
+ * Run a persistence step that happens after `beginPanelRequest` but before
+ * the request's try/finally. A DB rejection here must become a normal
+ * "persist failed" result; if it escaped, the panel would stay locked in the
+ * generating state until restart.
+ */
+async function persistOrNull<T>(run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch (err) {
+    ztoolkit.log("LLM: failed to persist conversation node", err);
+    return null;
+  }
+}
+
 function overlayActiveStreamingMessage(message: Message): Message {
   if (!message.messageId) return message;
   const streaming = activeStreamingAssistantMessages.get(message.messageId);
@@ -2360,10 +2375,13 @@ export async function editUserMessageAndRetry(
   const historyForLLM = history.slice(0, sourceUserIndex).slice();
   const generatedImageContext =
     collectRecentGeneratedImageDataUrls(historyForLLM);
-  const nextUserId = await createSiblingBranch(
-    conversationKey,
-    sourceUser.messageId,
-    toStoredMessageFromPanelMessage(nextUserMessage),
+  const sourceUserMessageId = sourceUser.messageId;
+  const nextUserId = await persistOrNull(() =>
+    createSiblingBranch(
+      conversationKey,
+      sourceUserMessageId,
+      toStoredMessageFromPanelMessage(nextUserMessage),
+    ),
   );
   if (!nextUserId) {
     finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
@@ -2379,10 +2397,12 @@ export async function editUserMessageAndRetry(
     modelName: effectiveRequestConfig.model,
     streaming: true,
   };
-  const assistantId = await appendMessageNode(
-    conversationKey,
-    toStoredMessageFromPanelMessage(assistantMessage),
-    nextUserId,
+  const assistantId = await persistOrNull(() =>
+    appendMessageNode(
+      conversationKey,
+      toStoredMessageFromPanelMessage(assistantMessage),
+      nextUserId,
+    ),
   );
   if (!assistantId) {
     finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
@@ -2392,7 +2412,9 @@ export async function editUserMessageAndRetry(
   assistantMessage.parentMessageId = nextUserId;
   activeStreamingAssistantMessages.set(assistantId, assistantMessage);
 
-  await reloadActiveConversationPath(item, { forceContextRestore: true });
+  await persistOrNull(() =>
+    reloadActiveConversationPath(item, { forceContextRestore: true }),
+  );
   refreshChatSafely();
 
   const persistAssistantUpdate = async () => {
@@ -2725,10 +2747,12 @@ export async function retryLatestAssistantResponse(
     modelName: effectiveRequestConfig.model,
     streaming: true,
   };
-  const assistantId = await appendMessageNode(
-    conversationKey,
-    toStoredMessageFromPanelMessage(assistantMessage),
-    retryPair.userMessage.messageId,
+  const assistantId = await persistOrNull(() =>
+    appendMessageNode(
+      conversationKey,
+      toStoredMessageFromPanelMessage(assistantMessage),
+      retryPair.userMessage.messageId,
+    ),
   );
   if (!assistantId) {
     setStatusSafely(i18n.operationFailed("persist"), "error");
@@ -2738,7 +2762,9 @@ export async function retryLatestAssistantResponse(
   assistantMessage.messageId = assistantId;
   assistantMessage.parentMessageId = retryPair.userMessage.messageId;
   activeStreamingAssistantMessages.set(assistantId, assistantMessage);
-  await reloadActiveConversationPath(item, { forceContextRestore: true });
+  await persistOrNull(() =>
+    reloadActiveConversationPath(item, { forceContextRestore: true }),
+  );
   refreshChatSafely();
   let streamedAnswer = "";
 
@@ -3178,6 +3204,19 @@ export async function sendQuestion(
       },
     });
   };
+  // Switching answer variants mid-stream replaces the history array with
+  // snapshot copies, so this function's `assistantMessage` may no longer be
+  // the object on screen. Once the stream has settled and been persisted,
+  // reload from the store so the bubble cannot stay frozen as "streaming".
+  const resyncActivePath = async () => {
+    try {
+      await reloadActiveConversationPath(item);
+      refreshChatSafely();
+    } catch (err) {
+      ztoolkit.log("LLM: failed to resync conversation after stream", err);
+    }
+  };
+
   const markCancelled = async () => {
     if (assistantMessage.text) {
       // Keep whatever the LLM has already generated
@@ -3200,6 +3239,7 @@ export async function sendQuestion(
         activeStreamingAssistantMessages.delete(assistantMessage.messageId);
       }
     }
+    await resyncActivePath();
     setStatusSafely(i18n.statusReady, "ready");
   };
 
@@ -3310,6 +3350,7 @@ export async function sendQuestion(
     if (assistantMessage.messageId) {
       activeStreamingAssistantMessages.delete(assistantMessage.messageId);
     }
+    await resyncActivePath();
 
     setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
@@ -3337,6 +3378,7 @@ export async function sendQuestion(
     if (assistantMessage.messageId) {
       activeStreamingAssistantMessages.delete(assistantMessage.messageId);
     }
+    await resyncActivePath();
 
     setStatusSafely(
       i18n.operationFailed(`${errMsg}${retryHint}`.slice(0, 40)),
@@ -4099,13 +4141,26 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       }
     } else {
       bubble.addEventListener("click", (event) => {
-        const link = (event.target as Element | null)?.closest(
-          'a[href^="aidea-cite:"]',
-        );
+        const link = (event.target as Element | null)?.closest("a[href]");
         if (!link) return;
+        const href = link.getAttribute("href") || "";
         event.preventDefault();
         event.stopPropagation();
-        const id = link.getAttribute("href")?.slice("aidea-cite:".length);
+        if (!href.startsWith("aidea-cite:")) {
+          // Never let a link from model output navigate the privileged
+          // Zotero window; hand web links to the system browser instead.
+          if (/^(https?|mailto|zotero):/i.test(href)) {
+            try {
+              (
+                Zotero as unknown as { launchURL?: (url: string) => void }
+              ).launchURL?.(href);
+            } catch (err) {
+              ztoolkit.log("LLM: failed to open link", err);
+            }
+          }
+          return;
+        }
+        const id = href.slice("aidea-cite:".length);
         const ref = msg.contextRefs?.citations?.find((r) => r.id === id);
         if (ref)
           void navigateCitation(ref).catch((error) => {

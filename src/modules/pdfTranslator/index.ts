@@ -240,8 +240,10 @@ export class TranslateController {
     /* 9. Handle process completion */
     try {
       const exitCode = await this.process.done;
-      // Give poller one final tick to read the "done" status from progress.json
-      if (this.poller) {
+      // Give poller one final tick to read the "done" status from progress.json.
+      // After pause/abort the killed bridge may have written an "error"
+      // status; reading it would flip a paused job to "error".
+      if (this.poller && this.state === "running") {
         try {
           await this.poller.tick();
         } catch {
@@ -270,6 +272,11 @@ export class TranslateController {
       this.poller?.stop();
       this.process = null;
       this.clearActiveLock();
+      // task.json holds credentials. The bridge deletes it after reading;
+      // this covers a bridge that never started.
+      void IOUtils.remove(taskPath, { ignoreAbsent: true }).catch(
+        () => undefined,
+      );
     }
   }
 

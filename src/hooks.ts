@@ -96,8 +96,16 @@ async function onStartup() {
     }
   })();
 
-  registerPrefsPane();
-  registerAuthorProfiles();
+  try {
+    registerPrefsPane();
+  } catch (err) {
+    ztoolkit.log("AIdea: failed to register the preferences pane", err);
+  }
+  try {
+    registerAuthorProfiles();
+  } catch (err) {
+    ztoolkit.log("AIdea: failed to register author profiles", err);
+  }
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
@@ -112,14 +120,24 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   // Create ztoolkit for every window
   addon.data.ztoolkit = createZToolkit();
 
-  win.MozXULElement.insertFTLIfNeeded(
-    `${addon.data.config.addonRef}-mainWindow.ftl`,
-  );
+  // Each step is isolated so one failure cannot block the others.
+  const step = async (name: string, run: () => unknown) => {
+    try {
+      await run();
+    } catch (err) {
+      ztoolkit.log(`AIdea: main window step failed: ${name}`, err);
+    }
+  };
 
-  registerLLMStyles(win);
-  registerReaderContextPanel();
-  registerReaderSelectionTracking();
-  await injectLibraryPanel(win);
+  await step("locale", () =>
+    win.MozXULElement.insertFTLIfNeeded(
+      `${addon.data.config.addonRef}-mainWindow.ftl`,
+    ),
+  );
+  await step("styles", () => registerLLMStyles(win));
+  await step("reader panel", () => registerReaderContextPanel());
+  await step("selection tracking", () => registerReaderSelectionTracking());
+  await step("library panel", () => injectLibraryPanel(win));
 
   win.setTimeout(() => {
     try {
@@ -129,7 +147,9 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     }
   }, 600);
 
-  registerOAuthEnvUpdateSchedulerWindow(win);
+  await step("env update scheduler", () =>
+    registerOAuthEnvUpdateSchedulerWindow(win),
+  );
 }
 
 function registerPrefsPane() {

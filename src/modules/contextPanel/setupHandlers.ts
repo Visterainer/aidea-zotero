@@ -899,7 +899,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const onPanelMouseUp = (e: Event) => {
     if (!panelWin) return;
     if (!panelRoot.isConnected) {
-      disposeSelectionPopup();
+      // Cached panels are detached and re-attached on item/tab switches.
+      // Hide only; disposing here would remove the popup for good.
+      hideSelectionPopup();
       return;
     }
     const me = e as MouseEvent;
@@ -923,7 +925,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   };
   const onDocKeyUp = () => {
     if (!panelRoot.isConnected) {
-      disposeSelectionPopup();
+      hideSelectionPopup();
       return;
     }
     panelWin?.setTimeout(() => updateSelectionPopup(), 0);
@@ -6399,14 +6401,23 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     editStaleStatusText: EDIT_STALE_STATUS_TEXT,
   });
 
+  const sendFromComposer = () => {
+    // While a response is streaming, doSend only shows a "please wait"
+    // status and keeps the text in the box. Its saved draft and attachment
+    // snapshot must survive too, or a restart loses them.
+    const blocked = isPanelGenerating(body);
+    doSend();
+    if (blocked) return;
+    clearDraftInput();
+    clearComposeState();
+    refreshInputPlaceholder();
+  };
+
   // Send button - use addEventListener
   sendBtn.addEventListener("click", (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    doSend();
-    clearDraftInput();
-    clearComposeState();
-    refreshInputPlaceholder();
+    sendFromComposer();
   });
 
   const insertInputNewlineAtCursor = () => {
@@ -6482,10 +6493,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     if (ke.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      doSend();
-      clearDraftInput();
-      clearComposeState();
-      refreshInputPlaceholder();
+      sendFromComposer();
     }
   });
 
@@ -6512,17 +6520,15 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     !(panelDoc as unknown as { __llmFontScaleShortcut?: boolean })
       .__llmFontScaleShortcut
   ) {
+    // The library panel and every reader-tab panel live in this one
+    // document, so resolve the panel from the event instead of taking the
+    // first #llm-main.
     const isEventWithinActivePanel = (event: Event) => {
-      const panel = panelDoc.querySelector("#llm-main") as HTMLElement | null;
-      if (!panel) return null;
-      const target = event.target as Node | null;
-      const activeEl = panelDoc.activeElement;
-      const inPanel = Boolean(
-        (target && panel.contains(target)) ||
-        (activeEl && panel.contains(activeEl)),
-      );
-      if (!inPanel) return null;
-      return panel;
+      const closestPanel = (node: unknown) =>
+        ((node as Element | null)?.closest?.(
+          "#llm-main",
+        ) as HTMLElement | null) || null;
+      return closestPanel(event.target) || closestPanel(panelDoc.activeElement);
     };
 
     const applyDelta = (
@@ -6544,7 +6550,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       );
       event.preventDefault();
       event.stopPropagation();
-      applyPanelFontScale(panel);
+      // The scale is one shared setting: keep every open panel in step.
+      for (const node of Array.from(panelDoc.querySelectorAll("#llm-main"))) {
+        applyPanelFontScale(node as HTMLElement);
+      }
     };
 
     panelDoc.addEventListener(

@@ -839,6 +839,10 @@ print("\n=== token parameter contracts and loopback HTTP integration ===")
 from token_policy_cases import run_token_policy_tests
 run_token_policy_tests(assert_eq)
 
+print("\n=== loopback proxy access control and SSE framing ===")
+from proxy_security_cases import run_proxy_security_tests
+run_proxy_security_tests(assert_eq)
+
 print(f"\n{'=' * 40}")
 print(f"Results: {passed} passed, {failed} failed")
 if failed > 0:

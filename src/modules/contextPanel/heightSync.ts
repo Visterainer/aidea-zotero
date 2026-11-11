@@ -243,3 +243,33 @@ export function createHeightSync(
     },
   };
 }
+
+/**
+ * Tear down what setupHandlers attached to a cached panel. The hooks are
+ * stored on the #llm-main root (plus one on the host), so looking them up on
+ * the host alone never ran them and leaked observers, timers and listeners.
+ */
+export function disposePanelHostRuntime(host: Element | null | undefined) {
+  if (!host) return;
+  type Hooks = {
+    __llmHeightSync?: { dispose?: () => void } | null;
+    __llmSelectionPopupCleanup?: () => void;
+    __llmResponsiveResizeCleanup?: () => void;
+  };
+  const targets = [host, host.querySelector?.("#llm-main")].filter(
+    Boolean,
+  ) as Array<Element & Hooks>;
+  for (const target of targets) {
+    for (const run of [
+      () => target.__llmHeightSync?.dispose?.(),
+      () => target.__llmSelectionPopupCleanup?.(),
+      () => target.__llmResponsiveResizeCleanup?.(),
+    ]) {
+      try {
+        run();
+      } catch (err) {
+        ztoolkit.log("LLM: panel teardown step failed", err);
+      }
+    }
+  }
+}

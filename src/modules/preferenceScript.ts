@@ -4677,7 +4677,13 @@ export async function bootstrapSettingTab(
       return;
     }
     if (missing.length) {
-      customModeStatus.textContent = L.customModeMissing;
+      // Most locales carry a {fields} placeholder; en-US/zh-CN do not.
+      customModeStatus.textContent = L.customModeMissing.replace(
+        "{fields}",
+        missing
+          .map((field) => (field === "apiBase" ? "API Base URL" : "Model"))
+          .join(", "),
+      );
       customModeStatus.style.color = "#b45309";
       return;
     }
@@ -5867,6 +5873,12 @@ export async function bootstrapSettingTab(
       if (isOAuth) {
         // ── OAuth provider: replace model list ──
         models = await fetchAvailableModels(provider);
+        // The fetch reports network/token failures as an empty list. Storing
+        // that would wipe the provider's models and the user's selection, so
+        // treat "empty while we already had models" as a failed refresh.
+        if (!models.length && (cache[provider] || []).length) {
+          throw new Error("Model list refresh returned no models");
+        }
         cache = { ...cache, [provider]: models };
       } else {
         // ── Custom API provider: merge new models into existing ──
@@ -6579,7 +6591,10 @@ export async function bootstrapSettingTab(
     if (fetchModelsBusy) return;
     const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
     if (!apiBase) {
-      customModelHint.textContent = L.fetchModelsFailed;
+      customModelHint.textContent = L.fetchModelsFailed.replace(
+        "{msg}",
+        "API Base URL",
+      );
       customModelHint.style.color = "#dc2626";
       return;
     }
@@ -6632,7 +6647,10 @@ export async function bootstrapSettingTab(
         customModelHint.style.color = "#b45309";
       }
     } catch (err) {
-      customModelHint.textContent = L.fetchModelsFailed;
+      customModelHint.textContent = L.fetchModelsFailed.replace(
+        "{msg}",
+        err instanceof Error ? err.message : String(err),
+      );
       customModelHint.style.color = "#dc2626";
       ztoolkit?.log?.("AIdea: Fetch models button error", err);
     } finally {

@@ -25,6 +25,23 @@ export interface RunningProcess {
  * @param args  command-line arguments
  * @returns     handle with kill() and a completion promise
  */
+function killPosixProcessGroup(pid: number): void {
+  try {
+    const file = (Components.classes as any)[
+      "@mozilla.org/file/local;1"
+    ].createInstance((Components.interfaces as any).nsIFile);
+    file.initWithPath("/bin/kill");
+    const killer = (Components.classes as any)[
+      "@mozilla.org/process/util;1"
+    ].createInstance((Components.interfaces as any).nsIProcess);
+    killer.init(file);
+    const args = ["-KILL", "--", `-${Math.floor(pid)}`];
+    killer.run(true, args, args.length);
+  } catch {
+    /* fall back to killing the bridge alone */
+  }
+}
+
 export function launchProcess(exe: string, args: string[]): RunningProcess {
   const file = (Components.classes as any)[
     "@mozilla.org/file/local;1"
@@ -63,13 +80,23 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
         }
       },
     };
-    proc.runAsync(args, args.length, observer);
+    // runwAsync passes UTF-16 arguments; runAsync narrows each character
+    // to one byte and corrupts non-ASCII paths (e.g. C:\\Users\\张三).
+    if (typeof proc.runwAsync === "function") {
+      proc.runwAsync(args, args.length, observer);
+    } else {
+      proc.runAsync(args, args.length, observer);
+    }
   });
 
   return {
     kill() {
       const pid = Number((proc as any).pid || 0);
       if (IS_WIN_PROC && pid > 0 && killWindowsProcessTree(pid)) return;
+      // The bridge leads its own process group, so signalling the group
+      // also stops the translation engine and its workers; killing only the
+      // bridge would orphan them.
+      if (!IS_WIN_PROC && pid > 1) killPosixProcessGroup(pid);
       try {
         proc.kill();
       } catch {

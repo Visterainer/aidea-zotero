@@ -1215,7 +1215,13 @@ function _runNsIProcess(exe: string, args: string[]): Promise<void> {
         },
       };
 
-      proc.runAsync(args, args.length, observer);
+      // runwAsync passes UTF-16 arguments; runAsync narrows each character
+      // to one byte and corrupts non-ASCII paths (e.g. C:\\Users\\张三).
+      if (typeof proc.runwAsync === "function") {
+        proc.runwAsync(args, args.length, observer);
+      } else {
+        proc.runAsync(args, args.length, observer);
+      }
     } catch (err) {
       reject(err);
     }

@@ -10,6 +10,7 @@
  * "此部分中有N个条目" placeholder.
  */
 
+import { disposePanelHostRuntime } from "./heightSync";
 import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 import { ensureConversationLoaded, refreshChat } from "./chat";
@@ -694,12 +695,7 @@ export function removeLibraryPanel(win: Window): void {
   }
 
   if (state.host) {
-    const heightSync = (
-      state.host as typeof state.host & {
-        __llmHeightSync?: { dispose?: () => void } | null;
-      }
-    ).__llmHeightSync;
-    heightSync?.dispose?.();
+    disposePanelHostRuntime(state.host);
     state.host.remove();
   }
 

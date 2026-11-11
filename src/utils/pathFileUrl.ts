@@ -21,11 +21,16 @@ export function toFileUrl(path: string | undefined): string | undefined {
   if (!raw) return undefined;
   if (/^file:\/\//i.test(raw)) return raw;
   const normalized = raw.replace(/\\/g, "/");
+  // encodeURI keeps "#" and "?", which would turn the rest of the path into
+  // a fragment or query.
+  const encoded = encodeURI(normalized)
+    .replace(/#/g, "%23")
+    .replace(/\?/g, "%3F");
   if (/^[A-Za-z]:\//.test(normalized)) {
-    return `file:///${encodeURI(normalized)}`;
+    return `file:///${encoded}`;
   }
   if (normalized.startsWith("/")) {
-    return `file://${encodeURI(normalized)}`;
+    return `file://${encoded}`;
   }
   return undefined;
 }

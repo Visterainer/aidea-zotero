@@ -13,6 +13,7 @@ import {
   deriveNpmGlobalRootFromPrefix,
   derivePreferredUserNpmPrefix,
   decideSystemProxySync,
+  shouldReleaseManagedProxy,
   getCodexStandaloneInstallCommand,
   getProviderCliSpec,
   getSystemProxySignature,
@@ -182,11 +183,11 @@ describe("oauthCli environment helpers", function () {
   it("should use official Codex standalone installer commands", function () {
     assert.equal(
       getCodexStandaloneInstallCommand("macos"),
-      "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+      "set -o pipefail; curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
     );
     assert.equal(
       getCodexStandaloneInstallCommand("linux"),
-      "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+      "set -o pipefail; curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
     );
     assert.include(
       getCodexStandaloneInstallCommand("windows"),
@@ -368,6 +369,32 @@ describe("oauthCli environment helpers", function () {
         noProxy: "localhost; 127.0.0.1",
       }),
       "http=localhost:7897;https=127.0.0.1:7897;socks=;socksVersion=;noProxy=localhost,127.0.0.1",
+    );
+  });
+
+  it("should release only an untouched AIdea-managed proxy", function () {
+    const managed = {
+      currentType: 1,
+      currentSignature: "http=127.0.0.1:7890",
+      autoApplied: true,
+      lastSignature: "http=127.0.0.1:7890",
+    };
+    assert.isTrue(shouldReleaseManagedProxy(managed));
+    // The user edited the proxy after we applied it.
+    assert.isFalse(
+      shouldReleaseManagedProxy({
+        ...managed,
+        currentSignature: "http=10.0.0.2:8080",
+      }),
+    );
+    // A proxy the plugin never applied.
+    assert.isFalse(
+      shouldReleaseManagedProxy({ ...managed, autoApplied: false }),
+    );
+    // Zotero is no longer on a manual proxy.
+    assert.isFalse(shouldReleaseManagedProxy({ ...managed, currentType: 5 }));
+    assert.isFalse(
+      shouldReleaseManagedProxy({ ...managed, lastSignature: "" }),
     );
   });
 

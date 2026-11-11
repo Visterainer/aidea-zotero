@@ -59,9 +59,9 @@ export function isRetryableTransientError(error: unknown): boolean {
   const message =
     error instanceof Error ? String(error.message || "") : String(error || "");
   const status = parseHttpStatusFromErrorMessage(message);
-  if (typeof status === "number" && isRetryableTransientStatus(status)) {
-    return true;
-  }
+  // A parsed HTTP status is authoritative: a 400/401/404 whose body merely
+  // mentions "timeout" must not be re-sent.
+  if (typeof status === "number") return isRetryableTransientStatus(status);
   return isRetryableTransientErrorMessage(message);
 }
 

@@ -457,7 +457,11 @@ export async function fetchOpenAlexAuthorMetrics(
 ): Promise<void> {
   if (!author.openAlexId) return;
   try {
-    const url = author.openAlexId.replace(/^http:/, "https:");
+    // The entity ID (https://openalex.org/A123) is a web page; the JSON
+    // lives on the API host.
+    const authorKey = author.openAlexId.split("/").filter(Boolean).pop() || "";
+    if (!/^A\d+$/i.test(authorKey)) return;
+    const url = `https://api.openalex.org/authors/${encodeURIComponent(authorKey)}`;
     const json = await fetchJsonWithTimeout(url, signal);
     mergeIntoAuthor(author, {
       affiliations: dedupeStrings(

@@ -6,9 +6,11 @@ Usage: python aidea_bridge.py <task.json>
 """
 
 import base64
+import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -132,7 +134,19 @@ def write_progress(path, data):
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, path)
+    # On Windows os.replace fails with PermissionError while the plugin's
+    # poller has the destination open. Retry briefly; a skipped intermediate
+    # update is harmless, but a terminal status must not be lost silently.
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 7:
+                if data.get("status") == "running":
+                    return
+                raise
+            time.sleep(0.05)
 
 
 def make_progress(status, progress=0, message="", **kwargs):
@@ -2010,7 +2024,11 @@ class OAuthCompatProxyServer:
 
     CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
 
-    def __init__(self, proxy_cfg, debug_log=None, debug_enabled=False):
+    def __init__(self, proxy_cfg, debug_log=None, debug_enabled=False, auth_token=None):
+        # When set, every request must present this bearer token. The proxy
+        # spends the user's credentials, so other local processes must not
+        # be able to use it just by finding the port.
+        self.auth_token = auth_token
         self.proxy_cfg = proxy_cfg or {}
         self.httpd = None
         self.thread = None
@@ -2149,6 +2167,19 @@ class OAuthCompatProxyServer:
                 if self.path.rstrip("/") != "/v1/chat/completions":
                     self._send_json(404, {"error": {"message": f"Unsupported path: {self.path}"}})
                     return
+                # A request carrying Origin comes from a web page, never from
+                # the translation engine.
+                if self.headers.get("Origin"):
+                    self._send_json(403, {"error": {"message": "Forbidden"}})
+                    return
+                if parent.auth_token:
+                    supplied = str(self.headers.get("Authorization", ""))
+                    expected = f"Bearer {parent.auth_token}"
+                    if not hmac.compare_digest(
+                        supplied.encode("utf-8"), expected.encode("utf-8")
+                    ):
+                        self._send_json(401, {"error": {"message": "Unauthorized"}})
+                        return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
                     raw = self.rfile.read(length) if length > 0 else b"{}"
@@ -2163,9 +2194,9 @@ class OAuthCompatProxyServer:
                         self.send_header("Connection", "close")
                         self.end_headers()
                         for chunk in _to_openai_completion_stream_chunks(model, text):
-                            line = f"data: {json.dumps(chunk, ensure_ascii=False)}\\n\\n"
+                            line = f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
                             self.wfile.write(line.encode("utf-8"))
-                        self.wfile.write(b"data: [DONE]\\n\\n")
+                        self.wfile.write(b"data: [DONE]\n\n")
                         return
                     self._send_json(200, _to_openai_completion_text_response(model, text))
                 except ValueError as err:
@@ -2529,6 +2560,24 @@ class OAuthCompatProxyServer:
         return text
 
 
+def _rewrite_openai_api_key(config_file, api_key):
+    """Point the engine's API key at the proxy's per-run token."""
+    with open(config_file, "r", encoding="utf-8") as f:
+        toml = f.read()
+
+    line = f'openai_compatible_api_key = "{api_key}"'
+    replaced, count = re.subn(
+        r'(?m)^openai_compatible_api_key\s*=\s*".*?"\s*$',
+        lambda _m: line,
+        toml,
+    )
+    if not count:
+        replaced = toml + f"\n{line}\n"
+
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(replaced)
+
+
 def _rewrite_openai_base_url(config_file, base_url):
     with open(config_file, "r", encoding="utf-8") as f:
         toml = f.read()
@@ -2553,6 +2602,20 @@ def main():
     task_file = sys.argv[1]
     with open(task_file, "r", encoding="utf-8") as f:
         task = json.load(f)
+    # The task file carries the access token / API key in plaintext. It has
+    # been read into memory, so do not leave it in the temp directory.
+    try:
+        os.remove(task_file)
+    except OSError:
+        pass
+
+    # Lead our own process group so the plugin can stop the bridge together
+    # with the translation engine and its workers (POSIX only).
+    if hasattr(os, "setsid"):
+        try:
+            os.setsid()
+        except OSError:
+            pass
 
     progress_file = task["progressFile"]
     pdf2zh_bin = task["pdf2zhBin"]
@@ -2603,6 +2666,7 @@ def main():
 
     proxy = None
     patch_dir = None
+    proc = None
     try:
         log_line(f"Task file: {task_file}")
         log_line(f"PDF: {pdf_path}")
@@ -2614,9 +2678,11 @@ def main():
                 oauth_proxy_cfg,
                 debug_log=log_line,
                 debug_enabled=oauth_proxy_debug,
+                auth_token=secrets.token_urlsafe(32),
             )
             proxy.start()
             _rewrite_openai_base_url(config_file, proxy.base_url)
+            _rewrite_openai_api_key(config_file, proxy.auth_token)
             log_line(f"OAuth proxy started: {oauth_proxy_cfg.get('provider')} @ {proxy.base_url}")
 
         if protect_author_block:
@@ -2970,6 +3036,12 @@ def main():
         ))
         raise
     finally:
+        # Never leave the engine running against a proxy that is going away.
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
         if proxy:
             proxy.stop()
         if patch_dir:

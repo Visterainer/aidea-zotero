@@ -7,6 +7,7 @@
  * every time the user switches between PDF tabs.
  */
 
+import { disposePanelHostRuntime } from "./heightSync";
 import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 import { ensureConversationLoaded, refreshChat } from "./chat";
@@ -185,12 +186,7 @@ export function invalidateSharedReaderPanelForItem(
   const map = getWindowMap(win);
   const state = map.get(key);
   if (state) {
-    const heightSync = (
-      state.host as typeof state.host & {
-        __llmHeightSync?: { dispose?: () => void } | null;
-      }
-    ).__llmHeightSync;
-    heightSync?.dispose?.();
+    disposePanelHostRuntime(state.host);
     state.hasBootstrapped = false;
     state.bootstrapPromise = null;
     // Clear stale file preview expansion for this item
@@ -202,12 +198,7 @@ export function removeReaderPanels(win: Window): void {
   const map = panelStateByWindow.get(win);
   if (!map) return;
   for (const [, state] of map) {
-    const heightSync = (
-      state.host as typeof state.host & {
-        __llmHeightSync?: { dispose?: () => void } | null;
-      }
-    ).__llmHeightSync;
-    heightSync?.dispose?.();
+    disposePanelHostRuntime(state.host);
     state.host.remove();
   }
   map.clear();

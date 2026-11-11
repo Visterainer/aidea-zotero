@@ -107,3 +107,4 @@ pref("chatReasoningEffortByModel", "{}");
 pref("chatReasoningEffort", "");
 pref("apiReasoningCapabilities", "{}");
 pref("translateReasoningEffort", "");
+pref("oauthRiskAccepted", "");

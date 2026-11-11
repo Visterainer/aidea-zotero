@@ -60,7 +60,14 @@ const KATEX_OPTIONS: katex.KatexOptions = {
   throwOnError: false,
   errorColor: "#cc0000",
   strict: false,
-  trust: true,
+  // Model output is untrusted. Allow only plain web links; everything else
+  // that `trust` gates (\includegraphics, \htmlStyle, javascript: URLs, ...)
+  // could load remote resources or restyle the panel.
+  trust: (context) =>
+    (context.command === "\\href" || context.command === "\\url") &&
+    (context.protocol === "http" ||
+      context.protocol === "https" ||
+      context.protocol === "mailto"),
   macros: {
     "\\R": "\\mathbb{R}",
     "\\N": "\\mathbb{N}",
@@ -94,14 +101,57 @@ function escapeAttr(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+const SAFE_LINK_SCHEMES = new Set([
+  "http",
+  "https",
+  "mailto",
+  "zotero",
+  "aidea-cite",
+]);
+const SAFE_IMAGE_SCHEMES = new Set(["http", "https", "file"]);
+
+/** Lower-cased URL scheme, or "" for a relative/fragment reference. */
+function getUrlScheme(url: string): string {
+  // Browsers ignore control characters and whitespace inside the scheme.
+  // eslint-disable-next-line no-control-regex
+  const compact = url.replace(/[\u0000-\u0020]/g, "");
+  const match = compact.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function isSafeLinkUrl(url: string): boolean {
+  const scheme = getUrlScheme(url);
+  return !scheme || SAFE_LINK_SCHEMES.has(scheme);
+}
+
+function isSafeImageUrl(url: string): boolean {
+  const scheme = getUrlScheme(url);
+  if (scheme === "data") return /^\s*data:image\//i.test(url);
+  return !scheme || SAFE_IMAGE_SCHEMES.has(scheme);
+}
+
 function renderImage(src: string, alt: string, title?: string): string {
   const safeSrc = src.trim();
-  if (!safeSrc) return escapeHtml(`![${alt}](${src})`);
+  if (!safeSrc || !isSafeImageUrl(safeSrc)) {
+    return escapeHtml(`![${alt}](${src})`);
+  }
   const titleAttr =
     typeof title === "string" && title.trim()
       ? ` title="${escapeAttr(title.trim())}"`
       : "";
   return `<img class="llm-markdown-image" src="${escapeAttr(safeSrc)}" alt="${escapeAttr(alt)}"${titleAttr} loading="lazy"/>`;
+}
+
+/**
+ * Whether a trimmed line opens a display-math block. A line such as
+ * `$$ a = b $$.` closes its math and then continues with prose; treating it
+ * as an opening fence would swallow the rest of the message, so it is left
+ * to the paragraph path, which renders the `$$...$$` inline.
+ */
+function startsMathBlock(trimmed: string, open: string, close: string) {
+  if (!trimmed.startsWith(open)) return false;
+  if (trimmed === open || trimmed.endsWith(close)) return true;
+  return trimmed.indexOf(close, open.length) === -1;
 }
 
 /** Generate the copy button HTML for code/math blocks */
@@ -365,7 +415,7 @@ function splitTextBlocks(text: string): TextBlock[] {
     }
 
     // Display math block ($$...$$)
-    if (trimmed.startsWith("$$") || /^\$\$/.test(trimmed)) {
+    if (startsMathBlock(trimmed, "$$", "$$")) {
       const mathLines: string[] = [line];
       i++;
 
@@ -387,7 +437,7 @@ function splitTextBlocks(text: string): TextBlock[] {
     }
 
     // Display math block (\[...\])
-    if (trimmed.startsWith("\\[")) {
+    if (startsMathBlock(trimmed, "\\[", "\\]")) {
       const mathLines: string[] = [line];
       i++;
 
@@ -520,8 +570,8 @@ function splitTextBlocks(text: string): TextBlock[] {
       !/^\d+\.\s+/.test(lines[i].trim()) &&
       !/^>/.test(lines[i].trim()) &&
       !/^---+$/.test(lines[i].trim()) &&
-      !/^\$\$/.test(lines[i].trim()) &&
-      !/^\\\[/.test(lines[i].trim())
+      !startsMathBlock(lines[i].trim(), "$$", "$$") &&
+      !startsMathBlock(lines[i].trim(), "\\[", "\\]")
     ) {
       paraLines.push(lines[i]);
       i++;
@@ -803,7 +853,14 @@ function renderInline(text: string): string {
     });
   }
 
-  // 2. Numeric content is valid math. Distinguish prices by delimiter
+  // 2. Images ![alt](url) and ![alt](url "title"). These run before math so
+  // rendered math markup can never end up inside an alt/src attribute.
+  result = result.replace(
+    /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']+)["'])?\)/g,
+    (_m, alt, src, title) => protect(renderImage(src, alt, title)),
+  );
+
+  // 3. Numeric content is valid math. Distinguish prices by delimiter
   // boundaries (as in Pandoc tex_math_dollars), not by the formula's value.
   result = renderInlineMath(result, (math, display) => {
     if (zoteroNoteMode) {
@@ -815,12 +872,6 @@ function renderInline(text: string): string {
     const className = display ? "math-display-inline" : "math-inline";
     return protect(`<span class="${className}">${rendered}</span>`);
   });
-
-  // 3. Images ![alt](url) and ![alt](url "title")
-  result = result.replace(
-    /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']+)["'])?\)/g,
-    (_m, alt, src, title) => protect(renderImage(src, alt, title)),
-  );
 
   // 5. HTML escape (after protecting code, math, and images)
   result = escapeHtml(result);
@@ -868,10 +919,12 @@ function renderInline(text: string): string {
   );
 
   // 11. Links [text](url)
-  result = result.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>',
-  );
+  // The URL is already HTML-escaped (step 5). Unsafe schemes (javascript:,
+  // file:, data:, ...) and URLs containing protected markup stay plain text.
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+    if (/@@PROTECTED\d+@@/.test(url) || !isSafeLinkUrl(url)) return match;
+    return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
+  });
 
   // 12. Restore protected blocks.
   // Reverse order is important for nested placeholders such as **$x$**:

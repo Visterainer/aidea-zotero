@@ -62,6 +62,8 @@ function record(value: unknown): Record<string, unknown> {
     throw new Error("Invalid archive object / 记录结构无效");
   return value as Record<string, unknown>;
 }
+// Text attachments are capped by resource size (32 MiB), not message size.
+const MAX_RESOURCE_TEXT = 32 * 1024 * 1024;
 function str(value: unknown, max = 1_000_000): string {
   if (typeof value !== "string" || value.length > max)
     throw new Error("Invalid or oversized text / 文本无效或过长");
@@ -251,7 +253,12 @@ export function parseChatArchive(input: string): ChatArchive {
                     category,
                     size: time(resource.size),
                     ...(resource.textContent !== undefined
-                      ? { textContent: str(resource.textContent) }
+                      ? {
+                          textContent: str(
+                            resource.textContent,
+                            MAX_RESOURCE_TEXT,
+                          ),
+                        }
                       : {}),
                   };
                 },

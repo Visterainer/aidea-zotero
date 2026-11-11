@@ -260,6 +260,21 @@ function dedupeContacts(contacts: AuthorContact[]): AuthorContact[] {
   return out;
 }
 
+/** First letter of the given name, or "" when the name has no given part. */
+function givenInitial(author: PaperAuthor): string {
+  const given = normalizeName(author.givenName || "");
+  if (given) return given[0];
+  const parts = normalizeName(author.name).split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? parts[0][0] : "";
+}
+
+/** "Wei Zhang" and "Li Zhang" are different people, even side by side. */
+function haveConflictingGivenNames(a: PaperAuthor, b: PaperAuthor): boolean {
+  const left = givenInitial(a);
+  const right = givenInitial(b);
+  return Boolean(left && right && left !== right);
+}
+
 function addAuthorToMap(map: Map<string, PaperAuthor>, author: PaperAuthor) {
   const key = normalizeName(author.name);
   if (!key) return;
@@ -271,6 +286,7 @@ function addAuthorToMap(map: Map<string, PaperAuthor>, author: PaperAuthor) {
         candidateKey === key ||
         (lastNameKey(candidate.name) &&
           lastNameKey(candidate.name) === lastNameKey(author.name) &&
+          !haveConflictingGivenNames(candidate, author) &&
           Math.abs((candidate.sequence || 0) - (author.sequence || 0)) <= 1)
       );
     });

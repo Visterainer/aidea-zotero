@@ -115,6 +115,7 @@ declare namespace _ZoteroTypes {
       "chatReasoningEffort": string;
       "apiReasoningCapabilities": string;
       "translateReasoningEffort": string;
+      "oauthRiskAccepted": string;
     };
   }
 }

@@ -1774,6 +1774,31 @@ export async function touchGlobalConversationTitle(
   );
 }
 
+const TRANSFER_SOURCES_TABLE = "zotero_ai_transfer_sources";
+
+/**
+ * Conversation keys are reused (MAX + 1), so an imported conversation's
+ * pending-source row must die with it; a leftover row would attach itself to
+ * the next conversation that gets the same key and break re-imports.
+ * Must run inside the caller's transaction. `keys` undefined clears all.
+ */
+async function deleteTransferSourceRows(keys?: readonly number[]) {
+  const exists = await Zotero.DB.valueQueryAsync(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='${TRANSFER_SOURCES_TABLE}'`,
+  );
+  if (!exists) return;
+  if (!keys) {
+    await Zotero.DB.queryAsync(`DELETE FROM ${TRANSFER_SOURCES_TABLE}`);
+    return;
+  }
+  if (!keys.length) return;
+  await Zotero.DB.queryAsync(
+    `DELETE FROM ${TRANSFER_SOURCES_TABLE}
+     WHERE conversation_key IN (${keys.map(() => "?").join(",")})`,
+    [...keys],
+  );
+}
+
 export async function deleteGlobalConversation(
   conversationKey: number,
 ): Promise<void> {
@@ -1795,6 +1820,7 @@ export async function deleteGlobalConversation(
        WHERE conversation_key = ?`,
       [normalizedKey],
     );
+    await deleteTransferSourceRows([normalizedKey]);
   });
 }
 
@@ -1838,6 +1864,7 @@ export async function deleteAllGlobalConversationsByLibrary(
        WHERE library_id = ?`,
       [normalizedLibraryID],
     );
+    await deleteTransferSourceRows(deletedKeys);
 
     return deletedKeys;
   });
@@ -1849,6 +1876,7 @@ export async function clearAllChatHistory(): Promise<void> {
     await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_TREE_STATE_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${GLOBAL_CONVERSATIONS_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${PAPER_CONVERSATIONS_TABLE}`);
+    await deleteTransferSourceRows();
   });
 }
 
@@ -1893,6 +1921,7 @@ export async function createPaperConversation(
 export async function listPaperConversations(
   parentItemId: number,
   limit: number,
+  options?: { ignorePinned?: boolean },
 ): Promise<PaperConversationSummary[]> {
   if (!Number.isFinite(parentItemId) || parentItemId <= 0) return [];
   await reconcileTransferredConversations();
@@ -1905,7 +1934,11 @@ export async function listPaperConversations(
     `SELECT conversation_key
      FROM ${PAPER_CONVERSATIONS_TABLE}
      WHERE parent_item_id = ?
-     ORDER BY created_at DESC, conversation_key DESC
+     ORDER BY ${
+       // Pinned rows must survive the LIMIT, or pinning an old conversation
+       // makes it vanish from the history list instead of floating up.
+       options?.ignorePinned ? "" : "is_pinned DESC, "
+     }created_at DESC, conversation_key DESC
      LIMIT ?`,
     [normalizedParent, normalizedLimit],
   )) as number[] | false;
@@ -1986,6 +2019,7 @@ export async function deletePaperConversation(
       `DELETE FROM ${PAPER_CONVERSATIONS_TABLE} WHERE conversation_key = ?`,
       [normalizedKey],
     );
+    await deleteTransferSourceRows([normalizedKey]);
   });
 }
 
@@ -2008,7 +2042,10 @@ export async function getLatestPaperConversation(
   parentItemId: number,
 ): Promise<PaperConversationSummary | null> {
   if (!Number.isFinite(parentItemId) || parentItemId <= 0) return null;
-  const list = await listPaperConversations(parentItemId, 1);
+  // The reader opens the newest conversation, not a pinned older one.
+  const list = await listPaperConversations(parentItemId, 1, {
+    ignorePinned: true,
+  });
   return list.length > 0 ? list[0] : null;
 }
 

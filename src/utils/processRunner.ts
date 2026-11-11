@@ -102,7 +102,9 @@ function shellWrap(
       args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
     };
   }
-  const script = `${command} 1> '${stdoutPath.replace(/'/g, "'\\''")}' 2> '${stderrPath.replace(/'/g, "'\\''")}'`;
+  // Group the command so the redirects cover every part of a pipeline or
+  // `a || b` list, not only its last simple command.
+  const script = `{ ${command}\n} 1> '${stdoutPath.replace(/'/g, "'\\''")}' 2> '${stderrPath.replace(/'/g, "'\\''")}'`;
   return {
     exe: "/bin/bash",
     args: ["-lc", script],
@@ -139,7 +141,13 @@ function runProcessAsync(
           resolve(exitValue);
         },
       };
-      proc.runAsync(args, args.length, observer);
+      // runwAsync passes UTF-16 arguments; runAsync narrows each character
+      // to one byte and corrupts non-ASCII paths (e.g. C:\\Users\\张三).
+      if (typeof proc.runwAsync === "function") {
+        proc.runwAsync(args, args.length, observer);
+      } else {
+        proc.runAsync(args, args.length, observer);
+      }
     } catch (err) {
       reject(err);
     }

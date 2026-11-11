@@ -402,7 +402,9 @@ export function getCodexStandaloneInstallCommand(
   if (platform === "windows") {
     return "$env:CODEX_NON_INTERACTIVE=1; $sys=$env:SystemRoot; $env:Path=(Join-Path $sys 'System32')+';'+$sys+';'+(Join-Path $sys 'System32\\WindowsPowerShell\\v1.0')+';'+$env:Path; irm https://chatgpt.com/codex/install.ps1 | iex";
   }
-  return "curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh";
+  // pipefail: without it a failed download still exits 0, because `sh`
+  // happily runs an empty script.
+  return "set -o pipefail; curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh";
 }
 
 export function deriveCodexStandaloneBinDirs(
@@ -657,6 +659,24 @@ export function parseProxyUrl(value: string): SystemProxyConfig | null {
   }
 }
 
+/**
+ * True when Zotero is still on the manual proxy this plugin applied but the
+ * system no longer has one, so the manual setting should be released.
+ */
+export function shouldReleaseManagedProxy(params: {
+  currentType: number;
+  currentSignature: string;
+  autoApplied: boolean;
+  lastSignature: string;
+}): boolean {
+  return (
+    params.autoApplied &&
+    params.currentType === 1 &&
+    Boolean(params.lastSignature) &&
+    params.currentSignature === params.lastSignature
+  );
+}
+
 export function decideSystemProxySync(params: {
   currentType: number;
   currentSignature: string;
@@ -759,6 +779,35 @@ function rememberAppliedProxy(signature: string, mode: string): void {
   setPluginStringPref(PROXY_AUTO_APPLIED_PREF, "true");
   setPluginStringPref(PROXY_LAST_SIGNATURE_PREF, signature);
   setPluginStringPref(PROXY_LAST_MODE_PREF, mode);
+}
+
+/**
+ * The system proxy is gone (e.g. the proxy app was quit). If Zotero is still
+ * pinned to the manual proxy we applied, hand control back to "use system
+ * proxy settings"; otherwise all Zotero networking keeps hitting a dead port.
+ * A proxy the user configured or edited themselves is never touched.
+ */
+function releaseManagedProxyFromZotero(prefSvc: any): boolean {
+  try {
+    const current = getZoteroProxySnapshot(prefSvc);
+    if (
+      !shouldReleaseManagedProxy({
+        currentType: current.type,
+        currentSignature: getSystemProxySignature(current),
+        autoApplied: getPluginBooleanPref(PROXY_AUTO_APPLIED_PREF),
+        lastSignature: getPluginStringPref(PROXY_LAST_SIGNATURE_PREF),
+      })
+    ) {
+      return false;
+    }
+    prefSvc.setIntPref("network.proxy.type", 5);
+    setPluginStringPref(PROXY_AUTO_APPLIED_PREF, "false");
+    setPluginStringPref(PROXY_LAST_SIGNATURE_PREF, "");
+    setPluginStringPref(PROXY_LAST_MODE_PREF, "");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function applySystemProxyToZotero(
@@ -1008,6 +1057,11 @@ export async function ensureZoteroProxyFromSystem(options?: {
     if (proxy && applySystemProxyToZotero(proxy, options)) {
       ztoolkit?.log?.(
         `AIdea: Applied ${currentPlatform()} system proxy to Zotero`,
+      );
+    }
+    if (!proxy && releaseManagedProxyFromZotero(prefSvc)) {
+      ztoolkit?.log?.(
+        "AIdea: System proxy is gone; released the managed Zotero proxy",
       );
     }
   } catch {
@@ -3149,27 +3203,42 @@ async function loginCopilotDeviceCode(): Promise<{
 
     // Poll for access token
     const deadline = Date.now() + expiresIn * 1000;
+    let pollIntervalSec = interval;
+    let consecutivePollFailures = 0;
     while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, interval * 1000));
+      await new Promise((r) => setTimeout(r, pollIntervalSec * 1000));
       const tokenBody = new URLSearchParams({
         client_id: COPILOT_GITHUB_CLIENT_ID,
         device_code: deviceCode,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       });
-      const tokenRes = await getFetch()(GITHUB_ACCESS_TOKEN_URL, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: tokenBody,
-      });
-      if (!tokenRes.ok)
-        throw new Error(`GitHub token request failed: HTTP ${tokenRes.status}`);
-      const tokenJson = (await tokenRes.json()) as unknown as Record<
-        string,
-        unknown
-      >;
+      // The user may spend minutes in the browser; one dropped request or a
+      // proxy switch during that time must not cancel the whole login.
+      let tokenJson: Record<string, unknown>;
+      try {
+        const tokenRes = await getFetch()(GITHUB_ACCESS_TOKEN_URL, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: tokenBody,
+        });
+        if (!tokenRes.ok) {
+          throw new Error(
+            `GitHub token request failed: HTTP ${tokenRes.status}`,
+          );
+        }
+        tokenJson = (await tokenRes.json()) as unknown as Record<
+          string,
+          unknown
+        >;
+        consecutivePollFailures = 0;
+      } catch (pollErr) {
+        consecutivePollFailures += 1;
+        if (consecutivePollFailures >= 5) throw pollErr;
+        continue;
+      }
       if (
         typeof tokenJson.access_token === "string" &&
         tokenJson.access_token
@@ -3189,7 +3258,12 @@ async function loginCopilotDeviceCode(): Promise<{
       const err = String(tokenJson.error || "");
       if (err === "authorization_pending") continue;
       if (err === "slow_down") {
-        await new Promise((r) => setTimeout(r, 2000));
+        // RFC 8628: the longer interval applies to every later poll.
+        const serverInterval = Number(tokenJson.interval);
+        pollIntervalSec =
+          Number.isFinite(serverInterval) && serverInterval > pollIntervalSec
+            ? serverInterval
+            : pollIntervalSec + 5;
         continue;
       }
       if (err === "expired_token")
@@ -4866,8 +4940,8 @@ export async function getOAuthProviderPingInfo(
 /**
  * Ping a model to test its availability.
  * Sends a minimal 1-token chat completion request.
- * Returns "ok" if the server recognises the model (any response except 404),
- * "fail" on 404 / network error / timeout.
+ * Returns "ok" if the server recognises the model,
+ * "fail" on 404 / rejected credentials (401, 403) / network error / timeout.
  */
 export async function pingModel(
   apiBase: string,
@@ -4911,8 +4985,11 @@ export async function pingModel(
       }, 15_000);
     });
     const res = await Promise.race([fetchPromise, timeoutPromise]);
-    // 404 = model does not exist; anything else = server recognises the model
-    if (res.status === 404) return "fail";
+    // 404 = model does not exist; 401/403 = the credentials were rejected,
+    // so nothing was learned about the model and it must not show as usable.
+    if (res.status === 404 || res.status === 401 || res.status === 403) {
+      return "fail";
+    }
     // Also check response body for "model_not_found" style errors
     if (res.status >= 400) {
       try {

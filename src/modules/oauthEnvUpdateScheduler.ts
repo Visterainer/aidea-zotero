@@ -310,6 +310,8 @@ const windowStates = new Map<Window, SchedulerWindowState>();
 let checkTimer: ReturnType<typeof setTimeout> | null = null;
 let promptState: PromptState | null = null;
 let updateRunning = false;
+// Set on shutdown so an in-flight check cannot re-arm the timer afterwards.
+let schedulerStopped = false;
 
 function prefKey(key: string): string {
   return `${config.prefsPrefix}.${key}`;
@@ -383,6 +385,8 @@ function getHostWindow(): Window | null {
 
 function scheduleNextCheck(delayMs = CHECK_INTERVAL_MS): void {
   if (checkTimer) clearTimeout(checkTimer);
+  checkTimer = null;
+  if (schedulerStopped) return;
   checkTimer = setTimeout(
     () => {
       checkTimer = null;
@@ -730,6 +734,24 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
 async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
   if (updateRunning || !providers.length) return;
   updateRunning = true;
+  try {
+    await runOAuthEnvUpdateUnguarded(providers);
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: OAuth env update failed", err);
+    // Never leave the prompt stuck in "updating" with its buttons disabled.
+    if (promptState) {
+      setButtonDisabled(promptState.closeButton, false);
+      setButtonDisabled(promptState.minimizeButton, false);
+    }
+  } finally {
+    updateRunning = false;
+    scheduleNextCheck();
+  }
+}
+
+async function runOAuthEnvUpdateUnguarded(
+  providers: OAuthProviderId[],
+): Promise<void> {
   showOAuthEnvUpdatePrompt(providers);
   if (promptState) promptState.dismissSnoozes = false;
   renderPromptMode("updating");
@@ -819,8 +841,6 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
   if (!allOk) {
     snoozeOAuthEnvUpdateProviders(providers, Date.now() + PROMPT_SNOOZE_MS);
   }
-  updateRunning = false;
-  scheduleNextCheck();
 }
 
 async function checkOAuthEnvUpdateDue(): Promise<void> {
@@ -870,6 +890,7 @@ async function checkOAuthEnvUpdateDue(): Promise<void> {
 
 export function registerOAuthEnvUpdateSchedulerWindow(win: Window): void {
   if (windowStates.has(win)) return;
+  schedulerStopped = false;
   windowStates.set(win, {
     cleanup: () => undefined,
   });
@@ -899,6 +920,7 @@ export function unregisterOAuthEnvUpdateSchedulerWindow(win: Window): void {
 }
 
 export function shutdownOAuthEnvUpdateScheduler(): void {
+  schedulerStopped = true;
   clearNextCheck();
   closePrompt();
   for (const state of windowStates.values()) {

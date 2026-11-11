@@ -54,6 +54,9 @@ export const pdfDocumentAdapter: DocumentAdapter = {
   },
   kind: "pdf",
   contentTypes: [PDF_CONTENT_TYPE],
+  // A transient PDFWorker failure yields empty text; without a retry delay
+  // that empty result is cached until Zotero restarts.
+  emptyCacheRetryDelayMs: 60_000,
   capabilities,
   presentation: {
     noun: "paper",

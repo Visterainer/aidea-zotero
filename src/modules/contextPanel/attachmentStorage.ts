@@ -391,6 +391,12 @@ export async function persistAttachmentBlob(
       ? rows[0].path.trim()
       : "";
   if (existingPath && (await pathExists(existingPath))) {
+    // A re-attached file starts as an unreferenced draft; refresh its age so
+    // the blob GC (which spares recent blobs) cannot delete it before send.
+    await Zotero.DB.queryAsync(
+      `UPDATE ${ATTACHMENT_BLOBS_TABLE} SET created_at = ? WHERE hash = ?`,
+      [Date.now(), contentHash],
+    );
     return {
       storedPath: existingPath,
       contentHash,

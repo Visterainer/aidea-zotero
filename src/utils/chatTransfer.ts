@@ -592,10 +592,10 @@ async function planImport(
           ],
         );
       if (c.source)
-        add(`INSERT INTO ${S} (conversation_key,source_json) VALUES (?,?)`, [
-          key,
-          JSON.stringify(c.source),
-        ]);
+        add(
+          `INSERT OR REPLACE INTO ${S} (conversation_key,source_json) VALUES (?,?)`,
+          [key, JSON.stringify(c.source)],
+        );
       if (c.legacyKey)
         add(
           `UPDATE ${sourceItem ? P : G} SET legacy_key=? WHERE conversation_key=?`,
@@ -928,7 +928,9 @@ export async function importChatArchive(
           ],
         );
       }
-      await reconcileConversationAttachmentRefs(result.conversationKeys);
+      await reconcileConversationAttachmentRefs(result.conversationKeys, {
+        inTransaction: true,
+      });
     }
     return result;
   });

@@ -86,7 +86,12 @@ export function buildDeterministicSectionPlan(
     return { scope: "document", sectionIds: [], coverage: "balanced" };
   }
 
-  const normalizedQuestion = normalizeComparableText(question);
+  // Match labels against the current question only. The retrieval query also
+  // carries earlier turns for disambiguation; a section name mentioned in a
+  // previous answer must not hijack this turn's routing.
+  const normalizedQuestion = normalizeComparableText(
+    question.split("\nRetrieval disambiguation only")[0],
+  );
   if (!normalizedQuestion) return null;
 
   const matches = catalog.cards
