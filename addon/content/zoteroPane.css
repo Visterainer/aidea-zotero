@@ -7907,6 +7907,7 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 /* Action button row layout */
 .llm-tr-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 6px 0 2px;

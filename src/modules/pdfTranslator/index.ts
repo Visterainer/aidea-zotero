@@ -6,7 +6,11 @@
 
 import type { TranslateParams, TranslateState, ProgressData } from "./types";
 import type { TranslateCredentials } from "./modelResolver";
-import { checkEnvironment, installEnvironment } from "./envManager";
+import { checkEnvironment } from "./envManager";
+import {
+  installOrUpdateTranslationEnvironment,
+  verifyTranslationEnvironmentRuntime,
+} from "./translationEnvUpdater";
 import { generateConfigToml, generateTaskJson } from "./configWriter";
 import { launchProcess, type RunningProcess } from "./processRunner";
 import { ProgressPoller } from "./progressPoller";
@@ -51,7 +55,7 @@ export class TranslateController {
   async setupEnv(): Promise<void> {
     this.setState("running");
     try {
-      await installEnvironment((step, detail) => {
+      await installOrUpdateTranslationEnvironment((step, detail) => {
         this.callback({ type: "env_progress", step, detail });
       });
       this.setState("idle");
@@ -79,6 +83,14 @@ export class TranslateController {
       this.callback({
         type: "error",
         message: `Environment not ready: ${env.status}${diag}`,
+      });
+      return;
+    }
+    const runtime = await verifyTranslationEnvironmentRuntime(env);
+    if (!runtime.ok) {
+      this.callback({
+        type: "error",
+        message: `Translation environment needs repair: ${runtime.detail || "unknown error"}`,
       });
       return;
     }

@@ -88,6 +88,8 @@ declare namespace _ZoteroTypes {
       "translate.advancedCollapsed": boolean;
       "translate.consoleCollapsed": boolean;
       "translate.scrollTop": string;
+      "translate.envActive": string;
+      "translate.envLastRemoteAttempt": string;
       "hideTabNav": boolean;
       "composerTheme": string;
       "composerThemeCustom": string;

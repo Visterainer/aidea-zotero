@@ -1,0 +1,89 @@
+name: Propose Translation Environment Update
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install uv packaging
+      - run: python scripts/translation-env/update_candidate.py
+      - id: changes
+        shell: bash
+        run: |
+          if [[ -n "$(git status --porcelain -- site/public/translate-env)" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          name: translation-env-candidate
+          path: site/public/translate-env/
+
+  smoke:
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: translation-env-candidate
+          path: site/public/translate-env/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install uv
+      - name: Validate candidate and smoke test
+        shell: bash
+        run: |
+          lock_file=$(python scripts/translation-env/verify_manifest.py --print-lock-path | tail -1)
+          uv venv .scaffold/translation-venv --python 3.12
+          uv pip sync "$lock_file" --python .scaffold/translation-venv --only-binary :all:
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            python_bin=.scaffold/translation-venv/Scripts/python.exe
+            engine_bin=.scaffold/translation-venv/Scripts/pdf2zh_next.exe
+          else
+            python_bin=.scaffold/translation-venv/bin/python
+            engine_bin=.scaffold/translation-venv/bin/pdf2zh_next
+          fi
+          "$python_bin" -c "from pdf2zh_next.main import cli"
+          "$engine_bin" --help >/dev/null
+
+  propose:
+    needs: [prepare, smoke]
+    if: needs.prepare.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: translation-env-candidate
+          path: site/public/translate-env/
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: site/public/translate-env/
+          branch: codex/translation-env-update
+          delete-branch: true
+          title: "Update verified translation environment"
+          body: |
+            Candidate generated from current upstream releases. Import and CLI smoke tests passed on Linux, macOS, and Windows. Review bridge compatibility before merging; merging publishes the environment independently of a plugin release.

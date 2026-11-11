@@ -53,10 +53,13 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
   const done = new Promise<number>((resolve, reject) => {
     const observer = {
       observe(_subject: unknown, topic: string) {
-        if (topic === "process-finished") {
-          resolve(proc.exitValue);
-        } else if (topic === "process-failed") {
-          reject(new Error(`Process failed to start: ${exe}`));
+        if (topic === "process-finished" || topic === "process-failed") {
+          // Gecko also reports a child that started and exited nonzero as
+          // process-failed. Let the caller inspect its final progress file.
+          const exitCode = proc.exitValue;
+          if (typeof exitCode === "number" && Number.isFinite(exitCode))
+            resolve(exitCode);
+          else reject(new Error(`Process failed to start: ${exe}`));
         }
       },
     };

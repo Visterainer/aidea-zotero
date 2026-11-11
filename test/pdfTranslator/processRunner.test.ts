@@ -114,4 +114,22 @@ describe("pdfTranslator process runner", function () {
 
     assert.equal(main.directKillCount, 1);
   });
+
+  it("reports a nonzero child exit instead of claiming the process never started", async function () {
+    const main = {
+      ...createMainProcess(1234),
+      exitValue: 7,
+      runAsync(
+        _args: string[],
+        _count: number,
+        observer: { observe: (subject: null, topic: string) => void },
+      ) {
+        observer.observe(null, "process-failed");
+      },
+    };
+    processQueue.push(main);
+
+    const running = launchProcess("C:\\Python\\python.exe", ["bridge.py"]);
+    assert.equal(await running.done, 7);
+  });
 });

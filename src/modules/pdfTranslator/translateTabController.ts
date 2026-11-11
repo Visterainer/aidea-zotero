@@ -8,7 +8,7 @@
  * -------------------------------------------------------------------------*/
 
 import { getModelChoices } from "../contextPanel/setupHandlers/controllers/modelSelectionController";
-import { getPanelI18n } from "../contextPanel/i18n";
+import { getPanelI18n, getPanelLang } from "../contextPanel/i18n";
 import { renderReasoningEffortDropdown } from "../contextPanel/reasoningDropdown";
 import {
   formatReasoningEffort,
@@ -759,6 +759,7 @@ export function initTranslateTab(body: Element): void {
     tabBtn.addEventListener("click", () => {
       populateTranslateModelSelector(modelSelect);
       updatePdfSourceFromItem(body);
+      void refreshEnvironmentNotice();
     });
   }
   const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
@@ -862,48 +863,102 @@ export function initTranslateTab(body: Element): void {
     });
   }
 
-  // ── Install environment button ──
+  // ── Fixed install/update button and inline update notice ──
   const installBtn = body.querySelector(
     "#llm-tr-install-env",
   ) as HTMLButtonElement | null;
+  const envNotice = body.querySelector(
+    "#llm-tr-env-update-status",
+  ) as HTMLElement | null;
+  let noticeBusy = false;
+  let noticePending = false;
+  async function refreshEnvironmentNotice(forceRemote = false): Promise<void> {
+    if (!envNotice) return;
+    if (noticeBusy) {
+      noticePending = true;
+      return;
+    }
+    noticeBusy = true;
+    const zh = getPanelLang().startsWith("zh");
+    envNotice.textContent = zh
+      ? "正在检查翻译环境…"
+      : "Checking translation environment…";
+    try {
+      const { inspectTranslationEnvironment } =
+        await import("./translationEnvUpdater");
+      const state = await inspectTranslationEnvironment(forceRemote);
+      const labels = zh
+        ? {
+            install: "尚未安装翻译环境，点击按钮安装。",
+            current: "翻译环境已是当前兼容版本。",
+            update: `发现已验证的环境更新（修订版 ${state.targetRevision}），点击按钮更新。`,
+            repair: "翻译环境需要修复，点击按钮重新安装。",
+          }
+        : {
+            install: "Translation environment is missing. Click to install.",
+            current: "Translation environment is current and compatible.",
+            update: `Verified environment revision ${state.targetRevision} is available. Click to update.`,
+            repair: "Translation environment needs repair. Click to reinstall.",
+          };
+      envNotice.textContent = labels[state.action];
+      if (state.warning && state.action === "current") {
+        envNotice.textContent = zh
+          ? "当前环境可用；在线检查未完成，点击按钮重试。"
+          : "Current environment works; online check failed. Click to retry.";
+      }
+      envNotice.dataset.action = state.action;
+      if (state.warning) {
+        envNotice.title = state.warning;
+      } else {
+        envNotice.removeAttribute("title");
+      }
+    } catch (err) {
+      envNotice.textContent = zh
+        ? "环境检查失败；点击按钮重试。"
+        : "Environment check failed. Click to retry.";
+      envNotice.title = String(err);
+    } finally {
+      noticeBusy = false;
+      if (noticePending) {
+        noticePending = false;
+        void refreshEnvironmentNotice();
+      }
+    }
+  }
+  if (panelRoot?.dataset.activeTab === "translate") {
+    void refreshEnvironmentNotice();
+  }
   if (installBtn) {
     installBtn.addEventListener("click", async () => {
       const i18n = getPanelI18n();
       installBtn.disabled = true;
-      consoleLog(body, i18n.trLogEnvironmentSetupStarting, "info");
+      consoleLog(
+        body,
+        "🔍 Checking translation environment updates...",
+        "info",
+      );
       try {
-        const { installEnvironment } = await import("./envManager");
-        await installEnvironment((step, detail) => {
-          consoleLog(
-            body,
-            detail,
-            detail.startsWith("✅") ? "success" : "info",
-          );
-        });
-        consoleLog(body, `✅ ${i18n.trLogEnvironmentSetupComplete}`, "success");
+        const { installOrUpdateTranslationEnvironment } =
+          await import("./translationEnvUpdater");
+        const result = await installOrUpdateTranslationEnvironment(
+          (step, detail) => {
+            consoleLog(
+              body,
+              detail,
+              detail.startsWith("✅") ? "success" : "info",
+            );
+          },
+        );
+        consoleLog(
+          body,
+          `✅ ${result.action === "current" ? (getPanelLang().startsWith("zh") ? "已是当前兼容版本，无需更新。" : "Environment is current; no update needed.") : i18n.trLogEnvironmentSetupComplete}`,
+          "success",
+        );
       } catch (err) {
         consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
-        // Try to read the stderr log for more details
-        try {
-          const tempDir = String(PathUtils.tempDir || "").trim();
-          const logPath = tempDir
-            ? PathUtils.join(tempDir, "aidea-cmd.log")
-            : "";
-          if (logPath && (await IOUtils.exists(logPath))) {
-            const logText = await IOUtils.readUTF8(logPath);
-            if (logText.trim()) {
-              consoleLog(
-                body,
-                `📝 ${i18n.trLogDetails(logText.trim())}`,
-                "error",
-              );
-            }
-          }
-        } catch {
-          /* ignore log read failure */
-        }
       } finally {
         installBtn.disabled = false;
+        void refreshEnvironmentNotice();
       }
     });
   }
@@ -1711,6 +1766,25 @@ async function startTranslation(body: Element): Promise<void> {
     consoleLog(body, `   ${i18n.trLogInstallEnvironmentInstruction}`, "error");
     return;
   }
+  const { verifyTranslationEnvironmentRuntime } =
+    await import("./translationEnvUpdater");
+  const runtime = await verifyTranslationEnvironmentRuntime(envStatus);
+  if (!runtime.ok) {
+    consoleLog(
+      body,
+      `❌ ${getPanelLang().startsWith("zh") ? "翻译环境需要修复：" : "Translation environment needs repair: "}${runtime.detail || "unknown error"}`,
+      "error",
+    );
+    const notice = body.querySelector(
+      "#llm-tr-env-update-status",
+    ) as HTMLElement | null;
+    if (notice) {
+      notice.textContent = getPanelLang().startsWith("zh")
+        ? "翻译环境需要修复，点击“安装/更新翻译环境”。"
+        : "Translation environment needs repair. Click Install/Update.";
+    }
+    return;
+  }
   consoleLog(
     body,
     `✅ ${i18n.trLogEnvironmentReady(envStatus.venvDir)}`,
@@ -1801,12 +1875,24 @@ async function startTranslation(body: Element): Promise<void> {
 
         // Show engine output detail (raw line from pdf2zh_next stdout)
         if (detail && detail !== msg && shouldLogEngineDetail(detail)) {
+          const cffFontWarning =
+            /^MuPDF error: format error: Invalid offsize in CFF\b/i.test(
+              detail.trim(),
+            );
           // Detect log level from engine output (e.g. "ERROR:pdf2zh_next...")
-          const detailLevel: "info" | "error" = /\bERROR\b/i.test(detail)
-            ? "error"
-            : "info";
-          const detailIcon = detailLevel === "error" ? "❌" : "🔧";
-          consoleLog(body, `${detailIcon} ${detail}`, detailLevel);
+          const detailLevel: "info" | "error" =
+            !cffFontWarning && /\bERROR\b/i.test(detail) ? "error" : "info";
+          const detailIcon = cffFontWarning
+            ? "⚠"
+            : detailLevel === "error"
+              ? "❌"
+              : "🔧";
+          const displayedDetail = cffFontWarning
+            ? getPanelLang().startsWith("zh")
+              ? `PDF 内嵌 CFF 字体格式异常；引擎仍在处理，完成后请检查版面。（${detail}）`
+              : `Embedded CFF font is malformed; processing continues. Check the output layout. (${detail})`
+            : detail;
+          consoleLog(body, `${detailIcon} ${displayedDetail}`, detailLevel);
         } else if (
           msg &&
           event.data.current === undefined &&

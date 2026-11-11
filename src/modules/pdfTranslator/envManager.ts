@@ -6,6 +6,55 @@
  * -------------------------------------------------------------------------*/
 
 import type { EnvStatus } from "./types";
+import { config } from "../../../package.json";
+
+// BabelDOC 0.6.x imports BitStream, which bitstring 5 removed.
+const BITSTRING_REQUIREMENT = "bitstring>=4.3,<5";
+const ACTIVE_ENV_PREF = `${config.prefsPrefix}.translate.envActive`;
+
+export interface ActiveTranslationEnvironment {
+  dir: string;
+  revision: number;
+  sha256: string;
+  previous?: { dir: string; revision: number; sha256: string };
+}
+
+export function getActiveTranslationEnvironment(): ActiveTranslationEnvironment | null {
+  try {
+    const raw = Zotero.Prefs.get(ACTIVE_ENV_PREF, true);
+    const value = JSON.parse(
+      typeof raw === "string" ? raw : "",
+    ) as ActiveTranslationEnvironment;
+    const root = getRequiredEnvBaseDir();
+    if (
+      !value ||
+      !value.dir.startsWith(PathUtils.join(root, "aidea-translate-env-r")) ||
+      !Number.isSafeInteger(value.revision) ||
+      !/^[a-f0-9]{64}$/.test(value.sha256)
+    )
+      return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function activateTranslationEnvironment(
+  dir: string,
+  revision: number,
+  sha256: string,
+): void {
+  const current = getActiveTranslationEnvironment();
+  const previous =
+    current && current.dir !== dir
+      ? { dir: current.dir, revision: current.revision, sha256: current.sha256 }
+      : current?.previous;
+  Zotero.Prefs.set(
+    ACTIVE_ENV_PREF,
+    JSON.stringify({ dir, revision, sha256, previous }),
+    true,
+  );
+}
 
 /* ── Platform detection ── */
 
@@ -132,6 +181,19 @@ async function verifyPdf2zhInstall(
   }
 }
 
+/** Check imports that package metadata and an entry-point shebang cannot validate. */
+async function verifyPdf2zhRuntime(pythonBin: string): Promise<void> {
+  const check = await verifyPdf2zhInstall(pythonBin, [
+    "-c",
+    "from pdf2zh_next.main import cli",
+  ]);
+  if (!check.ok) {
+    throw new Error(
+      `pdf2zh_next is installed but cannot start: ${check.detail || "unknown error"}`,
+    );
+  }
+}
+
 /**
  * Diagnostic: list files in the bin/Scripts directory that match a prefix.
  *
@@ -228,6 +290,24 @@ async function findUvBinary(): Promise<string | null> {
 export async function checkEnvironment(): Promise<EnvStatus> {
   const diagnostics: string[] = [];
   let hasPythonButNoPdf2zh = false;
+
+  // New, validated environments are selected by a single preference write.
+  // Keep the previous revision available for rollback and running jobs.
+  const active = getActiveTranslationEnvironment();
+  for (const candidate of [active, active?.previous]) {
+    if (!candidate) continue;
+    const pythonBin = getPythonBin(candidate.dir);
+    const pdf2zhBin = getPdf2zhBin(candidate.dir);
+    if (
+      (await IOUtils.exists(pythonBin)) &&
+      (await isPdf2zhBinUsable(pdf2zhBin))
+    ) {
+      return { status: "ready", venvDir: candidate.dir, pythonBin, pdf2zhBin };
+    }
+    diagnostics.push(
+      `✗ selected environment missing or invalid: ${candidate.dir}`,
+    );
+  }
 
   /* Try conda environment first (preferred) */
   const condaPath = await findCondaBinary();
@@ -433,6 +513,7 @@ export async function installEnvironment(
         "install",
         "--force-reinstall",
         "pdf2zh_next",
+        BITSTRING_REQUIREMENT,
       ]);
       if (pipInstallStderr) {
         // Show pip's stderr output (warnings, errors) in the console
@@ -473,6 +554,18 @@ export async function installEnvironment(
           `Try running: pip install --force-reinstall pdf2zh_next`,
       );
     }
+    const condaBitstreamCheck = await verifyPdf2zhInstall(pythonBin, [
+      "-c",
+      "from bitstring import BitStream",
+    ]);
+    if (!condaBitstreamCheck.ok) {
+      onProgress(
+        "install_pkg",
+        "Repairing incompatible bitstring dependency...",
+      );
+      await runCmd(pipBin, ["install", BITSTRING_REQUIREMENT]);
+    }
+    await verifyPdf2zhRuntime(pythonBin);
     onProgress("install_pkg", `✅ pdf2zh_next ready (${pdf2zhBin})`);
 
     // Final cross-check: run checkEnvironment to confirm everything is coherent
@@ -572,6 +665,7 @@ export async function installEnvironment(
       "install",
       "--force-reinstall",
       "pdf2zh_next",
+      BITSTRING_REQUIREMENT,
       "--python",
       pythonBin,
     ]);
@@ -616,6 +710,21 @@ export async function installEnvironment(
         `Try running: uv pip install --force-reinstall pdf2zh_next`,
     );
   }
+  const uvBitstreamCheck = await verifyPdf2zhInstall(pythonBin, [
+    "-c",
+    "from bitstring import BitStream",
+  ]);
+  if (!uvBitstreamCheck.ok) {
+    onProgress("install_pkg", "Repairing incompatible bitstring dependency...");
+    await runCmd(uvPath, [
+      "pip",
+      "install",
+      BITSTRING_REQUIREMENT,
+      "--python",
+      pythonBin,
+    ]);
+  }
+  await verifyPdf2zhRuntime(pythonBin);
   onProgress("install_pkg", `✅ pdf2zh_next ready (${pdf2zhBin})`);
 
   // Final cross-check: run checkEnvironment to confirm everything is coherent
@@ -969,6 +1078,16 @@ async function installUv(): Promise<void> {
   }
 }
 
+export async function ensureUvBinary(): Promise<string> {
+  let uvPath = await findUvBinary();
+  if (!uvPath) {
+    await installUv();
+    uvPath = await findUvBinary();
+  }
+  if (!uvPath) throw new Error("uv installer completed, but uv was not found");
+  return uvPath;
+}
+
 /**
  * Spawn a process and wait for it to complete.
  * Throws on non-zero exit code.
@@ -982,22 +1101,26 @@ async function installUv(): Promise<void> {
  * @returns The stderr output (may be empty). Returned even on success so
  *          callers can surface pip warnings etc. to the user.
  */
-async function runCmd(exe: string, args: string[]): Promise<string> {
+export async function runCmd(exe: string, args: string[]): Promise<string> {
   const tempDir = getTempDirOrThrow();
-  const logFile = PathUtils.join(tempDir, "aidea-cmd.log");
+  const commandId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const logFile = PathUtils.join(tempDir, `aidea-cmd-${commandId}.log`);
   try {
     await IOUtils.remove(logFile);
   } catch {
     /* ignore stale log */
   }
-  const quotedArgs = args.map((a) => {
-    return a.includes(" ") ? `"${a}"` : a;
-  });
+  const quotedArgs = args.map((a) =>
+    IS_WIN ? `"${a.replace(/"/g, '""')}"` : `'${a.replace(/'/g, "'\\''")}'`,
+  );
   const cmdLine = `"${exe}" ${quotedArgs.join(" ")}`;
+  const scriptPath = PathUtils.join(
+    tempDir,
+    `aidea-cmd-${commandId}.${IS_WIN ? "bat" : "sh"}`,
+  );
 
   try {
     if (IS_WIN) {
-      const scriptPath = PathUtils.join(tempDir, "aidea-cmd.bat");
       const script = `@echo off\r\n${cmdLine} 2>"${logFile}"\r\nexit /b %ERRORLEVEL%\r\n`;
       await IOUtils.writeUTF8(scriptPath, script);
       await _runNsIProcess("C:\\Windows\\System32\\cmd.exe", [
@@ -1005,7 +1128,6 @@ async function runCmd(exe: string, args: string[]): Promise<string> {
         scriptPath,
       ]);
     } else {
-      const scriptPath = PathUtils.join(tempDir, "aidea-cmd.sh");
       const script = `#!/bin/sh\n${cmdLine} 2>"${logFile}"\n`;
       await IOUtils.writeUTF8(scriptPath, script);
       await _runNsIProcess("/bin/chmod", ["+x", scriptPath]);
@@ -1018,6 +1140,17 @@ async function runCmd(exe: string, args: string[]): Promise<string> {
     if (!details) throw err;
     const prefix = err instanceof Error ? err.message : String(err);
     throw new Error(`${prefix}\n${details}`, { cause: err });
+  } finally {
+    try {
+      await IOUtils.remove(scriptPath);
+    } catch {
+      /* best effort */
+    }
+    try {
+      await IOUtils.remove(logFile);
+    } catch {
+      /* best effort */
+    }
   }
 }
 

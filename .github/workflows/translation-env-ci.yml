@@ -1,0 +1,45 @@
+name: Translation Environment
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "site/public/translate-env/**"
+      - "scripts/translation-env/**"
+      - ".github/workflows/translation-env-ci.yml"
+  pull_request:
+    paths:
+      - "site/public/translate-env/**"
+      - "scripts/translation-env/**"
+      - ".github/workflows/translation-env-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install uv
+      - name: Validate catalog and install exact environment
+        shell: bash
+        run: |
+          lock_file=$(python scripts/translation-env/verify_manifest.py --print-lock-path | tail -1)
+          uv venv .scaffold/translation-venv --python 3.12
+          uv pip sync "$lock_file" --python .scaffold/translation-venv --only-binary :all:
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            python_bin=.scaffold/translation-venv/Scripts/python.exe
+            engine_bin=.scaffold/translation-venv/Scripts/pdf2zh_next.exe
+          else
+            python_bin=.scaffold/translation-venv/bin/python
+            engine_bin=.scaffold/translation-venv/bin/pdf2zh_next
+          fi
+          "$python_bin" -c "from pdf2zh_next.main import cli"
+          "$engine_bin" --help >/dev/null

@@ -1134,6 +1134,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   );
   const trActions = createElement(doc, "div", "llm-tr-actions");
   const trActionsSpacer = createElement(doc, "div", "llm-tr-actions-spacer");
+  const trEnvStatus = createElement(doc, "div", "llm-tr-env-update-status", {
+    id: "llm-tr-env-update-status",
+  });
+  trEnvStatus.setAttribute("aria-live", "polite");
+  trEnvStatus.style.fontSize = "12px";
+  trEnvStatus.style.opacity = "0.82";
+  trEnvStatus.style.marginTop = "6px";
   trActions.append(
     trInstallBtn,
     trActionsSpacer,
@@ -1143,7 +1150,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   );
 
   // Assemble section 3
-  sec3.body.append(trProgressSection, trConsoleTitle, trConsole, trActions);
+  sec3.body.append(
+    trProgressSection,
+    trConsoleTitle,
+    trConsole,
+    trActions,
+    trEnvStatus,
+  );
 
   // ═══════════════════════════════════════════════════════════
   // Assemble all sections into root
