@@ -3,7 +3,7 @@ import { config } from "../../package.json";
 import { HTML_NS } from "../utils/domHelpers";
 import {
   autoConfigureEnvironment,
-  fetchAvailableModels,
+  fetchAvailableModelsDetailed,
   fetchCustomEndpointModels,
   getOAuthProviderPingInfo,
   getProviderAccountSummary,
@@ -5974,8 +5974,34 @@ export async function bootstrapSettingTab(
 
       if (isOAuth) {
         // ── OAuth provider: replace model list ──
-        models = await fetchAvailableModels(provider);
+        const listed = await fetchAvailableModelsDetailed(provider);
+        models = listed.models;
         syncModelStateFromPrefs();
+        if (!models.length && listed.failure === "not-logged-in") {
+          // Nothing to refresh or test; say so instead of "0 models".
+          const summary = await getProviderAccountSummary(provider);
+          const text = localizeAuthStatus(summary.status, L);
+          const liveTarget = getTarget();
+          liveTarget.textContent = text;
+          liveTarget.style.color = "#b45309";
+          appendProgress(`[${getProviderLabel(provider)}] ${text}`, "#b45309");
+          return;
+        }
+        if (!models.length && listed.failure === "network") {
+          throw new Error(
+            `Zotero could not reach the provider (${listed.detail || "network error"}). Check the proxy Zotero uses. / Zotero 无法连接到该服务，请检查 Zotero 使用的代理设置。`,
+          );
+        }
+        if (!models.length && /\b403\b/.test(listed.detail || "")) {
+          throw new Error(
+            "The provider refused the request (HTTP 403). This is usually a region or proxy-node restriction, not an expired sign-in; try another proxy node. / 服务拒绝了请求（HTTP 403），通常是地区或代理节点受限，而不是登录失效；请更换代理节点后重试。",
+          );
+        }
+        if (!models.length && !(cache[provider] || []).length) {
+          throw new Error(
+            `The provider rejected the saved sign-in${listed.detail ? ` (${listed.detail})` : ""}. Sign in again. / 登录状态已失效或被拒绝，请重新登录。`,
+          );
+        }
         // The fetch reports network/token failures as an empty list. Storing
         // that would wipe the provider's models and the user's selection, so
         // treat "empty while we already had models" as a failed refresh.
@@ -5994,8 +6020,15 @@ export async function bootstrapSettingTab(
               firstModel.apiBase,
               firstModel.apiKey || "",
             );
-          } catch {
-            // Fetch failed — keep existing list unchanged
+          } catch (err) {
+            // Keep the existing list, but say why nothing new was found.
+            appendProgress(
+              `[${getProviderLabel(provider)}] ${L.refreshFailed.replace(
+                "{msg}",
+                err instanceof Error ? err.message : String(err),
+              )}`,
+              "#b45309",
+            );
           }
         }
         // Re-read after the await: another panel may have edited the list.

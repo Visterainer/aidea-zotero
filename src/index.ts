@@ -1,6 +1,7 @@
 import { BasicTool } from "zotero-plugin-toolkit";
 import Addon from "./addon";
 import { config } from "../package.json";
+import { installWindowGlobals } from "./utils/sandboxGlobals";
 
 const basicTool = new BasicTool();
 
@@ -26,6 +27,11 @@ if (existingAddon?.hooks?.onShutdown) {
     Zotero.debug?.(`AIdea: previous instance shutdown failed: ${err}`);
   }
 }
+
+// Must run before any module code that relies on these globals.
+installWindowGlobals(_globalThis, (name) =>
+  basicTool.getGlobal(name as Parameters<BasicTool["getGlobal"]>[0]),
+);
 
 _globalThis.addon = new Addon();
 defineGlobal("ztoolkit", () => {

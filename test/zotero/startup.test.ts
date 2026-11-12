@@ -16,6 +16,42 @@ describe("startup", function () {
     assert.isNotEmpty(Zotero[config.addonInstance]);
   });
 
+  it("registers PDF translation only for a single PDF library selection", function () {
+    const win = Zotero.getMainWindow();
+    const popup = win.document.createXULElement("menupopup");
+    win.document.documentElement.appendChild(popup);
+    const pdf = {
+      isAttachment: () => true,
+      isPDFAttachment: () => true,
+    } as Zotero.Item;
+    const update = (items: Zotero.Item[]) => {
+      Zotero.MenuManager.updateMenuPopup(popup, "main/library/item", {
+        getContext: () => ({
+          items,
+          tabType: "library",
+          tabSubType: undefined,
+          tabID: "zotero-pane",
+        }),
+      });
+      popup.dispatchEvent(new win.Event("popupshowing", { bubbles: true }));
+      return (
+        Array.from(popup.querySelectorAll("menuitem")).find((item) =>
+          item.className.includes("aidea-translate-pdf-context-menu"),
+        ) || null
+      );
+    };
+    try {
+      const single = update([pdf]);
+      assert.isNotNull(single, "plugin registered the translation action");
+      assert.isFalse(single!.hasAttribute("hidden"), popup.outerHTML);
+      assert.include(single!.getAttribute("label") || "", "PDF");
+      assert.isTrue(update([])!.hasAttribute("hidden"));
+      assert.isTrue(update([pdf, pdf])!.hasAttribute("hidden"));
+    } finally {
+      popup.remove();
+    }
+  });
+
   it("shows catalog levels and hides for unsupported models", function () {
     const pref = `${config.prefsPrefix}.oauthModelListCache`;
     const previous = Zotero.Prefs.get(pref, true);

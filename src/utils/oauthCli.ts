@@ -2181,12 +2181,49 @@ export function parseCodexModelsResponse(data: unknown): ProviderModelOption[] {
     .filter((m) => m.id);
 }
 
+export type ModelListFailure = "not-logged-in" | "network" | "rejected";
+
+export interface ModelListResult {
+  models: ProviderModelOption[];
+  /** Why the list is empty; absent when models were returned. */
+  failure?: ModelListFailure;
+  /** The underlying error text, for the log. */
+  detail?: string;
+}
+
 export async function fetchAvailableModels(
   provider: OAuthProviderId,
+): Promise<ProviderModelOption[]> {
+  return (await fetchAvailableModelsDetailed(provider)).models;
+}
+
+/**
+ * Like fetchAvailableModels, but says why nothing came back. An empty list
+ * alone cannot tell "not signed in" from "Zotero cannot reach the provider"
+ * from "the session was rejected", and the UI used to report all three as
+ * a successful refresh with 0 models.
+ */
+export async function fetchAvailableModelsDetailed(
+  provider: OAuthProviderId,
+): Promise<ModelListResult> {
+  let failure: ModelListFailure | undefined;
+  let detail = "";
+  const models = await fetchAvailableModelsWithReason(provider, (f, d) => {
+    failure = f;
+    detail = d || "";
+  });
+  if (models.length) return { models };
+  return { models, failure: failure || "rejected", detail };
+}
+
+async function fetchAvailableModelsWithReason(
+  provider: OAuthProviderId,
+  report: (failure: ModelListFailure, detail?: string) => void,
 ): Promise<ProviderModelOption[]> {
   await ensureZoteroProxyFromSystem({ forceRefresh: true });
   const cred = await readProviderOAuthCredential(provider);
   if (!cred) {
+    report("not-logged-in");
     return [];
   }
   try {
@@ -2235,17 +2272,26 @@ export async function fetchAvailableModels(
             headers,
           },
         );
+        lastRejectionStatus = usageRes.status;
         return usageRes.status !== 401 && usageRes.status !== 403;
       };
+      // 401 means the session expired; 403 is usually the service refusing
+      // the network location (region or proxy exit), which a new login
+      // cannot fix. The UI needs to tell these apart.
+      let lastRejectionStatus = 0;
 
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const headers = buildHeaders(activeCred);
+        let requestsFailed = 0;
+        let lastError = "";
         try {
           const rows = await fetchDynamicModels(headers);
           if (rows.length > 0) {
             return rows;
           }
         } catch (err) {
+          requestsFailed += 1;
+          lastError = err instanceof Error ? err.message : String(err);
           ztoolkit?.log?.("AIdea: Codex dynamic model fetch failed", err);
         }
 
@@ -2254,7 +2300,16 @@ export async function fetchAvailableModels(
             return [...CODEX_KNOWN_MODELS];
           }
         } catch (err) {
+          requestsFailed += 1;
+          lastError = err instanceof Error ? err.message : String(err);
           ztoolkit?.log?.("AIdea: Codex token validation failed", err);
+        }
+
+        if (requestsFailed === 2) {
+          // Neither request got an answer: Zotero cannot reach the service.
+          // Refreshing the token through the CLI would not change that.
+          report("network", lastError);
+          return [];
         }
 
         if (!triedCliRefresh) {
@@ -2268,6 +2323,10 @@ export async function fetchAvailableModels(
 
         ztoolkit?.log?.(
           "AIdea: Codex OAuth credential could not be validated; model list unavailable",
+        );
+        report(
+          "rejected",
+          lastRejectionStatus ? `HTTP ${lastRejectionStatus}` : "",
         );
         return [];
       }

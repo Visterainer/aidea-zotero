@@ -2,6 +2,7 @@ import { assert } from "chai";
 import {
   autoConfigureEnvironment,
   chatWithProviderOAuth,
+  fetchAvailableModelsDetailed,
   runProviderOAuthLogin,
 } from "../src/utils/oauthCli";
 import {
@@ -204,6 +205,58 @@ describe("oauthCli subprocess and credential handling", function () {
     }
     assert.match(String(error), /Codex OAuth HTTP 401: expired/);
     assert.equal(calls, 1);
+  });
+
+  it("reports an unreachable provider instead of an empty model list", async function () {
+    globals.fetch = async () => {
+      throw new TypeError("NetworkError when attempting to fetch resource.");
+    };
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.deepEqual(result.models, []);
+    assert.equal(result.failure, "network");
+    assert.include(result.detail || "", "NetworkError");
+    // The CLI cannot fix a network failure, so it is not asked to refresh.
+    assert.lengthOf(processes, 0);
+  });
+
+  it("reports a rejected Codex session after the CLI refresh did not help", async function () {
+    globals.fetch = async () => new Response("", { status: 401 });
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.deepEqual(result.models, []);
+    assert.equal(result.failure, "rejected");
+    assert.equal(result.detail, "HTTP 401");
+  });
+
+  it("keeps the status when the provider refuses the network location", async function () {
+    globals.fetch = async () => new Response("", { status: 403 });
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.equal(result.failure, "rejected");
+    assert.equal(result.detail, "HTTP 403");
+  });
+
+  it("reports a provider that is not signed in", async function () {
+    accessToken = "";
+    let fetched = 0;
+    globals.fetch = async () => {
+      fetched += 1;
+      return new Response("", { status: 200 });
+    };
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.equal(result.failure, "not-logged-in");
+    assert.equal(fetched, 0);
+  });
+
+  it("returns Codex models without a failure when the list loads", async function () {
+    globals.fetch = async () =>
+      new Response(JSON.stringify({ models: [{ slug: "gpt-test" }] }), {
+        status: 200,
+      });
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.deepEqual(
+      result.models.map((model) => model.id),
+      ["gpt-test"],
+    );
+    assert.isUndefined(result.failure);
   });
 
   it("kills a subprocess that exceeds its timeout", async function () {

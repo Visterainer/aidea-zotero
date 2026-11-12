@@ -13,43 +13,32 @@ import { renderReasoningEffortDropdown } from "../contextPanel/reasoningDropdown
 import {
   formatReasoningEffort,
   getTranslateReasoningEffort,
-  resolveRequestReasoningEffort,
-  getApiReasoningSupport,
   setTranslateReasoningEffort,
 } from "../../utils/reasoningEffort";
 import type { ProgressData, TranslationStats, WarningStats } from "./types";
 import { restartPausedTranslation } from "./translationLifecycle";
-
-/* ── Per-tab model pref key ── */
-
-const TRANSLATE_MODEL_PREF = "lastUsedModelName.translate";
-const TRANSLATE_PROVIDER_PREF = "lastUsedModelProvider.translate";
-const TRANSLATE_PREFS = {
-  sourceLang: "translate.sourceLang",
-  targetLang: "translate.targetLang",
-  outputMono: "translate.outputMono",
-  outputDual: "translate.outputDual",
-  skipRefsAuto: "translate.skipReferencesAuto",
-  outputDir: "translate.outputDir",
-  qps: "translate.qps",
-  poolMaxWorker: "translate.poolMaxWorker",
-  keepAppendixTranslated: "translate.keepAppendixTranslated",
-  protectAuthorBlock: "translate.protectAuthorBlock",
-  disableRichTextTranslate: "translate.disableRichTextTranslate",
-  enhanceCompatibility: "translate.enhanceCompatibility",
-  translateTableText: "translate.translateTableText",
-  ocr: "translate.ocr",
-  autoOcr: "translate.autoOcr",
-  saveGlossary: "translate.saveGlossary",
-  disableGlossary: "translate.disableGlossary",
-  fontFamily: "translate.fontFamily",
-  advancedCollapsed: "translate.advancedCollapsed",
-  consoleCollapsed: "translate.consoleCollapsed",
-  scrollTop: "translate.scrollTop",
-} as const;
+import {
+  TRANSLATE_PREFS,
+  getBoolPref,
+  getNumberPref,
+  getPersistedTranslateModel,
+  getPersistedTranslateProvider,
+  getStringPref,
+  persistTranslateModel,
+  persistTranslateProvider,
+  setBoolPref,
+  setNumberPref,
+  setStringPref,
+} from "./translatePrefs";
+import {
+  buildTranslateParams,
+  checkTranslationEnvironment,
+  resolveTranslationCredentials,
+  trackTranslationController,
+  untrackTranslationController,
+} from "./translationJob";
 
 declare const Zotero: any;
-declare const addon: any;
 
 const LOW_SIGNAL_ENGINE_DETAIL_RE =
   /(?:INFO:pdf2zh_next|INFO:babeldoc|WARNING:babeldoc|il_translator_llm_only\.py:(?:774|783|797|824))/i;
@@ -108,90 +97,6 @@ function buildWarningSummaryLine(
   if (warningCount && summary) return `Warnings ${warningCount} | ${summary}`;
   if (warningCount) return `Warnings ${warningCount}`;
   return summary;
-}
-
-function prefKey(): string {
-  return `${addon.data.config.prefsPrefix}.${TRANSLATE_MODEL_PREF}`;
-}
-
-function translatePrefKey(key: string): string {
-  return `${addon.data.config.prefsPrefix}.${key}`;
-}
-
-function getBoolPref(key: string, defaultValue: boolean): boolean {
-  try {
-    const value = Zotero.Prefs.get(translatePrefKey(key), true);
-    if (typeof value === "boolean") return value;
-    if (typeof value === "number") return value === 1;
-    if (typeof value === "string") {
-      const v = value.trim().toLowerCase();
-      if (v === "true" || v === "1") return true;
-      if (v === "false" || v === "0") return false;
-    }
-  } catch {
-    // ignore
-  }
-  return defaultValue;
-}
-
-function setBoolPref(key: string, value: boolean): void {
-  try {
-    Zotero.Prefs.set(translatePrefKey(key), value, true);
-  } catch {
-    // ignore
-  }
-}
-
-function getStringPref(key: string, defaultValue = ""): string {
-  try {
-    const value = Zotero.Prefs.get(translatePrefKey(key), true);
-    if (typeof value === "string") return value.trim();
-  } catch {
-    // ignore
-  }
-  return defaultValue;
-}
-
-function setStringPref(key: string, value: string): void {
-  try {
-    Zotero.Prefs.set(translatePrefKey(key), value.trim(), true);
-  } catch {
-    // ignore
-  }
-}
-
-function getNumberPref(
-  key: string,
-  defaultValue: number,
-  min: number,
-  max: number,
-): number {
-  try {
-    const value = Zotero.Prefs.get(translatePrefKey(key), true);
-    const parsed =
-      typeof value === "number"
-        ? value
-        : parseInt(String(value ?? "").trim(), 10);
-    if (Number.isFinite(parsed)) {
-      return Math.max(min, Math.min(max, Math.floor(parsed)));
-    }
-  } catch {
-    // ignore
-  }
-  return defaultValue;
-}
-
-function setNumberPref(
-  key: string,
-  value: number,
-  min: number,
-  max: number,
-): number {
-  const normalized = Number.isFinite(value)
-    ? Math.max(min, Math.min(max, Math.floor(value)))
-    : min;
-  setStringPref(key, String(normalized));
-  return normalized;
 }
 
 function readStepperValue(
@@ -417,47 +322,6 @@ function persistCurrentTranslateOptions(body: Element): void {
     1,
     32,
   );
-}
-
-function getPersistedTranslateModel(): string {
-  try {
-    return String(Zotero.Prefs.get(prefKey(), true) || "").trim();
-  } catch {
-    return "";
-  }
-}
-
-function getPersistedTranslateProvider(): string {
-  try {
-    return String(
-      Zotero.Prefs.get(
-        `${addon.data.config.prefsPrefix}.${TRANSLATE_PROVIDER_PREF}`,
-        true,
-      ) || "",
-    ).trim();
-  } catch {
-    return "";
-  }
-}
-
-function persistTranslateModel(name: string): void {
-  try {
-    Zotero.Prefs.set(prefKey(), name, true);
-  } catch {
-    /* ignore */
-  }
-}
-
-function persistTranslateProvider(providerId: string): void {
-  try {
-    Zotero.Prefs.set(
-      `${addon.data.config.prefsPrefix}.${TRANSLATE_PROVIDER_PREF}`,
-      providerId,
-      true,
-    );
-  } catch {
-    /* ignore */
-  }
 }
 
 /**
@@ -1696,10 +1560,9 @@ async function startTranslation(body: Element): Promise<void> {
 
   // Resolve model credentials
   consoleLog(body, `🔑 ${i18n.trLogResolvingCredentials}`, "info");
-  const { resolveModelCredentialsOrThrow } = await import("./modelResolver");
-  let creds;
+  let resolved;
   try {
-    creds = await resolveModelCredentialsOrThrow(
+    resolved = await resolveTranslationCredentials(
       modelName,
       modelProviderId || undefined,
     );
@@ -1711,68 +1574,37 @@ async function startTranslation(body: Element): Promise<void> {
     );
     return;
   }
-  const authMode = creds.oauthProxy
-    ? creds.oauthProxy.provider === "openai-compatible"
-      ? "API Key (proxied)"
-      : `OAuth (${creds.oauthProxy.provider})`
-    : "API Key";
+  const { creds, authMode, reasoningEffort } = resolved;
   consoleLog(body, `🔑 ${i18n.trLogAuthLabel}: ${authMode}`, "success");
   consoleLog(body, `   ${i18n.trLogModelIdLabel}: ${creds.modelId}`, "info");
   consoleLog(body, `   ${i18n.trLogApiBaseLabel}: ${creds.apiUrl}`, "info");
-  if (
-    creds.oauthProxy?.provider === "openai-codex" ||
-    creds.oauthProxy?.provider === "openai-compatible"
-  ) {
-    const reasoningEffort = resolveRequestReasoningEffort(
-      creds.oauthProxy.provider === "openai-codex"
-        ? "oauth://openai-codex"
-        : creds.oauthProxy.apiBase,
-      creds.modelId,
-      getTranslateReasoningEffort(),
-      creds.oauthProxy.apiKey,
+  if (reasoningEffort) {
+    consoleLog(
+      body,
+      `   ${i18n.reasoningEffort}: ${formatReasoningEffort(reasoningEffort)}`,
+      "info",
     );
-    if (reasoningEffort) {
-      creds.oauthProxy.reasoningEffort = reasoningEffort;
-      if (creds.oauthProxy.provider === "openai-compatible") {
-        creds.oauthProxy.reasoningWire = getApiReasoningSupport(
-          creds.oauthProxy.apiBase || "",
-          creds.modelId,
-          creds.oauthProxy.apiKey,
-        ).wire;
-      }
-      consoleLog(
-        body,
-        `   ${i18n.reasoningEffort}: ${formatReasoningEffort(reasoningEffort)}`,
-        "info",
-      );
-    }
   }
 
   // Check environment
   consoleLog(body, `🔍 ${i18n.trLogCheckingEnvironment}`, "info");
-  const { checkEnvironment } = await import("./envManager");
-  const envStatus = await checkEnvironment();
-  if (envStatus.status !== "ready") {
+  const envCheck = await checkTranslationEnvironment();
+  if (!envCheck.ok && envCheck.reason === "not_ready") {
     consoleLog(
       body,
-      `❌ ${i18n.trLogEnvironmentNotReady(envStatus.status)}`,
+      `❌ ${i18n.trLogEnvironmentNotReady(envCheck.status)}`,
       "error",
     );
-    if (envStatus.diagnostics?.length) {
-      for (const line of envStatus.diagnostics) {
-        consoleLog(body, `   ${line}`, "info");
-      }
+    for (const line of envCheck.diagnostics) {
+      consoleLog(body, `   ${line}`, "info");
     }
     consoleLog(body, `   ${i18n.trLogInstallEnvironmentInstruction}`, "error");
     return;
   }
-  const { verifyTranslationEnvironmentRuntime } =
-    await import("./translationEnvUpdater");
-  const runtime = await verifyTranslationEnvironmentRuntime(envStatus);
-  if (!runtime.ok) {
+  if (!envCheck.ok) {
     consoleLog(
       body,
-      `❌ ${getPanelLang().startsWith("zh") ? "翻译环境需要修复：" : "Translation environment needs repair: "}${runtime.detail || "unknown error"}`,
+      `❌ ${getPanelLang().startsWith("zh") ? "翻译环境需要修复：" : "Translation environment needs repair: "}${envCheck.detail}`,
       "error",
     );
     const notice = body.querySelector(
@@ -1785,6 +1617,7 @@ async function startTranslation(body: Element): Promise<void> {
     }
     return;
   }
+  const envStatus = envCheck.env;
   consoleLog(
     body,
     `✅ ${i18n.trLogEnvironmentReady(envStatus.venvDir)}`,
@@ -2012,37 +1845,36 @@ async function startTranslation(body: Element): Promise<void> {
     }
   });
   session.activeController = controller;
+  trackTranslationController(controller);
 
   consoleLog(body, `⏳ ${i18n.trLogLaunchingEngine}`, "info");
 
   try {
     await controller.start(
-      {
+      buildTranslateParams({
         pdfPath: session.selectedPdfPath,
         outputDir,
-        sourceLang: srcLang,
-        targetLang: tgtLang,
         modelId: creds.modelId,
-        generateMono: monoChecked,
-        generateDual: dualChecked,
-        qps,
-        poolMaxWorker,
-        disableRichTextTranslate,
-        enhanceCompatibility,
-        translateTableText,
-        fontFamily,
-        ocr,
-        autoOcr,
-        saveGlossary,
-        disableGlossary,
-        noWatermark: true,
-        dualMode: "LR",
-        transFirst: false, // LR mode: original left, translation right
-        skipClean: false,
-        skipReferencesAuto,
-        keepAppendixTranslated,
-        protectAuthorBlock,
-      },
+        options: {
+          sourceLang: srcLang,
+          targetLang: tgtLang,
+          generateMono: monoChecked,
+          generateDual: dualChecked,
+          qps,
+          poolMaxWorker,
+          skipReferencesAuto,
+          keepAppendixTranslated,
+          protectAuthorBlock,
+          disableRichTextTranslate,
+          enhanceCompatibility,
+          translateTableText,
+          ocr,
+          autoOcr,
+          saveGlossary,
+          disableGlossary,
+          fontFamily,
+        },
+      }),
       creds,
     );
   } catch (err) {
@@ -2053,5 +1885,8 @@ async function startTranslation(body: Element): Promise<void> {
     session.translationStartTime = 0;
     _stopProgressTimer(session);
     restoreTranslationControls(body);
+  } finally {
+    // `start` only returns once the engine process has ended.
+    untrackTranslationController(controller);
   }
 }

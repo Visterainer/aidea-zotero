@@ -35,6 +35,10 @@ import {
   registerAuthorProfiles,
   shutdownAuthorProfiles,
 } from "./modules/authorProfiles";
+import {
+  registerTranslateMenu,
+  unregisterTranslateMenu,
+} from "./modules/pdfTranslator/translateMenu";
 
 const PREF_PANE_ID = `${config.addonRef}-preferences-pane`;
 
@@ -105,6 +109,11 @@ async function onStartup() {
     registerAuthorProfiles();
   } catch (err) {
     ztoolkit.log("AIdea: failed to register author profiles", err);
+  }
+  try {
+    registerTranslateMenu();
+  } catch (err) {
+    ztoolkit.log("AIdea: failed to register the translate menu", err);
   }
 
   await Promise.all(
@@ -199,6 +208,11 @@ function onShutdown(): void {
     void _err;
   }
   shutdownAuthorProfiles();
+  try {
+    unregisterTranslateMenu();
+  } catch (err) {
+    ztoolkit.log("AIdea: failed to unregister the translate menu", err);
+  }
   shutdownOAuthEnvUpdateScheduler();
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
