@@ -33,7 +33,7 @@
   "dependencies": {
     "fflate": "^0.8.3",
     "katex": "^0.19.0",
-    "zotero-plugin-toolkit": "^5.2.0"
+    "zotero-plugin-toolkit": "^6.0.0"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
