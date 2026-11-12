@@ -108,8 +108,8 @@ function loadNoticeRuntime(prefs = new Map<string, unknown>(), lang = "en-US") {
 }
 
 describe("one-time update notice", function () {
-  it("uses the v3.7.0 notice id matching the package version", function () {
-    assert.equal(NOTICE_ID, "v3.7.0-reasoning-effort-model-compatibility-v1");
+  it("uses the v3.8.0 notice id matching the package version", function () {
+    assert.equal(NOTICE_ID, "v3.8.0-pdf-translation-interface-v1");
     assert.isTrue(NOTICE_ID.startsWith(`v${version}-`));
   });
 
@@ -165,35 +165,30 @@ describe("one-time update notice", function () {
     assert.deepEqual(
       english.alsoItems?.map((item) => item.label),
       [
-        "Dedicated reasoning control",
-        "Model-specific effort levels",
-        "Faster selection translation",
-        "Model compatibility fixes",
+        "PDF translation from the item menu",
+        "Updated themes",
+        "Verified translation environment updates",
+        "Clearer errors and stability fixes",
       ],
     );
-    assert.include(english.alsoItems?.[0].text, "preserves your saved choice");
-    assert.include(english.alsoItems?.[1].text, "unavailable or unknown");
-    assert.include(
-      english.alsoItems?.[1].text,
-      "ordinary model requests remain available",
-    );
-    assert.include(english.alsoItems?.[2].text, "lowest reasoning effort");
-    assert.include(english.alsoItems?.[3].text, "output-length parameters");
+    assert.include(english.alsoItems?.[0].text, "opened in Zotero's reader");
+    assert.include(english.alsoItems?.[1].text, "custom color changes");
+    assert.include(english.alsoItems?.[2].text, "verified environment");
+    assert.include(english.alsoItems?.[3].text, "zero models");
     const chinese = CURRENT_UPDATE_NOTICE_COPIES["zh-CN"];
     assert.deepEqual(
       chinese.alsoItems?.map((item) => item.label),
       [
-        "独立思考强度按钮",
-        "按模型显示支持范围",
-        "划词翻译速度建议",
-        "模型兼容性修复",
+        "PDF 右键翻译与自动关联",
+        "主题配色与自定义颜色",
+        "已验证的翻译环境更新",
+        "模型列表错误与稳定性修复",
       ],
     );
-    assert.include(chinese.alsoItems?.[0].text, "切换模型保留已选设置");
-    assert.include(chinese.alsoItems?.[1].text, "不支持或无法确认");
-    assert.include(chinese.alsoItems?.[1].text, "仍可正常使用模型");
-    assert.include(chinese.alsoItems?.[2].text, "最低推理强度");
-    assert.include(chinese.alsoItems?.[3].text, "输出长度参数");
+    assert.include(chinese.alsoItems?.[0].text, "Zotero 阅读器");
+    assert.include(chinese.alsoItems?.[1].text, "自定义的颜色");
+    assert.include(chinese.alsoItems?.[2].text, "已验证的环境");
+    assert.include(chinese.alsoItems?.[3].text, "零个模型");
   });
 
   describe("one-time update notice runtime", function () {

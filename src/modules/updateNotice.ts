@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.7.0-reasoning-effort-model-compatibility-v1";
+export const NOTICE_ID = "v3.8.0-pdf-translation-interface-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -1258,28 +1258,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title: "AIdea v3.7.0: Reasoning Effort and Model Compatibility",
-      lead: "Set reasoning effort separately for chat, full-document translation, and selection translation to balance response speed and reasoning depth.",
+      title:
+        "AIdea v3.8.0: One-click PDF translation and interface improvements",
+      lead: "Start full-PDF translation from a Zotero item's context menu. The translated PDF is added to the item and opened in the reader. This update also improves theme colors, translation environment updates, and connection error messages.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "Dedicated reasoning control",
-          text: "A colored bulb beside the chat model selector indicates effort. Switching models preserves your saved choice; when that level is unavailable, a supported level is used with an explanatory hint.",
+          label: "PDF translation from the item menu",
+          text: "Right-click one item with a PDF to use your saved Translate settings. The translated PDF is added to that item and opened in Zotero's reader.",
         },
         {
-          label: "Model-specific effort levels",
-          text: "Codex OAuth and API key connections use capability information returned by the model service. When support is unavailable or unknown, the control is disabled while ordinary model requests remain available.",
+          label: "Updated themes",
+          text: "Built-in palettes have clearer contrast. Your custom color changes are preserved when themes are updated.",
         },
         {
-          label: "Faster selection translation",
-          text: "The lowest reasoning effort is recommended for faster translation, usually with little impact on translation accuracy.",
+          label: "Verified translation environment updates",
+          text: "AIdea checks for compatible updates and installs a verified environment when you choose Install/Update in the Translate tab.",
         },
         {
-          label: "Model compatibility fixes",
-          text: "Fixes chat and full-document translation failures caused by incompatible output-length parameters on some models.",
+          label: "Clearer errors and stability fixes",
+          text: "Model-list refresh reports network, access, or sign-in failures instead of a successful result with zero models. Other chat and translation failures are also fixed.",
         },
       ],
-      note: "Restart Zotero after updating. Refresh the model list in model settings to retrieve the latest reasoning-effort capabilities.",
+      note: "Before using the context-menu action, choose a model and prepare the translation environment in the AIdea Translate tab. Restart Zotero after updating.",
       confirm: "Got it",
       close: "Close update notice",
       exampleLabel: "",
@@ -1287,28 +1288,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "AIdea v3.7.0: 思考强度与模型兼容性",
-      lead: "聊天、全文翻译和划词翻译现在可以分别设置思考强度，按任务需要平衡响应速度与推理深度。",
+      title: "AIdea v3.8.0：PDF 一键翻译与界面体验更新",
+      lead: "现在可在 Zotero 文献条目的右键菜单中启动全文 PDF 翻译。译文会自动添加到对应条目并在阅读器中打开。本次更新还改进了主题配色、翻译环境更新和连接错误提示。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "独立思考强度按钮",
-          text: "聊天模型旁新增灯泡按钮，以颜色区分强度。切换模型保留已选设置；新模型不支持该档位时，使用支持的档位并显示提示。",
+          label: "PDF 右键翻译与自动关联",
+          text: "右键单个带有 PDF 的条目，即可使用翻译标签页中保存的设置。译文会添加到对应条目并在 Zotero 阅读器中打开。",
         },
         {
-          label: "按模型显示支持范围",
-          text: "Codex OAuth 和 API Key 接入依据模型服务返回的能力显示可选档位。不支持或无法确认时，控件置灰，仍可正常使用模型。",
+          label: "主题配色与自定义颜色",
+          text: "内置配色的对比度更清晰；已自定义的颜色在主题更新后仍会保留。",
         },
         {
-          label: "划词翻译速度建议",
-          text: "建议使用最低推理强度以加快翻译，通常对翻译准确性的影响较小。",
+          label: "已验证的翻译环境更新",
+          text: "AIdea 检查兼容的环境更新；在翻译标签页点击“安装/更新”时安装已验证的环境。",
         },
         {
-          label: "模型兼容性修复",
-          text: "修复部分模型因输出长度参数不兼容而导致聊天或全文翻译失败的问题。",
+          label: "模型列表错误与稳定性修复",
+          text: "刷新模型列表失败时会提示网络、访问或登录原因，不再把零个模型显示为成功；同时修复多项聊天和翻译问题。",
         },
       ],
-      note: "更新后请重启 Zotero。可在模型设置中刷新模型列表，获取最新的思考强度支持信息。",
+      note: "使用右键翻译前，请先在 AIdea 翻译标签页选择模型并准备翻译环境；更新后请重启 Zotero。",
       confirm: "知道了",
       close: "关闭更新提示",
       exampleLabel: "",
@@ -1316,28 +1317,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "AIdea v3.7.0: 思考強度與模型相容性",
-      lead: "聊天、全文翻譯和劃詞翻譯現在可以分別設定思考強度，依任務需求平衡回應速度與推理深度。",
+      title: "AIdea v3.8.0：一鍵 PDF 翻譯與介面改善",
+      lead: "現在可從 Zotero 文獻項目的右鍵選單啟動全文 PDF 翻譯。譯文會自動加入對應項目並在閱讀器中開啟。本次更新也改善了主題配色、翻譯環境更新和連線錯誤提示。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "獨立思考強度按鈕",
-          text: "聊天模型旁新增燈泡按鈕，以顏色區分強度。切換模型會保留已選設定；新模型不支援該等級時，使用支援的等級並顯示提示。",
+          label: "右鍵翻譯 PDF 並自動加入項目",
+          text: "右鍵點選單一含有 PDF 的項目，即可使用翻譯分頁儲存的設定；譯文會加入該項目並在 Zotero 閱讀器中開啟。",
         },
         {
-          label: "依模型顯示支援範圍",
-          text: "Codex OAuth 和 API Key 接入依據模型服務回傳的能力顯示可選等級。不支援或無法確認時，控制項會變灰，仍可正常使用模型。",
+          label: "主題配色與自訂色彩",
+          text: "內建配色的對比度更清晰；主題更新後仍會保留自訂色彩。",
         },
         {
-          label: "劃詞翻譯速度建議",
-          text: "建議使用最低推理強度以加快翻譯，通常對翻譯準確性的影響較小。",
+          label: "經驗證的翻譯環境更新",
+          text: "AIdea 會檢查相容的環境更新；在翻譯分頁點選「安裝／更新」時安裝經驗證的環境。",
         },
         {
-          label: "模型相容性修復",
-          text: "修復部分模型因輸出長度參數不相容而導致聊天或全文翻譯失敗的問題。",
+          label: "模型清單錯誤與穩定性修復",
+          text: "模型清單更新失敗時會顯示網路、存取或登入原因，不再將零個模型視為成功；另修正多項聊天與翻譯問題。",
         },
       ],
-      note: "更新後請重新啟動 Zotero。可在模型設定中重新整理模型清單，取得最新的思考強度支援資訊。",
+      note: "使用右鍵翻譯前，請先在 AIdea 翻譯分頁選擇模型並準備翻譯環境；更新後請重新啟動 Zotero。",
       confirm: "知道了",
       close: "關閉更新提示",
       exampleLabel: "",
@@ -1345,28 +1346,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "AIdea v3.7.0: 推論強度とモデル互換性",
-      lead: "チャット、全文翻訳、選択範囲の翻訳で推論強度を個別に設定し、応答速度と推論の深さを調整できるようになりました。",
+      title: "AIdea v3.8.0: PDF のワンクリック翻訳と画面の改善",
+      lead: "Zotero の項目を右クリックして PDF 全文翻訳を開始できます。翻訳した PDF はその項目に追加され、リーダーで開きます。テーマ、翻訳環境の更新、接続エラーの表示も改善しました。",
       alsoLabel: "今回の更新",
       alsoItems: [
         {
-          label: "独立した推論強度ボタン",
-          text: "チャットのモデル選択の横に、強度を色で示す電球ボタンを追加しました。モデルを切り替えても設定を保持します。選択した強度に対応していない場合は、対応する強度を使用し、説明を表示します。",
+          label: "右クリックから PDF を翻訳",
+          text: "PDF を含む項目を一つ右クリックすると、翻訳タブの保存済み設定で翻訳し、結果を項目に追加して Zotero リーダーで開きます。",
         },
         {
-          label: "モデルごとの対応範囲",
-          text: "Codex OAuth と API キー接続では、モデルサービスが返す機能情報から選択肢を表示します。非対応または対応状況が不明な場合は操作を無効にしますが、通常のモデル利用は継続できます。",
+          label: "テーマとカスタム色",
+          text: "内蔵テーマのコントラストを改善し、テーマ更新後も変更した色を保持します。",
         },
         {
-          label: "選択範囲の翻訳を高速化",
-          text: "翻訳速度を上げるには、最も低い推論強度をおすすめします。通常、翻訳精度への影響は小さくなります。",
+          label: "検証済みの翻訳環境",
+          text: "互換性のある更新を確認し、翻訳タブで「インストール／更新」を選んだときに検証済み環境を導入します。",
         },
         {
-          label: "モデル互換性の修正",
-          text: "一部のモデルで出力長パラメーターの互換性が原因でチャットや全文翻訳が失敗する問題を修正しました。",
+          label: "モデル一覧のエラーと安定性",
+          text: "一覧取得の失敗時にはネットワーク、アクセス、ログインの原因を表示します。チャットと翻訳の不具合も修正しました。",
         },
       ],
-      note: "更新後は Zotero を再起動してください。モデル設定でモデル一覧を更新すると、最新の推論強度の対応情報を取得できます。",
+      note: "右クリック翻訳の前に AIdea の翻訳タブでモデルを選び、翻訳環境を準備してください。更新後は Zotero を再起動してください。",
       confirm: "了解",
       close: "更新のお知らせを閉じる",
       exampleLabel: "",
@@ -1374,28 +1375,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "AIdea v3.7.0: 추론 강도와 모델 호환성",
-      lead: "채팅, 전체 문서 번역, 선택 영역 번역의 추론 강도를 각각 설정하여 응답 속도와 추론 깊이를 조절할 수 있습니다.",
+      title: "AIdea v3.8.0: 원클릭 PDF 번역과 화면 개선",
+      lead: "Zotero 항목의 오른쪽 클릭 메뉴에서 PDF 전체 번역을 시작할 수 있습니다. 번역된 PDF는 해당 항목에 추가되고 리더에서 열립니다. 테마 색상, 번역 환경 업데이트, 연결 오류 안내도 개선했습니다.",
       alsoLabel: "이번 업데이트",
       alsoItems: [
         {
-          label: "독립된 추론 강도 버튼",
-          text: "채팅 모델 선택 옆의 전구 버튼이 색상으로 강도를 표시합니다. 모델을 바꿔도 저장된 선택은 유지됩니다. 해당 강도를 지원하지 않으면 지원되는 강도를 사용하고 안내를 표시합니다.",
+          label: "오른쪽 클릭 PDF 번역",
+          text: "PDF가 있는 항목 하나를 오른쪽 클릭하면 번역 탭에 저장된 설정을 사용하고 결과를 해당 항목에 추가해 Zotero 리더에서 엽니다.",
         },
         {
-          label: "모델별 지원 범위",
-          text: "Codex OAuth와 API 키 연결은 모델 서비스가 반환하는 기능 정보를 바탕으로 선택 가능한 강도를 표시합니다. 지원하지 않거나 확인할 수 없으면 컨트롤이 비활성화되지만 일반적인 모델 사용은 가능합니다.",
+          label: "테마와 사용자 지정 색상",
+          text: "기본 테마의 대비를 개선하고 테마 업데이트 후에도 사용자가 바꾼 색상을 유지합니다.",
         },
         {
-          label: "더 빠른 선택 영역 번역",
-          text: "번역 속도를 높이려면 가장 낮은 추론 강도를 권장합니다. 보통 번역 정확도에 미치는 영향은 작습니다.",
+          label: "검증된 번역 환경 업데이트",
+          text: "호환되는 업데이트를 확인하며 번역 탭에서 설치/업데이트를 선택하면 검증된 환경을 설치합니다.",
         },
         {
-          label: "모델 호환성 수정",
-          text: "일부 모델에서 출력 길이 매개변수의 호환성 문제로 채팅이나 전체 문서 번역이 실패하던 문제를 수정했습니다.",
+          label: "모델 목록 오류와 안정성",
+          text: "목록을 가져오지 못하면 네트워크, 접근 또는 로그인 원인을 표시합니다. 채팅과 번역 문제도 수정했습니다.",
         },
       ],
-      note: "업데이트 후 Zotero를 다시 시작하세요. 모델 설정에서 모델 목록을 새로 고치면 최신 추론 강도 지원 정보를 가져올 수 있습니다.",
+      note: "오른쪽 클릭 번역을 사용하기 전에 AIdea 번역 탭에서 모델을 선택하고 번역 환경을 준비하세요. 업데이트 후 Zotero를 다시 시작하세요.",
       confirm: "확인",
       close: "업데이트 안내 닫기",
       exampleLabel: "",
@@ -1403,29 +1404,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title:
-        "AIdea v3.7.0: Effort de raisonnement et compatibilité des modèles",
-      lead: "Réglez séparément l’effort de raisonnement du chat, de la traduction intégrale et de la traduction de sélection pour équilibrer vitesse et profondeur.",
+      title: "AIdea v3.8.0 : traduction PDF en un clic et interface améliorée",
+      lead: "Lancez la traduction intégrale d’un PDF depuis le menu contextuel d’un élément Zotero. Le PDF traduit est ajouté à l’élément et ouvert dans le lecteur. Cette version améliore aussi les thèmes, les mises à jour de l’environnement de traduction et les messages d’erreur de connexion.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Commande de raisonnement dédiée",
-          text: "Une ampoule colorée près du sélecteur de modèle indique l’effort. Changer de modèle conserve votre choix ; si ce niveau est indisponible, un niveau pris en charge est utilisé avec une indication explicative.",
+          label: "Traduction PDF depuis le menu contextuel",
+          text: "Cliquez avec le bouton droit sur un seul élément contenant un PDF. Les réglages enregistrés sont utilisés et le résultat est ajouté à l’élément puis ouvert dans Zotero.",
         },
         {
-          label: "Niveaux propres à chaque modèle",
-          text: "Les connexions Codex OAuth et par clé API utilisent les capacités renvoyées par le service du modèle. Si la prise en charge est absente ou inconnue, la commande est désactivée, mais les requêtes ordinaires restent possibles.",
+          label: "Thèmes et couleurs personnalisées",
+          text: "Le contraste des thèmes intégrés est amélioré et vos couleurs personnalisées sont conservées après la mise à jour.",
         },
         {
-          label: "Traduction de sélection plus rapide",
-          text: "Le niveau d’effort le plus faible est recommandé pour accélérer la traduction, avec généralement peu d’effet sur sa précision.",
+          label: "Environnement de traduction vérifié",
+          text: "AIdea recherche les mises à jour compatibles et installe un environnement vérifié lorsque vous choisissez Installer/Mettre à jour dans l’onglet Traduction.",
         },
         {
-          label: "Corrections de compatibilité",
-          text: "Corrige les échecs du chat et de la traduction intégrale dus à des paramètres de longueur de sortie incompatibles avec certains modèles.",
+          label: "Erreurs et stabilité",
+          text: "L’actualisation des modèles explique les échecs de réseau, d’accès ou de connexion au lieu d’annoncer zéro modèle. D’autres problèmes de chat et de traduction sont corrigés.",
         },
       ],
-      note: "Redémarrez Zotero après la mise à jour. Actualisez la liste dans les paramètres des modèles pour obtenir les dernières capacités de raisonnement.",
+      note: "Avant d’utiliser le menu contextuel, choisissez un modèle et préparez l’environnement dans l’onglet Traduction d’AIdea. Redémarrez Zotero après la mise à jour.",
       confirm: "Compris",
       close: "Fermer l’avis de mise à jour",
       exampleLabel: "",
@@ -1433,28 +1433,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "de-DE": {
       eyebrow: "Update",
-      title: "AIdea v3.7.0: Denkaufwand und Modellkompatibilität",
-      lead: "Stellen Sie den Denkaufwand für Chat, vollständige Dokumentübersetzung und Auswahlübersetzung getrennt ein, um Antwortgeschwindigkeit und Denktiefe abzustimmen.",
+      title:
+        "AIdea v3.8.0: PDF-Übersetzung per Rechtsklick und bessere Oberfläche",
+      lead: "Starten Sie die vollständige PDF-Übersetzung über das Kontextmenü eines Zotero-Eintrags. Das übersetzte PDF wird dem Eintrag hinzugefügt und im Reader geöffnet. Auch Themenfarben, Übersetzungsumgebung und Fehlermeldungen bei Verbindungsproblemen wurden verbessert.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "Eigene Steuerung für den Denkaufwand",
-          text: "Eine farbige Glühbirne neben der Modellauswahl zeigt den Aufwand an. Beim Modellwechsel bleibt Ihre Auswahl gespeichert. Ist die Stufe nicht verfügbar, wird eine unterstützte Stufe mit einem erklärenden Hinweis verwendet.",
+          label: "PDF-Übersetzung im Kontextmenü",
+          text: "Klicken Sie mit der rechten Maustaste auf einen einzelnen Eintrag mit PDF. Gespeicherte Übersetzungseinstellungen werden verwendet; das Ergebnis wird dem Eintrag hinzugefügt und geöffnet.",
         },
         {
-          label: "Modellspezifische Stufen",
-          text: "Codex-OAuth- und API-Schlüssel-Verbindungen verwenden die vom Modelldienst gemeldeten Fähigkeiten. Bei fehlender oder unbekannter Unterstützung ist die Steuerung deaktiviert; normale Modellanfragen bleiben möglich.",
+          label: "Themen und eigene Farben",
+          text: "Die integrierten Themen bieten besseren Kontrast. Eigene Farbänderungen bleiben nach Themenupdates erhalten.",
         },
         {
-          label: "Schnellere Auswahlübersetzung",
-          text: "Für schnellere Übersetzungen wird die niedrigste Denkstufe empfohlen. Die Übersetzungsgenauigkeit wird dadurch meist nur wenig beeinflusst.",
+          label: "Geprüfte Übersetzungsumgebung",
+          text: "AIdea prüft kompatible Updates und installiert eine geprüfte Umgebung, wenn Sie im Übersetzungsreiter Installieren/Aktualisieren wählen.",
         },
         {
-          label: "Verbesserte Modellkompatibilität",
-          text: "Behebt Fehler bei Chat und vollständiger Dokumentübersetzung, die bei einigen Modellen durch inkompatible Parameter für die Ausgabelänge verursacht wurden.",
+          label: "Fehlerhinweise und Stabilität",
+          text: "Beim Abrufen der Modellliste werden Netzwerk-, Zugriffs- oder Anmeldefehler gemeldet statt eines scheinbaren Erfolgs mit null Modellen. Weitere Chat- und Übersetzungsfehler sind behoben.",
         },
       ],
-      note: "Starten Sie Zotero nach dem Update neu. Aktualisieren Sie die Modellliste in den Modelleinstellungen, um die neuesten Angaben zu unterstützten Denkstufen abzurufen.",
+      note: "Wählen Sie vor der Übersetzung per Rechtsklick ein Modell und richten Sie die Umgebung im AIdea-Übersetzungsreiter ein. Starten Sie Zotero nach dem Update neu.",
       confirm: "Verstanden",
       close: "Update-Hinweis schließen",
       exampleLabel: "",
@@ -1462,29 +1463,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title:
-        "AIdea v3.7.0: Esfuerzo de razonamiento y compatibilidad de modelos",
-      lead: "Ajuste por separado el esfuerzo de razonamiento del chat, la traducción completa y la traducción de selección para equilibrar velocidad y profundidad.",
+      title: "AIdea v3.8.0: traducción PDF con un clic y mejoras de interfaz",
+      lead: "Inicie la traducción completa de un PDF desde el menú contextual de un elemento de Zotero. El PDF traducido se añade al elemento y se abre en el lector. También mejoran los temas, las actualizaciones del entorno de traducción y los errores de conexión.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Control de razonamiento independiente",
-          text: "Una bombilla de color junto al selector de modelo indica el esfuerzo. Al cambiar de modelo se conserva su elección; si ese nivel no está disponible, se usa uno compatible y se muestra una explicación.",
+          label: "Traducción PDF desde el menú contextual",
+          text: "Haga clic derecho en un solo elemento con PDF para usar los ajustes guardados. El resultado se añade al elemento y se abre en el lector de Zotero.",
         },
         {
-          label: "Niveles específicos de cada modelo",
-          text: "Las conexiones Codex OAuth y mediante clave API usan las capacidades que devuelve el servicio del modelo. Si no hay soporte o se desconoce, el control se desactiva, pero las solicitudes habituales siguen disponibles.",
+          label: "Temas y colores personalizados",
+          text: "Los temas integrados tienen mejor contraste y sus colores personalizados se conservan tras la actualización.",
         },
         {
-          label: "Traducción de selección más rápida",
-          text: "Se recomienda el esfuerzo de razonamiento más bajo para acelerar la traducción, normalmente con poco impacto en su precisión.",
+          label: "Entorno de traducción verificado",
+          text: "AIdea busca actualizaciones compatibles e instala un entorno verificado cuando elige Instalar/Actualizar en la pestaña Traducción.",
         },
         {
-          label: "Correcciones de compatibilidad",
-          text: "Corrige fallos del chat y de la traducción completa causados por parámetros de longitud de salida incompatibles con algunos modelos.",
+          label: "Errores y estabilidad",
+          text: "La actualización de modelos informa de fallos de red, acceso o inicio de sesión en lugar de mostrar cero modelos como éxito. También se corrigen problemas de chat y traducción.",
         },
       ],
-      note: "Reinicie Zotero tras actualizar. Actualice la lista en los ajustes de modelos para obtener las capacidades de razonamiento más recientes.",
+      note: "Antes de usar el menú contextual, elija un modelo y prepare el entorno en la pestaña Traducción de AIdea. Reinicie Zotero tras actualizar.",
       confirm: "Entendido",
       close: "Cerrar aviso de actualización",
       exampleLabel: "",
@@ -1492,28 +1492,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "AIdea v3.7.0: Уровень рассуждений и совместимость моделей",
-      lead: "Настраивайте уровень рассуждений отдельно для чата, полного перевода документа и перевода выделенного текста, выбирая баланс скорости и глубины.",
+      title: "AIdea v3.8.0: перевод PDF одним нажатием и улучшение интерфейса",
+      lead: "Запускайте полный перевод PDF из контекстного меню записи Zotero. Переведённый PDF добавляется к записи и открывается в ридере. Улучшены темы, обновление среды перевода и сообщения об ошибках подключения.",
       alsoLabel: "В этом обновлении",
       alsoItems: [
         {
-          label: "Отдельная настройка рассуждений",
-          text: "Цветная лампочка рядом с выбором модели показывает уровень. При смене модели ваш выбор сохраняется; если уровень недоступен, используется поддерживаемый уровень с пояснением.",
+          label: "Перевод PDF из контекстного меню",
+          text: "Щёлкните правой кнопкой по одной записи с PDF. Используются сохранённые настройки; результат добавляется к записи и открывается в Zotero.",
         },
         {
-          label: "Уровни для каждой модели",
-          text: "Подключения Codex OAuth и по API-ключу используют сведения о возможностях, возвращаемые сервисом модели. Если поддержка отсутствует или неизвестна, настройка отключается, но обычные запросы остаются доступны.",
+          label: "Темы и собственные цвета",
+          text: "У встроенных тем улучшен контраст, а ваши изменения цветов сохраняются после обновления.",
         },
         {
-          label: "Быстрый перевод выделенного текста",
-          text: "Для ускорения перевода рекомендуется самый низкий уровень рассуждений. Обычно это мало влияет на точность перевода.",
+          label: "Проверенная среда перевода",
+          text: "AIdea проверяет совместимые обновления и устанавливает проверенную среду при выборе «Установить/обновить» на вкладке перевода.",
         },
         {
-          label: "Исправления совместимости",
-          text: "Исправлены сбои чата и полного перевода, вызванные несовместимыми параметрами длины ответа у некоторых моделей.",
+          label: "Ошибки и стабильность",
+          text: "При сбое загрузки списка моделей указывается причина: сеть, доступ или вход. Исправлены и другие ошибки чата и перевода.",
         },
       ],
-      note: "Перезапустите Zotero после обновления. Обновите список моделей в настройках, чтобы получить актуальные сведения о поддерживаемых уровнях рассуждений.",
+      note: "Перед переводом через меню выберите модель и подготовьте среду на вкладке перевода AIdea. После обновления перезапустите Zotero.",
       confirm: "Понятно",
       close: "Закрыть уведомление",
       exampleLabel: "",
@@ -1521,28 +1521,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title: "AIdea v3.7.0: Esforço de raciocínio e compatibilidade de modelos",
-      lead: "Defina separadamente o esforço de raciocínio do chat, da tradução completa e da tradução de seleção para equilibrar velocidade e profundidade.",
+      title:
+        "AIdea v3.8.0: tradução de PDF com um clique e interface melhorada",
+      lead: "Inicie a tradução integral de um PDF pelo menu de contexto de um item do Zotero. O PDF traduzido é adicionado ao item e aberto no leitor. Esta versão também melhora as cores dos temas, as atualizações do ambiente de tradução e as mensagens de erro de conexão.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Controle de raciocínio dedicado",
-          text: "Uma lâmpada colorida ao lado do seletor de modelo indica o esforço. Trocar de modelo preserva sua escolha; se o nível não estiver disponível, será usado um nível compatível com uma explicação.",
+          label: "Tradução de PDF pelo menu de contexto",
+          text: "Clique com o botão direito em um único item com PDF para usar as configurações salvas. O resultado é adicionado ao item e aberto no leitor do Zotero.",
         },
         {
-          label: "Níveis específicos por modelo",
-          text: "As conexões Codex OAuth e por chave API usam as capacidades retornadas pelo serviço do modelo. Quando não há suporte ou ele é desconhecido, o controle fica desativado, mas as solicitações normais continuam disponíveis.",
+          label: "Temas e cores personalizadas",
+          text: "Os temas integrados têm melhor contraste e as cores personalizadas são preservadas após a atualização.",
         },
         {
-          label: "Tradução de seleção mais rápida",
-          text: "Recomenda-se o menor esforço de raciocínio para acelerar a tradução, geralmente com pouco impacto na precisão.",
+          label: "Ambiente de tradução verificado",
+          text: "AIdea verifica atualizações compatíveis e instala um ambiente validado quando você escolhe Instalar/Atualizar na aba Tradução.",
         },
         {
-          label: "Correções de compatibilidade",
-          text: "Corrige falhas no chat e na tradução completa causadas por parâmetros de comprimento de saída incompatíveis com alguns modelos.",
+          label: "Erros e estabilidade",
+          text: "A atualização da lista de modelos informa falhas de rede, acesso ou login em vez de mostrar zero modelos como sucesso. Outros problemas de chat e tradução também foram corrigidos.",
         },
       ],
-      note: "Reinicie o Zotero após atualizar. Atualize a lista nas configurações de modelos para obter as capacidades de raciocínio mais recentes.",
+      note: "Antes de usar o menu de contexto, escolha um modelo e prepare o ambiente na aba Tradução do AIdea. Reinicie o Zotero após atualizar.",
       confirm: "Entendi",
       close: "Fechar aviso de atualização",
       exampleLabel: "",
@@ -1550,28 +1551,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "AIdea v3.7.0: جهد الاستدلال وتوافق النماذج",
-      lead: "يمكنك ضبط جهد الاستدلال بشكل مستقل للمحادثة وترجمة المستند بالكامل وترجمة النص المحدد، للموازنة بين سرعة الاستجابة وعمق الاستدلال.",
+      title: "AIdea v3.8.0: ترجمة PDF بنقرة واحدة وتحسين الواجهة",
+      lead: "يمكنك بدء ترجمة ملف PDF بالكامل من القائمة السياقية لعنصر Zotero. تُضاف النسخة المترجمة إلى العنصر وتُفتح في القارئ. يحسّن التحديث أيضاً ألوان السمات وتحديث بيئة الترجمة ورسائل أخطاء الاتصال.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "تحكم مستقل في الاستدلال",
-          text: "يشير مصباح ملوّن بجوار محدد نموذج المحادثة إلى مستوى الجهد. يُحفظ اختيارك عند تبديل النموذج؛ وإذا لم يكن المستوى مدعوماً، يُستخدم مستوى مدعوم مع توضيح ذلك.",
+          label: "ترجمة PDF من القائمة السياقية",
+          text: "انقر بزر الفأرة الأيمن على عنصر واحد يحتوي على PDF لاستخدام الإعدادات المحفوظة؛ تُضاف النتيجة إلى العنصر وتُفتح في قارئ Zotero.",
         },
         {
-          label: "مستويات خاصة بكل نموذج",
-          text: "تستخدم اتصالات Codex OAuth ومفتاح API معلومات القدرات التي تعيدها خدمة النموذج. عند غياب الدعم أو تعذّر تحديده، يُعطّل عنصر التحكم مع بقاء الطلبات العادية متاحة.",
+          label: "السمات والألوان المخصصة",
+          text: "تحسّن تباين السمات المدمجة وتبقى تعديلات الألوان المخصصة بعد التحديث.",
         },
         {
-          label: "ترجمة أسرع للنص المحدد",
-          text: "يُنصح بأدنى جهد استدلال لتسريع الترجمة، مع تأثير محدود عادةً على دقتها.",
+          label: "بيئة ترجمة تم التحقق منها",
+          text: "يفحص AIdea التحديثات المتوافقة ويثبّت بيئة تم التحقق منها عند اختيار تثبيت/تحديث في تبويب الترجمة.",
         },
         {
-          label: "إصلاحات توافق النماذج",
-          text: "أُصلحت حالات فشل المحادثة وترجمة المستند بالكامل الناتجة عن عدم توافق معاملات طول المخرجات مع بعض النماذج.",
+          label: "الأخطاء والاستقرار",
+          text: "عند فشل تحديث قائمة النماذج تظهر أسباب الشبكة أو الوصول أو تسجيل الدخول بدلاً من إعلان النجاح مع صفر نماذج. أُصلحت أيضاً مشكلات في المحادثة والترجمة.",
         },
       ],
-      note: "أعد تشغيل Zotero بعد التحديث. حدّث قائمة النماذج في إعداداتها للحصول على أحدث معلومات دعم جهد الاستدلال.",
+      note: "قبل استخدام الترجمة من القائمة، اختر نموذجاً وجهّز بيئة الترجمة في تبويب الترجمة في AIdea. أعد تشغيل Zotero بعد التحديث.",
       confirm: "فهمت",
       close: "إغلاق إشعار التحديث",
       exampleLabel: "",
@@ -1579,35 +1580,34 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "AIdea v3.7.0: तर्क प्रयास और मॉडल संगतता",
-      lead: "प्रतिक्रिया की गति और तर्क की गहराई में संतुलन के लिए चैट, पूरे दस्तावेज़ के अनुवाद और चुने हुए पाठ के अनुवाद का तर्क प्रयास अलग-अलग सेट करें।",
+      title: "AIdea v3.8.0: एक क्लिक PDF अनुवाद और बेहतर इंटरफ़ेस",
+      lead: "Zotero आइटम के राइट-क्लिक मेनू से पूरा PDF अनुवाद शुरू करें। अनुवादित PDF उसी आइटम में जुड़ता है और रीडर में खुलता है। इस अपडेट में थीम रंग, अनुवाद वातावरण अपडेट और कनेक्शन त्रुटि संदेश भी सुधरे हैं।",
       alsoLabel: "इस अपडेट में",
       alsoItems: [
         {
-          label: "अलग तर्क प्रयास नियंत्रण",
-          text: "चैट मॉडल चयन के पास रंगीन बल्ब प्रयास का स्तर दिखाता है। मॉडल बदलने पर आपकी पसंद सुरक्षित रहती है; वह स्तर उपलब्ध न होने पर समर्थित स्तर इस्तेमाल होता है और उसका स्पष्टीकरण दिखता है।",
+          label: "राइट-क्लिक से PDF अनुवाद",
+          text: "PDF वाले एक आइटम पर राइट-क्लिक करके सहेजी गई अनुवाद सेटिंग इस्तेमाल करें। परिणाम आइटम में जुड़कर Zotero रीडर में खुलता है।",
         },
         {
-          label: "हर मॉडल के समर्थित स्तर",
-          text: "Codex OAuth और API कुंजी कनेक्शन मॉडल सेवा से मिली क्षमता की जानकारी का उपयोग करते हैं। समर्थन न होने या अज्ञात होने पर नियंत्रण निष्क्रिय रहता है, लेकिन सामान्य मॉडल अनुरोध उपलब्ध रहते हैं।",
+          label: "थीम और अपने रंग",
+          text: "बिल्ट-इन थीम का कंट्रास्ट बेहतर है और आपके चुने हुए रंग अपडेट के बाद भी सुरक्षित रहते हैं।",
         },
         {
-          label: "चुने हुए पाठ का तेज़ अनुवाद",
-          text: "तेज़ अनुवाद के लिए सबसे कम तर्क प्रयास की सलाह दी जाती है। आमतौर पर इससे अनुवाद की सटीकता पर कम प्रभाव पड़ता है।",
+          label: "जाँचा हुआ अनुवाद वातावरण",
+          text: "AIdea संगत अपडेट जाँचता है और अनुवाद टैब में इंस्टॉल/अपडेट चुनने पर सत्यापित वातावरण इंस्टॉल करता है।",
         },
         {
-          label: "मॉडल संगतता सुधार",
-          text: "कुछ मॉडलों में आउटपुट लंबाई के असंगत पैरामीटर के कारण चैट या पूरे दस्तावेज़ का अनुवाद विफल होने की समस्या ठीक की गई है।",
+          label: "त्रुटि संदेश और स्थिरता",
+          text: "मॉडल सूची रिफ़्रेश विफल होने पर नेटवर्क, पहुँच या लॉगिन का कारण दिखता है, शून्य मॉडल को सफलता नहीं बताया जाता। चैट और अनुवाद की अन्य समस्याएँ भी ठीक की गई हैं।",
         },
       ],
-      note: "अपडेट के बाद Zotero को पुनः प्रारंभ करें। तर्क प्रयास की नवीनतम समर्थन जानकारी पाने के लिए मॉडल सेटिंग में मॉडल सूची रीफ़्रेश करें।",
+      note: "राइट-क्लिक अनुवाद से पहले AIdea अनुवाद टैब में मॉडल चुनें और वातावरण तैयार करें। अपडेट के बाद Zotero पुनः शुरू करें।",
       confirm: "समझ गया",
       close: "अपडेट सूचना बंद करें",
       exampleLabel: "",
       examplePrompt: "",
     },
   };
-
 let noticeShowingOrSeen = false;
 const NOTICE_DIALOG_WIDTH = 760;
 const NOTICE_DIALOG_HEIGHT = 520;
