@@ -298,6 +298,49 @@ export function resolveRequestReasoningEffort(
 
 const API_CAPS_PREF = `${config.prefsPrefix}.apiReasoningCapabilities`;
 const API_CAPS_TTL = 24 * 60 * 60 * 1000;
+const API_CAPS_REFRESH_INTERVAL = 60 * 60 * 1000;
+
+type ApiReasoningCatalogRefresher = (
+  apiBase: string,
+  apiKey: string,
+) => unknown;
+
+let apiCatalogRefresher: ApiReasoningCatalogRefresher | null = null;
+const apiCatalogRefreshAttempts = new Map<string, number>();
+
+/**
+ * Register the function that re-fetches an endpoint's model catalog. It lives
+ * here as a hook because the fetcher's module already imports this one.
+ * Returns the previous refresher; registering also resets the throttle.
+ */
+export function setApiReasoningCatalogRefresher(
+  refresher: ApiReasoningCatalogRefresher | null,
+): ApiReasoningCatalogRefresher | null {
+  const previous = apiCatalogRefresher;
+  apiCatalogRefresher = refresher;
+  apiCatalogRefreshAttempts.clear();
+  return previous;
+}
+
+/** At most one background refresh per scope per interval, failures included. */
+function refreshExpiredApiCatalog(
+  scope: string,
+  apiBase: string,
+  apiKey: string,
+): void {
+  if (!apiCatalogRefresher) return;
+  const now = Date.now();
+  const last = apiCatalogRefreshAttempts.get(scope);
+  if (last !== undefined && now - last < API_CAPS_REFRESH_INTERVAL) return;
+  apiCatalogRefreshAttempts.set(scope, now);
+  try {
+    void Promise.resolve(apiCatalogRefresher(apiBase, apiKey)).catch(() => {
+      /* The stale catalog stays in use until a refresh succeeds. */
+    });
+  } catch {
+    /* Same as an asynchronous failure. */
+  }
+}
 type ApiCatalog = {
   updated: number;
   models: Record<string, ModelReasoningSupport>;
@@ -422,7 +465,11 @@ export function parseApiReasoningSupport(
   };
 }
 
-/** Replace on every refresh (including failures), so removed capabilities cannot linger. */
+/**
+ * Replace the scope's catalog with a successfully fetched model list, so
+ * removed capabilities cannot linger. Callers must not write on a failed
+ * fetch: the previous catalog stays usable until a refresh succeeds.
+ */
 export function cacheApiReasoningCatalog(
   apiBase: string,
   apiKey: string,
@@ -445,13 +492,14 @@ export function getApiReasoningSupport(
   model: string,
   apiKey = "",
 ): ModelReasoningSupport {
-  const entry = readApiCatalogs()[apiScope(apiBase, apiKey)];
-  if (
-    !entry ||
-    !Number.isFinite(entry.updated) ||
-    Date.now() - entry.updated > API_CAPS_TTL
-  )
+  const scope = apiScope(apiBase, apiKey);
+  const entry = readApiCatalogs()[scope];
+  if (!entry || !Number.isFinite(entry.updated))
     return { efforts: [], catalogMissing: true };
+  // Stale-while-revalidate: an expired catalog keeps answering. A model the
+  // provider no longer accepts is corrected by rejectApiReasoningSupport.
+  if (Date.now() - entry.updated > API_CAPS_TTL)
+    refreshExpiredApiCatalog(scope, apiBase, apiKey);
   const support = entry.models?.[model.trim()];
   if (!support || !Array.isArray(support.efforts))
     return { efforts: [], catalogMissing: true };

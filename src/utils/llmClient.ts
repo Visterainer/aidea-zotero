@@ -2712,7 +2712,7 @@ export async function callLLMStream(
  */
 export async function callEmbeddings(
   input: string[],
-  overrides?: { apiBase?: string; apiKey?: string },
+  overrides?: { apiBase?: string; apiKey?: string; signal?: AbortSignal },
 ): Promise<number[][]> {
   const { apiBase, apiKey, embeddingModel } = getApiConfig({
     apiBase: overrides?.apiBase,
@@ -2731,6 +2731,7 @@ export async function callEmbeddings(
     method: "POST",
     headers: buildHeaders(apiKey),
     body: JSON.stringify(payload),
+    signal: overrides?.signal,
   });
 
   if (!res.ok) {

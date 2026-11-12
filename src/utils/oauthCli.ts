@@ -11,6 +11,7 @@ import {
   parseCatalogReasoningLevels,
   cacheApiReasoningCatalog,
   normalizeReasoningApiBase,
+  setApiReasoningCatalogRefresher,
 } from "./reasoningEffort";
 import { recordOAuthEnvUpdateSuccess } from "./oauthEnvUpdateState";
 import {
@@ -25,6 +26,11 @@ declare const Zotero: any;
 declare const ztoolkit: any;
 declare const Cc: any;
 declare const Ci: any;
+
+// Subprocess bounds: a hung child must not leave the UI waiting forever.
+const PROBE_TIMEOUT_MS = 30_000;
+const INSTALL_TIMEOUT_MS = 15 * 60_000;
+const LOGIN_TIMEOUT_MS = 10 * 60_000;
 
 type OAuthUiLang = PanelLang;
 
@@ -258,22 +264,6 @@ type ProviderCliSpec = {
   packageName: string;
   executableName: string;
   versionArg: string;
-  minNodeVersion?: [number, number, number];
-  minNodeVersionLabel?: string;
-};
-
-type NpmEnvironmentState = {
-  platform: SupportedPlatform;
-  nodePath: string | null;
-  npmPath: string | null;
-  nodeVersion: string;
-  nodeArch: string;
-  npmReportedVersion: string;
-  npmPackageVersion: string;
-  latestNpmVersion: string;
-  prefix: string;
-  globalRoot: string;
-  globalBinDir: string;
 };
 
 const PROVIDER_CLI_SPECS: Partial<Record<OAuthProviderId, ProviderCliSpec>> = {
@@ -291,109 +281,53 @@ export function normalizeVersionText(raw: string | null | undefined): string {
   return match ? match[0] : "";
 }
 
-function parseVersionParts(
-  raw: string | null | undefined,
-): [number, number, number] | null {
-  const normalized = normalizeVersionText(raw);
-  if (!normalized) return null;
-  const parts = normalized
-    .split(/[+-]/, 1)[0]
-    .split(".")
-    .map((part) => Number.parseInt(part, 10));
-  if (!Number.isFinite(parts[0])) return null;
-  return [
-    Number.isFinite(parts[0]) ? parts[0] : 0,
-    Number.isFinite(parts[1]) ? parts[1] : 0,
-    Number.isFinite(parts[2]) ? parts[2] : 0,
-  ];
+/** `codex --version` prints "codex-cli 0.162.1"; warnings may precede it. */
+export function parseCodexCliVersion(output: string): string {
+  const text = String(output || "");
+  const named = text.match(/codex(?:-cli)?\s+v?(\d+\.\d+\.\d+)/i);
+  if (named) return named[1];
+  const bare = text.match(/(?:^|\s)v?(\d+\.\d+\.\d+)(?:\s|$)/);
+  return bare ? bare[1] : "";
 }
 
-function isVersionAtLeast(
-  raw: string | null | undefined,
-  major: number,
-  minor = 0,
-  patch = 0,
-): boolean {
-  const parts = parseVersionParts(raw);
-  if (!parts) return false;
-  const target = [major, minor, patch];
-  for (let i = 0; i < target.length; i += 1) {
-    if (parts[i] > target[i]) return true;
-    if (parts[i] < target[i]) return false;
+/** Negative when `a` is older than `b`; 0 when equal or either is unparsable. */
+export function compareReleaseVersions(a: string, b: string): number {
+  const parse = (value: string) => {
+    const match = String(value || "").match(/(\d+)\.(\d+)\.(\d+)/);
+    return match ? match.slice(1).map((part) => Number(part)) : null;
+  };
+  const left = parse(a);
+  const right = parse(b);
+  if (!left || !right) return 0;
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] !== right[i]) return left[i] < right[i] ? -1 : 1;
   }
-  return true;
+  return 0;
 }
 
-function isNodeVersionSupportedByLatestNpm(
-  nodeVersion: string | null | undefined,
-): boolean {
-  const parts = parseVersionParts(nodeVersion);
-  if (!parts) return false;
-  const [major] = parts;
-  if (major === 20) return isVersionAtLeast(nodeVersion, 20, 17, 0);
-  if (major === 22) return isVersionAtLeast(nodeVersion, 22, 9, 0);
-  return major > 22;
-}
+const CODEX_LATEST_RELEASE_URL =
+  "https://releases.openai.com/codex/channels/latest";
 
-function isNodeVersionSupportedByCliSpec(
-  nodeVersion: string | null | undefined,
-  spec: ProviderCliSpec | null | undefined,
-): boolean {
-  if (!spec?.minNodeVersion) return true;
-  const [major, minor, patch] = spec.minNodeVersion;
-  return isVersionAtLeast(nodeVersion, major, minor, patch);
-}
-
-export function isNodeVersionSupportedByProviderCli(
-  provider: OAuthProviderId,
-  nodeVersion: string | null | undefined,
-): boolean {
-  return isNodeVersionSupportedByCliSpec(
-    nodeVersion,
-    getProviderCliSpec(provider),
-  );
-}
-
-function looksLikeMissingOptionalDependency(output: string): boolean {
-  return /Missing optional dependency\s+@openai\/codex-/i.test(
-    String(output || ""),
-  );
-}
-
-export function derivePreferredUserNpmPrefix(
-  platform: SupportedPlatform,
-  home: string,
-): string {
-  const base = String(home || "").trim();
-  if (!base) return "";
-  if (platform === "windows") {
-    const appData =
-      getEnv("APPDATA") || joinPath(base, "AppData", "Roaming", platform);
-    return joinPath(appData, "npm", platform);
+/** Latest stable Codex CLI version, or "" when it cannot be determined. */
+async function fetchLatestCodexCliVersion(): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await getFetch()(CODEX_LATEST_RELEASE_URL, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) return "";
+    const json = (await res.json()) as unknown as { tag_name?: unknown };
+    const tag = typeof json?.tag_name === "string" ? json.tag_name : "";
+    // Pre-release tags carry a suffix (-alpha.1); only offer stable builds.
+    const match = tag.match(/^(?:rust-)?v?(\d+\.\d+\.\d+)$/);
+    return match ? match[1] : "";
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timer);
   }
-  return joinPath(base, ".npm-global", platform);
-}
-
-export function deriveNpmGlobalRootFromPrefix(
-  prefix: string,
-  platform: SupportedPlatform,
-): string {
-  const normalized = String(prefix || "").trim();
-  if (!normalized) return "";
-  return platform === "windows"
-    ? joinPath(normalized, "node_modules", platform)
-    : joinPath(normalized, "lib", "node_modules", platform);
-}
-
-export function deriveNpmGlobalBinDirFromPrefix(
-  prefix: string,
-  platform: SupportedPlatform,
-): string {
-  const normalized = String(prefix || "").trim();
-  if (!normalized) return "";
-  return platform === "windows"
-    ? normalized
-    : joinPath(normalized, "bin", platform);
 }
 
 export function getCodexStandaloneInstallCommand(
@@ -403,8 +337,9 @@ export function getCodexStandaloneInstallCommand(
     return "$env:CODEX_NON_INTERACTIVE=1; $sys=$env:SystemRoot; $env:Path=(Join-Path $sys 'System32')+';'+$sys+';'+(Join-Path $sys 'System32\\WindowsPowerShell\\v1.0')+';'+$env:Path; irm https://chatgpt.com/codex/install.ps1 | iex";
   }
   // pipefail: without it a failed download still exits 0, because `sh`
-  // happily runs an empty script.
-  return "set -o pipefail; curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh";
+  // happily runs an empty script. Stock Debian/Ubuntu ship wget but not
+  // curl, so fall back to it.
+  return "set -o pipefail; if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh; else wget -q -T 30 -O- https://chatgpt.com/codex/install.sh; fi | CODEX_NON_INTERACTIVE=1 sh";
 }
 
 export function deriveCodexStandaloneBinDirs(
@@ -439,17 +374,6 @@ function getCodexStandaloneBinDirs(
     getEnv("LOCALAPPDATA"),
     getEnv("CODEX_INSTALL_DIR"),
   ).filter(isDirectoryPath);
-}
-
-export function shouldInstallLatestPackageVersion(
-  installedVersion: string | null | undefined,
-  latestVersion: string | null | undefined,
-): boolean {
-  const installed = normalizeVersionText(installedVersion);
-  const latest = normalizeVersionText(latestVersion);
-  if (!installed) return true;
-  if (!latest) return false;
-  return installed !== latest;
 }
 
 export function getProviderCliSpec(
@@ -498,22 +422,43 @@ function getEnv(name: string): string {
   }
 }
 
+const PROXY_ENV_KEYS = [
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+];
+// What this plugin last exported, so it can be withdrawn again.
+let managedProxyEnvUrl = "";
+
 function setProxyEnv(proxyUrl: string, noProxy?: string): void {
-  for (const key of [
-    "HTTP_PROXY",
-    "HTTPS_PROXY",
-    "ALL_PROXY",
-    "http_proxy",
-    "https_proxy",
-    "all_proxy",
-  ]) {
+  // On Linux the "system proxy" is read from these very variables; copying
+  // one of them over the others would destroy a deliberate per-scheme setup.
+  if (currentPlatform() === "linux") return;
+  for (const key of PROXY_ENV_KEYS) {
     setProcessEnv(key, proxyUrl);
   }
+  managedProxyEnvUrl = proxyUrl;
   const bypass = String(noProxy || "").trim();
   if (bypass) {
     setProcessEnv("NO_PROXY", bypass);
     setProcessEnv("no_proxy", bypass);
   }
+}
+
+/**
+ * The system proxy is gone: withdraw the variables we exported, otherwise
+ * the installer, `codex` and the translation engine keep dialling a dead
+ * port until Zotero restarts. Variables someone else changed are left alone.
+ */
+function clearManagedProxyEnv(): void {
+  if (!managedProxyEnvUrl) return;
+  for (const key of PROXY_ENV_KEYS) {
+    if (getEnv(key) === managedProxyEnvUrl) setProcessEnv(key, "");
+  }
+  managedProxyEnvUrl = "";
 }
 
 export type SystemProxyConfig = {
@@ -928,7 +873,10 @@ export function parseMacSystemProxy(raw: string): SystemProxyConfig | null {
 
 async function readMacSystemProxyConfig(): Promise<SystemProxyConfig | null> {
   try {
-    const result = await runShellCommand("scutil --proxy", { hidden: true });
+    const result = await runShellCommand("scutil --proxy", {
+      hidden: true,
+      timeoutMs: PROBE_TIMEOUT_MS,
+    });
     if (result.code !== 0) return null;
     return parseMacSystemProxy([result.stdout, result.stderr].join("\n"));
   } catch {
@@ -1059,6 +1007,7 @@ export async function ensureZoteroProxyFromSystem(options?: {
         `AIdea: Applied ${currentPlatform()} system proxy to Zotero`,
       );
     }
+    if (!proxy) clearManagedProxyEnv();
     if (!proxy && releaseManagedProxyFromZotero(prefSvc)) {
       ztoolkit?.log?.(
         "AIdea: System proxy is gone; released the managed Zotero proxy",
@@ -1121,42 +1070,6 @@ function isDirectoryPath(path: string): boolean {
     return Boolean(file?.exists() && file.isDirectory());
   } catch {
     return false;
-  }
-}
-
-function ensureDirectoryExists(path: string): { ok: boolean; message: string } {
-  const normalized = String(path || "").trim();
-  if (!normalized) {
-    return { ok: false, message: "Directory path is empty" };
-  }
-
-  const file = initLocalFile(normalized);
-  if (!file) {
-    return { ok: false, message: `Invalid directory path: ${normalized}` };
-  }
-  if (file.exists()) {
-    return file.isDirectory()
-      ? { ok: true, message: `Directory ready: ${normalized}` }
-      : {
-          ok: false,
-          message: `Path exists but is not a directory: ${normalized}`,
-        };
-  }
-
-  const parentPath = file.parent?.path || "";
-  if (parentPath && !pathExists(parentPath)) {
-    const parentResult = ensureDirectoryExists(parentPath);
-    if (!parentResult.ok) return parentResult;
-  }
-
-  try {
-    file.create(Ci.nsIFile.DIRECTORY_TYPE, 0o755);
-    return { ok: true, message: `Created directory: ${normalized}` };
-  } catch (err) {
-    return {
-      ok: false,
-      message: `Failed to create directory ${normalized}: ${String(err)}`,
-    };
   }
 }
 
@@ -1374,7 +1287,10 @@ async function locateExecutableViaShell(
   };
 
   const runLocator = async (command: string): Promise<string | null> => {
-    const result = await runShellCommand(command, { hidden: true });
+    const result = await runShellCommand(command, {
+      hidden: true,
+      timeoutMs: PROBE_TIMEOUT_MS,
+    });
     if (result.code !== 0) return null;
 
     const chosen = chooseCandidate(
@@ -1425,6 +1341,7 @@ function buildExecutableCommand(
 async function runExecutableCommand(
   executablePath: string,
   args: string[],
+  timeoutMs = PROBE_TIMEOUT_MS,
 ): Promise<{
   code: number;
   stdout: string;
@@ -1433,226 +1350,13 @@ async function runExecutableCommand(
 }> {
   const result = await runShellCommand(
     buildExecutableCommand(executablePath, args),
-    {
-      hidden: true,
-    },
+    { hidden: true, timeoutMs },
   );
   const output = [result.stdout, result.stderr]
     .filter(Boolean)
     .join("\n")
     .trim();
   return { ...result, output };
-}
-
-async function queryRegistryPackageVersion(
-  npmExecutablePath: string,
-  packageName: string,
-): Promise<string> {
-  if (!npmExecutablePath || !packageName) return "";
-  try {
-    const result = await runExecutableCommand(npmExecutablePath, [
-      "view",
-      packageName,
-      "version",
-      "--silent",
-    ]);
-    return normalizeVersionText(result.output);
-  } catch {
-    return "";
-  }
-}
-
-function getPackageJsonPath(globalRoot: string, packageName: string): string {
-  const segments = packageName
-    .split("/")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return joinPath(globalRoot, ...segments, "package.json");
-}
-
-async function readGlobalPackageVersion(
-  globalRoot: string,
-  packageName: string,
-): Promise<string> {
-  if (!globalRoot || !packageName) return "";
-  const data = await readJsonFile(getPackageJsonPath(globalRoot, packageName));
-  return normalizeVersionText(data?.version);
-}
-
-function looksLikePermissionError(text: string): boolean {
-  const normalized = String(text || "").toLowerCase();
-  return (
-    normalized.includes("eacces") ||
-    normalized.includes("permission denied") ||
-    normalized.includes("access is denied") ||
-    normalized.includes("operation not permitted") ||
-    normalized.includes("sudo")
-  );
-}
-
-export function buildWindowsUserPathPersistenceScript(binDir: string): string {
-  const quotedDir = `'${String(binDir).replace(/'/g, "''")}'`;
-  return [
-    `$dir = ${quotedDir}`,
-    "$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')",
-    "if ($null -eq $userPath) { $userPath = '' }",
-    "$parts = @($userPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })",
-    "if ($parts -contains $dir) {",
-    "  'User PATH already contains npm bin dir'",
-    "} else {",
-    "  $next = @($parts + $dir) | Select-Object -Unique",
-    "  [Environment]::SetEnvironmentVariable('Path', ($next -join ';'), 'User')",
-    "  'Added npm bin dir to user PATH'",
-    "}",
-  ].join("\n");
-}
-
-async function persistBinDirToUserPath(binDir: string): Promise<string> {
-  const normalized = String(binDir || "").trim();
-  if (!normalized) return "Skipped PATH persistence: empty bin dir";
-
-  const platform = currentPlatform();
-  if (platform === "windows") {
-    const script = buildWindowsUserPathPersistenceScript(normalized);
-    const result = await runShellCommand(script, { hidden: true });
-    return (
-      [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
-      "PATH persistence finished"
-    );
-  }
-
-  const home = homeDir();
-  if (!home) return "Skipped PATH persistence: home directory not found";
-  const profileTargets =
-    platform === "macos"
-      ? [
-          joinPath(home, ".zprofile"),
-          joinPath(home, ".bash_profile"),
-          joinPath(home, ".profile"),
-        ]
-      : [joinPath(home, ".bash_profile"), joinPath(home, ".profile")];
-  const line = `export PATH=${escapeShellArg(normalized)}:$PATH`;
-  const quotedTargets = profileTargets
-    .filter(Boolean)
-    .map((target) => escapeShellArg(target))
-    .join(" ");
-  const script =
-    `for file in ${quotedTargets}; do ` +
-    `[ -f "$file" ] || touch "$file"; ` +
-    `grep -F ${escapeShellArg(line)} "$file" >/dev/null 2>&1 || printf '\\n%s\\n' ${escapeShellArg(line)} >> "$file"; ` +
-    "done";
-  const result = await runShellCommand(script, { hidden: true });
-  return (
-    [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
-    "Shell profile PATH updated"
-  );
-}
-
-async function inspectNpmEnvironment(
-  queryLatest = true,
-): Promise<NpmEnvironmentState> {
-  const platform = currentPlatform();
-
-  // Always inject the preferred user npm bin dir into the process PATH.
-  // On macOS/Linux, Zotero is a GUI app launched from Dock/Finder that does
-  // NOT read shell profiles (.zprofile, .bash_profile), so persistBinDirToUserPath
-  // alone is insufficient.  We must ensure the bin dir is reachable in every
-  // Zotero session, even before the directory physically exists (it will be
-  // created by ensureNpmDirectories later in the install flow).
-  const _home = homeDir();
-  const preferredPrefix = derivePreferredUserNpmPrefix(platform, _home);
-  const preferredBin = deriveNpmGlobalBinDirFromPrefix(
-    preferredPrefix,
-    platform,
-  );
-  if (preferredBin) {
-    prependProcessPathEntries([preferredBin]);
-  }
-
-  const nodePath =
-    (await locateExecutableViaShell("node")) || resolveExecutablePath("node");
-  const npmPath =
-    (await locateExecutableViaShell("npm")) || resolveExecutablePath("npm");
-
-  let nodeVersion = "";
-  let nodeArch = "";
-  if (nodePath) {
-    const nodeResult = await runExecutableCommand(nodePath, ["--version"]);
-    nodeVersion = normalizeVersionText(nodeResult.output);
-    const archResult = await runExecutableCommand(nodePath, [
-      "-p",
-      "process.arch",
-    ]);
-    nodeArch =
-      String(archResult.output || "")
-        .split(/\r?\n/g)
-        .map((line) => line.trim())
-        .find(Boolean) || "";
-  }
-
-  let npmReportedVersion = "";
-  let prefix = "";
-  let globalRoot = "";
-  if (npmPath) {
-    const npmVersionResult = await runExecutableCommand(npmPath, ["--version"]);
-    npmReportedVersion = normalizeVersionText(npmVersionResult.output);
-
-    const prefixResult = await runExecutableCommand(npmPath, [
-      "config",
-      "get",
-      "prefix",
-    ]);
-    prefix =
-      String(prefixResult.output || "")
-        .split(/\r?\n/g)
-        .map((line) => line.trim())
-        .find(Boolean) || "";
-
-    const rootResult = await runExecutableCommand(npmPath, ["root", "-g"]);
-    globalRoot =
-      String(rootResult.output || "")
-        .split(/\r?\n/g)
-        .map((line) => line.trim())
-        .find(Boolean) || "";
-  }
-
-  if (!globalRoot && prefix) {
-    globalRoot = deriveNpmGlobalRootFromPrefix(prefix, platform);
-  }
-  if (!prefix && globalRoot) {
-    const suffix =
-      platform === "windows" ? "\\node_modules" : "/lib/node_modules";
-    prefix = globalRoot.endsWith(suffix)
-      ? globalRoot.slice(0, -suffix.length)
-      : "";
-  }
-
-  const globalBinDir = deriveNpmGlobalBinDirFromPrefix(prefix, platform);
-  if (globalBinDir) {
-    prependProcessPathEntries([globalBinDir]);
-  }
-
-  const npmPackageVersion = globalRoot
-    ? await readGlobalPackageVersion(globalRoot, "npm")
-    : "";
-  const latestNpmVersion =
-    queryLatest && npmPath
-      ? await queryRegistryPackageVersion(npmPath, "npm")
-      : "";
-
-  return {
-    platform,
-    nodePath,
-    npmPath,
-    nodeVersion,
-    nodeArch,
-    npmReportedVersion,
-    npmPackageVersion,
-    latestNpmVersion,
-    prefix,
-    globalRoot,
-    globalBinDir,
-  };
 }
 
 type ReportFn =
@@ -1665,97 +1369,6 @@ type ReportFn =
   | undefined;
 type AppendFn = (title: string, text: string) => void;
 
-const DEFAULT_NODE_RUNTIME_MAJOR = 22;
-
-/**
- * Windows: locate or install winget (App Installer).
- * First checks %LOCALAPPDATA%\Microsoft\WindowsApps (winget is often there
- * but not on PATH). If that fails, downloads the latest .msixbundle from
- * the winget-cli GitHub releases and installs it with Add-AppxPackage.
- * Returns true when winget is available after the attempt.
- */
-async function tryInstallWinget(
-  report: ReportFn,
-  append: AppendFn,
-): Promise<boolean> {
-  const step = "Install winget (Windows App Installer)";
-  report?.({ phase: "start", step });
-
-  // 1. winget might already exist in WindowsApps but not be on PATH.
-  const localAppData = getEnv("LOCALAPPDATA");
-  if (localAppData) {
-    const appsDir = joinPath(localAppData, "Microsoft", "WindowsApps");
-    const wingetExe = joinPath(appsDir, "winget.exe");
-    if (pathExists(wingetExe)) {
-      prependProcessPathEntries([appsDir]);
-      const msg = "Found winget in WindowsApps and added to PATH.";
-      append(step, msg);
-      report?.({ phase: "done", step, ok: true, output: msg });
-      return true;
-    }
-  }
-
-  // 2. Download the latest msixbundle from GitHub and install it.
-  const script = [
-    "$progressPreference = 'silentlyContinue'",
-    "try {",
-    "  $rel = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -TimeoutSec 30",
-    "  $msix = $rel.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1",
-    "  if (-not $msix) { throw 'No .msixbundle found in winget-cli release' }",
-    "  $tmp = Join-Path $env:TEMP ('winget-' + [System.IO.Path]::GetRandomFileName() + '.msixbundle')",
-    "  Invoke-WebRequest -Uri $msix.browser_download_url -OutFile $tmp -TimeoutSec 180",
-    "  Add-AppxPackage -Path $tmp -ErrorAction Stop",
-    "  'winget installed successfully'",
-    "} catch { 'ERROR: ' + $_.Exception.Message }",
-  ].join("; ");
-
-  const result = await runShellCommand(script, { hidden: true });
-  const output =
-    [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
-    "(no output)";
-  append(step, output);
-  const ok = result.code === 0 && !output.startsWith("ERROR:");
-  if (ok) {
-    prependProcessPathEntries(getCommonExecutableDirs("windows"));
-  }
-  report?.({ phase: "done", step, ok, output });
-  return ok;
-}
-
-/**
- * macOS / Linux: install Homebrew using the official install script.
- * NONINTERACTIVE=1 suppresses all prompts so no user input is required.
- * After a successful install, /opt/homebrew/bin (Apple Silicon) and
- * /usr/local/bin (Intel) are prepended to the process PATH.
- */
-async function tryInstallHomebrew(
-  report: ReportFn,
-  append: AppendFn,
-): Promise<boolean> {
-  const step = "Install Homebrew";
-  report?.({ phase: "start", step });
-
-  const command = `NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`;
-  const result = await runShellCommand(command, { hidden: true });
-  const output =
-    [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
-    "(no output)";
-  append(step, output);
-  report?.({ phase: "done", step, ok: result.code === 0, output });
-
-  if (result.code === 0) {
-    // Apple Silicon installs to /opt/homebrew/bin; Intel to /usr/local/bin;
-    // Linuxbrew to /home/linuxbrew/.linuxbrew/bin.
-    const brewDirs = [
-      "/opt/homebrew/bin",
-      "/usr/local/bin",
-      "/home/linuxbrew/.linuxbrew/bin",
-    ].filter(isDirectoryPath);
-    if (brewDirs.length) prependProcessPathEntries(brewDirs);
-  }
-  return result.code === 0;
-}
-
 async function tryInstallCodexStandalone(
   report: ReportFn,
   append: AppendFn,
@@ -1764,7 +1377,10 @@ async function tryInstallCodexStandalone(
   const installStep = "Install Codex CLI (standalone)";
   const command = getCodexStandaloneInstallCommand(platform);
   report?.({ phase: "start", step: installStep });
-  const result = await runShellCommand(command, { hidden: true });
+  const result = await runShellCommand(command, {
+    hidden: true,
+    timeoutMs: INSTALL_TIMEOUT_MS,
+  });
   const output =
     [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
     "(no output)";
@@ -1799,269 +1415,6 @@ async function tryInstallCodexStandalone(
     output: verification.output,
   });
   return result.code === 0 && verification.ok;
-}
-
-export function buildNodeSourceAptInstallCommand(
-  major = DEFAULT_NODE_RUNTIME_MAJOR,
-): string {
-  const setupPath = `/tmp/aidea-nodesource-setup_${major}.x.sh`;
-  const setupUrl = `https://deb.nodesource.com/setup_${major}.x`;
-  const rootCommand =
-    "apt-get update && " +
-    "apt-get install -y ca-certificates curl gnupg && " +
-    `curl -fsSL ${setupUrl} -o ${setupPath} && ` +
-    `bash ${setupPath} && ` +
-    "apt-get install -y nodejs";
-  const sudoCommand =
-    "sudo -n apt-get update && " +
-    "sudo -n apt-get install -y ca-certificates curl gnupg && " +
-    `curl -fsSL ${setupUrl} -o ${setupPath} && ` +
-    `sudo -n -E bash ${setupPath} && ` +
-    "sudo -n apt-get install -y nodejs";
-  return `if [ "$(id -u)" -eq 0 ]; then ${rootCommand}; else ${sudoCommand}; fi`;
-}
-
-export function buildNodeSourceAptManualInstructions(
-  major = DEFAULT_NODE_RUNTIME_MAJOR,
-): string {
-  const setupPath = `/tmp/aidea-nodesource-setup_${major}.x.sh`;
-  const setupUrl = `https://deb.nodesource.com/setup_${major}.x`;
-  return [
-    `curl -fsSL ${setupUrl} -o ${setupPath}`,
-    `sudo -E bash ${setupPath}`,
-    "sudo apt-get install -y nodejs",
-    "node --version",
-    "npm --version",
-  ].join("\n");
-}
-
-async function tryInstallNodeRuntime(
-  report: ReportFn,
-  append: AppendFn,
-  options: { preferredMajor?: number } = {},
-): Promise<boolean> {
-  const platform = currentPlatform();
-  const plans: Array<{ step: string; command: string }> = [];
-  const preferredMajor = options.preferredMajor || 0;
-
-  if (platform === "windows") {
-    const wingetPath =
-      (await locateExecutableViaShell("winget")) ||
-      resolveExecutablePath("winget");
-    const chocoPath =
-      (await locateExecutableViaShell("choco")) ||
-      resolveExecutablePath("choco");
-    const scoopPath =
-      (await locateExecutableViaShell("scoop")) ||
-      resolveExecutablePath("scoop");
-    if (wingetPath) {
-      plans.push({
-        step: "Install Node.js via winget",
-        command:
-          "winget install --id OpenJS.NodeJS.LTS -e --source winget " +
-          "--accept-package-agreements --accept-source-agreements --silent --scope user",
-      });
-    }
-    if (chocoPath) {
-      plans.push({
-        step: "Install Node.js via Chocolatey",
-        command: "choco install nodejs-lts -y",
-      });
-    }
-    if (scoopPath) {
-      plans.push({
-        step: "Install Node.js via Scoop",
-        command: "scoop install nodejs-lts",
-      });
-    }
-  } else if (platform === "macos") {
-    const brewPath =
-      (await locateExecutableViaShell("brew")) || resolveExecutablePath("brew");
-    if (brewPath) {
-      plans.push({
-        step: "Install Node.js via Homebrew",
-        command: "brew install node",
-      });
-    }
-  } else {
-    const aptPath =
-      (await locateExecutableViaShell("apt-get")) ||
-      resolveExecutablePath("apt-get");
-    const dnfPath =
-      (await locateExecutableViaShell("dnf")) || resolveExecutablePath("dnf");
-    const yumPath =
-      (await locateExecutableViaShell("yum")) || resolveExecutablePath("yum");
-    const pacmanPath =
-      (await locateExecutableViaShell("pacman")) ||
-      resolveExecutablePath("pacman");
-    if (aptPath && preferredMajor > 0) {
-      plans.push({
-        step: `Install Node.js ${preferredMajor} via NodeSource`,
-        command: buildNodeSourceAptInstallCommand(preferredMajor),
-      });
-    }
-    if (aptPath) {
-      plans.push({
-        step: "Install Node.js/npm via apt-get",
-        command:
-          'if [ "$(id -u)" -eq 0 ]; then apt-get update && apt-get install -y nodejs npm; ' +
-          "else sudo -n apt-get update && sudo -n apt-get install -y nodejs npm; fi",
-      });
-    }
-    if (dnfPath) {
-      plans.push({
-        step: "Install Node.js/npm via dnf",
-        command:
-          'if [ "$(id -u)" -eq 0 ]; then dnf install -y nodejs npm; ' +
-          "else sudo -n dnf install -y nodejs npm; fi",
-      });
-    }
-    if (yumPath) {
-      plans.push({
-        step: "Install Node.js/npm via yum",
-        command:
-          'if [ "$(id -u)" -eq 0 ]; then yum install -y nodejs npm; ' +
-          "else sudo -n yum install -y nodejs npm; fi",
-      });
-    }
-    if (pacmanPath) {
-      plans.push({
-        step: "Install Node.js/npm via pacman",
-        command:
-          'if [ "$(id -u)" -eq 0 ]; then pacman -Sy --noconfirm nodejs npm; ' +
-          "else sudo -n pacman -Sy --noconfirm nodejs npm; fi",
-      });
-    }
-  }
-
-  if (!plans.length) {
-    let bootstrappedManager = false;
-    // No package manager found — try to bootstrap one, then rebuild plans.
-    report?.({
-      phase: "info",
-      step: "No package manager found",
-      output: `No supported package manager detected on ${platform}. Attempting to install one automatically…`,
-    });
-
-    if (platform === "windows") {
-      const ok = await tryInstallWinget(report, append);
-      if (ok) {
-        bootstrappedManager = true;
-        const wingetPath =
-          (await locateExecutableViaShell("winget")) ||
-          resolveExecutablePath("winget");
-        if (wingetPath) {
-          plans.push({
-            step: "Install Node.js via winget",
-            command:
-              "winget install --id OpenJS.NodeJS.LTS -e --source winget " +
-              "--accept-package-agreements --accept-source-agreements --silent --scope user",
-          });
-        }
-      }
-    } else if (platform === "macos") {
-      const ok = await tryInstallHomebrew(report, append);
-      if (ok) {
-        bootstrappedManager = true;
-        const brewPath =
-          (await locateExecutableViaShell("brew")) ||
-          resolveExecutablePath("brew");
-        if (brewPath) {
-          plans.push({
-            step: "Install Node.js via Homebrew",
-            command: "brew install node",
-          });
-        }
-      }
-    }
-    // Linux: system package managers (apt-get, dnf, …) are OS components
-    // that cannot themselves be installed programmatically — leave plans empty.
-
-    if (!plans.length) {
-      const hint =
-        platform === "windows"
-          ? bootstrappedManager
-            ? "winget was installed but is not visible in this Zotero session yet. Restart Zotero or install Node.js manually from https://nodejs.org, then retry."
-            : "winget (built into Windows 10/11) could not be installed. Please install Node.js manually from https://nodejs.org or install winget/choco/scoop first."
-          : platform === "macos"
-            ? bootstrappedManager
-              ? "Homebrew was installed but is not visible in this Zotero session yet. Restart Zotero or install Node.js manually, then retry."
-              : "Homebrew could not be installed automatically. Please install it from https://brew.sh or install Node.js manually."
-            : "No supported package manager found. Please install Node.js/npm via your system package manager (apt, dnf, yum, pacman…) and retry.";
-      append("Install Node.js/npm", hint);
-      report?.({
-        phase: "done",
-        step: "Install Node.js/npm",
-        ok: false,
-        output: hint,
-      });
-      return false;
-    }
-  }
-
-  for (const plan of plans) {
-    report?.({ phase: "start", step: plan.step });
-    const result = await runShellCommand(plan.command, { hidden: true });
-    const output =
-      [result.stdout, result.stderr].filter(Boolean).join("\n").trim() ||
-      "(no output)";
-    append(plan.step, `${plan.command}\n\n${output}`);
-    report?.({
-      phase: "done",
-      step: plan.step,
-      ok: result.code === 0,
-      output,
-    });
-    if (result.code === 0) {
-      prependProcessPathEntries(getCommonExecutableDirs(platform));
-      return true;
-    }
-  }
-  return false;
-}
-
-async function setNpmPrefix(
-  npmExecutablePath: string,
-  prefix: string,
-): Promise<{
-  ok: boolean;
-  output: string;
-}> {
-  const result = await runExecutableCommand(npmExecutablePath, [
-    "config",
-    "set",
-    "prefix",
-    prefix,
-  ]);
-  return { ok: result.code === 0, output: result.output || "(no output)" };
-}
-
-async function verifyExecutable(
-  executableName: string,
-  versionArg: string,
-  extraDirs: string[] = [],
-): Promise<{
-  ok: boolean;
-  path: string;
-  output: string;
-}> {
-  const located =
-    (await locateExecutableViaShell(executableName)) ||
-    resolveExecutablePath(executableName, extraDirs) ||
-    "";
-  if (!located) {
-    return {
-      ok: false,
-      path: "",
-      output: `${executableName} was not found on PATH`,
-    };
-  }
-  const result = await runExecutableCommand(located, [versionArg]);
-  return {
-    ok: result.code === 0,
-    path: located,
-    output: result.output || "(no output)",
-  };
 }
 
 async function verifyExecutableInDirs(
@@ -2141,10 +1494,24 @@ async function resolveProviderCliExecutablePath(
   );
 }
 
+/**
+ * The CLI we spawn inherits CODEX_HOME and writes auth.json there, so the
+ * plugin has to look in the same place instead of assuming ~/.codex.
+ */
+export function resolveCodexHomeDir(codexHome: string, home: string): string {
+  const explicit = String(codexHome || "").trim();
+  if (explicit) return explicit;
+  return home ? joinPath(home, ".codex") : "";
+}
+
+function codexAuthFilePath(): string {
+  const dir = resolveCodexHomeDir(getEnv("CODEX_HOME"), homeDir());
+  return dir ? joinPath(dir, "auth.json") : "";
+}
+
 export async function readCodexOAuthCredential(): Promise<OAuthCredential | null> {
-  const home = homeDir();
-  if (!home) return null;
-  const authPath = joinPath(home, ".codex", "auth.json");
+  const authPath = codexAuthFilePath();
+  if (!authPath) return null;
   const data = await readJsonFile(authPath);
   const tokens =
     data?.tokens && typeof data.tokens === "object" ? data.tokens : null;
@@ -2174,7 +1541,7 @@ async function refreshCodexOAuthCredentialViaCli(): Promise<OAuthCredential | nu
   try {
     const result = await runShellCommand(
       buildExecutableCommand(cliPath, ["login", "status"]),
-      { hidden: true },
+      { hidden: true, timeoutMs: PROBE_TIMEOUT_MS },
     );
     if (result.code !== 0) {
       ztoolkit?.log?.(
@@ -2206,38 +1573,6 @@ function setOAuthPref(key: string, value: string): void {
   } catch {
     // silently ignore
   }
-}
-
-// ---------- PKCE helpers ----------
-function generateCodeVerifier(): string {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  const arr = new Uint8Array(64);
-  if ((globalThis as any).crypto?.getRandomValues) {
-    (globalThis as any).crypto.getRandomValues(arr);
-  } else {
-    for (let i = 0; i < arr.length; i++)
-      arr[i] = Math.floor(Math.random() * 256);
-  }
-  return Array.from(arr, (v) => chars[v % chars.length]).join("");
-}
-
-async function sha256Base64Url(text: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const crypto = (globalThis as any).crypto;
-  if (crypto?.subtle?.digest) {
-    const hash = await crypto.subtle.digest("SHA-256", data);
-    const bytes = new Uint8Array(hash);
-    let binary = "";
-    for (const b of bytes) binary += String.fromCharCode(b);
-    return btoa(binary)
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-  }
-  // Fallback: plain verifier (some OAuth servers accept S256 only, but try)
-  throw new Error("SubtleCrypto not available for PKCE");
 }
 
 // ---------- GitHub Copilot credential read/write ----------
@@ -2359,16 +1694,6 @@ function hasFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function getOAuthOptionalParameterSource(params: {
-  temperature?: number;
-  maxTokens?: number;
-}): OAuthParameterSource {
-  return hasFiniteNumber(params.temperature) ||
-    hasFiniteNumber(params.maxTokens)
-    ? "explicit-task"
-    : "omitted-provider-default";
-}
-
 async function postCopilotRequest(params: {
   url: string;
   headers: Record<string, string>;
@@ -2407,33 +1732,6 @@ async function postCopilotRequest(params: {
   if (res.ok) return res;
   const errText = await res.text();
   throw new Error(`Copilot OAuth HTTP ${res.status}: ${errText}`);
-}
-
-function shouldSendCopilotTemperature(_model: string): boolean {
-  return false;
-}
-
-async function postCopilotWithTemperatureFallback(params: {
-  url: string;
-  headers: Record<string, string>;
-  payload: Record<string, unknown>;
-  signal?: AbortSignal;
-}): Promise<Response> {
-  return postCopilotRequest(params);
-}
-
-function applyCopilotTemperatureIfSupported(
-  payload: Record<string, unknown>,
-  model: string,
-  temperature: number | undefined,
-) {
-  if (
-    shouldSendCopilotTemperature(model) &&
-    typeof temperature === "number" &&
-    Number.isFinite(temperature)
-  ) {
-    payload.temperature = temperature;
-  }
 }
 
 function deriveCopilotApiBaseUrl(token: string): string {
@@ -2491,20 +1789,36 @@ async function exchangeCopilotToken(githubToken: string): Promise<{
   return { token, expiresAt, baseUrl: deriveCopilotApiBaseUrl(token) };
 }
 
-async function ensureCopilotApiToken(): Promise<{
+async function ensureCopilotApiToken(
+  // A caller that cannot refresh the token later (a long translation job
+  // freezes it into the task) can ask for more remaining lifetime.
+  minRemainingMs = 5 * 60 * 1000,
+): Promise<{
   token: string;
   baseUrl: string;
 } | null> {
   const githubToken = getCopilotGithubToken();
   if (!githubToken) return null;
   const cached = getCopilotApiTokenCache();
-  if (cached && cached.expiresAt - Date.now() > 5 * 60 * 1000) {
+  if (cached && cached.expiresAt - Date.now() > minRemainingMs) {
     return {
       token: cached.token,
       baseUrl: deriveCopilotApiBaseUrl(cached.token),
     };
   }
-  return exchangeCopilotToken(githubToken);
+  try {
+    return await exchangeCopilotToken(githubToken);
+  } catch (err) {
+    // A longer lifetime was requested but the exchange failed (offline blip).
+    // A cached token that is still comfortably valid beats failing outright.
+    if (cached && cached.expiresAt - Date.now() > 5 * 60 * 1000) {
+      return {
+        token: cached.token,
+        baseUrl: deriveCopilotApiBaseUrl(cached.token),
+      };
+    }
+    throw err;
+  }
 }
 
 export async function readCopilotOAuthCredential(): Promise<OAuthCredential | null> {
@@ -2698,10 +2012,6 @@ export async function checkOAuthCliEnvironmentUpdates(
   );
   if (!targetProviders.length) return results;
 
-  const needsNpm = targetProviders.some(
-    (provider) => provider !== "openai-codex",
-  );
-  const npmState = needsNpm ? await inspectNpmEnvironment(true) : null;
   for (const provider of targetProviders) {
     const spec = getProviderCliSpec(provider);
     if (!spec) continue;
@@ -2712,91 +2022,42 @@ export async function checkOAuthCliEnvironmentUpdates(
       reason: "current",
     };
 
-    if (provider === "openai-codex") {
-      const verification = await verifyExecutableInDirs(
-        spec.executableName,
-        spec.versionArg,
-        getCodexStandaloneBinDirs(),
-      );
-      if (!verification.ok) {
-        results.push({
-          ...baseResult,
-          needsUpdate: true,
-          reason: `${spec.executableName} verification failed`,
-        });
-        continue;
-      }
-      baseResult.installedVersion =
-        normalizeVersionText(verification.output) || undefined;
-      results.push(baseResult);
-      continue;
-    }
-
-    if (!npmState?.nodePath || !npmState.npmPath) {
-      results.push({
-        ...baseResult,
-        needsUpdate: true,
-        reason: "node/npm not installed",
-      });
-      continue;
-    }
-
-    if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
-      results.push({
-        ...baseResult,
-        needsUpdate: true,
-        reason: `${spec.packageName} requires ${spec.minNodeVersionLabel || "a newer Node.js"}`,
-      });
-      continue;
-    }
-
-    const installedVersion = npmState.globalRoot
-      ? await readGlobalPackageVersion(npmState.globalRoot, spec.packageName)
-      : "";
-    const latestVersion = await queryRegistryPackageVersion(
-      npmState.npmPath,
-      spec.packageName,
-    );
-    baseResult.installedVersion = installedVersion || undefined;
-    baseResult.latestVersion = latestVersion || undefined;
-
-    if (!installedVersion) {
-      results.push({
-        ...baseResult,
-        needsUpdate: true,
-        reason: `${spec.packageName} is not installed`,
-      });
-      continue;
-    }
-
-    if (
-      latestVersion &&
-      shouldInstallLatestPackageVersion(installedVersion, latestVersion)
-    ) {
-      results.push({
-        ...baseResult,
-        needsUpdate: true,
-        reason: `${spec.packageName} ${latestVersion} is available`,
-      });
-      continue;
-    }
-
-    const verification = await verifyExecutable(
+    // Codex is the only CLI-backed provider; it is verified in the standalone
+    // install directories so an old npm copy on PATH is not mistaken for it.
+    const verification = await verifyExecutableInDirs(
       spec.executableName,
       spec.versionArg,
-      [npmState.globalBinDir, ...getCommonExecutableDirs(npmState.platform)],
+      getCodexStandaloneBinDirs(),
     );
     if (!verification.ok) {
       results.push({
         ...baseResult,
         needsUpdate: true,
-        reason: looksLikeMissingOptionalDependency(verification.output)
-          ? "platform package is missing"
-          : `${spec.executableName} verification failed`,
+        reason: `${spec.executableName} verification failed`,
       });
       continue;
     }
-
+    const installedVersion =
+      parseCodexCliVersion(verification.output) ||
+      normalizeVersionText(verification.output);
+    baseResult.installedVersion = installedVersion || undefined;
+    // A CLI that still runs can be many releases behind. Compare with the
+    // published channel; when that is unreachable, report "current" rather
+    // than nagging the user while offline.
+    const latestVersion = await fetchLatestCodexCliVersion();
+    if (latestVersion) baseResult.latestVersion = latestVersion;
+    if (
+      latestVersion &&
+      installedVersion &&
+      compareReleaseVersions(installedVersion, latestVersion) < 0
+    ) {
+      results.push({
+        ...baseResult,
+        needsUpdate: true,
+        reason: `${spec.executableName} ${installedVersion} is older than ${latestVersion}`,
+      });
+      continue;
+    }
     results.push(baseResult);
   }
 
@@ -3139,11 +2400,14 @@ export async function fetchCustomEndpointModels(
     }
     return dedupeModels(rows);
   } catch (err) {
-    cacheApiReasoningCatalog(apiBase, apiKey || "", []);
     ztoolkit?.log?.("AIdea: fetchCustomEndpointModels failed", err);
     throw err;
   }
 }
+
+setApiReasoningCatalogRefresher((apiBase, apiKey) =>
+  fetchCustomEndpointModels(apiBase, apiKey).catch(() => undefined),
+);
 
 // ---------- GitHub Copilot Device Code Flow ----------
 const COPILOT_GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98";
@@ -3205,8 +2469,12 @@ async function loginCopilotDeviceCode(): Promise<{
     const deadline = Date.now() + expiresIn * 1000;
     let pollIntervalSec = interval;
     let consecutivePollFailures = 0;
+    const loginGeneration = ++copilotLoginGeneration;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, pollIntervalSec * 1000));
+      if (loginGeneration !== copilotLoginGeneration) {
+        throw new Error("Superseded by a newer login attempt");
+      }
       const tokenBody = new URLSearchParams({
         client_id: COPILOT_GITHUB_CLIENT_ID,
         device_code: deviceCode,
@@ -3280,7 +2548,33 @@ async function loginCopilotDeviceCode(): Promise<{
   }
 }
 
-export async function runProviderOAuthLogin(
+let copilotLoginGeneration = 0;
+
+const loginInFlight = new Map<
+  OAuthProviderId,
+  Promise<{ ok: boolean; message: string }>
+>();
+
+/** Concurrent calls for one provider share a single login flow. */
+export function runProviderOAuthLogin(
+  provider: OAuthProviderId,
+): Promise<{ ok: boolean; message: string }> {
+  // Copilot's device flow can be restarted (the user lost the code or
+  // closed the tab); the superseded poll loop stops by itself. Codex login
+  // holds a local callback port, so its flow is shared instead.
+  if (provider === "github-copilot") {
+    return runProviderOAuthLoginOnce(provider);
+  }
+  const running = loginInFlight.get(provider);
+  if (running) return running;
+  const flow = runProviderOAuthLoginOnce(provider).finally(() => {
+    loginInFlight.delete(provider);
+  });
+  loginInFlight.set(provider, flow);
+  return flow;
+}
+
+async function runProviderOAuthLoginOnce(
   provider: OAuthProviderId,
 ): Promise<{ ok: boolean; message: string }> {
   await ensureZoteroProxyFromSystem({ forceRefresh: true });
@@ -3307,7 +2601,11 @@ export async function runProviderOAuthLogin(
 
   try {
     const command = buildExecutableCommand(cliPath, ["login"]);
-    const result = await runShellCommand(command, { hidden: true });
+    // Bounded: a browser authorization the user abandoned never calls back.
+    const result = await runShellCommand(command, {
+      hidden: true,
+      timeoutMs: LOGIN_TIMEOUT_MS,
+    });
     const last = [result.stdout, result.stderr]
       .filter(Boolean)
       .join("\n")
@@ -3347,9 +2645,9 @@ export async function removeProviderOAuthCredential(
       message: `${getProviderLabel(provider)} authorization removed`,
     };
   }
-  const home = homeDir();
-  if (!home) return { ok: false, message: "Home directory not found" };
-  const removed = removeFileIfExists(joinPath(home, ".codex", "auth.json"));
+  const authPath = codexAuthFilePath();
+  if (!authPath) return { ok: false, message: "Home directory not found" };
+  const removed = removeFileIfExists(authPath);
   return {
     ok: true,
     message: removed
@@ -3357,7 +2655,9 @@ export async function removeProviderOAuthCredential(
       : `${getProviderLabel(provider)} authorization file not found`,
   };
 }
-export async function autoConfigureEnvironment(params?: {
+
+type AutoConfigureEnvironmentParams = {
+  /** Limit the install/update to this provider's CLI; omitted means all. */
   provider?: OAuthProviderId;
   onProgress?: (event: {
     phase: "start" | "done" | "info";
@@ -3365,7 +2665,37 @@ export async function autoConfigureEnvironment(params?: {
     ok?: boolean;
     output?: string;
   }) => void;
-}): Promise<{ ok: boolean; logs: string }> {
+};
+
+const autoConfigureInFlight = new Map<
+  string,
+  Promise<{ ok: boolean; logs: string }>
+>();
+
+/**
+ * Concurrent calls for the same install target (a double click, or the
+ * scheduler firing during a manual run) share the one running install, so two
+ * installers never write the same binary. Only the first caller's onProgress
+ * receives events.
+ */
+export function autoConfigureEnvironment(
+  params?: AutoConfigureEnvironmentParams,
+): Promise<{ ok: boolean; logs: string }> {
+  const target = (
+    params?.provider ? [params.provider] : getOAuthCliProviders()
+  ).join(",");
+  const running = autoConfigureInFlight.get(target);
+  if (running) return running;
+  const flow = autoConfigureEnvironmentOnce(params).finally(() => {
+    autoConfigureInFlight.delete(target);
+  });
+  autoConfigureInFlight.set(target, flow);
+  return flow;
+}
+
+async function autoConfigureEnvironmentOnce(
+  params?: AutoConfigureEnvironmentParams,
+): Promise<{ ok: boolean; logs: string }> {
   const logs: string[] = [];
   const append = (title: string, text: string) => {
     const body = String(text || "").trim();
@@ -3373,15 +2703,9 @@ export async function autoConfigureEnvironment(params?: {
   };
   const report = params?.onProgress;
   const platform = currentPlatform();
-  const home = homeDir();
-  const preferredUserPrefix = derivePreferredUserNpmPrefix(platform, home);
   const targetProviders = params?.provider
     ? [params.provider]
-    : (Object.keys(PROVIDER_CLI_SPECS) as OAuthProviderId[]);
-  const npmTargetProviders = targetProviders.filter(
-    (provider) =>
-      provider !== "openai-codex" && Boolean(getProviderCliSpec(provider)),
-  );
+    : getOAuthCliProviders();
   let allOk = true;
   report?.({
     phase: "info",
@@ -3391,407 +2715,13 @@ export async function autoConfigureEnvironment(params?: {
   append("Detected platform", platform);
   await ensureZoteroProxyFromSystem({ forceRefresh: true });
 
-  const formatNpmState = (state: NpmEnvironmentState): string =>
-    [
-      `platform: ${state.platform}`,
-      `nodePath: ${state.nodePath || "-"}`,
-      `nodeVersion: ${state.nodeVersion || "-"}`,
-      `nodeArch: ${state.nodeArch || "-"}`,
-      `npmPath: ${state.npmPath || "-"}`,
-      `npmReportedVersion: ${state.npmReportedVersion || "-"}`,
-      `npmPackageVersion: ${state.npmPackageVersion || "-"}`,
-      `latestNpmVersion: ${state.latestNpmVersion || "-"}`,
-      `prefix: ${state.prefix || "-"}`,
-      `globalRoot: ${state.globalRoot || "-"}`,
-      `globalBinDir: ${state.globalBinDir || "-"}`,
-    ].join("\n");
-
-  const ensureNpmDirectories = async (
-    state: NpmEnvironmentState,
-  ): Promise<boolean> => {
-    const dirs = dedupePathEntries(
-      [state.prefix, state.globalRoot, state.globalBinDir].filter(Boolean),
-      state.platform,
-    );
-    let ok = true;
-    for (const dir of dirs) {
-      report?.({ phase: "start", step: `Ensure directory ${dir}` });
-      const result = ensureDirectoryExists(dir);
-      append(`Ensure directory ${dir}`, result.message);
-      report?.({
-        phase: "done",
-        step: `Ensure directory ${dir}`,
-        ok: result.ok,
-        output: result.message,
-      });
-      if (!result.ok) ok = false;
-    }
-    if (state.globalBinDir) {
-      prependProcessPathEntries([state.globalBinDir]);
-      report?.({
-        phase: "info",
-        step: "Refresh runtime PATH",
-        output: `Prepended ${state.globalBinDir}`,
-      });
-      append("Refresh runtime PATH", `Prepended ${state.globalBinDir}`);
-      const persisted = await persistBinDirToUserPath(state.globalBinDir);
-      append("Persist npm bin PATH", persisted);
-      report?.({
-        phase: "done",
-        step: "Persist npm bin PATH",
-        ok: true,
-        output: persisted,
-      });
-    }
-    return ok;
-  };
-
-  const switchNpmPrefixToPreferred = async (
-    state: NpmEnvironmentState,
-    reason: string,
-  ): Promise<NpmEnvironmentState> => {
-    if (
-      !state.npmPath ||
-      !preferredUserPrefix ||
-      state.prefix === preferredUserPrefix
-    ) {
-      return state;
-    }
-    report?.({
-      phase: "start",
-      step: "Switch npm prefix",
-    });
-    append(
-      "Switch npm prefix",
-      `Reason: ${reason}\nTarget: ${preferredUserPrefix}`,
-    );
-    const dirResult = ensureDirectoryExists(preferredUserPrefix);
-    append("Ensure preferred npm prefix", dirResult.message);
-    if (!dirResult.ok) {
-      report?.({
-        phase: "done",
-        step: "Switch npm prefix",
-        ok: false,
-        output: dirResult.message,
-      });
-      return state;
-    }
-    const setResult = await setNpmPrefix(state.npmPath, preferredUserPrefix);
-    append("npm config set prefix", setResult.output);
-    report?.({
-      phase: "done",
-      step: "Switch npm prefix",
-      ok: setResult.ok,
-      output: setResult.output,
-    });
-    const nextState = await inspectNpmEnvironment(false);
-    await ensureNpmDirectories(nextState);
-    append("npm environment after prefix switch", formatNpmState(nextState));
-    return nextState;
-  };
-
+  // Codex ships a standalone installer; no provider needs Node.js or npm.
   if (targetProviders.includes("openai-codex")) {
     const codexOk = await tryInstallCodexStandalone(report, append);
     if (codexOk) {
       recordOAuthEnvUpdateSuccess("openai-codex");
     } else {
       allOk = false;
-    }
-  }
-
-  if (!npmTargetProviders.length) {
-    return { ok: allOk, logs: logs.join("\n\n") };
-  }
-
-  let npmState = await inspectNpmEnvironment(false);
-  append("Initial npm environment", formatNpmState(npmState));
-
-  if (!npmState.nodePath || !npmState.npmPath) {
-    const installed = await tryInstallNodeRuntime(report, append);
-    npmState = await inspectNpmEnvironment(false);
-    append(
-      "npm environment after Node.js install attempt",
-      formatNpmState(npmState),
-    );
-    if (!installed && (!npmState.nodePath || !npmState.npmPath)) {
-      report?.({
-        phase: "info",
-        step: "Node.js/npm not ready",
-        output:
-          platform === "windows"
-            ? "Install Node.js manually or make sure winget/choco/scoop is available, then retry."
-            : "Install Node.js/npm manually or via your system package manager, then retry.",
-      });
-      return {
-        ok: false,
-        logs:
-          logs.join("\n\n") +
-          "\n\nNode.js/npm is still unavailable after auto-setup.",
-      };
-    }
-  }
-
-  if (!npmState.prefix && preferredUserPrefix && npmState.npmPath) {
-    npmState = await switchNpmPrefixToPreferred(
-      npmState,
-      "npm config get prefix returned an empty value",
-    );
-  }
-
-  const dirsOk = await ensureNpmDirectories(npmState);
-  if (
-    !dirsOk &&
-    preferredUserPrefix &&
-    npmState.npmPath &&
-    npmState.prefix !== preferredUserPrefix
-  ) {
-    await switchNpmPrefixToPreferred(
-      npmState,
-      "npm global directories were missing or not writable",
-    );
-  }
-
-  npmState = await inspectNpmEnvironment(true);
-  append("Prepared npm environment", formatNpmState(npmState));
-
-  const npmVersionMismatch =
-    Boolean(npmState.npmReportedVersion) &&
-    Boolean(npmState.npmPackageVersion) &&
-    npmState.npmReportedVersion !== npmState.npmPackageVersion;
-  const wantsNpmUpdate =
-    shouldInstallLatestPackageVersion(
-      npmState.npmPackageVersion || npmState.npmReportedVersion,
-      npmState.latestNpmVersion,
-    ) || npmVersionMismatch;
-  const canUpdateToLatestNpm = isNodeVersionSupportedByLatestNpm(
-    npmState.nodeVersion,
-  );
-
-  if (wantsNpmUpdate && npmState.npmPath && canUpdateToLatestNpm) {
-    const targetVersion = normalizeVersionText(npmState.latestNpmVersion);
-    const installTarget = targetVersion ? `npm@${targetVersion}` : "npm@latest";
-    report?.({ phase: "start", step: `Update npm (${installTarget})` });
-    let updateResult = await runExecutableCommand(npmState.npmPath, [
-      "install",
-      "-g",
-      installTarget,
-    ]);
-    append(`Update npm (${installTarget})`, updateResult.output);
-    if (
-      updateResult.code !== 0 &&
-      looksLikePermissionError(updateResult.output)
-    ) {
-      npmState = await switchNpmPrefixToPreferred(
-        npmState,
-        "npm update failed with a permissions error",
-      );
-      if (npmState.npmPath) {
-        updateResult = await runExecutableCommand(npmState.npmPath, [
-          "install",
-          "-g",
-          installTarget,
-        ]);
-        append(`Retry update npm (${installTarget})`, updateResult.output);
-      }
-    }
-    report?.({
-      phase: "done",
-      step: `Update npm (${installTarget})`,
-      ok: updateResult.code === 0,
-      output: updateResult.output,
-    });
-  } else if (wantsNpmUpdate && npmState.npmPath && !canUpdateToLatestNpm) {
-    const output =
-      `Skipping npm update because the latest npm requires Node.js ^20.17.0 or >=22.9.0. ` +
-      `Current Node.js is ${npmState.nodeVersion || "unknown"}; the existing npm will be used for CLI installs.`;
-    append("npm version check", output);
-    report?.({
-      phase: "info",
-      step: "npm version check",
-      output,
-    });
-  } else {
-    report?.({
-      phase: "info",
-      step: "npm version check",
-      output: npmState.latestNpmVersion
-        ? `npm is already current (${npmState.npmPackageVersion || npmState.npmReportedVersion})`
-        : "Latest npm version could not be determined; skipping npm update.",
-    });
-  }
-
-  npmState = await inspectNpmEnvironment(true);
-  append("Final npm environment", formatNpmState(npmState));
-
-  if (!npmState.npmPath) {
-    return {
-      ok: false,
-      logs: logs.join("\n\n"),
-    };
-  }
-
-  for (const provider of npmTargetProviders) {
-    const spec = getProviderCliSpec(provider);
-    if (!spec) continue;
-    let providerOk = true;
-    let npmExecutablePath = npmState.npmPath;
-    if (!npmExecutablePath) {
-      allOk = false;
-      append(
-        `Install ${spec.packageName}`,
-        "npm executable path is unavailable after environment preparation.",
-      );
-      continue;
-    }
-
-    if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
-      const requiredNode = spec.minNodeVersionLabel || "a newer Node.js";
-      const currentNode = npmState.nodeVersion || "unknown";
-      const checkMessage =
-        `${spec.packageName} requires ${requiredNode}. ` +
-        `Current Node.js is ${currentNode}. Trying to install/update Node.js.`;
-      append("Node.js version check", checkMessage);
-      report?.({
-        phase: "info",
-        step: "Node.js version check",
-        output: checkMessage,
-      });
-      await tryInstallNodeRuntime(report, append, {
-        preferredMajor: DEFAULT_NODE_RUNTIME_MAJOR,
-      });
-      npmState = await inspectNpmEnvironment(false);
-      append(
-        "npm environment after Node.js update attempt",
-        formatNpmState(npmState),
-      );
-      await ensureNpmDirectories(npmState);
-      npmExecutablePath = npmState.npmPath;
-
-      if (!isNodeVersionSupportedByCliSpec(npmState.nodeVersion, spec)) {
-        const manualInstructions =
-          npmState.platform === "linux"
-            ? `\n\nAutomatic install may require an interactive sudo password. ` +
-              `Open a terminal and run:\n\n${buildNodeSourceAptManualInstructions()}\n\n` +
-              "After it finishes, restart Zotero and run Install/Update Env again."
-            : "";
-        const output =
-          `${spec.packageName} requires ${requiredNode}. ` +
-          `Current Node.js is ${npmState.nodeVersion || "unknown"}. ` +
-          "Install Node.js 20 or newer, restart Zotero, then run Install/Update Env again." +
-          manualInstructions;
-        append("Node.js version check", output);
-        report?.({
-          phase: "done",
-          step: "Node.js version check",
-          ok: false,
-          output,
-        });
-        allOk = false;
-        continue;
-      }
-    }
-
-    if (!npmExecutablePath) {
-      allOk = false;
-      append(
-        `Install ${spec.packageName}`,
-        "npm executable path is unavailable after Node.js version preparation.",
-      );
-      continue;
-    }
-
-    const installedVersion = npmState.globalRoot
-      ? await readGlobalPackageVersion(npmState.globalRoot, spec.packageName)
-      : "";
-    const latestVersion = await queryRegistryPackageVersion(
-      npmExecutablePath,
-      spec.packageName,
-    );
-    const needsInstall =
-      !installedVersion ||
-      shouldInstallLatestPackageVersion(installedVersion, latestVersion);
-
-    if (needsInstall) {
-      const targetPackage = latestVersion
-        ? `${spec.packageName}@${latestVersion}`
-        : spec.packageName;
-      const installArgs = ["install", "-g", targetPackage];
-      report?.({
-        phase: "start",
-        step: `Install ${spec.packageName}`,
-      });
-      let installResult = await runExecutableCommand(
-        npmExecutablePath,
-        installArgs,
-      );
-      append(`Install ${spec.packageName}`, installResult.output);
-      if (
-        installResult.code !== 0 &&
-        looksLikePermissionError(installResult.output)
-      ) {
-        npmState = await switchNpmPrefixToPreferred(
-          npmState,
-          `${spec.packageName} install failed with a permissions error`,
-        );
-        if (npmState.npmPath) {
-          installResult = await runExecutableCommand(
-            npmState.npmPath,
-            installArgs,
-          );
-          append(`Retry install ${spec.packageName}`, installResult.output);
-        }
-      }
-      report?.({
-        phase: "done",
-        step: `Install ${spec.packageName}`,
-        ok: installResult.code === 0,
-        output: installResult.output,
-      });
-      if (installResult.code !== 0) {
-        allOk = false;
-        providerOk = false;
-      }
-    } else {
-      report?.({
-        phase: "info",
-        step: `Skip ${spec.packageName}`,
-        output: `${spec.packageName} is already current (${installedVersion})`,
-      });
-      append(
-        `Skip ${spec.packageName}`,
-        `${spec.packageName} is already current (${installedVersion})`,
-      );
-    }
-
-    npmState = await inspectNpmEnvironment(false);
-    await ensureNpmDirectories(npmState);
-
-    report?.({
-      phase: "start",
-      step: `Verify ${spec.executableName}`,
-    });
-    const verification = await verifyExecutable(
-      spec.executableName,
-      spec.versionArg,
-      [npmState.globalBinDir, ...getCommonExecutableDirs(npmState.platform)],
-    );
-    append(
-      `Verify ${spec.executableName}`,
-      [`path: ${verification.path || "-"}`, verification.output].join("\n"),
-    );
-    report?.({
-      phase: "done",
-      step: `Verify ${spec.executableName}`,
-      ok: verification.ok,
-      output: verification.output,
-    });
-
-    if (!verification.ok) {
-      allOk = false;
-      providerOk = false;
-    }
-    if (providerOk && verification.ok) {
-      recordOAuthEnvUpdateSuccess(provider);
     }
   }
 
@@ -3896,9 +2826,9 @@ export async function getProviderAccountSummary(
   let account: string;
   if (provider === "openai-codex") {
     // Try to read the user email from auth.json extras
-    const home = homeDir();
+    const home = codexAuthFilePath();
     if (home) {
-      const data = await readJsonFile(joinPath(home, ".codex", "auth.json"));
+      const data = await readJsonFile(home);
       const email = data?.user?.email || data?.tokens?.email || data?.email;
       account =
         typeof email === "string" && email.trim()
@@ -4639,11 +3569,14 @@ export async function chatWithProviderOAuth(params: {
       payload,
       parameterSource: "omitted-provider-default",
     });
-    const codexHeaders: Record<string, string> = {
-      ...ensureProviderAuthHeaderInit(cred),
+    const buildCodexChatHeaders = (
+      credential: OAuthCredential,
+    ): Record<string, string> => ({
+      ...ensureProviderAuthHeaderInit(credential),
       "Content-Type": "application/json",
       Accept: "text/event-stream",
-    };
+    });
+    let codexHeaders = buildCodexChatHeaders(cred);
     const postCodex = () =>
       fetchWithTransientRetry(
         getFetch(),
@@ -4665,6 +3598,26 @@ export async function chatWithProviderOAuth(params: {
         },
       );
     let res = await postCodex();
+    if (res.status === 401) {
+      // Expired token: let the CLI refresh it, then retry exactly once. The
+      // rejected response carries no answer, so nothing has been streamed.
+      // Resending the very same token cannot succeed, so only retry when the
+      // stored credential actually changed.
+      const refreshed = await refreshCodexOAuthCredentialViaCli();
+      if (
+        refreshed?.accessToken &&
+        refreshed.accessToken !== cred.accessToken &&
+        !params.signal?.aborted
+      ) {
+        try {
+          await res.body?.cancel();
+        } catch {
+          /* the rejected body is discarded either way */
+        }
+        codexHeaders = buildCodexChatHeaders(refreshed);
+        res = await postCodex();
+      }
+    }
     if (!res.ok && payload.reasoning) {
       const errorText = await res.text();
       if (!isCodexReasoningRejection(res.status, errorText)) {
@@ -4729,11 +3682,6 @@ export async function chatWithProviderOAuth(params: {
             : 8192,
         stream: true,
       };
-      applyCopilotTemperatureIfSupported(
-        anthropicPayload,
-        params.model,
-        params.temperature,
-      );
       if (params.systemPrompt?.trim()) {
         anthropicPayload.system = params.systemPrompt.trim();
       }
@@ -4751,7 +3699,7 @@ export async function chatWithProviderOAuth(params: {
         ...copilotBaseHeaders,
         Accept: "text/event-stream",
       };
-      const res = await postCopilotWithTemperatureFallback({
+      const res = await postCopilotRequest({
         url: anthropicUrl,
         headers: anthropicHeaders,
         payload: anthropicPayload,
@@ -4792,11 +3740,6 @@ export async function chatWithProviderOAuth(params: {
       ) {
         chatPayload.max_tokens = params.maxTokens;
       }
-      applyCopilotTemperatureIfSupported(
-        chatPayload,
-        params.model,
-        params.temperature,
-      );
       logOAuthRequestParameterPolicy({
         provider: params.provider,
         model: params.model,
@@ -4811,7 +3754,7 @@ export async function chatWithProviderOAuth(params: {
         ...copilotBaseHeaders,
         Accept: "text/event-stream",
       };
-      const res = await postCopilotWithTemperatureFallback({
+      const res = await postCopilotRequest({
         url: chatUrl,
         headers: chatHeaders,
         payload: chatPayload,
@@ -4844,11 +3787,6 @@ export async function chatWithProviderOAuth(params: {
     ) {
       responsesPayload.max_output_tokens = params.maxTokens;
     }
-    applyCopilotTemperatureIfSupported(
-      responsesPayload,
-      params.model,
-      params.temperature,
-    );
     if (params.systemPrompt?.trim()) {
       responsesPayload.instructions = params.systemPrompt.trim();
     }
@@ -4866,7 +3804,7 @@ export async function chatWithProviderOAuth(params: {
       ...copilotBaseHeaders,
       Accept: "text/event-stream",
     };
-    const res = await postCopilotWithTemperatureFallback({
+    const res = await postCopilotRequest({
       url: copilotUrl,
       headers: copilotHeaders,
       payload: responsesPayload,
@@ -4901,6 +3839,7 @@ export async function callProviderEmbeddingsUnsupported(): Promise<never> {
  */
 export async function getOAuthProviderPingInfo(
   provider: OAuthProviderId,
+  options?: { minRemainingMs?: number },
 ): Promise<{
   apiBase: string;
   headers: Record<string, string>;
@@ -4922,7 +3861,7 @@ export async function getOAuthProviderPingInfo(
   }
 
   if (provider === "github-copilot") {
-    const result = await ensureCopilotApiToken();
+    const result = await ensureCopilotApiToken(options?.minRemainingMs);
     if (!result) return null;
     return {
       apiBase: `${result.baseUrl}`,

@@ -608,6 +608,10 @@ export function serializeCustomComposerThemes(
   );
 }
 
+// Older versions only read the built-in theme ids, so they ignore this key.
+const OVERRIDES_FORMAT_KEY = "__v";
+const OVERRIDES_FORMAT_VERSION = 2;
+
 export type BuiltinComposerThemeOverrides = Partial<
   Record<BuiltinComposerThemeId, Partial<ComposerThemePalette>>
 >;
@@ -620,6 +624,12 @@ export function parseBuiltinComposerThemeOverrides(
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     const record = parsed as Partial<Record<BuiltinComposerThemeId, unknown>>;
+    // Written by this format's serializer. Without it, an override that sets
+    // every colour is indistinguishable from a 3.6.1 full palette and would
+    // lose any colour that happens to equal the old default.
+    const isCurrentFormat =
+      (parsed as Record<string, unknown>)[OVERRIDES_FORMAT_KEY] ===
+      OVERRIDES_FORMAT_VERSION;
     const overrides: BuiltinComposerThemeOverrides = {};
     for (const id of BUILTIN_THEME_IDS) {
       const override = record[id];
@@ -628,9 +638,9 @@ export function parseBuiltinComposerThemeOverrides(
       const keys = Object.keys(
         BUILTIN_COMPOSER_THEME_PALETTES[id],
       ) as ThemeColorKey[];
-      const isLegacyFullPalette = keys.every((key) =>
-        Object.prototype.hasOwnProperty.call(source, key),
-      );
+      const isLegacyFullPalette =
+        !isCurrentFormat &&
+        keys.every((key) => Object.prototype.hasOwnProperty.call(source, key));
       const changed: Partial<ComposerThemePalette> = {};
       for (const key of keys) {
         if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
@@ -678,7 +688,12 @@ export function serializeBuiltinComposerThemeOverrides(
     }
     if (Object.keys(changed).length) normalized[id] = changed;
   }
-  return Object.keys(normalized).length ? JSON.stringify(normalized) : "";
+  return Object.keys(normalized).length
+    ? JSON.stringify({
+        [OVERRIDES_FORMAT_KEY]: OVERRIDES_FORMAT_VERSION,
+        ...normalized,
+      })
+    : "";
 }
 
 export function createCustomComposerThemeId(): `custom:${string}` {

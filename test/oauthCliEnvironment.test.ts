@@ -4,24 +4,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  buildWindowsUserPathPersistenceScript,
-  buildNodeSourceAptInstallCommand,
-  buildNodeSourceAptManualInstructions,
   checkOAuthCliEnvironmentUpdates,
   deriveCodexStandaloneBinDirs,
-  deriveNpmGlobalBinDirFromPrefix,
-  deriveNpmGlobalRootFromPrefix,
-  derivePreferredUserNpmPrefix,
   decideSystemProxySync,
   shouldReleaseManagedProxy,
   getCodexStandaloneInstallCommand,
   getProviderCliSpec,
   getSystemProxySignature,
-  isNodeVersionSupportedByProviderCli,
   normalizeVersionText,
   parseMacSystemProxy,
   parseProxyUrl,
-  shouldInstallLatestPackageVersion,
 } from "../src/utils/oauthCli";
 
 describe("oauthCli environment helpers", function () {
@@ -137,57 +129,14 @@ describe("oauthCli environment helpers", function () {
     assert.equal(normalizeVersionText(""), "");
   });
 
-  it("should derive npm global paths from prefix on Windows", function () {
-    const prefix = "C:\\Users\\alice\\AppData\\Roaming\\npm";
-    assert.equal(
-      deriveNpmGlobalRootFromPrefix(prefix, "windows"),
-      "C:\\Users\\alice\\AppData\\Roaming\\npm\\node_modules",
-    );
-    assert.equal(
-      deriveNpmGlobalBinDirFromPrefix(prefix, "windows"),
-      "C:\\Users\\alice\\AppData\\Roaming\\npm",
-    );
-  });
-
-  it("should derive npm global paths from prefix on Unix-like platforms", function () {
-    const prefix = "/Users/alice/.npm-global";
-    assert.equal(
-      deriveNpmGlobalRootFromPrefix(prefix, "macos"),
-      "/Users/alice/.npm-global/lib/node_modules",
-    );
-    assert.equal(
-      deriveNpmGlobalBinDirFromPrefix(prefix, "macos"),
-      "/Users/alice/.npm-global/bin",
-    );
-    assert.equal(
-      deriveNpmGlobalRootFromPrefix("/home/alice/.npm-global", "linux"),
-      "/home/alice/.npm-global/lib/node_modules",
-    );
-  });
-
-  it("should derive preferred user npm prefixes per platform", function () {
-    assert.equal(
-      derivePreferredUserNpmPrefix("windows", "C:\\Users\\alice"),
-      "C:\\Users\\alice\\AppData\\Roaming\\npm",
-    );
-    assert.equal(
-      derivePreferredUserNpmPrefix("macos", "/Users/alice"),
-      "/Users/alice/.npm-global",
-    );
-    assert.equal(
-      derivePreferredUserNpmPrefix("linux", "/home/alice"),
-      "/home/alice/.npm-global",
-    );
-  });
-
   it("should use official Codex standalone installer commands", function () {
     assert.equal(
       getCodexStandaloneInstallCommand("macos"),
-      "set -o pipefail; curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+      "set -o pipefail; if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh; else wget -q -T 30 -O- https://chatgpt.com/codex/install.sh; fi | CODEX_NON_INTERACTIVE=1 sh",
     );
     assert.equal(
       getCodexStandaloneInstallCommand("linux"),
-      "set -o pipefail; curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
+      "set -o pipefail; if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 20 --max-time 600 https://chatgpt.com/codex/install.sh; else wget -q -T 30 -O- https://chatgpt.com/codex/install.sh; fi | CODEX_NON_INTERACTIVE=1 sh",
     );
     assert.include(
       getCodexStandaloneInstallCommand("windows"),
@@ -198,25 +147,6 @@ describe("oauthCli environment helpers", function () {
       "CODEX_NON_INTERACTIVE=1",
     );
     assert.include(getCodexStandaloneInstallCommand("windows"), "System32");
-  });
-
-  it("should build NodeSource apt command for Node.js 22 upgrades", function () {
-    const command = buildNodeSourceAptInstallCommand();
-
-    assert.include(command, "https://deb.nodesource.com/setup_22.x");
-    assert.include(command, "/tmp/aidea-nodesource-setup_22.x.sh");
-    assert.include(command, "sudo -n -E bash");
-    assert.include(command, "apt-get install -y nodejs");
-  });
-
-  it("should build interactive terminal instructions for manual NodeSource install", function () {
-    const instructions = buildNodeSourceAptManualInstructions();
-
-    assert.include(instructions, "https://deb.nodesource.com/setup_22.x");
-    assert.include(instructions, "sudo -E bash");
-    assert.include(instructions, "sudo apt-get install -y nodejs");
-    assert.include(instructions, "node --version");
-    assert.notInclude(instructions, "sudo -n");
   });
 
   it("should derive Codex standalone binary directories per platform", function () {
@@ -277,24 +207,6 @@ describe("oauthCli environment helpers", function () {
       restore();
       fs.rmSync(root, { recursive: true, force: true });
     }
-  });
-
-  it("should build Windows PATH persistence PowerShell without breaking else", function () {
-    const script = buildWindowsUserPathPersistenceScript(
-      "C:\\Users\\alice\\AppData\\Roaming\\npm",
-    );
-
-    assert.notMatch(script, /\}\s*;\s*else\b/i);
-    assert.include(script, "} else {");
-    assert.include(script, "User PATH already contains npm bin dir");
-    assert.include(script, "Added npm bin dir to user PATH");
-  });
-
-  it("should only request package updates when installed is missing or outdated", function () {
-    assert.isTrue(shouldInstallLatestPackageVersion("", "11.6.2"));
-    assert.isFalse(shouldInstallLatestPackageVersion("11.6.2", "11.6.2"));
-    assert.isTrue(shouldInstallLatestPackageVersion("11.5.0", "11.6.2"));
-    assert.isFalse(shouldInstallLatestPackageVersion("11.6.2", ""));
   });
 
   it("should expose provider CLI metadata for CLI-backed providers only", function () {

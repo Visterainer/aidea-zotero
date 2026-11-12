@@ -251,6 +251,8 @@ export function createHeightSync(
  */
 export function disposePanelHostRuntime(host: Element | null | undefined) {
   if (!host) return;
+  // Lets document-level listeners owned by this panel detach themselves.
+  (host as HTMLElement).dataset.llmDisposed = "1";
   type Hooks = {
     __llmHeightSync?: { dispose?: () => void } | null;
     __llmSelectionPopupCleanup?: () => void;

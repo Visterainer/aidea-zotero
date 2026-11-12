@@ -49,7 +49,7 @@ subprocess.run(
     [
         "uv", "pip", "compile", str(requirements_path),
         "--universal", "--python-version", "3.12", "--no-annotate",
-        "--only-binary", ":all:",
+        "--only-binary", ":all:", "--generate-hashes",
         "--quiet", "--output-file", str(lock_path),
     ],
     check=True,

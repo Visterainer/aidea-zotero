@@ -48,6 +48,8 @@ import {
   createSiblingBranch,
   loadConversationPath,
   loadConversationTree,
+  addChatHistoryClearBlocker,
+  onChatHistoryCleared,
   setActiveChild as setStoredActiveChild,
   updateMessageNode,
   StoredChatMessage,
@@ -94,6 +96,8 @@ import {
   setPromptMenuTarget,
   pdfTextCache,
   conversationContextPool,
+  activeGlobalConversationByLibrary,
+  activePaperConversationByItem,
   ConversationContextPoolEntry,
   resetBaseDocumentState,
   selectedFileAttachmentCache,
@@ -3066,8 +3070,12 @@ export async function sendQuestion(
     chatHistory.set(conversationKey, []);
   }
   const history = chatHistory.get(conversationKey)!;
+  // null means "new root". When the last message exists but has no id (an
+  // earlier persist failed) the parent is merely unknown: pass undefined so
+  // the store appends to the current leaf instead of starting a new root,
+  // which would hide the rest of the conversation after a reload.
   const parentMessageId = history.length
-    ? (history[history.length - 1]?.messageId ?? null)
+    ? history[history.length - 1]?.messageId
     : null;
   const historyForLLM = history.slice();
   const generatedImageContext = collectRecentGeneratedImageDataUrls(history);
@@ -3159,7 +3167,7 @@ export async function sendQuestion(
   );
   if (userMessageId) {
     userMessage.messageId = userMessageId;
-    userMessage.parentMessageId = parentMessageId;
+    userMessage.parentMessageId = parentMessageId ?? null;
   }
 
   const assistantMessage: Message = {
@@ -3170,16 +3178,21 @@ export async function sendQuestion(
     streaming: true,
   };
   history.push(assistantMessage);
-  const assistantMessageId = await persistConversationMessage(
-    conversationKey,
-    {
-      role: "assistant",
-      text: assistantMessage.text,
-      timestamp: assistantMessage.timestamp,
-      modelName: assistantMessage.modelName,
-    },
-    userMessageId || userMessage.messageId || null,
-  );
+  // Without a persisted user message there is no parent to attach to;
+  // persisting the answer as a root would orphan the whole conversation.
+  const assistantParentId = userMessageId || userMessage.messageId || 0;
+  const assistantMessageId = assistantParentId
+    ? await persistConversationMessage(
+        conversationKey,
+        {
+          role: "assistant",
+          text: assistantMessage.text,
+          timestamp: assistantMessage.timestamp,
+          modelName: assistantMessage.modelName,
+        },
+        assistantParentId,
+      )
+    : 0;
   if (assistantMessageId) {
     assistantMessage.messageId = assistantMessageId;
     assistantMessage.parentMessageId =
@@ -4459,3 +4472,41 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
     cancelFollowBottomStabilization(win, conversationKey);
   }
 }
+
+// "Clear all history" (Settings) deletes every conversation row. Drop the
+// in-memory copies and move each open panel to a fresh conversation, so the
+// next message is not appended under a deleted key.
+// A streaming answer still holds its conversation: its panel cannot switch
+// away, and the finished text would be written to a deleted conversation.
+addChatHistoryClearBlocker(() =>
+  activeStreamingAssistantMessages.size > 0
+    ? "A response is still being generated. Stop it or wait for it to finish, then try again. / 仍有回答正在生成，请先停止或等待完成后再清空。"
+    : null,
+);
+
+onChatHistoryCleared(() => {
+  chatHistory.clear();
+  loadedConversationKeys.clear();
+  conversationContextPool.clear();
+  // Conversation keys are reused, so a cached summary would be attached to
+  // whichever new conversation gets the same key.
+  zoneBSummaryCache.clear();
+  summaryCheckpointCache.clear();
+  activeGlobalConversationByLibrary.clear();
+  activePaperConversationByItem.clear();
+  const getWindows = (): Window[] => {
+    try {
+      return (Zotero.getMainWindows?.() || []) as unknown as Window[];
+    } catch (_err) {
+      return [];
+    }
+  };
+  for (const win of getWindows()) {
+    const buttons = win.document?.querySelectorAll?.(
+      "#llm-main #llm-history-new",
+    );
+    for (const button of Array.from(buttons || [])) {
+      (button as HTMLButtonElement).click();
+    }
+  }
+});

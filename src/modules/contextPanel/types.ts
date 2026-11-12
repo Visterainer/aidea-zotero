@@ -122,6 +122,8 @@ export type DocumentTextContext = {
   avgChunkLength: number;
   fullLength: number;
   embeddings?: number[][];
+  /** Endpoint and model that produced `embeddings`. */
+  embeddingKey?: string;
   embeddingPromise?: Promise<number[][] | null>;
   embeddingFailed?: boolean;
   /** Format-neutral metadata. Optional for legacy/test-created contexts. */

@@ -735,11 +735,21 @@ export async function renderShortcuts(
         (e: Event) => {
           const keyEvent = e as KeyboardEvent;
           if (keyEvent.key !== "Escape") return;
-          if (shortcutMoveModeState.get(body) !== true) return;
+          // One listener serves every panel in this document, so it must not
+          // close over the panel that happened to register it.
+          const panels = (
+            Array.from(
+              ownerDoc.querySelectorAll(
+                "#llm-reader-panel-host, #llm-library-panel-host",
+              ),
+            ) as Element[]
+          ).filter((panel) => shortcutMoveModeState.get(panel) === true);
+          if (!panels.length) return;
           keyEvent.preventDefault();
-          shortcutMoveModeState.set(body, false);
-          const latestItem = shortcutRenderItemState.get(body);
-          void renderShortcuts(body, latestItem);
+          for (const panel of panels) {
+            shortcutMoveModeState.set(panel, false);
+            void renderShortcuts(panel, shortcutRenderItemState.get(panel));
+          }
         },
         true,
       );

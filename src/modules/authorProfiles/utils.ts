@@ -84,6 +84,33 @@ export function normalizeName(value: unknown): string {
     .toLowerCase();
 }
 
+function normalizeTitle(value: unknown): string {
+  return normalizeName(String(value ?? "").replace(/<[^>]+>/g, " "))
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const MIN_TITLE_CONTAINMENT_LENGTH = 20;
+
+/**
+ * Whether a title returned by a title search is the paper we asked for.
+ * Containment covers subtitles that only one side carries.
+ */
+export function isSameWorkTitle(
+  expected: unknown,
+  candidate: unknown,
+): boolean {
+  const a = normalizeTitle(expected);
+  const b = normalizeTitle(candidate);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return (
+    shorter.length >= MIN_TITLE_CONTAINMENT_LENGTH && longer.includes(shorter)
+  );
+}
+
 export function lastNameKey(value: string): string {
   const normalized = normalizeName(value);
   const parts = normalized.split(/\s+/).filter(Boolean);

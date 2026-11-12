@@ -240,11 +240,10 @@ function applyPanelLanguageAttributes(doc: Document, lang: Lang): void {
     doc.defaultView?.HTMLElement ||
     (typeof HTMLElement !== "undefined" ? HTMLElement : null);
   if (!HTMLElementCtor) return;
-  const targets = [
-    doc.getElementById("llm-main"),
-    doc.querySelector(".llm-panel"),
-    doc.querySelector(".llm-settings-root"),
-  ];
+  // Every panel host lives in this one document with the same IDs.
+  const targets = Array.from(
+    doc.querySelectorAll("#llm-main, .llm-panel, .llm-settings-root"),
+  );
   for (const target of targets) {
     if (target && target instanceof HTMLElementCtor) {
       const htmlTarget = target as HTMLElement;
@@ -353,7 +352,7 @@ const I18N = {
     oauthDeviceNotice:
       "⚠️ OAuth 授权提示\n\n将启动 Device Code OAuth 流程：\n1. 稍后会显示验证网址和授权码\n2. 打开浏览器完成授权\n\n请注意：\n• OAuth 令牌仅保存在本地设备\n• 此用法未经服务商明确授权，理论上存在账号被限制的可能性\n• 使用 AI 服务可能产生费用\n• 本插件完全免费且开源，不收集任何用户数据\n\n是否继续？",
     oauthInstallNotice:
-      "⚠️ OAuth 授权提示\n\n“安装环境”将执行以下操作：\n1. 安装 Node.js 运行环境（如尚未安装）\n2. 安装对应提供商的 CLI 工具\n3. 通过 OAuth 协议打开浏览器登录\n\n请注意：\n• OAuth 登录生成的访问令牌仅保存在本地，不会上传至任何第三方服务器\n• 插件直接调用 AI 服务商的官方 API\n• 本插件借助 CLI 的 OAuth 令牌调用 API，此用法未经服务商明确授权，理论上存在账号被限制的可能性\n• 使用 AI 服务可能产生费用，具体取决于您的账号计费方式\n• 本插件完全免费且开源，不收集任何用户数据\n\n是否继续？",
+      "⚠️ OAuth 授权提示\n\n“安装环境”将执行以下操作：\n1. 下载并安装 OpenAI 官方 Codex CLI（独立版，无需 Node.js）\n2. 安装程序会把其目录加入你的用户 PATH\n3. 通过 OAuth 协议打开浏览器登录\n\n请注意：\n• OAuth 登录生成的访问令牌仅保存在本地，不会上传至任何第三方服务器\n• 插件直接调用 AI 服务商的官方 API\n• 本插件借助 CLI 的 OAuth 令牌调用 API，此用法未经服务商明确授权，理论上存在账号被限制的可能性\n• 使用 AI 服务可能产生费用，具体取决于您的账号计费方式\n• 本插件完全免费且开源，不收集任何用户数据\n\n是否继续？",
     authLoggedIn: "已登录",
     authNotLoggedIn: "未登录",
     authTokenMayBeExpired: "令牌可能已过期",
@@ -493,7 +492,7 @@ const I18N = {
     oauthDeviceNotice:
       "⚠️ OAuth Authorization Notice\n\nThis will start the Device Code OAuth flow:\n1. A verification URL and code will be displayed\n2. Open your browser to authorize the application\n\nPlease note:\n• OAuth tokens are stored locally on your device only\n• This plugin uses OAuth tokens which is not officially endorsed — theoretical risk of account restrictions\n• Using AI services may incur charges\n• This plugin is free, open-source, and collects no user data\n\nDo you wish to continue?",
     oauthInstallNotice:
-      '⚠️ OAuth Authorization Notice\n\n"Install Environment" will perform the following:\n1. Install Node.js runtime (if not already installed)\n2. Install the CLI tool for this provider\n3. Open your browser via OAuth to sign in\n\nPlease note:\n• OAuth tokens are stored locally on your device only and are never sent to any third-party server\n• The plugin communicates directly with the AI provider\'s official API\n• This plugin uses OAuth tokens which is not an officially endorsed usage — there is a theoretical risk of account restrictions\n• Using AI services may incur charges depending on your account billing plan\n• This plugin is completely free, open-source, and does not collect any user data\n\nDo you wish to continue?',
+      "⚠️ OAuth Authorization Notice\n\n\"Install Environment\" will perform the following:\n1. Download and install OpenAI's official standalone Codex CLI (no Node.js needed)\n2. The installer adds its directory to your user PATH\n3. Open your browser via OAuth to sign in\n\nPlease note:\n• OAuth tokens are stored locally on your device only and are never sent to any third-party server\n• The plugin communicates directly with the AI provider's official API\n• This plugin uses OAuth tokens which is not an officially endorsed usage — there is a theoretical risk of account restrictions\n• Using AI services may incur charges depending on your account billing plan\n• This plugin is completely free, open-source, and does not collect any user data\n\nDo you wish to continue?",
     authLoggedIn: "Logged in",
     authNotLoggedIn: "Not logged in",
     authTokenMayBeExpired: "token may be expired",
@@ -2569,8 +2568,17 @@ function parseModelCache(): Partial<Record<string, ProviderModelOption[]>> {
   }
 }
 
+// `status` is a transient ping badge; it must not survive a restart.
+function serializeModelCache(
+  cache: Partial<Record<string, ProviderModelOption[]>>,
+): string {
+  return JSON.stringify(cache, (key, value) =>
+    key === "status" ? undefined : value,
+  );
+}
+
 function saveModelCache(cache: Partial<Record<string, ProviderModelOption[]>>) {
-  setPref("oauthModelListCache", JSON.stringify(cache));
+  setPref("oauthModelListCache", serializeModelCache(cache));
 }
 
 function parseModelSelectionState(): ProviderModelSelectionCache {
@@ -2949,9 +2957,45 @@ export async function bootstrapSettingTab(
     saveModelSelectionState(selectionCache);
   }
 
+  // Each panel host (library + one per reader item) runs its own copy of this
+  // closure, so prefs written by another host must be re-read before they are
+  // modified and written back whole.
+  const syncModelStateFromPrefs = (): boolean => {
+    const fresh = parseModelCache();
+    const freshSelection = parseModelSelectionState();
+    let changed =
+      serializeModelSelectionCache(freshSelection) !==
+      serializeModelSelectionCache(selectionCache);
+    const next: typeof cache = {};
+    for (const provider of Object.keys(fresh)) {
+      const current = cache[provider];
+      // Keep the in-memory rows (and their ping badges) when nothing changed.
+      if (
+        current &&
+        serializeModelCache({ p: current }) ===
+          serializeModelCache({ p: fresh[provider] })
+      ) {
+        next[provider] = current;
+      } else {
+        next[provider] = fresh[provider];
+        changed = true;
+      }
+    }
+    if (Object.keys(cache).some((provider) => !(provider in fresh))) {
+      changed = true;
+    }
+    cache = next;
+    selectionCache = freshSelection;
+    return changed;
+  };
+
   const root = createEl(doc, "div", "llm-settings-root");
   scrollContainer.appendChild(root);
   applyPanelLanguageAttributes(doc, lang);
+  // All hosts share one document and identical IDs; look things up in this
+  // host's own panel, not the first match in the document.
+  const panelRoot = (scrollContainer.closest?.("#llm-main") ||
+    null) as HTMLElement | null;
 
   type SettingsSectionId =
     | "basic"
@@ -3407,6 +3451,15 @@ export async function bootstrapSettingTab(
     }
     return "#ffffff";
   };
+  // Another panel host may have saved themes since this closure's snapshot.
+  const reloadThemeCollections = () => {
+    customComposerThemes = parseCustomComposerThemes(
+      getPref("composerThemeCustomList"),
+    );
+    builtinThemeOverrides = parseBuiltinComposerThemeOverrides(
+      getPref("composerThemeBuiltinOverrides"),
+    );
+  };
   const persistThemeCollections = () => {
     setPref(
       "composerThemeCustomList",
@@ -3497,6 +3550,7 @@ export async function bootstrapSettingTab(
     customThemeLabels.push({ key: control.key, label });
   }
   const saveCurrentTheme = () => {
+    reloadThemeCollections();
     if (isBuiltinComposerTheme(composerThemeValue)) {
       const base = BUILTIN_COMPOSER_THEME_PALETTES[composerThemeValue];
       const normalized = normalizePalette(themeEditorPalette, base);
@@ -3533,6 +3587,7 @@ export async function bootstrapSettingTab(
     customThemeStatus.textContent = L.composerThemeSaved;
   };
   customThemeResetBtn.addEventListener("click", () => {
+    reloadThemeCollections();
     if (isBuiltinComposerTheme(composerThemeValue)) {
       delete builtinThemeOverrides[composerThemeValue];
       persistThemeCollections();
@@ -3557,6 +3612,7 @@ export async function bootstrapSettingTab(
       getThemeDisplayName(composerThemeValue),
     );
     if (rawName === null) return;
+    reloadThemeCollections();
     const name = rawName.trim().replace(/\s+/g, " ");
     if (!name) {
       win.alert(L.composerThemeNameRequired);
@@ -3590,6 +3646,7 @@ export async function bootstrapSettingTab(
   customThemeDeleteBtn.addEventListener("click", () => {
     if (isBuiltinComposerTheme(composerThemeValue)) return;
     if (!win.confirm(L.composerThemeDeleteConfirm)) return;
+    reloadThemeCollections();
     customComposerThemes = customComposerThemes.filter(
       (theme) => theme.id !== composerThemeValue,
     );
@@ -3694,6 +3751,9 @@ export async function bootstrapSettingTab(
       closeComposerThemeDropdown();
       return;
     }
+    reloadThemeCollections();
+    renderComposerThemeItems();
+    updateComposerThemeUi();
     composerThemeMenu.style.display = "block";
     composerThemeDropdown.classList.add("open");
   });
@@ -3923,7 +3983,7 @@ export async function bootstrapSettingTab(
   };
 
   const switchToDiscussionTab = () => {
-    const discussionBtn = doc.querySelector(
+    const discussionBtn = (panelRoot || doc).querySelector(
       "#llm-tab-btn-discussion",
     ) as HTMLButtonElement | null;
     discussionBtn?.click();
@@ -4034,7 +4094,6 @@ export async function bootstrapSettingTab(
     fontControlRefs.length = 0;
     fontPresetButtons = [];
 
-    const panelRoot = doc.querySelector("#llm-main") as HTMLElement | null;
     const host = panelRoot || doc.body;
     if (!host) return;
 
@@ -4586,6 +4645,7 @@ export async function bootstrapSettingTab(
     renderFetchedModels();
   });
 
+  let saveFlashTimer: ReturnType<typeof setTimeout> | null = null;
   saveModelsBtn.addEventListener("click", () => {
     const label = fetchedModelsLabelInput.value.trim() || "custom api";
     const selected = lastFetchedModels.filter((m) => m.checked);
@@ -4599,29 +4659,42 @@ export async function bootstrapSettingTab(
       apiBase,
       apiKey,
     }));
+    syncModelStateFromPrefs();
     cache = { ...cache, [label as OAuthProviderId]: newModels };
     saveModelCache(cache);
     persistSelectionState();
     renderModels();
 
-    // Flash the save button to confirm success
-    const origText = saveModelsBtn.textContent || "";
-    const origClassName = saveModelsBtn.className;
+    // Flash the save button to confirm success. Restore to the known resting
+    // state so a second click during the flash cannot capture the flash text.
+    if (saveFlashTimer !== null) clearTimeout(saveFlashTimer);
     saveModelsBtn.textContent = L.saved;
     saveModelsBtn.classList.remove("llm-set-btn--success");
     saveModelsBtn.classList.add("llm-set-btn--saved-flash");
-    setTimeout(() => {
-      saveModelsBtn.textContent = origText;
-      saveModelsBtn.className = origClassName;
+    saveFlashTimer = setTimeout(() => {
+      saveFlashTimer = null;
+      saveModelsBtn.textContent = L.saveSelectedModels;
+      saveModelsBtn.classList.remove("llm-set-btn--saved-flash");
+      saveModelsBtn.classList.add("llm-set-btn--success");
     }, 2000);
   });
 
   const customModeStatus = createEl(doc, "div", "llm-set-status");
   customModeStatus.id = `${config.addonRef}-custom-openai-status`;
+  // The standalone Model field (customModelField) is intentionally not
+  // mounted, so fetch feedback needs its own visible element.
+  const fetchModelsStatus = createEl(doc, "span", "llm-set-hint");
+  fetchModelsStatus.style.display = "none";
+  const setFetchModelsStatus = (text: string, color = "") => {
+    fetchModelsStatus.textContent = text;
+    fetchModelsStatus.style.color = color;
+    fetchModelsStatus.style.display = text ? "" : "none";
+  };
   customFieldsBox.append(
     customApiBaseField,
     customApiKeyField,
     addModelRow,
+    fetchModelsStatus,
     customModeStatus,
   );
   // Assemble customPanel with the custom fields
@@ -4643,6 +4716,30 @@ export async function bootstrapSettingTab(
     input.classList.toggle("llm-set-input--error", missing);
   };
 
+  // The Model input is not mounted; models are normally added through the
+  // saved-model list, so a selected custom model also satisfies "Model".
+  const hasSelectedCustomModel = () =>
+    Object.keys(cache).some((provider) => {
+      const rows = cache[provider] || [];
+      return (
+        rows.some((row) => row.apiBase) &&
+        reconcileProviderModelSelection(
+          provider as OAuthProviderId,
+          rows,
+          selectionCache,
+        ).length > 0
+      );
+    });
+  const getCustomMissingFields = () => {
+    const missing = getCustomEndpointMissingFields(
+      customApiBaseInput.value,
+      customModelInput.value,
+    );
+    return hasSelectedCustomModel()
+      ? missing.filter((field) => field !== "model")
+      : missing;
+  };
+
   const updateCustomModeUi = () => {
     const isCustom = customModeRadio.checked;
 
@@ -4658,10 +4755,7 @@ export async function bootstrapSettingTab(
     customApiBaseInput.disabled = !isCustom;
     customApiKeyInput.disabled = !isCustom;
     customModelInput.disabled = !isCustom;
-    const missing = getCustomEndpointMissingFields(
-      customApiBaseInput.value,
-      customModelInput.value,
-    );
+    const missing = getCustomMissingFields();
     setCustomInputBorderState(
       customApiBaseInput,
       isCustom && missing.includes("apiBase"),
@@ -4692,10 +4786,7 @@ export async function bootstrapSettingTab(
   };
 
   const getDiscussionModelStateDetail = () => {
-    const missing = getCustomEndpointMissingFields(
-      customApiBaseInput.value,
-      customModelInput.value,
-    );
+    const missing = getCustomMissingFields();
     return {
       primaryConnectionMode: customModeRadio.checked ? "custom" : "oauth",
       customMissingApiBase: missing.includes("apiBase"),
@@ -4703,7 +4794,9 @@ export async function bootstrapSettingTab(
     };
   };
 
+  let notifyingModelState = false;
   const notifyDiscussionModelStateChanged = () => {
+    notifyingModelState = true;
     try {
       const CustomEventCtor =
         win.CustomEvent ||
@@ -4719,6 +4812,8 @@ export async function bootstrapSettingTab(
       doc.dispatchEvent(new Event("llm-models-changed"));
     } catch {
       /* ignore */
+    } finally {
+      notifyingModelState = false;
     }
   };
 
@@ -4855,118 +4950,118 @@ export async function bootstrapSettingTab(
       refs.deleteBtn.textContent = L.oauthDelete;
     }
     // Update XHTML static labels
-    const spl = doc.querySelector(`#${config.addonRef}-system-prompt-label`);
+    const spl = root.querySelector(`#${config.addonRef}-system-prompt-label`);
     if (spl) spl.textContent = L.systemPrompt;
-    const spi = doc.querySelector(
+    const spi = root.querySelector(
       `#${config.addonRef}-system-prompt-input`,
     ) as HTMLTextAreaElement | null;
     if (spi) spi.placeholder = L.systemPromptPlaceholder;
-    const sph = doc.querySelector(`#${config.addonRef}-system-prompt-hint`);
+    const sph = root.querySelector(`#${config.addonRef}-system-prompt-hint`);
     if (sph) sph.textContent = L.systemPromptHint;
-    const atl = doc.querySelector(`#${config.addonRef}-popup-add-text-label`);
+    const atl = root.querySelector(`#${config.addonRef}-popup-add-text-label`);
     if (atl) atl.textContent = L.showAddText;
-    const ath = doc.querySelector(`#${config.addonRef}-popup-add-text-hint`);
+    const ath = root.querySelector(`#${config.addonRef}-popup-add-text-hint`);
     if (ath) ath.textContent = L.showAddTextHint;
-    const apt = doc.querySelector(`#${config.addonRef}-author-profiles-title`);
+    const apt = root.querySelector(`#${config.addonRef}-author-profiles-title`);
     if (apt) apt.textContent = L.authorProfilesTitle;
-    const apm = doc.querySelector(
+    const apm = root.querySelector(
       `#${config.addonRef}-author-profiles-menu-label`,
     );
     if (apm) apm.textContent = L.authorProfilesContextMenu;
-    const aph = doc.querySelector(`#${config.addonRef}-author-profiles-hint`);
+    const aph = root.querySelector(`#${config.addonRef}-author-profiles-hint`);
     if (aph) aph.textContent = L.authorProfilesContextMenuHint;
-    const apb = doc.querySelector(`#${config.addonRef}-author-profiles-beta`);
+    const apb = root.querySelector(`#${config.addonRef}-author-profiles-beta`);
     if (apb) apb.textContent = L.authorProfilesBeta;
-    const apml = doc.querySelector(
+    const apml = root.querySelector(
       `#${config.addonRef}-author-profiles-model-label`,
     );
     if (apml) apml.textContent = L.authorProfilesModel;
-    const apl = doc.querySelector(
+    const apl = root.querySelector(
       `#${config.addonRef}-author-profiles-language-label`,
     );
     if (apl) apl.textContent = L.authorProfilesLanguage;
-    const aplh = doc.querySelector(
+    const aplh = root.querySelector(
       `#${config.addonRef}-author-profiles-language-hint`,
     );
     if (aplh) aplh.textContent = L.authorProfilesLanguageHint;
-    const stTitle = doc.querySelector(
+    const stTitle = root.querySelector(
       `#${config.addonRef}-selection-translate-title`,
     );
     if (stTitle) stTitle.textContent = L.selectionTranslateTitle;
-    const stEnable = doc.querySelector(
+    const stEnable = root.querySelector(
       `#${config.addonRef}-selection-translate-enable-label`,
     );
     if (stEnable) stEnable.textContent = L.selectionTranslateEnable;
-    const stEnableHint = doc.querySelector(
+    const stEnableHint = root.querySelector(
       `#${config.addonRef}-selection-translate-enable-hint`,
     );
     if (stEnableHint) stEnableHint.textContent = L.selectionTranslateEnableHint;
-    const stAuto = doc.querySelector(
+    const stAuto = root.querySelector(
       `#${config.addonRef}-selection-translate-auto-label`,
     );
     if (stAuto) stAuto.textContent = L.selectionTranslateAuto;
-    const stAutoHint = doc.querySelector(
+    const stAutoHint = root.querySelector(
       `#${config.addonRef}-selection-translate-auto-hint`,
     );
     if (stAutoHint) stAutoHint.textContent = L.selectionTranslateAutoHint;
-    const stModel = doc.querySelector(
+    const stModel = root.querySelector(
       `#${config.addonRef}-selection-translate-model-label`,
     );
     if (stModel) stModel.textContent = L.selectionTranslateModel;
-    const stModelHint = doc.querySelector(
+    const stModelHint = root.querySelector(
       `#${config.addonRef}-selection-translate-model-hint`,
     );
     if (stModelHint) stModelHint.textContent = L.selectionTranslateModelHint;
-    const stReasoning = doc.querySelector(
+    const stReasoning = root.querySelector(
       `#${config.addonRef}-selection-translate-reasoning-label`,
     );
     if (stReasoning) stReasoning.textContent = getPanelI18n().reasoningEffort;
-    const stReasoningHint = doc.querySelector(
+    const stReasoningHint = root.querySelector(
       `#${config.addonRef}-selection-translate-reasoning-hint`,
     );
     if (stReasoningHint)
       stReasoningHint.textContent =
         getPanelI18n().selectionTranslateReasoningHint;
-    const stSource = doc.querySelector(
+    const stSource = root.querySelector(
       `#${config.addonRef}-selection-translate-source-label`,
     );
     if (stSource) stSource.textContent = L.selectionTranslateSourceLang;
-    const stTarget = doc.querySelector(
+    const stTarget = root.querySelector(
       `#${config.addonRef}-selection-translate-target-label`,
     );
     if (stTarget) stTarget.textContent = L.selectionTranslateTargetLang;
-    const stShowCopy = doc.querySelector(
+    const stShowCopy = root.querySelector(
       `#${config.addonRef}-selection-translate-show-copy-label`,
     );
     if (stShowCopy) {
       stShowCopy.textContent = L.selectionTranslateShowCopyButton;
     }
-    const stShowCopyHint = doc.querySelector(
+    const stShowCopyHint = root.querySelector(
       `#${config.addonRef}-selection-translate-show-copy-hint`,
     );
     if (stShowCopyHint) {
       stShowCopyHint.textContent = L.selectionTranslateShowCopyButtonHint;
     }
-    const stShowAddToNote = doc.querySelector(
+    const stShowAddToNote = root.querySelector(
       `#${config.addonRef}-selection-translate-show-add-to-note-label`,
     );
     if (stShowAddToNote) {
       stShowAddToNote.textContent = L.selectionTranslateShowAddToNoteButton;
     }
-    const stShowAddToNoteHint = doc.querySelector(
+    const stShowAddToNoteHint = root.querySelector(
       `#${config.addonRef}-selection-translate-show-add-to-note-hint`,
     );
     if (stShowAddToNoteHint) {
       stShowAddToNoteHint.textContent =
         L.selectionTranslateShowAddToNoteButtonHint;
     }
-    const stColdStartHint = doc.querySelector(
+    const stColdStartHint = root.querySelector(
       `#${config.addonRef}-selection-translate-cold-start-hint`,
     );
     if (stColdStartHint) {
       stColdStartHint.textContent = L.selectionTranslateColdStartHint;
     }
-    const stClear = doc.querySelector(
+    const stClear = root.querySelector(
       `#${config.addonRef}-selection-translate-clear-cache`,
     );
     if (stClear) stClear.textContent = L.selectionTranslateClearCache;
@@ -4974,9 +5069,11 @@ export async function bootstrapSettingTab(
     renderAuthorProfileLanguageOptions();
     renderSelectionTranslateModelOptions();
     renderAuthorProfileModelOptions();
-    const saml = doc.querySelector(`#${config.addonRef}-show-all-models-label`);
+    const saml = root.querySelector(
+      `#${config.addonRef}-show-all-models-label`,
+    );
     if (saml) saml.textContent = L.showAllModels;
-    const samh = doc.querySelector(`#${config.addonRef}-show-all-models-hint`);
+    const samh = root.querySelector(`#${config.addonRef}-show-all-models-hint`);
     if (samh) samh.textContent = L.showAllModelsHint;
     updateCustomModeUi();
   };
@@ -5033,6 +5130,7 @@ export async function bootstrapSettingTab(
     selectionCache = reconciled.cache;
     saveModelSelectionState(selectionCache);
     syncSidebarModelPrefsFromSelection(cache, selectionCache);
+    updateCustomModeUi();
     // Notify all open Discussion tabs to refresh their model menus
     notifyDiscussionModelStateChanged();
   };
@@ -5041,6 +5139,7 @@ export async function bootstrapSettingTab(
     provider: OAuthProviderId,
     modelIds: string[],
   ) => {
+    syncModelStateFromPrefs();
     selectionCache = {
       ...selectionCache,
       [provider]: canonicalizeSelectedModelIds(modelIds, cache[provider] || []),
@@ -5050,6 +5149,7 @@ export async function bootstrapSettingTab(
   };
 
   const clearProviderState = (provider: OAuthProviderId) => {
+    syncModelStateFromPrefs();
     const nextCache = { ...cache, [provider]: [] };
     cache = nextCache;
     saveModelCache(cache);
@@ -5722,6 +5822,7 @@ export async function bootstrapSettingTab(
           ),
         );
         if (!confirmed) return;
+        syncModelStateFromPrefs();
         // Fully remove from cache (not just clear to [])
         const nextCache = { ...cache };
         delete nextCache[provider as OAuthProviderId];
@@ -5835,6 +5936,7 @@ export async function bootstrapSettingTab(
         delModelBtn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
+          syncModelStateFromPrefs();
           const updated = (cache[provider as OAuthProviderId] || []).filter(
             (m) => m.id !== id,
           );
@@ -5873,6 +5975,7 @@ export async function bootstrapSettingTab(
       if (isOAuth) {
         // ── OAuth provider: replace model list ──
         models = await fetchAvailableModels(provider);
+        syncModelStateFromPrefs();
         // The fetch reports network/token failures as an empty list. Storing
         // that would wipe the provider's models and the user's selection, so
         // treat "empty while we already had models" as a failed refresh.
@@ -5882,9 +5985,9 @@ export async function bootstrapSettingTab(
         cache = { ...cache, [provider]: models };
       } else {
         // ── Custom API provider: merge new models into existing ──
-        const existing = cache[provider] || [];
+        syncModelStateFromPrefs();
         let fetched: ProviderModelOption[] = [];
-        const firstModel = existing[0];
+        const firstModel = (cache[provider] || [])[0];
         if (firstModel?.apiBase) {
           try {
             fetched = await fetchCustomEndpointModels(
@@ -5895,6 +5998,10 @@ export async function bootstrapSettingTab(
             // Fetch failed — keep existing list unchanged
           }
         }
+        // Re-read after the await: another panel may have edited the list.
+        syncModelStateFromPrefs();
+        const existing = cache[provider] || [];
+        if (!existing.length) fetched = [];
         // Merge: keep all existing, add new ones from fetch
         const existingIds = new Set(existing.map((m) => m.id));
         const merged = [...existing];
@@ -6177,6 +6284,7 @@ export async function bootstrapSettingTab(
   refreshAllBtn.addEventListener("click", async () => {
     progressText.textContent = L.refreshingModels;
     progressText.style.color = "#555";
+    syncModelStateFromPrefs();
     // Include all providers: OAuth built-ins + custom API providers in cache
     const allProviders = Array.from(
       new Set([...PROVIDERS, ...Object.keys(cache)]),
@@ -6410,6 +6518,12 @@ export async function bootstrapSettingTab(
     oauthEnvUpdateModeValue = "notify";
     updateOAuthEnvUpdateModeUi();
     refreshOAuthEnvUpdateSchedulerMode();
+    hideNavValue = false;
+    Zotero.Prefs.set(`${config.prefsPrefix}.hideTabNav`, false, true);
+    hideNavBtns.forEach((btn, i) => {
+      btn.classList.toggle("active", HIDE_NAV_OPTIONS[i].value === false);
+    });
+    applyHideTabNavToAllPanels(false);
     oauthModeRadio.checked = true;
     customModeRadio.checked = false;
     // Clear custom endpoint UI fields — don't show OAuth markers in these inputs
@@ -6417,6 +6531,7 @@ export async function bootstrapSettingTab(
     customApiKeyInput.value = "";
     customModelInput.value = "";
     updateCustomModeUi();
+    notifyDiscussionModelStateChanged();
     dangerStatus.textContent = L.restoreDefaultsDone;
     dangerStatus.style.color = "#065f46";
     appendProgress(`✔ ${L.restoreDefaultsDone}`, "#065f46");
@@ -6591,25 +6706,40 @@ export async function bootstrapSettingTab(
     if (fetchModelsBusy) return;
     const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
     if (!apiBase) {
-      customModelHint.textContent = L.fetchModelsFailed.replace(
-        "{msg}",
-        "API Base URL",
+      setFetchModelsStatus(
+        L.fetchModelsFailed.replace("{msg}", "API Base URL"),
+        "#dc2626",
       );
-      customModelHint.style.color = "#dc2626";
       return;
     }
     fetchModelsBusy = true;
     fetchModelsBtn.disabled = true;
     const prevText = fetchModelsBtn.textContent;
     fetchModelsBtn.textContent = L.fetchModelsRunning;
-    customModelHint.textContent = L.fetchModelsRunning;
-    customModelHint.style.color = "#6b7280";
+    setFetchModelsStatus(L.fetchModelsRunning, "#6b7280");
+    const apiKey = customApiKeyInput.value.trim();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-      const apiKey = customApiKeyInput.value.trim();
-      const models = await fetchCustomEndpointModels(
-        apiBase,
-        apiKey || undefined,
-      );
+      // fetchCustomEndpointModels has no timeout of its own; without this the
+      // button stays on "Fetching…" until Gecko gives up on the connection.
+      const models = await Promise.race([
+        fetchCustomEndpointModels(apiBase, apiKey || undefined),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error("Request timed out after 15s")),
+            15000,
+          );
+        }),
+      ]);
+      // The endpoint was edited while the request was in flight: these models
+      // belong to the old endpoint and must not be saved under the new one.
+      if (
+        customApiBaseInput.value.trim().replace(/\/+$/, "") !== apiBase ||
+        customApiKeyInput.value.trim() !== apiKey
+      ) {
+        setFetchModelsStatus("");
+        return;
+      }
       // Populate datalist
       while (customModelDatalist.firstChild) {
         customModelDatalist.removeChild(customModelDatalist.firstChild);
@@ -6633,27 +6763,28 @@ export async function bootstrapSettingTab(
         }));
         renderFetchedModels();
 
-        customModelHint.textContent = L.fetchModelsDone.replace(
-          "{n}",
-          String(models.length),
+        setFetchModelsStatus(
+          L.fetchModelsDone.replace("{n}", String(models.length)),
+          "#065f46",
         );
-        customModelHint.style.color = "#065f46";
         if (!customModelInput.value.trim() && models.length > 0) {
           customModelInput.value = models[0].id;
           persistCustomModel();
         }
       } else {
-        customModelHint.textContent = L.fetchModelsEmpty;
-        customModelHint.style.color = "#b45309";
+        setFetchModelsStatus(L.fetchModelsEmpty, "#b45309");
       }
     } catch (err) {
-      customModelHint.textContent = L.fetchModelsFailed.replace(
-        "{msg}",
-        err instanceof Error ? err.message : String(err),
+      setFetchModelsStatus(
+        L.fetchModelsFailed.replace(
+          "{msg}",
+          err instanceof Error ? err.message : String(err),
+        ),
+        "#dc2626",
       );
-      customModelHint.style.color = "#dc2626";
       ztoolkit?.log?.("AIdea: Fetch models button error", err);
     } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
       fetchModelsBusy = false;
       fetchModelsBtn.disabled = false;
       fetchModelsBtn.textContent = prevText || L.fetchModels;
@@ -6674,6 +6805,21 @@ export async function bootstrapSettingTab(
 
   renderStaticText();
   renderModels();
+  // Another panel host changed the model prefs: reload this host's copy.
+  const onModelsChangedElsewhere = () => {
+    // The owning panel was torn down: stop listening so this closure (and
+    // the settings DOM it holds) can be collected.
+    if (root.closest("[data-llm-disposed]")) {
+      doc.removeEventListener("llm-models-changed", onModelsChangedElsewhere);
+      return;
+    }
+    if (notifyingModelState || root.isConnected === false) return;
+    if (syncModelStateFromPrefs()) {
+      renderModels();
+      updateCustomModeUi();
+    }
+  };
+  doc.addEventListener("llm-models-changed", onModelsChangedElsewhere);
   // Fire-and-forget: accounts table is already wired into the DOM tree,
   // so it will populate asynchronously without blocking the settings UI.
   void renderAccounts();

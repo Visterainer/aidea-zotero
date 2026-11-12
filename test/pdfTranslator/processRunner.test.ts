@@ -2,6 +2,8 @@ import { assert } from "chai";
 
 describe("pdfTranslator process runner", function () {
   let launchProcess: typeof import("../../src/modules/pdfTranslator/processRunner").launchProcess;
+  let hasRunningProcess: typeof import("../../src/modules/pdfTranslator/processRunner").hasRunningProcess;
+  const pendingExits: Array<() => void> = [];
   let processQueue: any[];
   let originalComponents: unknown;
   let originalServices: unknown;
@@ -56,7 +58,7 @@ describe("pdfTranslator process runner", function () {
       },
     };
 
-    ({ launchProcess } =
+    ({ launchProcess, hasRunningProcess } =
       await import("../../src/modules/pdfTranslator/processRunner"));
   });
 
@@ -72,12 +74,34 @@ describe("pdfTranslator process runner", function () {
       exitValue: 0,
       directKillCount: 0,
       init() {},
-      runAsync() {},
+      runAsync(
+        _args: string[],
+        _count: number,
+        observer: { observe: (subject: null, topic: string) => void },
+      ) {
+        pendingExits.push(() => observer.observe(null, "process-finished"));
+      },
       kill() {
         this.directKillCount += 1;
       },
     };
   }
+
+  // The module counts live processes, and other suites share that state.
+  afterEach(function () {
+    for (const exit of pendingExits.splice(0)) exit();
+  });
+
+  it("reports a running process until it exits", async function () {
+    assert.isFalse(hasRunningProcess());
+    processQueue.push(createMainProcess(2468));
+    const running = launchProcess("C:\\Python\\python.exe", ["bridge.py"]);
+    assert.isTrue(hasRunningProcess());
+    for (const exit of pendingExits.splice(0)) exit();
+    await running.done;
+    await Promise.resolve();
+    assert.isFalse(hasRunningProcess());
+  });
 
   it("uses taskkill /T /F for the bridge process tree on Windows", function () {
     const main = createMainProcess(4321);

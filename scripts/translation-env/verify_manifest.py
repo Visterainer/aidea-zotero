@@ -24,17 +24,23 @@ assert MANIFEST["requirementsUrl"] == URL
 contents = LOCK.read_text()
 assert hashlib.sha256(contents.encode()).hexdigest() == MANIFEST["requirementsSha256"]
 
+assert len(contents) <= 1_000_000, "Lock too large for the plugin to accept"
 packages = {}
-for raw in contents.splitlines():
+# Each pin is followed by the hashes of its files on continuation lines.
+for raw in re.sub(r"[ \t]*\\\r?\n", " ", contents).splitlines():
     line = raw.strip()
     if not line or line.startswith("#"):
         continue
+    pin, *hashes = re.split(r"\s+(?=--hash=)", line)
     match = re.fullmatch(
         r"([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9.!+_-]*)"
         r"(?:\s*;\s*[A-Za-z0-9_ .<>=!'\"(),-]+)?",
-        line,
+        pin.strip(),
     )
-    assert match, f"Unsafe requirement: {line}"
+    assert match, f"Unsafe requirement: {line[:80]}"
+    assert hashes and all(
+        re.fullmatch(r"--hash=sha256:[a-f0-9]{64}", token.strip()) for token in hashes
+    ), f"Requirement is not hash-pinned: {match.group(1)}"
     packages.setdefault(match.group(1).lower().replace("_", "-"), set()).add(
         match.group(2)
     )

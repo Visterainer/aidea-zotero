@@ -4,10 +4,6 @@ export type ExecResult = {
   stderr: string;
 };
 
-type ZoteroExecResult =
-  | string
-  | { stdout?: string; stderr?: string; code?: number; exitCode?: number };
-
 declare const Zotero: any;
 
 declare const Components: any;
@@ -16,44 +12,6 @@ declare const ztoolkit: any;
 declare const Ci: any;
 
 declare const Cc: any;
-
-function normalizeExecResult(result: ZoteroExecResult): ExecResult {
-  if (typeof result === "string") {
-    return { code: 0, stdout: result, stderr: "" };
-  }
-  const code =
-    typeof (result as any)?.code === "number"
-      ? Number((result as any).code)
-      : typeof (result as any)?.exitCode === "number"
-        ? Number((result as any).exitCode)
-        : 0;
-  return {
-    code: Number.isFinite(code) ? code : 0,
-    stdout:
-      typeof (result as any)?.stdout === "string" ? (result as any).stdout : "",
-    stderr:
-      typeof (result as any)?.stderr === "string" ? (result as any).stderr : "",
-  };
-}
-
-async function tryZoteroExec(
-  command: string,
-  args: string[],
-): Promise<ExecResult | null> {
-  const execFn = Zotero?.Utilities?.Internal?.exec;
-  if (typeof execFn !== "function") return null;
-  try {
-    const raw = (await execFn(command, args)) as ZoteroExecResult;
-    return normalizeExecResult(raw);
-  } catch (err) {
-    ztoolkit?.log?.("AIdea: exec fallback", {
-      command,
-      args,
-      error: String(err),
-    });
-    return null;
-  }
-}
 
 function readFileTextSync(path: string): string {
   try {
@@ -80,6 +38,47 @@ function removeFile(path: string): void {
   }
 }
 
+function readEnv(name: string): string {
+  try {
+    const env = Cc["@mozilla.org/process/environment;1"].getService(
+      Ci.nsIEnvironment,
+    );
+    return String(env.get(name) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Windows is not always installed in C:\\Windows. */
+function getWindowsSystemRoot(): string {
+  return (readEnv("SystemRoot") || readEnv("windir") || "C:\\Windows").replace(
+    /[\\/]+$/,
+    "",
+  );
+}
+
+function fileExists(path: string): boolean {
+  try {
+    const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(path);
+    return file.exists();
+  } catch {
+    return false;
+  }
+}
+
+/** NixOS and some minimal systems have no /bin/bash. */
+function resolveBashPath(): string {
+  return (
+    [
+      "/bin/bash",
+      "/usr/bin/bash",
+      "/usr/local/bin/bash",
+      "/run/current-system/sw/bin/bash",
+    ].find(fileExists) || "/bin/bash"
+  );
+}
+
 function getPlatform(): "windows" | "macos" | "linux" {
   if (Zotero?.isWin) return "windows";
   if (Zotero?.isMac) return "macos";
@@ -98,7 +97,7 @@ function shellWrap(
       "$exitCode = if ($null -ne $global:LASTEXITCODE) { $global:LASTEXITCODE } elseif ($?) { 0 } else { 1 }; " +
       "exit $exitCode";
     return {
-      exe: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      exe: `${getWindowsSystemRoot()}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
       args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
     };
   }
@@ -106,17 +105,56 @@ function shellWrap(
   // `a || b` list, not only its last simple command.
   const script = `{ ${command}\n} 1> '${stdoutPath.replace(/'/g, "'\\''")}' 2> '${stderrPath.replace(/'/g, "'\\''")}'`;
   return {
-    exe: "/bin/bash",
+    exe: resolveBashPath(),
     args: ["-lc", script],
   };
 }
+
+/** Best effort: stop the direct children of a wrapper shell (and on Windows its whole tree). */
+function killChildProcesses(pid: number): void {
+  if (!Number.isInteger(pid) || pid <= 1) return;
+  try {
+    const windows = getPlatform() === "windows";
+    const root = getWindowsSystemRoot();
+    const exe = windows ? `${root}\\System32\\taskkill.exe` : "/bin/sh";
+    const args = windows
+      ? ["/PID", String(pid), "/T", "/F"]
+      : ["-c", `pkill -KILL -P ${pid}`];
+    const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(exe);
+    const killer = Cc["@mozilla.org/process/util;1"].createInstance(
+      Ci.nsIProcess,
+    );
+    killer.init(file);
+    try {
+      killer.startHidden = true;
+    } catch {
+      // not supported on this Gecko
+    }
+    killer.run(true, args, args.length);
+  } catch {
+    // The wrapper is still killed by the caller.
+  }
+}
+
+/** Exit code reported when a subprocess is killed for exceeding its timeout. */
+export const PROCESS_TIMEOUT_EXIT_CODE = 124;
 
 function runProcessAsync(
   exe: string,
   args: string[],
   hidden = false,
+  timeoutMs = 0,
 ): Promise<number> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+    const settle = (code: number) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      resolve(code);
+    };
     try {
       const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
       file.initWithPath(exe);
@@ -136,9 +174,7 @@ function runProcessAsync(
         observe(_subject: unknown, topic: string) {
           if (topic !== "process-finished" && topic !== "process-failed")
             return;
-          const exitValue =
-            typeof proc.exitValue === "number" ? proc.exitValue : 1;
-          resolve(exitValue);
+          settle(typeof proc.exitValue === "number" ? proc.exitValue : 1);
         },
       };
       // runwAsync passes UTF-16 arguments; runAsync narrows each character
@@ -148,7 +184,22 @@ function runProcessAsync(
       } else {
         proc.runAsync(args, args.length, observer);
       }
+      if (timeoutMs > 0) {
+        timer = setTimeout(() => {
+          // The command runs as a child of the wrapper shell; killing only
+          // the shell would leave e.g. the installer running in the
+          // background while the caller starts a second one.
+          killChildProcesses(Number(proc.pid || 0));
+          try {
+            proc.kill();
+          } catch {
+            // already exited
+          }
+          settle(PROCESS_TIMEOUT_EXIT_CODE);
+        }, timeoutMs);
+      }
     } catch (err) {
+      if (timer !== undefined) clearTimeout(timer);
       reject(err);
     }
   });
@@ -156,105 +207,38 @@ function runProcessAsync(
 
 export async function runShellCommand(
   command: string,
-  options?: { hidden?: boolean },
+  options?: {
+    hidden?: boolean;
+    /** Kill the process and return exit code 124 after this long; 0 = never. */
+    timeoutMs?: number;
+  },
 ): Promise<ExecResult> {
-  const platform = getPlatform();
   const hidden = options?.hidden ?? false;
-
-  // When running hidden we skip the direct Zotero.Utilities.Internal.exec
-  // path because it may still pop up a console window on Windows.
-  if (!hidden) {
-    const direct = await tryZoteroExec(
-      platform === "windows" ? "powershell" : "/bin/bash",
-      platform === "windows"
-        ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command]
-        : ["-lc", command],
-    );
-    if (direct) return direct;
-  }
-
   const stdoutPath = makeTempFilePath("aidea-stdout");
   const stderrPath = makeTempFilePath("aidea-stderr");
   try {
     const wrapped = shellWrap(command, stdoutPath, stderrPath);
-    const code = await runProcessAsync(wrapped.exe, wrapped.args, hidden);
+    const timeoutMs = options?.timeoutMs ?? 0;
+    const code = await runProcessAsync(
+      wrapped.exe,
+      wrapped.args,
+      hidden,
+      timeoutMs,
+    );
+    const stderr = readFileTextSync(stderrPath);
     return {
       code,
       stdout: readFileTextSync(stdoutPath),
-      stderr: readFileTextSync(stderrPath),
+      stderr:
+        code === PROCESS_TIMEOUT_EXIT_CODE && timeoutMs > 0
+          ? [stderr.trim(), `Timed out after ${Math.round(timeoutMs / 1000)}s`]
+              .filter(Boolean)
+              .join("\n")
+          : stderr,
     };
   } finally {
     removeFile(stdoutPath);
     removeFile(stderrPath);
-  }
-}
-
-/**
- * Run a command hidden, poll its output for a URL matching the given pattern,
- * and invoke `onUrlFound` when the URL appears.  Returns when the process exits.
- * This is designed for CLI tools like `codex login` which print an OAuth URL
- * and then wait for the browser callback.
- *
- * Uses a line-by-line flush wrapper to overcome Node.js stdout buffering when
- * the output is redirected to a file.
- */
-export async function runShellCommandWithUrlCapture(
-  command: string,
-  urlPattern: RegExp,
-  onUrlFound: (url: string) => void,
-  pollTimeoutMs = 60000,
-): Promise<ExecResult> {
-  const outPath = makeTempFilePath("aidea-urlcap-out");
-  const platform = getPlatform();
-  try {
-    // Build a wrapper script that merges stderr into stdout and flushes
-    // each line to the output file immediately.
-    let exe: string;
-    let args: string[];
-    if (platform === "windows") {
-      // PowerShell: pipe through ForEach-Object + Out-File -Append for immediate flush
-      const script = `& { ${command} } 2>&1 | ForEach-Object { $_ | Out-File -FilePath '${outPath.replace(/'/g, "''")}' -Append -Encoding utf8 }`;
-      exe = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-      args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script];
-    } else {
-      // Unix: use script or stdbuf to unbuffer, merge stderr
-      const script = `${command} 2>&1 | while IFS= read -r line; do echo "$line" >> '${outPath.replace(/'/g, "'\\''")}'; done`;
-      exe = "/bin/bash";
-      args = ["-lc", script];
-    }
-
-    // Start the process hidden
-    const processPromise = runProcessAsync(exe, args, true);
-
-    // Poll output file for the URL
-    let urlFound = false;
-    const deadline = Date.now() + pollTimeoutMs;
-    const poll = async () => {
-      while (Date.now() < deadline && !urlFound) {
-        await new Promise((r) => setTimeout(r, 500));
-        const content = readFileTextSync(outPath);
-        const match = content.match(urlPattern);
-        if (match) {
-          urlFound = true;
-          try {
-            onUrlFound(match[0]);
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-    };
-
-    // Run polling concurrently with the process
-    const [code] = await Promise.all([processPromise, poll()]);
-    const output = readFileTextSync(outPath);
-    return {
-      code,
-      stdout: output,
-      stderr: "",
-    };
-  } finally {
-    removeFile(outPath);
   }
 }
 

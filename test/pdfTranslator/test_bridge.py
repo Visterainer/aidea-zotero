@@ -585,6 +585,37 @@ try:
         False,
         "keeps the model default for the rest of the task after a rejection",
     )
+
+    codex_reasoning_payloads.clear()
+    unrelated_failures = {"left": 2}
+
+    def fail_codex_unrelated_post(url, payload, headers, **kwargs):
+        codex_reasoning_payloads.append(json.loads(json.dumps(payload)))
+        if unrelated_failures["left"] > 0:
+            unrelated_failures["left"] -= 1
+            raise RuntimeError(
+                'HTTP 400 from https://chatgpt.com: {"detail":"Input too long for reasoning model"}'
+            )
+        return json.dumps({"output_text": "translated text"})
+
+    bridge._http_post_json_with_retry = fail_codex_unrelated_post
+    unrelated_proxy = OAuthCompatProxyServer({
+        "provider": "openai-codex",
+        "accessToken": "test-token",
+        "reasoningEffort": "high",
+    })
+    unrelated_raised = False
+    try:
+        unrelated_proxy.handle_chat_completion(dict(codex_request))
+    except Exception:
+        unrelated_raised = True
+    assert_eq(unrelated_raised, True, "surfaces a 400 that also fails without reasoning")
+    unrelated_proxy.handle_chat_completion(dict(codex_request))
+    assert_eq(
+        codex_reasoning_payloads[-1].get("reasoning"),
+        {"effort": "high"},
+        "keeps the selected effort when the retry without reasoning also fails",
+    )
 finally:
     bridge._http_post_json_with_retry = orig_post_with_retry
 

@@ -2,6 +2,7 @@ import type { PaperAuthor, PaperMetadata, SourceResult } from "./types";
 import {
   createAuthor,
   dedupeStrings,
+  isSameWorkTitle,
   lastNameKey,
   mergeIntoAuthor,
   normalizeDoi,
@@ -121,6 +122,16 @@ export async function fetchCrossrefAuthors(
       : Array.isArray(json?.message?.items)
         ? json.message.items[0] || {}
         : {};
+    const messageTitle = Array.isArray(message.title)
+      ? message.title[0]
+      : message.title;
+    if (!doi && !isSameWorkTitle(title, messageTitle)) {
+      return {
+        authors: [],
+        snippets: [],
+        result: sourceFail("Crossref", "No matching work"),
+      };
+    }
     const authors = Array.isArray(message.author)
       ? message.author
           .map((row: JsonObject, index: number) =>
@@ -189,31 +200,39 @@ export async function fetchOpenAlexAuthors(
     };
   }
   try {
-    const urls: string[] = [];
+    const lookups: Array<{ url: string; byTitle: boolean }> = [];
     if (doi) {
       const doiUrl = `https://doi.org/${doi}`;
-      urls.push(
-        `https://api.openalex.org/works?filter=doi:${encodeURIComponent(
+      lookups.push({
+        url: `https://api.openalex.org/works?filter=doi:${encodeURIComponent(
           doiUrl,
         )}&per-page=1`,
-      );
+        byTitle: false,
+      });
     }
     if (title) {
-      urls.push(
-        `https://api.openalex.org/works?search=${encodeURIComponent(
+      lookups.push({
+        url: `https://api.openalex.org/works?search=${encodeURIComponent(
           title,
         )}&per-page=1`,
-      );
+        byTitle: true,
+      });
     }
 
     let work: JsonObject | null = null;
-    for (const url of urls) {
-      const json = await fetchJsonWithTimeout(url, signal);
+    for (const lookup of lookups) {
+      const json = await fetchJsonWithTimeout(lookup.url, signal);
       const results = Array.isArray(json.results) ? json.results : [];
-      if (results[0]) {
-        work = results[0];
-        break;
+      const candidate: JsonObject | undefined = results[0];
+      if (!candidate) continue;
+      if (
+        lookup.byTitle &&
+        !isSameWorkTitle(title, candidate.title || candidate.display_name)
+      ) {
+        continue;
       }
+      work = candidate;
+      break;
     }
 
     if (!work) {
@@ -300,6 +319,13 @@ export async function fetchSemanticScholarAuthors(
       : Array.isArray(json?.data)
         ? json.data[0] || {}
         : {};
+    if (!doi && !isSameWorkTitle(title, paper.title)) {
+      return {
+        authors: [],
+        snippets: [],
+        result: sourceFail("Semantic Scholar", "No matching work"),
+      };
+    }
     const authors = Array.isArray(paper.authors)
       ? paper.authors
           .map((row: JsonObject, index: number) =>

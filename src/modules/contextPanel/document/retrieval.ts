@@ -1,4 +1,4 @@
-import { callEmbeddings } from "../../../utils/llmClient";
+import { callEmbeddings, getApiConfig } from "../../../utils/llmClient";
 import {
   CHUNK_TARGET_LENGTH,
   CHUNK_OVERLAP,
@@ -398,39 +398,80 @@ function normalizeScores(scores: number[]): number[] {
 async function embedTexts(
   texts: string[],
   overrides?: { apiBase?: string; apiKey?: string },
+  signal?: AbortSignal,
 ): Promise<number[][]> {
   const all: number[][] = [];
   for (let i = 0; i < texts.length; i += EMBEDDING_BATCH_SIZE) {
+    // A large document needs dozens of sequential requests; stop as soon as
+    // the user cancels instead of holding the panel until they all finish.
+    throwIfAborted(signal);
     const batch = texts.slice(i, i + EMBEDDING_BATCH_SIZE);
-    const batchEmbeddings = await callEmbeddings(batch, overrides);
+    const batchEmbeddings = await callEmbeddings(batch, {
+      ...overrides,
+      signal,
+    });
     all.push(...batchEmbeddings);
   }
   return all;
 }
 
+/** Vectors from different endpoints or models are not comparable. */
+function resolveEmbeddingKey(overrides?: {
+  apiBase?: string;
+  apiKey?: string;
+}): string {
+  try {
+    const config = getApiConfig({ apiBase: overrides?.apiBase });
+    return `${config.apiBase}|${config.embeddingModel}`;
+  } catch (_err) {
+    return "";
+  }
+}
+
 async function ensureEmbeddings(
   context: DocumentTextContext,
   overrides?: { apiBase?: string; apiKey?: string },
+  signal?: AbortSignal,
 ): Promise<boolean> {
+  const embeddingKey = resolveEmbeddingKey(overrides);
+  if (
+    context.embeddingKey !== undefined &&
+    context.embeddingKey !== embeddingKey &&
+    !context.embeddingPromise
+  ) {
+    // The profile or embedding model changed: cached chunk vectors (and an
+    // earlier failure) belong to the old one.
+    context.embeddings = undefined;
+    context.embeddingFailed = false;
+  }
+  if (!context.embeddingPromise) context.embeddingKey = embeddingKey;
   if (context.embeddingFailed) return false;
   if (context.embeddings?.length) {
     return context.embeddings.length === context.chunks.length;
   }
 
   if (context.embeddingPromise) {
+    // Another request (e.g. the other panel on the same document) is already
+    // embedding. Use its vectors only if they are for the same endpoint and
+    // model; neither its cancellation nor a mismatch counts as a failure
+    // here, this request just falls back to lexical ranking.
+    const ownerKey = context.embeddingKey;
     const result = await context.embeddingPromise;
-    if (result) {
+    throwIfAborted(signal);
+    if (result && ownerKey === embeddingKey) {
       context.embeddings = result;
       return result.length === context.chunks.length;
     }
     return false;
   }
 
+  let aborted = false;
   context.embeddingPromise = (async () => {
     try {
-      return await embedTexts(context.chunks, overrides);
+      return await embedTexts(context.chunks, overrides, signal);
     } catch (err) {
-      ztoolkit.log("Embedding generation failed:", err);
+      aborted = Boolean(signal?.aborted);
+      if (!aborted) ztoolkit.log("Embedding generation failed:", err);
       return null;
     }
   })();
@@ -441,7 +482,9 @@ async function ensureEmbeddings(
     context.embeddings = result;
     return result.length === context.chunks.length;
   }
-  context.embeddingFailed = true;
+  // A cancelled warm-up is not a failed one; the next request may retry.
+  if (aborted) throwIfAborted(signal);
+  else context.embeddingFailed = true;
   return false;
 }
 
@@ -590,17 +633,24 @@ export async function buildDocumentContext(
 
   let embeddingScores: number[] | null = null;
   const embeddingsReady =
-    useEmbeddings && (await ensureEmbeddings(context, apiOverrides));
+    useEmbeddings &&
+    (await ensureEmbeddings(context, apiOverrides, options?.signal));
   if (embeddingsReady && context.embeddings) {
     try {
       const queryEmbedding =
-        (await callEmbeddings([question], apiOverrides))[0] || [];
+        (
+          await callEmbeddings([question], {
+            ...apiOverrides,
+            signal: options?.signal,
+          })
+        )[0] || [];
       if (queryEmbedding.length) {
         embeddingScores = context.embeddings.map((vector) =>
           cosineSimilarity(queryEmbedding, vector),
         );
       }
     } catch (err) {
+      throwIfAborted(options?.signal);
       ztoolkit.log("Query embedding failed:", err);
     }
   }

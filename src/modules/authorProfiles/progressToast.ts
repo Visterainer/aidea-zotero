@@ -103,7 +103,10 @@ export class AuthorProfileProgressToast {
   private closeButton: HTMLButtonElement | null = null;
   private minimized = false;
 
-  constructor(private readonly mode: "single" | "batch") {
+  constructor(
+    private readonly mode: "single" | "batch",
+    private readonly onClose?: () => void,
+  ) {
     this.mount();
   }
 
@@ -281,5 +284,6 @@ export class AuthorProfileProgressToast {
   close(): void {
     this.root?.remove();
     this.root = null;
+    this.onClose?.();
   }
 }

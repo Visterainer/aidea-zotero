@@ -236,7 +236,11 @@ async function resolveOAuthProviderCredentials(
   }
 
   if (provider === "github-copilot") {
-    const pingInfo = await getOAuthProviderPingInfo(provider);
+    // The bridge cannot refresh this short-lived token mid-job, so do not
+    // start a translation on one that is close to expiring.
+    const pingInfo = await getOAuthProviderPingInfo(provider, {
+      minRemainingMs: 25 * 60 * 1000,
+    });
     if (!pingInfo?.apiBase) return null;
     const tokenFromPing = extractBearerToken(pingInfo.headers || {});
     const token = tokenFromPing || credential.accessToken;

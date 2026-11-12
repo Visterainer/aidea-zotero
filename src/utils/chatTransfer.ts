@@ -236,6 +236,13 @@ export async function reconcileTransferredConversations(): Promise<void> {
     `SELECT name FROM sqlite_master WHERE type='table' AND name='${S}'`,
   );
   if (!exists) return;
+  // This runs on every history listing. Nearly always nothing is pending, so
+  // check with a plain read first instead of queueing behind (and timing out
+  // on) whatever transaction Zotero currently holds, e.g. a long sync.
+  const hasPending = await Zotero.DB.valueQueryAsync(
+    `SELECT 1 FROM ${G} g JOIN ${S} s ON s.conversation_key=g.conversation_key LIMIT 1`,
+  );
+  if (!hasPending) return;
   const bound = await Zotero.DB.executeTransaction(async () => {
     const pending = await rows(`SELECT g.*, s.source_json FROM ${G} g
       JOIN ${S} s ON s.conversation_key=g.conversation_key`);

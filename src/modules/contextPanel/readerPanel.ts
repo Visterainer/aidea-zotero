@@ -7,6 +7,7 @@
  * every time the user switches between PDF tabs.
  */
 
+import { isPanelGenerating } from "./state";
 import { disposePanelHostRuntime } from "./heightSync";
 import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
@@ -55,6 +56,42 @@ function getWindowMap(win: Window): Map<number, ReaderPanelState> {
   return map;
 }
 
+/**
+ * Panels are cached so they survive tab switches, but nothing removed them
+ * when their document was closed: each one kept its DOM, observers and
+ * listeners for the life of the window. Drop the ones that are detached and
+ * no longer belong to an open reader.
+ */
+function pruneClosedReaderPanels(
+  map: Map<number, ReaderPanelState>,
+  keepItemId: number,
+): void {
+  if (map.size < 2) return;
+  let openItemIds: Set<number>;
+  try {
+    const readers = (
+      Zotero.Reader as unknown as { _readers?: Array<{ itemID?: number }> }
+    )._readers;
+    // Without the reader list we cannot tell what is open; keep everything.
+    if (!Array.isArray(readers)) return;
+    openItemIds = new Set(
+      readers.map((reader) => Number(reader?.itemID)).filter(Boolean),
+    );
+  } catch (_err) {
+    return;
+  }
+  for (const [itemId, state] of map) {
+    if (itemId === keepItemId || openItemIds.has(itemId)) continue;
+    if (state.host.isConnected || state.bootstrapPromise) continue;
+    const panelRoot = state.host.querySelector("#llm-main");
+    if (panelRoot && isPanelGenerating(panelRoot)) continue;
+    disposePanelHostRuntime(state.host);
+    state.host.remove();
+    map.delete(itemId);
+    selectedFilePreviewExpandedCache.delete(itemId);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -65,6 +102,7 @@ export function getSharedReaderPanelHostForItem(
 ): HTMLElement {
   const key = item.id;
   const map = getWindowMap(win);
+  pruneClosedReaderPanels(map, key);
   let state = map.get(key);
   if (!state) {
     const doc = win.document;
@@ -187,6 +225,8 @@ export function invalidateSharedReaderPanelForItem(
   const state = map.get(key);
   if (state) {
     disposePanelHostRuntime(state.host);
+    // This host is bootstrapped again rather than discarded.
+    delete state.host.dataset.llmDisposed;
     state.hasBootstrapped = false;
     state.bootstrapPromise = null;
     // Clear stale file preview expansion for this item

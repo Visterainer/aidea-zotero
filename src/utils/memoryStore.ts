@@ -25,6 +25,7 @@ type MemorySearchResult = {
 };
 
 const MEMORY_TABLE = "zotero_ai_memories";
+const MAX_MEMORIES_PER_LIBRARY = 500;
 const MEMORY_LIBRARY_INDEX = "zotero_ai_memories_library_idx";
 const MEMORY_TEXT_INDEX = "zotero_ai_memories_text_norm_idx";
 
@@ -359,6 +360,18 @@ export async function storeMemory(params: {
       now,
       now,
     ],
+  );
+  // Nothing else ever deletes memories; keep the most recently used ones.
+  await Zotero.DB.queryAsync(
+    `DELETE FROM ${MEMORY_TABLE}
+     WHERE library_id = ?
+       AND id NOT IN (
+         SELECT id FROM ${MEMORY_TABLE}
+         WHERE library_id = ?
+         ORDER BY COALESCE(last_hit_at, updated_at) DESC, id DESC
+         LIMIT ?
+       )`,
+    [libraryID, libraryID, MAX_MEMORIES_PER_LIBRARY],
   );
   return { action: "created" };
 }

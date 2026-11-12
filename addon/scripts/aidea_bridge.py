@@ -106,6 +106,10 @@ def _prepare_pdf2zh_runtime_env():
         f.write(patch_code)
 
     env = _ensure_loopback_no_proxy(dict(os.environ))
+    # The bridge decodes the child's output as UTF-8; without this a Windows
+    # child writes in the ANSI code page.
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     existing = env.get("PYTHONPATH", "").strip()
     env["PYTHONPATH"] = (
         patch_dir if not existing else f"{patch_dir}{os.pathsep}{existing}"
@@ -2387,8 +2391,6 @@ class OAuthCompatProxyServer:
         except Exception as exc:
             if "reasoning" not in req_body or not _is_codex_reasoning_rejection(exc):
                 raise
-            # Keep translating on the model default for the rest of this task.
-            self._codex_reasoning_rejected = True
             self._debug(f"Codex rejected reasoning effort {reasoning_effort}; using model default")
             req_body.pop("reasoning", None)
             raw = _http_post_json_with_retry(
@@ -2398,6 +2400,9 @@ class OAuthCompatProxyServer:
                 timeout=300,
                 max_attempts=6,
             )
+            # Only a retry that succeeds proves the effort was the cause; an
+            # unrelated 400 must not drop the effort for the rest of the task.
+            self._codex_reasoning_rejected = True
         text = _extract_codex_output_text_from_sse(raw)
         if not text.strip():
             try:

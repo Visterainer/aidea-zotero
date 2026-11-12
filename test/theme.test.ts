@@ -213,8 +213,27 @@ describe("plugin theme state", function () {
       JSON.parse(
         theme.serializeBuiltinComposerThemeOverrides(state.builtinOverrides),
       ),
-      { "blue-porcelain": { accent: "#112233" } },
+      { __v: 2, "blue-porcelain": { accent: "#112233" } },
     );
+  });
+
+  it("does not re-migrate a current-format override that sets every colour", function () {
+    const everyColour = {
+      ...theme.BUILTIN_COMPOSER_THEME_PALETTES["blue-porcelain"],
+      accent: "#112233",
+      // Equal to the 3.6.1 default; a legacy migration would drop it.
+      inputText: "system",
+    };
+    const serialized = theme.serializeBuiltinComposerThemeOverrides({
+      "blue-porcelain": everyColour,
+    });
+    const state = theme.resolvePluginThemeState(
+      "blue-porcelain",
+      "",
+      serialized,
+    );
+    assert.equal(state.palette.accent, "#112233");
+    assert.equal(state.palette.inputText, "system");
   });
 
   it("provides solid, readable surfaces for the redesigned themes", function () {

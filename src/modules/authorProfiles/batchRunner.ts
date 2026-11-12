@@ -1,6 +1,7 @@
 import { AuthorProfileProgressToast } from "./progressToast";
 import { generateAuthorProfileForItem } from "./service";
 import { getAuthorProfileCopy } from "./i18n";
+import type { AuthorProfileProgressCallback } from "./types";
 import {
   getAuthorProfileLanguage,
   normalizeWhitespace,
@@ -62,20 +63,26 @@ export async function runAuthorProfileGeneration(
   running = true;
   const mode = targets.length > 1 ? "batch" : "single";
   const copy = getAuthorProfileCopy(getAuthorProfileLanguage());
-  const toast = new AuthorProfileProgressToast(mode);
+  // Closing the toast cancels the run; otherwise it would keep calling the
+  // LLM and rewriting notes with no visible progress.
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const toast = new AuthorProfileProgressToast(mode, () => controller.abort());
   const startTime = Date.now();
   let completed = 0;
   let failed = 0;
+  let singleError = "";
 
   try {
     for (let index = 0; index < targets.length; index += 1) {
+      if (signal.aborted) break;
       const item = targets[index];
       const title = truncateText(getItemTitle(item), 72);
       const itemBaseProgress = index / targets.length;
       const itemWeight = 1 / targets.length;
 
       try {
-        await generateAuthorProfileForItem(item, (progress) => {
+        const onProgress: AuthorProfileProgressCallback = (progress) => {
           toast.update({
             body: progress.message,
             status: "running",
@@ -88,14 +95,19 @@ export async function runAuthorProfileGeneration(
             elapsedMs: Date.now() - startTime,
             etaMs: etaMs(startTime, completed, targets.length),
           });
-        });
+        };
+        await generateAuthorProfileForItem(item, onProgress, signal);
         completed += 1;
       } catch (err) {
+        if (signal.aborted) break;
         failed += 1;
         completed += 1;
         ztoolkit?.log?.("AIdea: author profile generation failed", err);
+        const message =
+          err instanceof Error ? err.message : copy.generationFailed;
+        if (mode === "single") singleError = message;
         toast.update({
-          body: err instanceof Error ? err.message : copy.generationFailed,
+          body: message,
           status: "error",
           progress: completed / targets.length,
           itemTitle: title,
@@ -113,7 +125,7 @@ export async function runAuthorProfileGeneration(
     const hasFailures = failed > 0;
     toast.update({
       body: hasFailures
-        ? copy.batchFinishedWithFailures
+        ? singleError || copy.batchFinishedWithFailures
         : copy.generationCompleted,
       status: hasFailures ? "error" : "success",
       progress: 1,

@@ -7,6 +7,7 @@ import {
   getCachedModelReasoningSupport,
   parseApiReasoningSupport,
   resolveRequestReasoningEffort,
+  setApiReasoningCatalogRefresher,
 } from "../src/utils/reasoningEffort";
 import { resetTokenPolicyCacheForTests } from "../src/utils/tokenParameterPolicy";
 
@@ -172,19 +173,106 @@ describe("API Key reasoning capability and transport", function () {
     assert.isTrue(getApiReasoningSupport(base, "unknown", key).catalogMissing);
   });
 
-  it("expires cached capabilities and clears stale levels on refresh", function () {
-    cacheApiReasoningCatalog(base, key, [row]);
+  function expireCatalogs() {
     const cache = JSON.parse(
       String(prefs.get(prefix + "apiReasoningCapabilities")),
     );
     Object.values(cache).forEach((c: any) => (c.updated -= 25 * 3600 * 1000));
     prefs.set(prefix + "apiReasoningCapabilities", JSON.stringify(cache));
-    assert.isTrue(getApiReasoningSupport(base, "alias", key).catalogMissing);
-    cacheApiReasoningCatalog(base, key, [{ id: "alias" }]);
-    assert.isTrue(getApiReasoningSupport(base, "alias", key).catalogMissing);
+  }
+
+  it("keeps serving an expired catalog and clears stale levels on refresh", function () {
+    const previous = setApiReasoningCatalogRefresher(null);
+    try {
+      cacheApiReasoningCatalog(base, key, [row]);
+      expireCatalogs();
+      assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+        "low",
+        "high",
+      ]);
+      cacheApiReasoningCatalog(base, key, [{ id: "alias" }]);
+      assert.isTrue(getApiReasoningSupport(base, "alias", key).catalogMissing);
+    } finally {
+      setApiReasoningCatalogRefresher(previous);
+    }
   });
 
-  it("discovers metadata from the actual models URL and invalidates on a failed refresh", async function () {
+  it("refreshes an expired catalog in the background once per scope, not on every read", function () {
+    const calls: string[][] = [];
+    const previous = setApiReasoningCatalogRefresher((apiBase, apiKey) => {
+      calls.push([apiBase, apiKey]);
+      return Promise.reject(new Error("offline"));
+    });
+    try {
+      cacheApiReasoningCatalog(base, key, [row]);
+      cacheApiReasoningCatalog(base, "other-key", [row]);
+      getApiReasoningSupport(base, "alias", key);
+      assert.lengthOf(calls, 0, "a fresh catalog needs no refresh");
+      expireCatalogs();
+      for (let i = 0; i < 3; i++)
+        assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+          "low",
+          "high",
+        ]);
+      assert.deepEqual(calls, [[base, key]]);
+      getApiReasoningSupport(base, "alias", "other-key");
+      assert.deepEqual(calls, [
+        [base, key],
+        [base, "other-key"],
+      ]);
+      // A scope that was never fetched is not refreshed behind the user's back.
+      assert.isTrue(
+        getApiReasoningSupport(base + "/never", "alias", key).catalogMissing,
+      );
+      assert.lengthOf(calls, 2);
+    } finally {
+      setApiReasoningCatalogRefresher(previous);
+    }
+  });
+
+  it("survives a refresher that throws synchronously", function () {
+    const previous = setApiReasoningCatalogRefresher(() => {
+      throw new Error("boom");
+    });
+    try {
+      cacheApiReasoningCatalog(base, key, [row]);
+      expireCatalogs();
+      assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+        "low",
+        "high",
+      ]);
+    } finally {
+      setApiReasoningCatalogRefresher(previous);
+    }
+  });
+
+  it("refreshes an expired catalog through the registered endpoint fetcher", async function () {
+    // Re-registering the module-load refresher only resets the throttle.
+    setApiReasoningCatalogRefresher(setApiReasoningCatalogRefresher(null));
+    cacheApiReasoningCatalog(base, key, [row]);
+    expireCatalogs();
+    const urls: string[] = [];
+    globalThis.fetch = (async (url) => {
+      urls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          data: [{ id: "alias", supported_reasoning_levels: ["medium"] }],
+        }),
+      );
+    }) as typeof fetch;
+    assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+      "low",
+      "high",
+    ]);
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(urls, [base + "/models"]);
+    assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+      "medium",
+    ]);
+    assert.lengthOf(urls, 1);
+  });
+
+  it("discovers metadata from the actual models URL and keeps the catalog on a failed refresh", async function () {
     globalThis.fetch = (async (url) => {
       assert.equal(String(url), base + "/models");
       return new Response(JSON.stringify({ data: [row] }));
@@ -212,7 +300,23 @@ describe("API Key reasoning capability and transport", function () {
     } catch (e) {
       assert.include(String(e), "401");
     }
-    assert.isTrue(getApiReasoningSupport(base, "alias", key).catalogMissing);
+    assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+      "low",
+      "high",
+    ]);
+    globalThis.fetch = (async () => {
+      throw new Error("network down");
+    }) as typeof fetch;
+    try {
+      await fetchCustomEndpointModels(base, key);
+      assert.fail("expected failed refresh");
+    } catch (e) {
+      assert.include(String(e), "network down");
+    }
+    assert.deepEqual(getApiReasoningSupport(base, "alias", key).efforts, [
+      "low",
+      "high",
+    ]);
   });
 
   function enableXhr() {

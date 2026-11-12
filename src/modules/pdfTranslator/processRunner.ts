@@ -42,6 +42,13 @@ function killPosixProcessGroup(pid: number): void {
   }
 }
 
+let runningProcessCount = 0;
+
+/** True while any bridge process launched from here has not exited. */
+export function hasRunningProcess(): boolean {
+  return runningProcessCount > 0;
+}
+
 export function launchProcess(exe: string, args: string[]): RunningProcess {
   const file = (Components.classes as any)[
     "@mozilla.org/file/local;1"
@@ -88,6 +95,11 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
       proc.runAsync(args, args.length, observer);
     }
   });
+  runningProcessCount++;
+  const release = () => {
+    runningProcessCount--;
+  };
+  done.then(release, release);
 
   return {
     kill() {

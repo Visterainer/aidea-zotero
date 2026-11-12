@@ -141,6 +141,7 @@ import {
   deleteAllGlobalConversationsByLibrary,
   deleteGlobalConversation,
   deletePaperConversation,
+  getGlobalConversation,
   getGlobalConversationUserTurnCount,
   getLatestEmptyGlobalConversation,
   getLatestPaperConversation,
@@ -4015,7 +4016,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         const turnCount = await getGlobalConversationUserTurnCount(
           normalizedCurrentCandidate,
         );
-        if (turnCount === 0) {
+        // "No user turns" is also true for a conversation that was deleted
+        // (e.g. by "clear all history"); reusing that key would store new
+        // messages where the history list can never find them.
+        const stillExists =
+          turnCount === 0 &&
+          Boolean(await getGlobalConversation(normalizedCurrentCandidate));
+        if (stillExists) {
           targetConversationKey = normalizedCurrentCandidate;
           reuseReason = "active-draft";
         }
@@ -5294,6 +5301,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   // ── Compose state persistence (files, screenshots, papers) ──
   const COMPOSE_PREF_PREFIX = "extensions.AIdea.composeState.";
+  const COMPOSE_SNAPSHOT_MAX_CHARS = 512 * 1024;
   let composeStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   const saveComposeState = () => {
@@ -5318,15 +5326,31 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       const textContexts = textContextKey
         ? getSelectedTextContextEntries(textContextKey)
         : [];
-      const snapshot = JSON.stringify({
+      let snapshot = JSON.stringify({
         files,
         screenshots,
         papers,
         textContexts,
       });
+      // Screenshots are data URLs (up to ~2 MB each) and Gecko rejects string
+      // prefs above 1 MiB. Keep the rest of the snapshot rather than lose it.
+      if (snapshot.length > COMPOSE_SNAPSHOT_MAX_CHARS) {
+        snapshot = JSON.stringify({
+          files,
+          screenshots: [],
+          papers,
+          textContexts,
+        });
+      }
       Zotero.Prefs.set(`${COMPOSE_PREF_PREFIX}${conversationKey}`, snapshot);
     } catch (_) {
-      /* non-critical */
+      // A failed write must not leave the previous snapshot in place: it
+      // would restore attachments the user has since removed.
+      try {
+        Zotero.Prefs.clear(`${COMPOSE_PREF_PREFIX}${conversationKey}`);
+      } catch (_err) {
+        /* non-critical */
+      }
     }
   };
 

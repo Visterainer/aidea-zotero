@@ -23,6 +23,8 @@ export async function generateAuthorProfileForItem(
     message: copy.stageNote,
     fraction: 0.94,
   });
+  // A cancelled run must not overwrite the note.
+  if (signal?.aborted) throw new Error("Author profile generation cancelled");
   const status = await saveAuthorProfileNote(item, result);
   progress?.({
     stage: "done",

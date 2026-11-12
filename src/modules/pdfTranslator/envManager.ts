@@ -5,11 +5,13 @@
  * Platform: Windows / macOS / Linux
  * -------------------------------------------------------------------------*/
 
+import {
+  parseUnixPlatformProbe,
+  type TranslationPlatformInfo,
+} from "./environmentPolicy";
 import type { EnvStatus } from "./types";
 import { config } from "../../../package.json";
 
-// BabelDOC 0.6.x imports BitStream, which bitstring 5 removed.
-const BITSTRING_REQUIREMENT = "bitstring>=4.3,<5";
 const ACTIVE_ENV_PREF = `${config.prefsPrefix}.translate.envActive`;
 
 export interface ActiveTranslationEnvironment {
@@ -116,166 +118,66 @@ async function isPdf2zhBinUsable(binPath: string): Promise<boolean> {
 }
 
 /**
- * Clean up corrupted distribution directories in site-packages.
- *
- * When pip install is interrupted mid-way, it can leave behind partial
- * `.dist-info` directories with a tilde (`~`) prefix (e.g. `~ympy` for sympy,
- * `~penai` for openai).  These trigger "Ignoring invalid distribution" warnings
- * and can sometimes interfere with dependency resolution.
- *
- * This function scans the given site-packages directory and removes any
- * tilde-prefixed entries.
+ * Directories the uv installer may have used, most specific first. The
+ * installer honours UV_INSTALL_DIR, XDG_BIN_HOME and XDG_DATA_HOME/../bin
+ * before falling back to ~/.local/bin, so looking only at the fallback
+ * misses uv on systems that set those (Flatpak does).
  */
-async function cleanCorruptedDistributions(
-  sitePackagesDir: string,
-  onProgress: (step: string, detail: string) => void,
-): Promise<void> {
-  try {
-    if (!(await IOUtils.exists(sitePackagesDir))) return;
-    const children = await IOUtils.getChildren(sitePackagesDir);
-    const corrupted = children.filter((child: string) => {
-      const name = child.split(/[\\/]/).pop() || "";
-      return name.startsWith("~");
-    });
-    if (corrupted.length === 0) return;
-    onProgress(
-      "install_pkg",
-      `🧹 Cleaning ${corrupted.length} corrupted distribution(s) from site-packages...`,
-    );
-    for (const dir of corrupted) {
-      const name = dir.split(/[\\/]/).pop() || dir;
-      try {
-        await IOUtils.remove(dir, { recursive: true });
-        onProgress("install_pkg", `   Removed: ${name}`);
-      } catch {
-        onProgress("install_pkg", `   ⚠️ Could not remove: ${name}`);
-      }
-    }
-  } catch {
-    // Best effort — don’t block the install if listing fails
+export function deriveUvCandidatePaths(params: {
+  isWin: boolean;
+  home: string;
+  env: Record<string, string | undefined>;
+}): string[] {
+  const exe = params.isWin ? "uv.exe" : "uv";
+  const sep = params.isWin ? "\\" : "/";
+  const join = (...parts: string[]) =>
+    parts
+      .map((part, index) =>
+        index === 0 ? part.replace(/[\\/]+$/, "") : part.replace(/^[\\/]+/, ""),
+      )
+      .join(sep);
+  const value = (name: string) => String(params.env[name] || "").trim();
+  const dirs: string[] = [];
+  if (value("UV_INSTALL_DIR")) dirs.push(value("UV_INSTALL_DIR"));
+  if (value("XDG_BIN_HOME")) dirs.push(value("XDG_BIN_HOME"));
+  if (value("XDG_DATA_HOME"))
+    dirs.push(join(value("XDG_DATA_HOME"), "..", "bin"));
+  if (params.home) {
+    dirs.push(join(params.home, ".local", "bin"));
+    dirs.push(join(params.home, ".cargo", "bin"));
   }
+  if (!params.isWin) {
+    dirs.push("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin");
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const dir of dirs) {
+    const candidate = join(dir, exe);
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
+  }
+  return out;
 }
 
-/**
- * Verify pdf2zh_next package is properly installed by running `pip show`.
- *
- * This is much lighter than `pdf2zh_next --version` because it only checks
- * package metadata without importing the entire dependency chain (babeldoc,
- * gradio, pymupdf, pydantic, etc. — 20+ packages).
- *
- * Only called from installEnvironment (button-triggered), never on tab switch.
- * Returns an object with `ok` flag and optional diagnostic `detail` on failure.
- */
-async function verifyPdf2zhInstall(
-  exe: string,
-  args: string[],
-): Promise<{ ok: boolean; detail?: string }> {
-  try {
-    const stderr = await runCmd(exe, args);
-    return { ok: true, detail: stderr };
-  } catch (err) {
-    return {
-      ok: false,
-      detail: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-/** Check imports that package metadata and an entry-point shebang cannot validate. */
-async function verifyPdf2zhRuntime(pythonBin: string): Promise<void> {
-  const check = await verifyPdf2zhInstall(pythonBin, [
-    "-c",
-    "from pdf2zh_next.main import cli",
-  ]);
-  if (!check.ok) {
-    throw new Error(
-      `pdf2zh_next is installed but cannot start: ${check.detail || "unknown error"}`,
-    );
-  }
-}
-
-/**
- * Diagnostic: list files in the bin/Scripts directory that match a prefix.
- *
- * Called when the expected pdf2zh_next binary is missing after install to
- * reveal whether the entry point was created under a different name.
- */
-async function listBinDirDiagnostic(
-  binDir: string,
-  prefix: string,
-  onProgress: (step: string, detail: string) => void,
-): Promise<void> {
-  try {
-    if (!(await IOUtils.exists(binDir))) {
-      onProgress("install_pkg", `   🔍 bin dir does not exist: ${binDir}`);
-      return;
-    }
-    const children = await IOUtils.getChildren(binDir);
-    const matching = children.filter((child: string) => {
-      const name = (child.split(/[\\/]/).pop() || "").toLowerCase();
-      return name.includes(prefix.toLowerCase());
-    });
-    if (matching.length === 0) {
-      onProgress(
-        "install_pkg",
-        `   🔍 No '${prefix}*' files found in: ${binDir}`,
-      );
-      onProgress(
-        "install_pkg",
-        `   🔍 Total files in bin/: ${children.length}`,
-      );
-    } else {
-      onProgress(
-        "install_pkg",
-        `   🔍 Found ${matching.length} '${prefix}*' file(s) in ${binDir}:`,
-      );
-      for (const f of matching) {
-        const name = f.split(/[\\/]/).pop() || f;
-        try {
-          const info = await IOUtils.stat(f);
-          onProgress("install_pkg", `      ${name} (${info.size ?? 0} bytes)`);
-        } catch {
-          onProgress("install_pkg", `      ${name} (stat failed)`);
-        }
-      }
-    }
-  } catch {
-    onProgress("install_pkg", `   🔍 Failed to list bin directory: ${binDir}`);
-  }
-}
-
-/** Find uv binary — look for common install locations then PATH */
+/** Find the uv binary in the locations its installer and package managers use. */
 async function findUvBinary(): Promise<string | null> {
-  const candidates: string[] = [];
-
-  if (IS_WIN) {
-    const userProfile = (Components.classes as any)[
-      "@mozilla.org/process/environment;1"
-    ]
-      .getService((Components.interfaces as any).nsIEnvironment)
-      .get("USERPROFILE");
-    if (typeof userProfile === "string" && userProfile.trim()) {
-      candidates.push(PathUtils.join(userProfile, ".local", "bin", "uv.exe"));
-      candidates.push(PathUtils.join(userProfile, ".cargo", "bin", "uv.exe"));
-    }
-  } else {
-    const home = (Components.classes as any)[
-      "@mozilla.org/process/environment;1"
-    ]
-      .getService((Components.interfaces as any).nsIEnvironment)
-      .get("HOME");
-    if (typeof home === "string" && home.trim()) {
-      candidates.push(PathUtils.join(home, ".local", "bin", "uv"));
-      candidates.push(PathUtils.join(home, ".cargo", "bin", "uv"));
-    }
-    candidates.push("/usr/local/bin/uv");
+  const env: Record<string, string> = {};
+  for (const name of ["UV_INSTALL_DIR", "XDG_BIN_HOME", "XDG_DATA_HOME"]) {
+    env[name] = getEnvVar(name);
   }
-
+  const candidates = deriveUvCandidatePaths({
+    isWin: IS_WIN,
+    home: getEnvVar(IS_WIN ? "USERPROFILE" : "HOME"),
+    env,
+  });
   for (const p of candidates) {
-    if (await IOUtils.exists(p)) return p;
+    try {
+      if (await IOUtils.exists(p)) return p;
+    } catch {
+      /* an unusable candidate path is simply skipped */
+    }
   }
-
-  // Fallback: try bare "uv" on PATH (nsIProcess will resolve it)
   return null;
 }
 
@@ -381,365 +283,6 @@ export async function checkEnvironment(): Promise<EnvStatus> {
   return { status: "no_uv", diagnostics };
 }
 
-/**
- * One-click environment setup.
- *
- * Strategy (layered fallback):
- *   1. Try conda: find/install Miniconda → accept ToS → create env → install pdf2zh_next
- *   2. Try uv:   install uv → create venv → install pdf2zh_next
- *
- * @param onProgress  callback for UI updates
- */
-export async function installEnvironment(
-  onProgress: (step: string, detail: string) => void,
-): Promise<void> {
-  /* ── Strategy 1: Miniconda (preferred) ── */
-  let condaPath = await findCondaBinary();
-  if (!condaPath) {
-    onProgress(
-      "install_conda",
-      "Installing Miniconda (this may take a few minutes)...",
-    );
-    try {
-      await installMiniconda();
-      condaPath = await findCondaBinary();
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      onProgress("install_conda", `⚠️ Miniconda install failed: ${reason}`);
-      condaPath = null;
-    }
-  }
-
-  if (condaPath) {
-    onProgress("install_conda", "✅ conda ready");
-
-    /* Accept Conda ToS (prevents interactive hang) */
-    onProgress("conda_tos", "Accepting conda Terms of Service...");
-    await acceptCondaToS(condaPath);
-    onProgress("conda_tos", "✅ ToS accepted");
-
-    /* Create or repair conda environment */
-    const envDir = await resolveCondaInstallDir();
-    const pythonBin = getCondaPythonBin(envDir);
-    if (!(await IOUtils.exists(pythonBin))) {
-      // Clean corrupted package cache (from previous interrupted downloads)
-      onProgress("create_venv", "Cleaning conda cache...");
-      try {
-        await runCondaCmd(condaPath, ["clean", "--all", "-y"]);
-      } catch {
-        /* best effort — old conda versions may not support all flags */
-      }
-
-      if (await isCondaPrefixDir(envDir)) {
-        onProgress("create_venv", "Repairing existing conda environment...");
-        await runCondaCmd(condaPath, [
-          "install",
-          "-p",
-          envDir,
-          "python=3.12",
-          "-y",
-          "--override-channels",
-          "--channel",
-          "defaults",
-        ]);
-      } else {
-        await ensureDirAbsent(envDir, onProgress);
-        onProgress("create_venv", "Creating Python 3.12 conda environment...");
-        await runCondaCmd(condaPath, [
-          "create",
-          "-p",
-          envDir,
-          "python=3.12",
-          "-y",
-          "--override-channels",
-          "--channel",
-          "defaults",
-        ]);
-      }
-    }
-    onProgress("create_venv", "✅ Python environment ready");
-
-    /* Install / verify pdf2zh_next via pip inside conda env */
-    const pdf2zhBin = getCondaPdf2zhBin(envDir);
-    const pipBin = IS_WIN
-      ? PathUtils.join(envDir, "Scripts", "pip.exe")
-      : PathUtils.join(envDir, "bin", "pip");
-    onProgress("install_pkg", "Verifying pdf2zh_next...");
-    const condaCheck = await verifyPdf2zhInstall(pipBin, [
-      "show",
-      "pdf2zh-next",
-    ]);
-    const condaBinOk = await isPdf2zhBinUsable(pdf2zhBin);
-    onProgress(
-      "install_pkg",
-      `   pip show: ${condaCheck.ok ? "OK" : "FAIL"} | binary: ${condaBinOk ? "OK" : "MISSING/INVALID"}`,
-    );
-    // Reinstall if either pip metadata or binary is missing/broken
-    const needsInstall = !condaCheck.ok || !condaBinOk;
-    if (needsInstall) {
-      if (condaCheck.ok && !condaBinOk) {
-        // pip show OK but binary missing — interrupted install left metadata but no entry_point script
-        onProgress(
-          "install_pkg",
-          `⚠️ Package metadata exists but binary missing: ${pdf2zhBin}`,
-        );
-        onProgress(
-          "install_pkg",
-          "Force-reinstalling pdf2zh_next to regenerate binary...",
-        );
-      } else if (condaBinOk) {
-        onProgress(
-          "install_pkg",
-          "Broken pdf2zh_next detected, reinstalling...",
-        );
-        try {
-          await IOUtils.remove(pdf2zhBin);
-        } catch {
-          /* ignore */
-        }
-      } else {
-        onProgress(
-          "install_pkg",
-          "Installing pdf2zh_next (this may take a few minutes)...",
-        );
-      }
-      // Clean corrupted distributions from interrupted previous installs
-      const condaSitePackages = IS_WIN
-        ? PathUtils.join(envDir, "Lib", "site-packages")
-        : PathUtils.join(envDir, "lib", `python3.12`, "site-packages");
-      await cleanCorruptedDistributions(condaSitePackages, onProgress);
-      // --force-reinstall handles partially installed packages from interrupted installs
-      const pipInstallStderr = await runCmd(pipBin, [
-        "install",
-        "--force-reinstall",
-        "pdf2zh_next",
-        BITSTRING_REQUIREMENT,
-      ]);
-      if (pipInstallStderr) {
-        // Show pip's stderr output (warnings, errors) in the console
-        for (const line of pipInstallStderr.split("\n").slice(-20)) {
-          if (line.trim()) onProgress("install_pkg", `   pip: ${line.trim()}`);
-        }
-      }
-      // Verify pip metadata after reinstall
-      const recheck = await verifyPdf2zhInstall(pipBin, [
-        "show",
-        "pdf2zh-next",
-      ]);
-      if (!recheck.ok) {
-        onProgress(
-          "install_pkg",
-          `❌ pip show failed after reinstall: ${recheck.detail || "unknown"}`,
-        );
-        throw new Error(
-          "pdf2zh_next installed but package verification failed (pip show).\n" +
-            (recheck.detail || "No additional details."),
-        );
-      }
-    }
-    // Verify binary was actually generated
-    const condaBinFinal = await isPdf2zhBinUsable(pdf2zhBin);
-    if (!condaBinFinal) {
-      onProgress(
-        "install_pkg",
-        `❌ pdf2zh_next binary missing or invalid after install: ${pdf2zhBin}`,
-      );
-      // Diagnostic: list bin directory contents to find actual entry point name
-      const binDir = IS_WIN
-        ? PathUtils.join(envDir, "Scripts")
-        : PathUtils.join(envDir, "bin");
-      await listBinDirDiagnostic(binDir, "pdf2zh", onProgress);
-      throw new Error(
-        `pdf2zh_next package installed but binary not found or invalid at: ${pdf2zhBin}\n` +
-          `Try running: pip install --force-reinstall pdf2zh_next`,
-      );
-    }
-    const condaBitstreamCheck = await verifyPdf2zhInstall(pythonBin, [
-      "-c",
-      "from bitstring import BitStream",
-    ]);
-    if (!condaBitstreamCheck.ok) {
-      onProgress(
-        "install_pkg",
-        "Repairing incompatible bitstring dependency...",
-      );
-      await runCmd(pipBin, ["install", BITSTRING_REQUIREMENT]);
-    }
-    await verifyPdf2zhRuntime(pythonBin);
-    onProgress("install_pkg", `✅ pdf2zh_next ready (${pdf2zhBin})`);
-
-    // Final cross-check: run checkEnvironment to confirm everything is coherent
-    const condaFinalCheck = await checkEnvironment();
-    if (condaFinalCheck.status !== "ready") {
-      const diag = condaFinalCheck.diagnostics || [];
-      for (const line of diag) {
-        onProgress("install_pkg", `   ${line}`);
-      }
-      throw new Error(
-        `Environment installed but final verification failed (status: ${condaFinalCheck.status}).`,
-      );
-    }
-    return;
-  }
-
-  /* ── Strategy 2: uv fallback ── */
-  onProgress("install_conda", "⚠️ Miniconda unavailable, trying uv...");
-
-  let uvPath = await findUvBinary();
-  if (!uvPath) {
-    onProgress("install_uv", "Installing uv package manager...");
-    await installUv();
-    uvPath = await findUvBinary();
-    if (!uvPath) {
-      throw new Error(
-        "Neither Miniconda nor uv could be installed. " +
-          "Please install one manually:\n" +
-          "  • Miniconda: https://docs.conda.io/en/latest/miniconda.html\n" +
-          "  • uv: https://docs.astral.sh/uv/getting-started/",
-      );
-    }
-  }
-  onProgress("install_uv", "✅ uv ready");
-
-  const venvDir = getEnvRoot();
-  const pythonBin = getPythonBin(venvDir);
-  if (!(await IOUtils.exists(pythonBin))) {
-    // Clean up incomplete venv from a previously interrupted install
-    try {
-      await IOUtils.remove(venvDir, { recursive: true });
-    } catch {
-      /* may not exist */
-    }
-    onProgress("create_venv", "Creating Python 3.12 environment...");
-    await runCmd(uvPath, ["venv", venvDir, "--python", "3.12"]);
-  }
-  onProgress("create_venv", "✅ Python environment ready");
-
-  const pdf2zhBin = getPdf2zhBin(venvDir);
-  onProgress("install_pkg", "Verifying pdf2zh_next...");
-  const uvCheck = await verifyPdf2zhInstall(uvPath, [
-    "pip",
-    "show",
-    "pdf2zh-next",
-    "--python",
-    pythonBin,
-  ]);
-  const uvBinOk = await isPdf2zhBinUsable(pdf2zhBin);
-  onProgress(
-    "install_pkg",
-    `   pip show: ${uvCheck.ok ? "OK" : "FAIL"} | binary: ${uvBinOk ? "OK" : "MISSING/INVALID"}`,
-  );
-  // Reinstall if either pip metadata or binary is missing/broken
-  const uvNeedsInstall = !uvCheck.ok || !uvBinOk;
-  if (uvNeedsInstall) {
-    if (uvCheck.ok && !uvBinOk) {
-      // pip show OK but binary missing — interrupted install left metadata but no entry_point script
-      onProgress(
-        "install_pkg",
-        `⚠️ Package metadata exists but binary missing: ${pdf2zhBin}`,
-      );
-      onProgress(
-        "install_pkg",
-        "Force-reinstalling pdf2zh_next to regenerate binary...",
-      );
-    } else if (uvBinOk) {
-      onProgress("install_pkg", "Broken pdf2zh_next detected, reinstalling...");
-      try {
-        await IOUtils.remove(pdf2zhBin);
-      } catch {
-        /* ignore */
-      }
-    } else {
-      onProgress(
-        "install_pkg",
-        "Installing pdf2zh_next (this may take a few minutes)...",
-      );
-    }
-    // Clean corrupted distributions from interrupted previous installs
-    const uvSitePackages = IS_WIN
-      ? PathUtils.join(venvDir, "Lib", "site-packages")
-      : PathUtils.join(venvDir, "lib", `python3.12`, "site-packages");
-    await cleanCorruptedDistributions(uvSitePackages, onProgress);
-    const uvPipStderr = await runCmd(uvPath, [
-      "pip",
-      "install",
-      "--force-reinstall",
-      "pdf2zh_next",
-      BITSTRING_REQUIREMENT,
-      "--python",
-      pythonBin,
-    ]);
-    if (uvPipStderr) {
-      for (const line of uvPipStderr.split("\n").slice(-20)) {
-        if (line.trim()) onProgress("install_pkg", `   pip: ${line.trim()}`);
-      }
-    }
-    // Verify pip metadata after reinstall
-    const uvRecheck = await verifyPdf2zhInstall(uvPath, [
-      "pip",
-      "show",
-      "pdf2zh-next",
-      "--python",
-      pythonBin,
-    ]);
-    if (!uvRecheck.ok) {
-      onProgress(
-        "install_pkg",
-        `❌ pip show failed after reinstall: ${uvRecheck.detail || "unknown"}`,
-      );
-      throw new Error(
-        "pdf2zh_next installed but package verification failed (pip show).\n" +
-          (uvRecheck.detail || "No additional details."),
-      );
-    }
-  }
-  // Verify binary was actually generated
-  const uvBinFinal = await isPdf2zhBinUsable(pdf2zhBin);
-  if (!uvBinFinal) {
-    onProgress(
-      "install_pkg",
-      `❌ pdf2zh_next binary missing or invalid after install: ${pdf2zhBin}`,
-    );
-    // Diagnostic: list bin directory contents to find actual entry point name
-    const uvBinDir = IS_WIN
-      ? PathUtils.join(venvDir, "Scripts")
-      : PathUtils.join(venvDir, "bin");
-    await listBinDirDiagnostic(uvBinDir, "pdf2zh", onProgress);
-    throw new Error(
-      `pdf2zh_next package installed but binary not found or invalid at: ${pdf2zhBin}\n` +
-        `Try running: uv pip install --force-reinstall pdf2zh_next`,
-    );
-  }
-  const uvBitstreamCheck = await verifyPdf2zhInstall(pythonBin, [
-    "-c",
-    "from bitstring import BitStream",
-  ]);
-  if (!uvBitstreamCheck.ok) {
-    onProgress("install_pkg", "Repairing incompatible bitstring dependency...");
-    await runCmd(uvPath, [
-      "pip",
-      "install",
-      BITSTRING_REQUIREMENT,
-      "--python",
-      pythonBin,
-    ]);
-  }
-  await verifyPdf2zhRuntime(pythonBin);
-  onProgress("install_pkg", `✅ pdf2zh_next ready (${pdf2zhBin})`);
-
-  // Final cross-check: run checkEnvironment to confirm everything is coherent
-  const uvFinalCheck = await checkEnvironment();
-  if (uvFinalCheck.status !== "ready") {
-    const diag = uvFinalCheck.diagnostics || [];
-    for (const line of diag) {
-      onProgress("install_pkg", `   ${line}`);
-    }
-    throw new Error(
-      `Environment installed but final verification failed (status: ${uvFinalCheck.status}).`,
-    );
-  }
-}
-
 /* ── Conda helpers ── */
 
 /** Conda environment directory (prefix-based, not named) */
@@ -806,26 +349,14 @@ async function findCondaBinary(): Promise<string | null> {
   return null;
 }
 
-/**
- * Run a conda command.
- *
- * On Windows: `python.exe -m conda <args>`  (condaPath = base python.exe)
- * On Unix:    `conda <args>`                 (condaPath = conda binary)
- */
-function runCondaCmd(condaPath: string, args: string[]): Promise<string> {
-  if (IS_WIN) {
-    // condaPath is the base python.exe
-    return runCmd(condaPath, ["-m", "conda", ...args]);
-  }
-  return runCmd(condaPath, args);
-}
-
 /** Get an environment variable via Gecko XPCOM */
 function getEnvVar(name: string): string {
   try {
-    return (Components.classes as any)["@mozilla.org/process/environment;1"]
-      .getService((Components.interfaces as any).nsIEnvironment)
-      .get(name);
+    return String(
+      (Components.classes as any)["@mozilla.org/process/environment;1"]
+        .getService((Components.interfaces as any).nsIEnvironment)
+        .get(name) || "",
+    ).trim();
   } catch {
     return "";
   }
@@ -918,163 +449,102 @@ function getUvEnvDirCandidates(): string[] {
   ]);
 }
 
-async function resolveCondaInstallDir(): Promise<string> {
-  for (const envDir of getCondaEnvDirCandidates()) {
-    const pythonBin = getCondaPythonBin(envDir);
-    if (await IOUtils.exists(pythonBin)) return envDir;
-    if (await isCondaPrefixDir(envDir)) return envDir;
-  }
-  return getCondaEnvDir();
-}
-
-async function isCondaPrefixDir(envDir: string): Promise<boolean> {
-  if (!(await IOUtils.exists(envDir))) return false;
-  return await IOUtils.exists(PathUtils.join(envDir, "conda-meta"));
-}
-
-async function ensureDirAbsent(
-  dir: string,
-  onProgress: (step: string, detail: string) => void,
-): Promise<void> {
-  if (!(await IOUtils.exists(dir))) return;
-  onProgress("create_venv", "Removing existing incomplete environment...");
-  try {
-    await IOUtils.remove(dir, { recursive: true });
-  } catch {
-    /* ignored; checked below */
-  }
-
-  if (await IOUtils.exists(dir)) {
-    throw new Error(
-      `Environment directory already exists and could not be cleaned: ${dir}\n` +
-        "This commonly happens when Zotero data is stored in a synced folder such as OneDrive. " +
-        "Please remove that directory manually and retry.",
-    );
-  }
-}
-
-/**
- * Install Miniconda silently (platform-specific).
- *
- * Downloads the latest Miniconda installer and runs it in batch/silent mode
- * to avoid any interactive prompts.
- */
-async function installMiniconda(): Promise<void> {
-  if (IS_WIN) {
-    const userProfile = getEnvVar("USERPROFILE") || getPreferredEnvBaseDir();
-    if (!userProfile) {
-      throw new Error("Cannot resolve USERPROFILE for Miniconda installation");
-    }
-    const installDir = PathUtils.join(userProfile, "miniconda3");
-    const installerUrl =
-      "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe";
-    const installerPath = PathUtils.join(
-      getTempDirOrThrow(),
-      "miniconda-installer.exe",
-    );
-    // Download installer
-    await runCmd("powershell.exe", [
-      "-ExecutionPolicy",
-      "ByPass",
-      "-c",
-      `Invoke-WebRequest -Uri '${installerUrl}' -OutFile '${installerPath}'`,
-    ]);
-    // Run silent install
-    await runCmd(installerPath, [
-      "/InstallationType=JustMe",
-      "/AddToPath=0",
-      "/RegisterPython=0",
-      "/S",
-      `/D=${installDir}`,
-    ]);
-  } else {
-    const home = getEnvVar("HOME") || getPreferredEnvBaseDir();
-    if (!home) {
-      throw new Error("Cannot resolve HOME for Miniconda installation");
-    }
-    const installDir = PathUtils.join(home, "miniconda3");
-    const arch = IS_MAC ? "MacOSX" : "Linux";
-    // Detect CPU architecture at runtime (arm64 for Apple Silicon, x86_64 otherwise)
-    // We use a script that calls `uname -m` to determine the correct installer
-    const installerScript =
-      `ARCH=$(uname -m) && ` +
-      `URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-${arch}-\${ARCH}.sh" && ` +
-      `curl -fsSL "\${URL}" -o /tmp/miniconda.sh && ` +
-      `bash /tmp/miniconda.sh -b -p '${installDir}' && ` +
-      `rm -f /tmp/miniconda.sh`;
-    await runCmd("/bin/sh", ["-c", installerScript]);
-  }
-}
-
-/**
- * Accept Conda Terms of Service non-interactively.
- *
- * Uses a belt-and-suspenders approach to prevent `CondaToSNonInteractiveError`
- * which blocks `conda create` in non-interactive contexts:
- *
- *   1. `conda config --set plugins.auto_accept_tos yes`  — persistent config
- *   2. `conda tos accept`                                 — explicit acceptance
- *   3. Channel-specific accept for default repos           — covers edge cases
- */
-async function acceptCondaToS(condaBin: string): Promise<void> {
-  // Step 1: Set auto-accept config flag
-  try {
-    await runCondaCmd(condaBin, [
-      "config",
-      "--set",
-      "plugins.auto_accept_tos",
-      "yes",
-    ]);
-  } catch {
-    // Older conda versions may not have this config key — ignore
-  }
-
-  // Step 2: Explicit tos accept
-  try {
-    await runCondaCmd(condaBin, ["tos", "accept"]);
-  } catch {
-    // `conda tos` subcommand may not exist on older versions — ignore
-  }
-
-  // Step 3: Channel-specific accept for default repositories
-  const channels = [
-    "https://repo.anaconda.com/pkgs/main",
-    "https://repo.anaconda.com/pkgs/r",
-  ];
-  if (IS_WIN) {
-    channels.push("https://repo.anaconda.com/pkgs/msys2");
-  }
-  for (const ch of channels) {
-    try {
-      await runCondaCmd(condaBin, [
-        "tos",
-        "accept",
-        "--override-channels",
-        "--channel",
-        ch,
-      ]);
-    } catch {
-      // ignore — best effort
-    }
-  }
-}
-
 /* ── Shared helpers ── */
 
 /** Run uv install script (platform-specific) */
+/**
+ * POSIX sh has no pipefail, so `curl | sh` reports success when the download
+ * fails. Download to a file first, and fall back to wget where curl is
+ * missing (stock Debian/Ubuntu).
+ */
+export const UV_UNIX_INSTALL_SCRIPT =
+  'set -e; tmp="$(mktemp)"; trap \'rm -f "$tmp"\' EXIT; ' +
+  "if command -v curl >/dev/null 2>&1; then " +
+  'curl -LsSf --connect-timeout 20 --max-time 600 https://astral.sh/uv/install.sh -o "$tmp"; ' +
+  'else wget -q -T 30 -O "$tmp" https://astral.sh/uv/install.sh; fi; ' +
+  'sh "$tmp"';
+
 async function installUv(): Promise<void> {
   if (IS_WIN) {
-    await runCmd("powershell.exe", [
-      "-ExecutionPolicy",
-      "ByPass",
-      "-c",
-      "irm https://astral.sh/uv/install.ps1 | iex",
-    ]);
+    await runCmd(
+      `${getWindowsSystemRoot()}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "ByPass",
+        "-c",
+        "irm https://astral.sh/uv/install.ps1 | iex",
+      ],
+    );
   } else {
-    await runCmd("/bin/sh", [
+    await runCmd("/bin/sh", ["-c", UV_UNIX_INSTALL_SCRIPT]);
+  }
+}
+
+function getWindowsSystemRoot(): string {
+  return (
+    getEnvVar("SystemRoot") ||
+    getEnvVar("windir") ||
+    "C:\\Windows"
+  ).replace(/[\\/]+$/, "");
+}
+
+/**
+ * The Python to request from uv. Most of the pinned packages publish no
+ * win_arm64 wheels, while uv on Windows ARM64 prefers a native ARM64
+ * interpreter; an x86-64 interpreter runs under emulation and can use the
+ * regular Windows wheels.
+ */
+export function resolveUvPythonRequest(
+  version: string,
+  platform: { isWin: boolean; processorArchitecture: string[] },
+): string {
+  const isArm64 = platform.processorArchitecture.some(
+    (value) => String(value || "").toUpperCase() === "ARM64",
+  );
+  return platform.isWin && isArm64
+    ? `cpython-${version}-windows-x86_64-none`
+    : version;
+}
+
+export function getUvPythonRequest(version: string): string {
+  return resolveUvPythonRequest(version, {
+    isWin: IS_WIN,
+    processorArchitecture: [
+      getEnvVar("PROCESSOR_ARCHITECTURE"),
+      // Set when an x64 Zotero itself runs emulated on ARM64 Windows.
+      getEnvVar("PROCESSOR_ARCHITEW6432"),
+    ],
+  });
+}
+
+/**
+ * What the installer needs to know about this machine. Anything that cannot
+ * be determined is left out, which the policy treats as "allowed to try".
+ */
+export async function detectTranslationPlatform(): Promise<TranslationPlatformInfo> {
+  if (IS_WIN) {
+    return {
+      os: "windows",
+      arch: [
+        getEnvVar("PROCESSOR_ARCHITECTURE"),
+        // The real machine type when a 32-bit or emulated Zotero is running.
+        getEnvVar("PROCESSOR_ARCHITEW6432"),
+      ],
+    };
+  }
+  const os = (Zotero as unknown as { isMac?: boolean }).isMac
+    ? "macos"
+    : "linux";
+  try {
+    // runCmd captures stderr, so the probe writes there.
+    const output = await runCmd("/bin/sh", [
       "-c",
-      "curl -LsSf https://astral.sh/uv/install.sh | sh",
+      "{ uname -m; uname -r; getconf GNU_LIBC_VERSION 2>/dev/null || ldd --version 2>&1 | head -n 1; } 1>&2",
     ]);
+    return parseUnixPlatformProbe(os, output);
+  } catch {
+    return { os, arch: [] };
   }
 }
 
@@ -1101,7 +571,11 @@ export async function ensureUvBinary(): Promise<string> {
  * @returns The stderr output (may be empty). Returned even on success so
  *          callers can surface pip warnings etc. to the user.
  */
-export async function runCmd(exe: string, args: string[]): Promise<string> {
+export async function runCmd(
+  exe: string,
+  args: string[],
+  env?: Record<string, string>,
+): Promise<string> {
   const tempDir = getTempDirOrThrow();
   const commandId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const logFile = PathUtils.join(tempDir, `aidea-cmd-${commandId}.log`);
@@ -1121,14 +595,16 @@ export async function runCmd(exe: string, args: string[]): Promise<string> {
 
   try {
     if (IS_WIN) {
-      const script = `@echo off\r\n${cmdLine} 2>"${logFile}"\r\nexit /b %ERRORLEVEL%\r\n`;
+      // cmd.exe parses the script in the OEM code page unless told otherwise,
+      // which corrupts non-ASCII paths (e.g. C:\Users\张三).
+      const script = `@echo off\r\nchcp 65001 >nul\r\n${buildEnvLines(env, true)}${cmdLine} 2>"${logFile}"\r\nexit /b %ERRORLEVEL%\r\n`;
       await IOUtils.writeUTF8(scriptPath, script);
-      await _runNsIProcess("C:\\Windows\\System32\\cmd.exe", [
+      await _runNsIProcess(`${getWindowsSystemRoot()}\\System32\\cmd.exe`, [
         "/c",
         scriptPath,
       ]);
     } else {
-      const script = `#!/bin/sh\n${cmdLine} 2>"${logFile}"\n`;
+      const script = `#!/bin/sh\n${buildEnvLines(env, false)}${cmdLine} 2>"${logFile}"\n`;
       await IOUtils.writeUTF8(scriptPath, script);
       await _runNsIProcess("/bin/chmod", ["+x", scriptPath]);
       await _runNsIProcess("/bin/sh", [scriptPath]);
@@ -1152,6 +628,22 @@ export async function runCmd(exe: string, args: string[]): Promise<string> {
       /* best effort */
     }
   }
+}
+
+/** Script lines that set environment variables for the command that follows. */
+export function buildEnvLines(
+  env: Record<string, string> | undefined,
+  isWin: boolean,
+): string {
+  let out = "";
+  for (const [name, value] of Object.entries(env || {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
+    // Values are plain tokens (numbers, URLs); reject anything a shell or
+    // cmd.exe would interpret rather than trying to quote it.
+    if (!/^[A-Za-z0-9_.:/@+=,-]*$/.test(value)) continue;
+    out += isWin ? `set "${name}=${value}"\r\n` : `export ${name}='${value}'\n`;
+  }
+  return out;
 }
 
 function getTempDirOrThrow(): string {
@@ -1230,6 +722,7 @@ function _runNsIProcess(exe: string, args: string[]): Promise<void> {
 
 /* ── Re-exports for tests / other modules ── */
 export {
+  getRequiredEnvBaseDir,
   getEnvRoot,
   getPythonBin,
   getPdf2zhBin,
@@ -1238,5 +731,4 @@ export {
   getCondaEnvDir,
   getCondaPythonBin,
   getCondaPdf2zhBin,
-  acceptCondaToS,
 };

@@ -4,31 +4,56 @@ import {
 } from "./bundledEnvironment";
 import { config } from "../../../package.json";
 import {
+  buildUvDownloadEnv,
   chooseTranslationEnvAction,
+  describeUnsupportedTranslationPlatform,
+  MAX_TRANSLATION_LOCK_BYTES,
   parseTranslationEnvManifest,
+  resolveDownloadSources,
+  selectRemovableEnvironmentDirs,
   TRANSLATION_ENV_URL,
   validateTranslationRequirements,
+  type TranslationDownloadSource,
   type TranslationEnvAction,
   type TranslationEnvManifest,
 } from "./environmentPolicy";
 import {
   activateTranslationEnvironment,
   checkEnvironment,
+  detectTranslationPlatform,
   ensureUvBinary,
   getActiveTranslationEnvironment,
   getCondaEnvDir,
   getEnvRoot,
   getPdf2zhBin,
   getPythonBin,
+  getRequiredEnvBaseDir,
   runCmd,
+  getUvPythonRequest,
 } from "./envManager";
+import { hasRunningProcess } from "./processRunner";
 import type { EnvStatus } from "./types";
 
 const REMOTE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RUNTIME_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_MANIFEST_BYTES = 8_192;
-const MAX_LOCK_BYTES = 100_000;
+const MAX_LOCK_BYTES = MAX_TRANSLATION_LOCK_BYTES;
 const LAST_REMOTE_ATTEMPT_PREF = `${config.prefsPrefix}.translate.envLastRemoteAttempt`;
+/** "auto" (default), "official" or "mirror". */
+const DOWNLOAD_SOURCE_PREF = `${config.prefsPrefix}.translate.envDownloadSource`;
+
+function getDownloadSources(): TranslationDownloadSource[] {
+  let preference = "";
+  try {
+    preference = String(Zotero.Prefs.get(DOWNLOAD_SOURCE_PREF, true) || "");
+  } catch {
+    // Unset: automatic.
+  }
+  return resolveDownloadSources(
+    preference,
+    String((Zotero as unknown as { locale?: string }).locale || ""),
+  );
+}
 
 type Catalog = {
   manifest: TranslationEnvManifest;
@@ -95,7 +120,9 @@ async function verifyLockedPackages(
   const code =
     "from packaging.requirements import Requirement; " +
     "import importlib.metadata as m, sys; " +
-    "reqs = [Requirement(s.strip()) for s in open(sys.argv[1], encoding='utf-8') " +
+    // Hashes follow each pin on continuation lines (backslash + newline).
+    "text = open(sys.argv[1], encoding='utf-8').read().replace(chr(92) + chr(10), ' '); " +
+    "reqs = [Requirement(s.split(' --hash=')[0].strip()) for s in text.splitlines() " +
     "if s.strip() and not s.lstrip().startswith('#')]; " +
     "assert all((r.marker is not None and not r.marker.evaluate()) " +
     "or r.specifier.contains(m.version(r.name), prereleases=True) for r in reqs), " +
@@ -298,38 +325,130 @@ export async function inspectTranslationEnvironment(
   return inspectWithCatalog(catalog, warning, forceRemote);
 }
 
+function baseName(path: string): string {
+  return path.split(/[\\/]/).pop() || "";
+}
+
+/**
+ * Best-effort removal of superseded, staging and legacy environments.
+ *
+ * Must run inside the update lock: a concurrent install's staging directory
+ * would otherwise look like a leftover.
+ */
+async function removeObsoleteEnvironments(
+  onProgress: (step: string, detail: string) => void,
+): Promise<void> {
+  try {
+    // A running job may still execute from an environment that is no longer
+    // the active or previous one.
+    if (hasRunningProcess()) return;
+    const active = getActiveTranslationEnvironment();
+    if (!active) return;
+    const parent = getRequiredEnvBaseDir();
+    const activeName = baseName(active.dir);
+    const previousName = active.previous ? baseName(active.previous.dir) : "";
+    // The recorded paths come from a preference; only trust them when they
+    // are direct children of our own parent directory.
+    if (
+      PathUtils.join(parent, activeName) !== active.dir ||
+      (active.previous &&
+        PathUtils.join(parent, previousName) !== active.previous.dir)
+    ) {
+      return;
+    }
+    const entries = (await IOUtils.getChildren(parent)).map(baseName);
+    const removable = selectRemovableEnvironmentDirs(
+      entries,
+      activeName,
+      previousName,
+    );
+    if (removable.length) {
+      onProgress(
+        "cleanup",
+        `Removing ${removable.length} old translation environment(s)...`,
+      );
+    }
+    for (const name of removable) {
+      try {
+        await IOUtils.remove(PathUtils.join(parent, name), { recursive: true });
+      } catch {
+        // Retried after the next successful update.
+      }
+    }
+  } catch {
+    // Leftover environments only cost disk space.
+  }
+}
+
 async function installWithCatalog(
   catalog: Catalog,
   action: TranslationEnvAction,
   onProgress: (step: string, detail: string) => void,
 ): Promise<TranslationEnvUpdateResult> {
+  // Fail before downloading several hundred megabytes that cannot work here.
+  const unsupported = describeUnsupportedTranslationPlatform(
+    await detectTranslationPlatform(),
+  );
+  if (unsupported) throw new Error(unsupported);
   const uv = await ensureUvBinary();
   const { manifest, requirements } = catalog;
   const nonce = Math.random().toString(36).slice(2, 10);
   const dir = `${getEnvRoot()}-r${manifest.revision}-${manifest.requirementsSha256.slice(0, 8)}-${nonce}`;
   const pythonBin = getPythonBin(dir);
   const pdf2zhBin = getPdf2zhBin(dir);
-  try {
+  const lockPath = PathUtils.join(dir, "requirements.lock");
+  const download = async (source: TranslationDownloadSource) => {
+    const env = buildUvDownloadEnv(source);
     onProgress(
       "create_venv",
-      `Creating Python ${manifest.python} environment...`,
+      `Creating Python ${manifest.python} environment (${source} download source)...`,
     );
-    await runCmd(uv, ["venv", dir, "--python", manifest.python]);
-    const lockPath = PathUtils.join(dir, "requirements.lock");
+    await runCmd(
+      uv,
+      ["venv", dir, "--python", getUvPythonRequest(manifest.python)],
+      env,
+    );
     await IOUtils.writeUTF8(lockPath, requirements);
     onProgress(
       "install_pkg",
       `Installing verified environment revision ${manifest.revision}...`,
     );
-    await runCmd(uv, [
-      "pip",
-      "sync",
-      lockPath,
-      "--python",
-      pythonBin,
-      "--only-binary",
-      ":all:",
-    ]);
+    await runCmd(
+      uv,
+      [
+        "pip",
+        "sync",
+        lockPath,
+        "--python",
+        pythonBin,
+        "--only-binary",
+        ":all:",
+        // Every downloaded file must match a hash from the verified lock,
+        // whichever index or mirror served it.
+        "--require-hashes",
+      ],
+      env,
+    );
+  };
+  try {
+    const sources = getDownloadSources();
+    for (let i = 0; i < sources.length; i += 1) {
+      try {
+        await download(sources[i]);
+        break;
+      } catch (err) {
+        if (i === sources.length - 1) throw err;
+        onProgress(
+          "retry",
+          `Download from the ${sources[i]} source failed; retrying with the ${sources[i + 1]} source...`,
+        );
+        try {
+          await IOUtils.remove(dir, { recursive: true });
+        } catch {
+          // uv venv replaces an incomplete directory.
+        }
+      }
+    }
     const versions = manifest.versions;
     const verifyCode =
       "import importlib.metadata as m; " +
@@ -356,6 +475,7 @@ async function installWithCatalog(
       manifest.requirementsSha256,
     );
     verifiedRuntime.set(dir, Date.now());
+    await removeObsoleteEnvironments(onProgress);
     const environment: EnvStatus = {
       status: "ready",
       venvDir: dir,

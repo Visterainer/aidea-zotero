@@ -1870,14 +1870,59 @@ export async function deleteAllGlobalConversationsByLibrary(
   });
 }
 
+const chatHistoryClearedListeners = new Set<() => void>();
+
+/**
+ * Panels keep conversations in memory. They subscribe here so that
+ * "clear all history" cannot leave them writing to conversations that no
+ * longer exist.
+ */
+export function onChatHistoryCleared(listener: () => void): () => void {
+  chatHistoryClearedListeners.add(listener);
+  return () => chatHistoryClearedListeners.delete(listener);
+}
+
+const chatHistoryClearBlockers = new Set<() => string | null>();
+
+/**
+ * A blocker returns a reason when clearing must not happen right now (for
+ * example while an answer is still streaming into a conversation).
+ */
+export function addChatHistoryClearBlocker(
+  blocker: () => string | null,
+): () => void {
+  chatHistoryClearBlockers.add(blocker);
+  return () => chatHistoryClearBlockers.delete(blocker);
+}
+
 export async function clearAllChatHistory(): Promise<void> {
+  for (const blocker of chatHistoryClearBlockers) {
+    const reason = blocker();
+    if (reason) throw new Error(reason);
+  }
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_MESSAGES_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_TREE_STATE_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${GLOBAL_CONVERSATIONS_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${PAPER_CONVERSATIONS_TABLE}`);
     await deleteTransferSourceRows();
+    // Memories are snippets captured from these chats (they can include
+    // personal details) and keep being injected into prompts, so "clear all"
+    // has to cover them as well.
+    const hasMemories = await Zotero.DB.valueQueryAsync(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='zotero_ai_memories'",
+    );
+    if (hasMemories) {
+      await Zotero.DB.queryAsync("DELETE FROM zotero_ai_memories");
+    }
   });
+  for (const listener of chatHistoryClearedListeners) {
+    try {
+      listener();
+    } catch (err) {
+      ztoolkit.log("LLM: chat-history-cleared listener failed", err);
+    }
+  }
 }
 
 // =============================================================================

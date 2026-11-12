@@ -123,7 +123,7 @@ Example outputs:
 
 | Provider             | Auth Method                   | Extra Setup                           |
 | -------------------- | ----------------------------- | ------------------------------------- |
-| **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Node.js (auto-installed)              |
+| **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Codex CLI (auto-installed)            |
 | **GitHub Copilot**   | In-plugin OAuth (Device Code) | None; GPT and Claude models available |
 
 ### 📝 Note Export
@@ -167,7 +167,7 @@ The plugin interface now supports **12 UI languages**: **English**, **简体中�
 ### Requirements
 
 - **Zotero 7 or later**
-- **Node.js**, required for OpenAI (Codex CLI), can be installed automatically by the plugin when needed
+- The standalone **Codex CLI**, required for OpenAI OAuth, is installed by the plugin when needed (no Node.js required; `curl` or `wget` must be available on macOS/Linux)
 - **Python environment** running `pdf2zh_next`, required only for full-document translation. The **Install/Update Translation Environment** button installs a tested dependency set with `uv`; existing Miniconda environments remain usable. Installation needs an internet connection unless the packages are cached.
 
 > **Note:** The Translate tab checks AIdea's independently published, tested environment catalog once per day and shows an inline notice when an update is available. **Install/Update Translation Environment** checks again when clicked and changes the environment only if installation, repair, or an update is needed. An update is installed in a new directory and activated only after validation; an upstream PyPI release alone is not treated as a verified update. The provider-card **Install/Update Env** button manages its separate OAuth CLI environment.
@@ -202,12 +202,12 @@ For each provider card, the typical setup order is:
 
 > **① `Install/Update Env`** → **② `OAuth Login`** → **③ `Refresh Models`**
 
-| Button                   | What it does                                                                                                                                                                                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`Install/Update Env`** | Installs and configures the required CLI tools and runtime, including Node.js and npm when needed. GitHub Copilot does not require this step. Run it again whenever the provider's CLI is updated upstream; this is independent of plugin updates. |
-| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI opens the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization.                                                                                |
-| **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                                                                                                   |
-| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                                                                                           |
+| Button                   | What it does                                                                                                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`Install/Update Env`** | Installs or updates the official standalone Codex CLI using OpenAI's install script. GitHub Copilot does not require this step. Run it again whenever the provider's CLI is updated upstream; this is independent of plugin updates. |
+| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI opens the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization.                                                                  |
+| **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                                                                                     |
+| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                                                                             |
 
 <p align="center">
   <img src="doc/screenshots/settings_oauth_models_en.png" alt="OAuth providers and model management" width="700" />
