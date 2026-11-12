@@ -1,4 +1,5 @@
 import { defineConfig } from "zotero-plugin-scaffold";
+import { readFileSync } from "node:fs";
 import pkg from "./package.json";
 
 export default defineConfig({
@@ -51,6 +52,10 @@ export default defineConfig({
       // Avoid a modal warning blocking tests in a cloud-synced checkout.
       "extensions.zotero.warnOnUnsafeDataDir": false,
     },
+  },
+
+  release: {
+    changelog: () => readFileSync(".github/release_notes.md", "utf8"),
   },
 
   // If you need to see a more detailed log, uncomment the following line:
