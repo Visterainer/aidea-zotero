@@ -97,10 +97,53 @@ export async function resolveSourcePdf(item: ZItem): Promise<SourcePdf | null> {
   return null;
 }
 
-/** Other live attachments under the same parent as `source`. */
+/**
+ * A top-level PDF has no parent to collect its translations under, so they
+ * are linked to it as related items when they are created.
+ */
+function relatedPdfAttachments(source: ZItem): ZItem[] {
+  let keys: string[];
+  try {
+    keys = source?.relatedItems || [];
+  } catch {
+    return [];
+  }
+  const out: ZItem[] = [];
+  for (const key of keys) {
+    let related: ZItem | false | null = null;
+    try {
+      related = Zotero.Items.getByLibraryAndKey(source.libraryID, key);
+    } catch {
+      /* skip an unreadable relation */
+    }
+    if (
+      related &&
+      !related.deleted &&
+      related.id !== source.id &&
+      isPdfAttachment(related)
+    ) {
+      out.push(related);
+    }
+  }
+  return out;
+}
+
+async function relateToSource(item: ZItem, source: ZItem): Promise<void> {
+  try {
+    if (item.addRelatedItem?.(source)) await item.saveTx();
+    if (source.addRelatedItem?.(item)) await source.saveTx();
+  } catch {
+    /* the translation is in place; only duplicate detection is affected */
+  }
+}
+
+/**
+ * Other live PDF attachments that belong with `source`: its siblings under
+ * the same parent, or its related items when it has no parent.
+ */
 function siblingAttachments(source: ZItem): ZItem[] {
   const parentID = source?.parentItemID || source?.parentID;
-  if (!parentID) return [];
+  if (!parentID) return relatedPdfAttachments(source);
   const parent = Zotero.Items.get(parentID);
   if (!parent) return [];
   return childAttachments(parent).filter(
@@ -225,8 +268,66 @@ export async function attachTranslatedPdfs(
         ...placement,
       });
     }
+    if (!parentItemID) await relateToSource(item, source);
     result.items.push(item);
     result.created += 1;
+  }
+  return result;
+}
+
+/** Tag put on every translated PDF so they can be found (and removed) together. */
+export const TRANSLATION_TAG = "AIdea Translation";
+
+export interface DeliveryTarget {
+  /** Add the PDFs to the source's Zotero item. */
+  attach: boolean;
+  /** Also copy them into this folder; "" for none. */
+  saveDir: string;
+}
+
+export interface DeliveryResult {
+  /** Attachments created or updated; empty when nothing was attached. */
+  items: ZItem[];
+  /** Copies written to the folder. */
+  savedFiles: string[];
+}
+
+/**
+ * Put finished translations where the user asked for them: on the Zotero
+ * item, in a folder, or both. With neither chosen they are attached, so a
+ * finished translation is never thrown away.
+ */
+export async function deliverTranslatedPdfs(
+  source: ZItem,
+  files: string[],
+  target: DeliveryTarget,
+): Promise<DeliveryResult> {
+  const saveDir = String(target.saveDir || "").trim();
+  const result: DeliveryResult = { items: [], savedFiles: [] };
+  // The folder copy comes first: it cannot be affected by a Zotero error.
+  if (saveDir) {
+    await IOUtils.makeDirectory(saveDir, { createAncestors: true });
+    for (const file of files) {
+      const name = fileBaseName(file);
+      if (!name) continue;
+      const destination = PathUtils.join(saveDir, name);
+      if (destination !== file) await IOUtils.copy(file, destination);
+      result.savedFiles.push(destination);
+    }
+  }
+  if (target.attach || !saveDir) {
+    const attached = await attachTranslatedPdfs(source, files);
+    result.items = attached.items;
+    for (const item of attached.items) {
+      try {
+        if (!item.hasTag?.(TRANSLATION_TAG)) {
+          item.addTag(TRANSLATION_TAG);
+          await item.saveTx();
+        }
+      } catch {
+        /* the attachment is in place; the tag is a convenience */
+      }
+    }
   }
   return result;
 }

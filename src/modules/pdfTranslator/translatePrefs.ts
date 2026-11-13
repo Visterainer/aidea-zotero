@@ -18,6 +18,13 @@ export const TRANSLATE_PREFS = {
   outputDual: "translate.outputDual",
   skipRefsAuto: "translate.skipReferencesAuto",
   outputDir: "translate.outputDir",
+  /** Add translated PDFs to the source's Zotero item (default on). */
+  outputAttach: "translate.outputAttach",
+  /** Also copy translated PDFs into `outputDir` (default off). */
+  outputSaveToDir: "translate.outputSaveToDir",
+  /** Batch add: skip documents that already have this translation (default on). */
+  queueSkipExisting: "translate.queueSkipExisting",
+  queueState: "translate.queueState",
   qps: "translate.qps",
   poolMaxWorker: "translate.poolMaxWorker",
   keepAppendixTranslated: "translate.keepAppendixTranslated",
@@ -76,6 +83,19 @@ export function getBoolPref(key: string, defaultValue: boolean): boolean {
     // ignore
   }
   return defaultValue;
+}
+
+/**
+ * Whether results are also copied to the output folder. Before this option
+ * existed they always were, so it starts on for anyone who had already
+ * chosen a folder and off for everyone else. (It has no default in
+ * prefs.js for that reason.)
+ */
+export function isSaveToOutputDirEnabled(): boolean {
+  return getBoolPref(
+    TRANSLATE_PREFS.outputSaveToDir,
+    getStringPref(TRANSLATE_PREFS.outputDir, "") !== "",
+  );
 }
 
 export function setBoolPref(key: string, value: boolean): void {

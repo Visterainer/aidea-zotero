@@ -1,35 +1,28 @@
 /* ---------------------------------------------------------------------------
- * pdfTranslator/translateMenu.ts  –  Library context menu: translate full PDF
+ * pdfTranslator/translateMenu.ts  –  Library context menu: translate PDFs
  *
- * One click translates the selected item's PDF with the settings saved by the
- * Translate tab, shows progress in a Zotero progress window, and files the
- * result next to the original. One job at a time; while a job started here is
- * running the same menu entry cancels it.
+ * Adds the selected items' PDFs to the translation queue with the settings
+ * saved by the Translate tab. One summary progress window follows the queue,
+ * and a second menu entry stops it. The queue itself, and everything shown
+ * per document, lives in the Translate tab.
  * -------------------------------------------------------------------------*/
 
 import { config } from "../../../package.json";
 import { getPanelLang } from "../contextPanel/i18n";
-import type { TranslateEvent } from "./index";
 import { getTranslateMenuCopy, type TranslateMenuCopy } from "./menuI18n";
+import { describeAddResult, getQueueCopy, type QueueCopy } from "./queueI18n";
+import { readSavedTranslateOptions } from "./translatePrefs";
 import {
-  getPersistedTranslateModel,
-  getPersistedTranslateProvider,
-  readSavedTranslateOptions,
-} from "./translatePrefs";
-import {
-  attachTranslatedPdfs,
   findExistingTranslations,
   findPdfAttachment,
   pickAttachmentToOpen,
-  resolveSourcePdf,
   type TranslationOutputKind,
 } from "./translationAttachment";
+import type { QueueState, QueueSummary } from "./translationQueue";
 import {
-  isTranslationRunning,
-  startTranslationJob,
-  type TranslationJobHandle,
-  type TranslationJobOutcome,
-} from "./translationJob";
+  enqueueLibraryItems,
+  getTranslationQueue,
+} from "./translationQueueService";
 
 declare const Services: any;
 
@@ -40,15 +33,8 @@ const ERROR_CLOSE_MS = 15000;
 
 type ProgressWindow = InstanceType<typeof ztoolkit.ProgressWindow>;
 
-interface ActiveMenuJob {
-  handle: TranslationJobHandle;
-  percent: number;
-  progressWindow: ProgressWindow | null;
-}
-
 let registered = false;
-let activeJob: ActiveMenuJob | null = null;
-/** True from the click until the job is handed to `activeJob`. */
+/** True while a click is still being turned into queue entries. */
 let starting = false;
 
 function copy(): TranslateMenuCopy {
@@ -90,100 +76,6 @@ function notify(text: string, type: "default" | "success" | "fail"): void {
   }
 }
 
-function openRunningProgressWindow(): ProgressWindow | null {
-  const strings = copy();
-  try {
-    return new ztoolkit.ProgressWindow(strings.progressTitle, {
-      closeOnClick: true,
-      closeTime: -1,
-    })
-      .createLine({ text: strings.preparing, type: "default", progress: 0 })
-      .createLine({ text: strings.cancelHint, type: "default" })
-      .show(-1);
-  } catch (err) {
-    ztoolkit?.log?.("AIdea: failed to open translate progress window", err);
-    return null;
-  }
-}
-
-function showProgress(job: ActiveMenuJob, event: TranslateEvent): void {
-  if (event.type !== "progress") return;
-  const strings = copy();
-  const percent = Math.max(
-    job.percent,
-    Math.min(100, Math.round(Number(event.data.progress) || 0)),
-  );
-  job.percent = percent;
-  const { current, total } = event.data;
-  const pageText =
-    typeof current === "number" && typeof total === "number" && total > 0
-      ? ` · ${strings.page(current, total)}`
-      : "";
-  try {
-    // Throws once the user has dismissed the window; the menu label still
-    // carries the percentage and a fresh window reports the result.
-    job.progressWindow?.changeLine({
-      idx: 0,
-      text: `${strings.translating(percent)}${pageText}`,
-      progress: percent,
-    });
-  } catch {
-    job.progressWindow = null;
-  }
-}
-
-function describeOutcome(
-  outcome: Exclude<TranslationJobOutcome, { status: "done" }>,
-): { text: string; type: "default" | "fail" } {
-  const strings = copy();
-  if (outcome.status === "cancelled") {
-    return { text: strings.cancelled, type: "default" };
-  }
-  if (outcome.status === "error") {
-    return { text: strings.failed(firstLine(outcome.message)), type: "fail" };
-  }
-  switch (outcome.reason) {
-    case "busy":
-      return { text: strings.busy, type: "default" };
-    case "no_model":
-      return { text: strings.noModel, type: "fail" };
-    case "credentials":
-      return {
-        text: strings.credentialsFailed(firstLine(outcome.detail)),
-        type: "fail",
-      };
-    default:
-      return { text: strings.envNotReady, type: "fail" };
-  }
-}
-
-async function resolveModel(): Promise<{ name: string; providerId: string }> {
-  const name = getPersistedTranslateModel();
-  if (name) return { name, providerId: getPersistedTranslateProvider() };
-  // The tab falls back to the first available model when none was saved.
-  const { getModelChoices } =
-    await import("../contextPanel/setupHandlers/controllers/modelSelectionController");
-  const first = getModelChoices().choices[0];
-  return { name: first?.model || "", providerId: first?.providerId || "" };
-}
-
-async function createOutputDir(): Promise<string> {
-  const tempDir = String(PathUtils.tempDir || "").trim();
-  if (!tempDir) throw new Error("PathUtils.tempDir is empty");
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const dir = PathUtils.join(tempDir, "aidea-translate", "menu-output", id);
-  await IOUtils.makeDirectory(dir, { createAncestors: true });
-  return dir;
-}
-
-async function removeDir(dir: string): Promise<void> {
-  try {
-    await IOUtils.remove(dir, { recursive: true, ignoreAbsent: true });
-  } catch {
-    /* best effort */
-  }
-}
-
 async function openInReader(item: Zotero.Item | null): Promise<void> {
   if (!item?.id) return;
   try {
@@ -220,131 +112,183 @@ function promptExistingTranslation(
   return "cancel";
 }
 
-function confirmCancel(): boolean {
-  const strings = copy();
-  try {
-    return Boolean(
-      Services.prompt.confirm(
-        Zotero.getMainWindow(),
-        strings.progressTitle,
-        strings.confirmCancel,
-      ),
-    );
-  } catch {
-    return true;
-  }
+/* ── Queue-backed flow ── */
+
+function queueCopy(): QueueCopy {
+  return getQueueCopy(getPanelLang());
 }
 
-async function translateItem(item: Zotero.Item): Promise<void> {
-  const strings = copy();
-  if (isTranslationRunning()) {
-    notify(strings.busy, "default");
+/** "2/5": position of the running document among those not skipped. */
+function runningPosition(state: QueueState): { index: number; total: number } {
+  const counted = state.items.filter((item) => item.status !== "skipped");
+  const finished = counted.filter((item) =>
+    ["done", "failed", "cancelled"].includes(item.status),
+  ).length;
+  return {
+    index: Math.min(counted.length, finished + 1),
+    total: counted.length,
+  };
+}
+
+let progressWindow: ProgressWindow | null = null;
+let unsubscribeQueue: (() => void) | null = null;
+let unsubscribeDrained: (() => void) | null = null;
+let lastPauseShown = "";
+
+function renderQueueProgress(): void {
+  const queue = getTranslationQueue();
+  const running = queue.getRunningItem();
+  const state = queue.getState();
+
+  // A setup failure stops the whole queue; say why once.
+  const pauseKey =
+    state.paused &&
+    state.pauseKind &&
+    state.pauseKind !== "user" &&
+    state.pauseKind !== "restored"
+      ? `${state.pauseKind}:${state.pauseDetail || ""}`
+      : "";
+  if (pauseKey && pauseKey !== lastPauseShown && !running) {
+    const detail = firstLine(state.pauseDetail || "");
+    notify(
+      `${queueCopy().pause[state.pauseKind!]}${detail ? `\n${detail}` : ""}`,
+      "fail",
+    );
+  }
+  lastPauseShown = pauseKey;
+
+  if (!running) {
+    closeProgressWindow(progressWindow);
+    progressWindow = null;
     return;
   }
-
-  const source = await resolveSourcePdf(item);
-  if (!source) {
-    notify(strings.noPdf, "fail");
-    return;
-  }
-
-  const options = readSavedTranslateOptions();
-  // With both formats switched off the engine would produce nothing.
-  if (!options.generateMono && !options.generateDual) {
-    options.generateMono = true;
-  }
-
-  const existing = findExistingTranslations(
-    source.attachment,
-    options.targetLang,
-  );
-  const wanted: TranslationOutputKind[] = [];
-  if (options.generateMono) wanted.push("mono");
-  if (options.generateDual) wanted.push("dual");
-  if (wanted.every((kind) => existing[kind])) {
-    const choice = promptExistingTranslation(options.targetLang);
-    if (choice === "cancel") return;
-    if (choice === "open") {
-      await openInReader(
-        pickAttachmentToOpen(wanted.map((kind) => existing[kind])),
-      );
+  const strings = queueCopy();
+  const { index, total } = runningPosition(state);
+  const page =
+    typeof running.pageCurrent === "number" && running.pageTotal
+      ? ` · ${copy().page(running.pageCurrent, running.pageTotal)}`
+      : "";
+  const text = `${strings.progress(index, total, running.percent)}${page}`;
+  try {
+    if (!progressWindow) {
+      progressWindow = new ztoolkit.ProgressWindow(copy().progressTitle, {
+        closeOnClick: true,
+        closeTime: -1,
+      })
+        .createLine({ text, type: "default", progress: running.percent })
+        .createLine({ text: running.title, type: "default" })
+        .show(-1);
       return;
     }
+    progressWindow.changeLine({ idx: 0, text, progress: running.percent });
+    progressWindow.changeLine({ idx: 1, text: running.title });
+  } catch {
+    // Dismissed by the user; the Translate tab and the menu still show it.
+    progressWindow = null;
   }
-
-  const model = await resolveModel();
-  if (!model.name) {
-    notify(strings.noModel, "fail");
-    return;
-  }
-
-  const outputDir = await createOutputDir();
-  const job: ActiveMenuJob = {
-    handle: startTranslationJob(
-      {
-        pdfPath: source.pdfPath,
-        outputDir,
-        modelName: model.name,
-        providerId: model.providerId,
-        options,
-      },
-      (event) => showProgress(job, event),
-    ),
-    percent: 0,
-    progressWindow: null,
-  };
-  job.progressWindow = openRunningProgressWindow();
-  activeJob = job;
-
-  let outcome: TranslationJobOutcome;
-  try {
-    outcome = await job.handle.done;
-  } finally {
-    activeJob = null;
-    closeProgressWindow(job.progressWindow);
-  }
-
-  if (outcome.status !== "done") {
-    await removeDir(outputDir);
-    const message = describeOutcome(outcome);
-    notify(message.text, message.type);
-    return;
-  }
-
-  let attached;
-  try {
-    if (!outcome.outputFiles.length) throw new Error("no output file");
-    attached = await attachTranslatedPdfs(
-      source.attachment,
-      outcome.outputFiles,
-    );
-  } catch (err) {
-    // Keep the output so the finished translation is not lost.
-    notify(copy().attachFailed(errorText(err), outputDir), "fail");
-    return;
-  }
-  await removeDir(outputDir);
-  notify(copy().done, "success");
-  await openInReader(pickAttachmentToOpen(attached.items));
 }
 
-function onCommand(items: Zotero.Item[] | undefined): void {
-  if (activeJob) {
-    if (confirmCancel()) activeJob?.handle.cancel();
+function onQueueDrained(summary: QueueSummary): void {
+  closeProgressWindow(progressWindow);
+  progressWindow = null;
+  notify(
+    queueCopy().batchDone(summary.done, summary.failed, summary.skipped),
+    summary.failed ? "fail" : "success",
+  );
+  // Opening a reader tab per document would bury the user in tabs; do it
+  // only when a single document was translated.
+  const finished = getTranslationQueue()
+    .getState()
+    .items.filter((item) => item.status === "done");
+  if (summary.done === 1 && summary.failed === 0 && finished.length) {
+    const ids = finished[finished.length - 1].resultItemIDs || [];
+    void openInReader(
+      pickAttachmentToOpen(ids.map((id) => Zotero.Items.get(id))),
+    );
+  }
+}
+
+function watchQueue(): void {
+  if (unsubscribeQueue) return;
+  const queue = getTranslationQueue();
+  unsubscribeQueue = queue.subscribe(renderQueueProgress);
+  unsubscribeDrained = queue.onDrained(onQueueDrained);
+}
+
+/**
+ * One selected item that is already translated: offer to open it instead of
+ * silently skipping it. Batches follow the tab's "skip" option instead.
+ * @returns false when nothing should be queued.
+ */
+async function confirmSingleExisting(item: Zotero.Item): Promise<boolean> {
+  const attachment = findPdfAttachment(item);
+  if (!attachment) return true;
+  const options = readSavedTranslateOptions();
+  const wanted: TranslationOutputKind[] = [];
+  if (options.generateMono || !options.generateDual) wanted.push("mono");
+  if (options.generateDual) wanted.push("dual");
+  const existing = findExistingTranslations(attachment, options.targetLang);
+  if (!wanted.every((kind) => existing[kind])) return true;
+  const choice = promptExistingTranslation(options.targetLang);
+  if (choice === "open") {
+    await openInReader(
+      pickAttachmentToOpen(wanted.map((kind) => existing[kind])),
+    );
+  }
+  return choice === "translate";
+}
+
+async function addToQueue(items: Zotero.Item[]): Promise<void> {
+  const single = items.length === 1;
+  if (single && !(await confirmSingleExisting(items[0]))) return;
+  watchQueue();
+  const result = await enqueueLibraryItems(
+    items,
+    // The user just chose "translate again" for this one document.
+    single ? { skipExisting: false } : {},
+  );
+  if (result.noModel) {
+    notify(copy().noModel, "fail");
     return;
   }
-  if (starting) return;
-  const item = (items || [])[0];
-  if (!item) return;
+  if (!result.added && !result.skipped && !result.duplicates) {
+    notify(copy().noPdf, "fail");
+    return;
+  }
+  const strings = queueCopy();
+  const lines = [describeAddResult(strings, result)];
+  if (getTranslationQueue().getState().paused) lines.push(strings.pausedHint);
+  notify(lines.join("\n"), "default");
+}
+
+function onAddCommand(items: Zotero.Item[] | undefined): void {
+  const selected = (items || []).filter((item) => findPdfAttachment(item));
+  if (!selected.length || starting) return;
   starting = true;
-  void translateItem(item)
+  void addToQueue(selected)
     .catch((err) => {
-      ztoolkit?.log?.("AIdea: context-menu translation failed", err);
+      ztoolkit?.log?.("AIdea: adding to the translation queue failed", err);
       notify(copy().failed(firstLine(errorText(err))), "fail");
     })
     .finally(() => {
       starting = false;
     });
+}
+
+function onStopCommand(): void {
+  let confirmed = true;
+  try {
+    confirmed = Boolean(
+      Services.prompt.confirm(
+        Zotero.getMainWindow(),
+        copy().progressTitle,
+        queueCopy().confirmStop,
+      ),
+    );
+  } catch {
+    /* no prompt service: stop without asking */
+  }
+  if (confirmed) getTranslationQueue().stop();
 }
 
 export function registerTranslateMenu(): void {
@@ -358,38 +302,51 @@ export function registerTranslateMenu(): void {
         menuType: "menuitem",
         icon: MENU_ICON,
         onShowing: (_event, context) => {
-          const strings = copy();
           context.setIcon(MENU_ICON);
-          if (activeJob) {
-            // Reachable from any selection so the job can always be stopped.
-            context.setVisible(true);
-            context.setEnabled(true);
-            context.menuElem.setAttribute(
-              "label",
-              strings.menuCancel(activeJob.percent),
-            );
-            return;
-          }
-          const items = context.items || [];
-          const visible =
-            items.length === 1 && Boolean(findPdfAttachment(items[0]));
-          context.setVisible(visible);
-          context.setEnabled(visible && !starting);
-          context.menuElem.setAttribute("label", strings.menuTranslate);
+          const count = (context.items || []).filter((item) =>
+            findPdfAttachment(item),
+          ).length;
+          context.setVisible(count > 0);
+          context.setEnabled(count > 0 && !starting);
+          context.menuElem.setAttribute("label", queueCopy().menuAdd(count));
         },
-        onCommand: (_event, context) => onCommand(context.items),
+        onCommand: (_event, context) => onAddCommand(context.items),
+      },
+      {
+        menuType: "menuitem",
+        icon: MENU_ICON,
+        onShowing: (_event, context) => {
+          context.setIcon(MENU_ICON);
+          // Reachable from any selection so the queue can always be stopped.
+          const running = getTranslationQueue().getRunningItem();
+          context.setVisible(Boolean(running));
+          context.setEnabled(Boolean(running));
+          context.menuElem.setAttribute(
+            "label",
+            queueCopy().menuStop(running?.percent || 0),
+          );
+        },
+        onCommand: () => onStopCommand(),
       },
     ],
   });
   registered = Boolean(result);
+  if (registered) watchQueue();
 }
 
 export function unregisterTranslateMenu(): void {
   try {
-    activeJob?.handle.cancel();
+    // The document goes back in line and is offered again after a restart.
+    getTranslationQueue().stop();
   } catch {
     /* ignore */
   }
+  unsubscribeQueue?.();
+  unsubscribeDrained?.();
+  unsubscribeQueue = null;
+  unsubscribeDrained = null;
+  closeProgressWindow(progressWindow);
+  progressWindow = null;
   if (!registered || !(Zotero as any).MenuManager?.unregisterMenu) return;
   try {
     Zotero.MenuManager.unregisterMenu(MENU_ID);

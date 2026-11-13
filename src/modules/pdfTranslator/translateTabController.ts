@@ -29,14 +29,23 @@ import {
   setBoolPref,
   setNumberPref,
   setStringPref,
+  isSaveToOutputDirEnabled,
 } from "./translatePrefs";
 import {
   buildTranslateParams,
   checkTranslationEnvironment,
+  isTranslationRunning,
   resolveTranslationCredentials,
   trackTranslationController,
   untrackTranslationController,
 } from "./translationJob";
+import { getQueueCopy } from "./queueI18n";
+import { getTranslateMenuCopy } from "./menuI18n";
+import { mountTranslateQueueView } from "./translateQueueView";
+import {
+  deliverTranslatedPdfs,
+  findPdfAttachment,
+} from "./translationAttachment";
 
 declare const Zotero: any;
 
@@ -499,6 +508,11 @@ export function getTranslateModel(dropdownEl: HTMLElement): string {
 export function initTranslateTab(body: Element): void {
   const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   if (!modelSelect) return;
+  try {
+    mountTranslateQueueView(body);
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: failed to mount the translation queue view", err);
+  }
 
   const outputDirEl = body.querySelector(
     "#llm-tr-output-dir",
@@ -1153,9 +1167,9 @@ function _refreshProgressBar(session: TranslationSession, body: Element): void {
     } else if (pct >= 100) {
       remainStr = "00:00";
     }
-    const isZh = i18n.tabTranslate === "缈昏瘧";
-    const elapsedLabel = isZh ? "宸茬敤" : "Elapsed";
-    const remainLabel = isZh ? "鍓╀綑" : "Remaining";
+    const isZh = getPanelLang().startsWith("zh");
+    const elapsedLabel = isZh ? "已用" : "Elapsed";
+    const remainLabel = isZh ? "剩余" : "Remaining";
     const pageText =
       session.lastKnownCurrentPage !== null &&
       session.lastKnownTotalPages !== null &&
@@ -1211,7 +1225,7 @@ function restoreTranslationControls(body: Element): void {
   if (pauseBtn) {
     pauseBtn.style.display = "none";
     pauseBtn.disabled = false;
-    pauseBtn.textContent = `鈴?${i18n.trPause}`;
+    pauseBtn.textContent = `⏸ ${i18n.trPause}`;
     pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
   }
   if (clearBtn) clearBtn.disabled = false;
@@ -1431,6 +1445,33 @@ async function updatePdfSourceFromItem(body: Element): Promise<void> {
 }
 
 /**
+ * The Zotero PDF attachment whose file is `pdfPath`, if the PDF being
+ * translated belongs to the selected item rather than to a file picked from
+ * disk.
+ */
+async function findAttachmentForPdfPath(pdfPath: string): Promise<any | null> {
+  try {
+    const pane = (Zotero as any).getActiveZoteroPane?.();
+    for (const item of pane?.getSelectedItems?.() || []) {
+      const candidates = item.isAttachment?.()
+        ? [item]
+        : (item.getAttachments?.() || []).map((id: number) =>
+            Zotero.Items.get(id),
+          );
+      for (const attachment of candidates) {
+        if (!attachment || !findPdfAttachment(attachment)) continue;
+        if ((await attachment.getFilePathAsync?.()) === pdfPath) {
+          return attachment;
+        }
+      }
+    }
+  } catch {
+    /* treated as a PDF without a Zotero item */
+  }
+  return null;
+}
+
+/**
  * Main translation flow.
  */
 async function startTranslation(body: Element): Promise<void> {
@@ -1439,6 +1480,16 @@ async function startTranslation(body: Element): Promise<void> {
   const activeState = session.activeController?.getState?.();
   if (activeState === "running") {
     consoleLog(body, i18n.trLogError(i18n.trTranslating), "error");
+    return;
+  }
+  // The queue, or another panel, is translating; two engines at once would
+  // double the request rate against the same account.
+  if (isTranslationRunning()) {
+    consoleLog(
+      body,
+      i18n.trLogError(getTranslateMenuCopy(getPanelLang()).busy),
+      "error",
+    );
     return;
   }
 
@@ -1518,12 +1569,65 @@ async function startTranslation(body: Element): Promise<void> {
     ?.dataset.value || "auto") as "auto" | "serif" | "sans-serif" | "script";
   persistCurrentTranslateOptions(body);
 
-  if (!outputDirInput) {
+  // Where the result goes: the Zotero item, the output folder, or both.
+  // A PDF without a Zotero item can only go to the folder, so a chosen
+  // folder is used for it even when the folder option is off.
+  const wantsFolder = isSaveToOutputDirEnabled();
+  const sourceAttachment = getBoolPref(TRANSLATE_PREFS.outputAttach, true)
+    ? await findAttachmentForPdfPath(session.selectedPdfPath)
+    : null;
+  const saveToDir = wantsFolder || (!sourceAttachment && !!outputDirInput);
+  if (saveToDir && !outputDirInput) {
     consoleLog(body, `⚠️ ${i18n.requiredOutputFolder}`, "error");
     return;
   }
-  setStringPref(TRANSLATE_PREFS.outputDir, outputDirInput);
-  const outputDir = outputDirInput;
+  if (!saveToDir && !sourceAttachment) {
+    // A PDF picked from disk has no Zotero item to receive the result.
+    consoleLog(body, `⚠️ ${getQueueCopy(getPanelLang()).needFolder}`, "error");
+    return;
+  }
+  if (outputDirInput) setStringPref(TRANSLATE_PREFS.outputDir, outputDirInput);
+  let temporaryOutputDir = "";
+  if (!saveToDir) {
+    temporaryOutputDir = PathUtils.join(
+      PathUtils.tempDir,
+      "aidea-translate",
+      "tab-output",
+      `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    await IOUtils.makeDirectory(temporaryOutputDir, { createAncestors: true });
+  }
+  const outputDir = saveToDir ? outputDirInput : temporaryOutputDir;
+  let producedFiles: string[] = [];
+  const fileResult = async () => {
+    try {
+      if (sourceAttachment && producedFiles.length) {
+        const delivered = await deliverTranslatedPdfs(
+          sourceAttachment,
+          producedFiles,
+          { attach: true, saveDir: "" },
+        );
+        consoleLog(
+          body,
+          `📎 ${getTranslateMenuCopy(getPanelLang()).done} (${delivered.items.length})`,
+          "success",
+        );
+      }
+      if (temporaryOutputDir) {
+        await IOUtils.remove(temporaryOutputDir, {
+          recursive: true,
+          ignoreAbsent: true,
+        });
+      }
+    } catch (err) {
+      // Keep the files: the translation itself succeeded.
+      consoleLog(
+        body,
+        `❌ ${getTranslateMenuCopy(getPanelLang()).attachFailed(String(err), outputDir)}`,
+        "error",
+      );
+    }
+  };
 
   // Detailed console logging
   const pdfBasename =
@@ -1737,6 +1841,11 @@ async function startTranslation(body: Element): Promise<void> {
 
         // Log output files on completion
         if (status === "done" && event.data.outputFiles?.length) {
+          producedFiles = event.data.outputFiles.map((name) =>
+            /^([A-Za-z]:[\\/]|\\\\|\/)/.test(name)
+              ? name
+              : PathUtils.join(outputDir, name),
+          );
           for (const f of event.data.outputFiles) {
             consoleLog(body, `   📄 ${i18n.trLogOutputFile(f)}`, "success");
           }
@@ -1811,6 +1920,7 @@ async function startTranslation(body: Element): Promise<void> {
             "success",
           );
           consoleLog(body, `─── ${i18n.trLogJobFinished} ───`, "success");
+          void fileResult();
           session.translationStartTime = 0;
           session.activeController = null;
           session.isPaused = false;

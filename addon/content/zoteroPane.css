@@ -7572,6 +7572,111 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
   cursor: pointer;
 }
 
+/* ── Output options and translation queue ── */
+.llm-tr-output-options {
+  margin-top: 4px;
+}
+
+.llm-tr-output-note,
+.llm-tr-queue-empty,
+.llm-tr-queue-summary,
+.llm-tr-queue-item-status {
+  font-size: var(--llm-fs-10, 10px);
+  color: color-mix(in srgb, var(--fill-primary, #ddd) 62%, transparent);
+}
+
+.llm-tr-queue {
+  margin: 8px 0;
+  border: 1px solid
+    color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.llm-tr-queue-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.llm-tr-queue-title {
+  font-size: var(--llm-fs-11, 11px);
+  font-weight: 600;
+  color: var(--fill-primary, #ddd);
+}
+
+.llm-tr-queue-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.llm-tr-queue-notice {
+  margin-top: 4px;
+  font-size: var(--llm-fs-10, 10px);
+  color: #b45309;
+}
+
+.llm-tr-queue-notice-error {
+  color: #dc2626;
+}
+
+.llm-tr-queue-list {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.llm-tr-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid
+    color-mix(in srgb, var(--fill-primary, #333) 8%, transparent);
+}
+
+.llm-tr-queue-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.llm-tr-queue-item-title {
+  font-size: var(--llm-fs-11, 11px);
+  color: var(--fill-primary, #ddd);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.llm-tr-queue-row[data-status="failed"] .llm-tr-queue-item-status {
+  color: #dc2626;
+}
+
+.llm-tr-queue-row[data-status="done"] .llm-tr-queue-item-status {
+  color: #0d9488;
+}
+
+.llm-tr-queue-row-actions {
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.llm-tr-queue-bar {
+  height: 3px;
+  margin-top: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--fill-primary, #333) 12%, transparent);
+  overflow: hidden;
+}
+
+.llm-tr-queue-bar-fill {
+  height: 100%;
+  background: #0d9488;
+}
+
 /* ── Stepper ── */
 .llm-tr-stepper {
   display: flex;

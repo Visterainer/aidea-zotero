@@ -218,6 +218,8 @@ export class TranslateController {
       this.process = launchProcess(env.pythonBin, [bridgePath, taskPath]);
     } catch (err) {
       this.clearActiveLock();
+      // Nothing is running; "running" would block every later translation.
+      this.setState("error");
       throw err;
     }
 

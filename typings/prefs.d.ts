@@ -73,6 +73,9 @@ declare namespace _ZoteroTypes {
       "translate.outputDual": boolean;
       "translate.skipReferencesAuto": boolean;
       "translate.outputDir": string;
+      "translate.outputAttach": boolean;
+      "translate.queueSkipExisting": boolean;
+      "translate.queueState": string;
       "translate.qps": string;
       "translate.poolMaxWorker": string;
       "translate.keepAppendixTranslated": boolean;

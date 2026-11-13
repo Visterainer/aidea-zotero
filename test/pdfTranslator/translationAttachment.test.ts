@@ -27,6 +27,7 @@ describe("pdfTranslator translated attachments", function () {
   let imported: any[];
   let linked: any[];
   let nextId: number;
+  let madeDirs: string[];
 
   const attachment = (
     id: number,
@@ -96,6 +97,9 @@ describe("pdfTranslator translated attachments", function () {
       copy: async (from: string, to: string) => {
         copies.push([from, to]);
       },
+      makeDirectory: async (dir: string) => {
+        madeDirs.push(dir);
+      },
     };
     (globalThis as any).PathUtils = {
       join: (...parts: string[]) => parts.join("/"),
@@ -116,6 +120,7 @@ describe("pdfTranslator translated attachments", function () {
     imported = [];
     linked = [];
     nextId = 100;
+    madeDirs = [];
   });
 
   it("recognises engine output names for a source and language", function () {
@@ -264,5 +269,101 @@ describe("pdfTranslator translated attachments", function () {
         collections: [11, 12],
       },
     ]);
+  });
+
+  it("finds an earlier translation of a top-level PDF through its relations", async function () {
+    const relations = new Map<number, Set<string>>();
+    // Applied after creation: spreading an object would freeze the getter.
+    const makeRelatable = (item: any) => {
+      const id = item.id as number;
+      item.key = `KEY${id}`;
+      Object.defineProperty(item, "relatedItems", {
+        get: () => [...(relations.get(id) || [])],
+      });
+      item.addRelatedItem = (other: { key: string }) => {
+        const set = relations.get(id) || new Set<string>();
+        relations.set(id, set);
+        if (set.has(other.key)) return false;
+        set.add(other.key);
+        return true;
+      };
+      item.saveTx = async () => undefined;
+      return item;
+    };
+    (globalThis as any).Zotero.Items.getByLibraryAndKey = (
+      _libraryID: number,
+      key: string,
+    ) => [...items.values()].find((item) => item.key === key) || false;
+    const source = makeRelatable(
+      attachment(2, "/store/AAA/Solo.pdf", { parentItemID: undefined }),
+    );
+    (globalThis as any).Zotero.Attachments.importFromFile = async (
+      options: any,
+    ) => {
+      imported.push(options);
+      return makeRelatable(
+        attachment(nextId++, `/store/NEW/${options.title}`, {
+          parentItemID: undefined,
+        }),
+      );
+    };
+
+    assert.deepEqual(mod.findExistingTranslations(source, "zh-CN"), {});
+    await mod.attachTranslatedPdfs(source, ["/tmp/out/Solo.zh-CN.mono.pdf"]);
+    const found = mod.findExistingTranslations(source, "zh-CN");
+    assert.equal(found.mono?.attachmentFilename, "Solo.zh-CN.mono.pdf");
+
+    // Translating again updates that attachment instead of adding another.
+    const again = await mod.attachTranslatedPdfs(source, [
+      "/tmp/out2/Solo.zh-CN.mono.pdf",
+    ]);
+    assert.equal(again.updated, 1);
+    assert.lengthOf(imported, 1);
+  });
+
+  it("delivers to the item, to a folder, or to both", async function () {
+    parent([2]);
+    const tags = new Map<number, string[]>();
+    const tagged = (id: number) => ({
+      hasTag: (tag: string) => (tags.get(id) || []).includes(tag),
+      addTag: (tag: string) => tags.set(id, [...(tags.get(id) || []), tag]),
+      saveTx: async () => undefined,
+    });
+    (globalThis as any).Zotero.Attachments.importFromFile = async (
+      options: any,
+    ) => {
+      imported.push(options);
+      const id = nextId++;
+      return attachment(id, String(options.file), tagged(id) as any);
+    };
+    const source = attachment(2, "/store/AAA/Paper.pdf");
+    const files = ["/tmp/out/Paper.zh-CN.mono.pdf"];
+
+    const both = await mod.deliverTranslatedPdfs(source, files, {
+      attach: true,
+      saveDir: "/Users/me/Translations",
+    });
+    assert.deepEqual(madeDirs, ["/Users/me/Translations"]);
+    assert.deepEqual(both.savedFiles, [
+      "/Users/me/Translations/Paper.zh-CN.mono.pdf",
+    ]);
+    assert.lengthOf(both.items, 1);
+    assert.deepEqual(tags.get(both.items[0].id), [mod.TRANSLATION_TAG]);
+
+    imported.length = 0;
+    const folderOnly = await mod.deliverTranslatedPdfs(source, files, {
+      attach: false,
+      saveDir: "/Users/me/Translations",
+    });
+    assert.lengthOf(folderOnly.items, 0);
+    assert.lengthOf(imported, 0);
+
+    // Neither chosen: the result is attached rather than thrown away.
+    const neither = await mod.deliverTranslatedPdfs(source, files, {
+      attach: false,
+      saveDir: "",
+    });
+    assert.lengthOf(neither.items, 1);
+    assert.lengthOf(neither.savedFiles, 0);
   });
 });
