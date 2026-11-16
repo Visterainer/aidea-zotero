@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "revision": 2,
+  "revision": 3,
   "bridgeApi": 1,
   "python": "3.12",
-  "requirementsUrl": "https://visterainer.github.io/aidea-zotero/translate-env/requirements-2.lock",
-  "requirementsSha256": "c17846eef6f642c583b2a5debd1f1a31cf792b33c2773b9b9a057e429ced86db",
+  "requirementsUrl": "https://visterainer.github.io/aidea-zotero/translate-env/requirements-3.lock",
+  "requirementsSha256": "ea4dcf92d22012fec0dc9d3b17b30d38afc875fafc505826360a10cf51832e0c",
   "versions": {
-    "pdf2zh-next": "2.9.0",
-    "babeldoc": "0.6.2",
+    "pdf2zh-next": "2.10.2",
+    "babeldoc": "0.7.1",
     "bitstring": "4.4.0"
   }
 }
