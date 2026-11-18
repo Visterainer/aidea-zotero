@@ -1209,6 +1209,93 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     authExpiresIn: "expira em",
     authUsed: "usado",
   },
+  "fa-IR": {
+    primaryConnectionMode: "روش اصلی اتصال",
+    oauthProvidersMode: "ارائه‌دهندگان OAuth",
+    customCompatibleMode: "اتصال با API",
+    modelConfigTitle: "تنظیمات مدل",
+    customEndpointHint:
+      "کارت‌های ارائه‌دهندگان OAuth همیشه نمایش داده می‌شوند. برای اتصال با API، نشانی پایهٔ API و نام مدل را وارد کنید. کلید API اختیاری است.",
+    customApiBase: "نشانی پایهٔ API *",
+    customApiBasePlaceholder: "نمونه: http://127.0.0.1:11434/v1/",
+    customApiBaseHint:
+      "نشانی‌های localhost و HTTP هم پذیرفته می‌شوند. هنگام ذخیره، فاصله‌های ابتدا و انتها حذف می‌شوند و نشانی با یک / پایان می‌یابد.",
+    customApiKey: "کلید API (اختیاری)",
+    customApiKeyPlaceholder:
+      "برای ارسال نکردن سرآیند Authorization، این قسمت را خالی بگذارید",
+    customApiKeyHint:
+      "کلید فقط در تنظیمات محلی Zotero ذخیره می‌شود. اگر سرویس شما به احراز هویت نیاز ندارد، این قسمت را خالی بگذارید.",
+    customModel: "مدل *",
+    customModelPlaceholder: "نمونه: gpt-4.1-mini یا llama3.1:8b",
+    customModelHint:
+      "برای ارسال درخواست با API، نشانی پایه و نام مدل لازم است.",
+    fetchModels: "دریافت خودکار فهرست مدل‌ها",
+    fetchModelsRunning: "در حال دریافت فهرست مدل‌ها…",
+    fetchModelsDone: "{n} مدل پیدا شد",
+    fetchModelsFailed: "دریافت فهرست مدل‌ها ناموفق بود: {msg}",
+    fetchModelsEmpty: "مدلی پیدا نشد",
+    customModeDisabled:
+      "اتصال با OAuth فعال است. تنظیمات API شما حفظ شده است؛ برای استفاده از آن‌ها روش اتصال را به API تغییر دهید.",
+    customModeMissing: "این فیلدها را تکمیل کنید: {fields}",
+    customModeReady: "اتصال با تنظیمات API شما آماده است.",
+    installEnv: "نصب یا به‌روزرسانی محیط",
+    refreshAllModels: "تازه‌سازی همهٔ فهرست‌های مدل",
+    running: "در حال اجرا…",
+    setupDone: "راه‌اندازی محیط به پایان رسید",
+    setupPartialFail: "بخشی از راه‌اندازی ناموفق بود؛ گزارش را بررسی کنید",
+    accounts: "حساب‌های مجاز",
+    models: "مدل‌های در دسترس",
+    language: "زبان رابط کاربری",
+    langZh: "CN",
+    langEn: "EN",
+    oauthLogin: "ورود با OAuth",
+    oauthDelete: "حذف مجوز دسترسی",
+    refreshModels: "تازه‌سازی فهرست مدل‌ها",
+    loggingIn: "در حال آغاز ورود با OAuth…",
+    refreshingModels: "در حال تازه‌سازی فهرست مدل‌ها…",
+    noModels:
+      "هنوز مدلی در فهرست نیست. ابتدا با OAuth وارد شوید و فهرست را تازه کنید.",
+    provider: "ارائه‌دهنده",
+    account: "حساب",
+    status: "وضعیت",
+    modelId: "شناسهٔ مدل",
+    source: "منبع",
+    internalNote:
+      "فقط مدل‌های انتخاب‌شده در فهرست نوار کناری نمایش داده می‌شوند.",
+    systemPrompt: "دستور سیستمی دلخواه (اختیاری)",
+    systemPromptHint:
+      "برای استفاده از دستور پیش‌فرض گفت‌وگو، این قسمت را خالی بگذارید. متنی که وارد کنید از درخواست بعدی جایگزین دستور پیش‌فرض می‌شود. ترجمهٔ متن انتخاب‌شده، خلاصه‌های داخلی و معرفی نویسندگان دستورهای جداگانه‌ای دارند.",
+    showAddText: "نمایش «افزودن متن» هنگام انتخاب متن در نمایشگر سند",
+    showAddTextHint:
+      "اگر نمی‌خواهید گزینهٔ «افزودن متن» در منوی انتخاب متن Zotero دیده شود، این گزینه را غیرفعال کنید.",
+    showAllModels: "نمایش همهٔ مدل‌ها در فهرست کشویی",
+    showAllModelsHint:
+      "اگر این گزینه غیرفعال باشد، فقط مدل‌های برگزیدهٔ هر ارائه‌دهنده نمایش داده می‌شوند.",
+    hideTabNav: "نوار زبانه‌ها:",
+    hideTabNavOn: "پنهان",
+    hideTabNavOff: "نمایان",
+    restoreDefaults: "بازگرداندن تنظیمات پیش‌فرض",
+    restoreDefaultsConfirm:
+      "همهٔ تنظیمات به حالت پیش‌فرض برگردند؟\n\nتنظیمات مدل‌ها، دستور سیستمی و سایر تنظیمات بازنشانی خواهند شد.",
+    restoreDefaultsDone: "تنظیمات پیش‌فرض بازگردانده شد",
+    clearAllHistory: "پاک کردن تاریخچهٔ گفت‌وگوها",
+    clearAllHistoryConfirm:
+      "تاریخچهٔ همهٔ گفت‌وگوها پاک شود؟\n\nتاریخچه برای همیشه حذف می‌شود و قابل بازیابی نیست.",
+    clearAllHistoryDone: "تاریخچهٔ همهٔ گفت‌وگوها پاک شد",
+    clearAllHistoryRunning: "در حال پاک کردن…",
+    developing: "این قابلیت در دست توسعه است.",
+    oauthDeviceNotice:
+      "مجوز دسترسی با OAuth\n\nنشانی صفحهٔ تأیید و یک کد به شما نشان داده می‌شود. صفحه را در مرورگر باز کنید و کد را وارد کنید تا به برنامه اجازهٔ دسترسی بدهید.\n\nتوکن‌های OAuth فقط روی دستگاه شما ذخیره می‌شوند. ارائه‌دهنده این شیوهٔ استفاده را رسماً تأیید نکرده است و ممکن است حسابتان محدود شود. استفاده از خدمات هوش مصنوعی ممکن است هزینه داشته باشد. خود افزونه رایگان و متن‌باز است و داده‌ای از کاربران گردآوری نمی‌کند.\n\nادامه می‌دهید؟",
+    oauthInstallNotice:
+      "مجوز دسترسی با OAuth\n\nبا انتخاب «نصب یا به‌روزرسانی محیط»، نسخهٔ مستقل و رسمی Codex CLI از OpenAI دریافت و نصب می‌شود. این نسخه به Node.js نیاز ندارد. نصب‌کننده پوشهٔ ابزار را به PATH حساب کاربری شما اضافه می‌کند. سپس مرورگر برای ورود با OAuth باز می‌شود.\n\nتوکن‌های OAuth فقط روی دستگاه شما ذخیره می‌شوند و برای سرور دیگری ارسال نمی‌شوند. افزونه مستقیماً از API رسمی ارائه‌دهنده استفاده می‌کند. ارائه‌دهنده این شیوهٔ استفاده از توکن‌ها را رسماً تأیید نکرده است و ممکن است حسابتان محدود شود. بسته به طرح حساب شما، استفاده از خدمات هوش مصنوعی ممکن است هزینه داشته باشد. خود افزونه رایگان و متن‌باز است و داده‌ای از کاربران گردآوری نمی‌کند.\n\nادامه می‌دهید؟",
+    authLoggedIn: "وارد شده‌اید",
+    authNotLoggedIn: "وارد نشده‌اید",
+    authTokenMayBeExpired: "ممکن است توکن منقضی شده باشد",
+    authTokenExpired: "توکن منقضی شده است",
+    authProject: "پروژه",
+    authExpiresIn: "زمان باقی‌مانده تا انقضا:",
+    authUsed: "مصرف‌شده",
+  },
   "ar-SA": {
     primaryConnectionMode: "وضع الاتصال الأساسي",
     oauthProvidersMode: "موفرو OAuth",
@@ -1575,6 +1662,31 @@ const SETTINGS_I18N_OVERRIDES: Partial<Record<Lang, Dict>> = {
     systemPromptPlaceholder:
       "Instruções personalizadas para o assistente de IA...",
   },
+  "fa-IR": {
+    console: "کنسول",
+    advanced: "پیشرفته",
+    copy: "کپی",
+    providerLabel: "نام نمایشی ارائه‌دهنده:",
+    addModelLabel: "شناسهٔ مدل:",
+    addModelPlaceholder: "شناسهٔ مدل را وارد کنید",
+    manualAdd: "افزودن دستی",
+    all: "همه",
+    clear: "پاک کردن",
+    saveSelectedModels: "ذخیرهٔ مدل‌های انتخاب‌شده",
+    saved: "ذخیره شد",
+    delete: "حذف",
+    defaults: "پیش‌فرض‌ها",
+    selectAll: "انتخاب همه",
+    removeProvider: "حذف ارائه‌دهنده",
+    removeProviderConfirm:
+      "ارائه‌دهندهٔ «{provider}» و همهٔ مدل‌های آن حذف شوند؟",
+    removeModel: "حذف مدل",
+    testingModels: "در حال بررسی دسترسی به {n} مدل…",
+    pingSummary: "{ok} مدل در دسترس، {fail} مدل خارج از دسترس",
+    selectedSummary: "{selected} مدل از {total} مدل انتخاب شده است",
+    refreshFailed: "تازه‌سازی ناموفق بود: {msg}",
+    systemPromptPlaceholder: "دستورهای دلخواه برای دستیار هوش مصنوعی…",
+  },
   "ar-SA": {
     console: "وحدة التحكم",
     advanced: "متقدم",
@@ -1768,6 +1880,24 @@ const SETTINGS_I18N_SELECTION_TRANSLATE_OVERRIDES: Partial<Record<Lang, Dict>> =
       selectionTranslateColdStartHint:
         "A inicialização a frio é executada uma vez por artigo quando a tradução por seleção é ativada: o AIdea lê o texto completo, cria um resumo compacto e uma síntese de termos técnicos, e salva tudo localmente. As próximas traduções reutilizam esse cache local como contexto; limpe o cache para recriá-lo.",
     },
+    "fa-IR": {
+      selectionTranslateTitle: "ترجمهٔ متن انتخاب‌شده",
+      selectionTranslateEnable: "فعال کردن ترجمهٔ متن انتخاب‌شده",
+      selectionTranslateEnableHint:
+        "با فعال کردن این گزینه، می‌توانید متن انتخاب‌شده در نمایشگر سند Zotero را از همان پنجرهٔ انتخاب متن ترجمه کنید.",
+      selectionTranslateAuto: "ترجمهٔ خودکار پس از انتخاب متن",
+      selectionTranslateAutoHint:
+        "اگر این گزینه غیرفعال باشد، ترجمه فقط با زدن دکمهٔ ترجمه در پنجرهٔ انتخاب متن آغاز می‌شود.",
+      selectionTranslateModel: "مدل ترجمهٔ متن انتخاب‌شده",
+      selectionTranslateModelHint:
+        "مدل را از همان فهرست مدل‌های OAuth و API که برای گفت‌وگو در دسترس است انتخاب کنید.",
+      selectionTranslateSourceLang: "زبان مبدأ",
+      selectionTranslateTargetLang: "زبان مقصد",
+      selectionTranslateAutoDetect: "تشخیص خودکار",
+      selectionTranslateNoModels: "مدلی در دسترس نیست",
+      selectionTranslateColdStartHint:
+        "با فعال بودن ترجمهٔ متن انتخاب‌شده، AIdea برای هر مقاله یک بار متن کامل را می‌خواند و خلاصه‌ای از مقاله و اصطلاحات تخصصی آن را روی دستگاه ذخیره می‌کند. ترجمه‌های بعدی از این اطلاعات استفاده می‌کنند. برای ساختن خلاصهٔ تازه، حافظهٔ نهان آماده‌سازی را پاک کنید.",
+    },
     "ar-SA": {
       selectionTranslateTitle: "ترجمة التحديد",
       selectionTranslateEnable: "تفعيل ترجمة التحديد",
@@ -1904,6 +2034,16 @@ const SETTINGS_I18N_SELECTION_ACTION_OVERRIDES: Record<Lang, Dict> = {
     selectionTranslateShowAddToNoteButtonHint:
       "Somente este botão é ocultado; a entrada Add Text separada não é afetada.",
   },
+  "fa-IR": {
+    selectionTranslateShowCopyButton:
+      "نمایش دکمهٔ «کپی» در پنجرهٔ ترجمهٔ متن انتخاب‌شده",
+    selectionTranslateShowCopyButtonHint:
+      "حتی اگر این دکمه پنهان باشد، می‌توانید بخشی از ترجمه را انتخاب و کپی کنید.",
+    selectionTranslateShowAddToNoteButton:
+      "نمایش دکمهٔ «افزودن به یادداشت» در پنجرهٔ ترجمهٔ متن انتخاب‌شده",
+    selectionTranslateShowAddToNoteButtonHint:
+      "غیرفعال کردن این گزینه فقط همین دکمه را پنهان می‌کند و روی گزینهٔ جداگانهٔ «افزودن متن» اثری ندارد.",
+  },
   "ar-SA": {
     selectionTranslateShowCopyButton: "إظهار زر النسخ في نافذة ترجمة التحديد",
     selectionTranslateShowCopyButtonHint:
@@ -1994,6 +2134,13 @@ const SETTINGS_I18N_CONSOLE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     consoleIssueSuffix:
       'e inclua as saídas de "Progress" e "Detailed logs" abaixo para ajudar no diagnóstico.',
     consoleIssueOpen: "Abrir GitHub Issues",
+  },
+  "fa-IR": {
+    consoleIssuePrefix: "به مشکلی برخورده‌اید؟",
+    consoleIssueLink: "در GitHub گزارش دهید ↗",
+    consoleIssueSuffix:
+      "و برای کمک به عیب‌یابی، خروجی بخش‌های «پیشرفت» و «گزارش تفصیلی» را که در زیر می‌بینید، پیوست کنید.",
+    consoleIssueOpen: "باز کردن صفحهٔ گزارش مشکلات در GitHub",
   },
   "ar-SA": {
     consoleIssuePrefix: "هل تواجه مشكلة؟",
@@ -2127,6 +2274,18 @@ const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     oauthEnvUpdateSilentHint:
       "Desativa verificacoes e avisos de atualizacao OAuth CLI.",
   },
+  "fa-IR": {
+    oauthEnvUpdateMode: "به‌روزرسانی محیط OAuth",
+    oauthEnvUpdateAuto: "خودکار",
+    oauthEnvUpdateNotify: "فقط اعلان",
+    oauthEnvUpdateSilent: "بی‌صدا",
+    oauthEnvUpdateAutoHint:
+      "AIdea به‌روزرسانی محیط خط فرمان OAuth را بررسی می‌کند و ۶۰ ثانیه پس از نمایش اعلان، آن را به‌روز می‌کند. با انتخاب «بعداً» یا کوچک کردن پنجره، به‌روزرسانی ۲۴ ساعت به تعویق می‌افتد.",
+    oauthEnvUpdateNotifyHint:
+      "AIdea به‌روزرسانی محیط خط فرمان OAuth را بررسی می‌کند و به شما اطلاع می‌دهد. فقط با انتخاب «اکنون به‌روز شود» به‌روزرسانی آغاز می‌شود.",
+    oauthEnvUpdateSilentHint:
+      "به‌روزرسانی محیط خط فرمان OAuth بررسی نمی‌شود و یادآوری هم نمایش داده نمی‌شود.",
+  },
   "ar-SA": {
     oauthEnvUpdateMode: "تحديثات بيئة OAuth",
     oauthEnvUpdateAuto: "تلقائي",
@@ -2152,6 +2311,51 @@ const SETTINGS_I18N_OAUTH_ENV_UPDATE_OVERRIDES: Partial<Record<Lang, Dict>> = {
   },
 };
 const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "fa-IR": {
+    composerTheme: "پوستهٔ افزونه",
+    composerThemeDefault: "پیش‌فرض",
+    composerThemeBluePorcelain: "آبی چینی",
+    composerThemeEyeGreen: "سبز ملایم",
+    composerThemeWarmCream: "کرم گرم",
+    composerThemePremiumGray: "خاکستری کلاسیک",
+    composerThemeMidnightBlack: "مشکی نیمه‌شب",
+    composerThemeSakuraPink: "صورتی شکوفهٔ گیلاس",
+    composerThemeEditorTitle: "رنگ‌های پوسته",
+    composerThemeModeColor: "رنگ",
+    composerThemeModeSystem: "مطابق سیستم",
+    composerThemeModeTransparent: "شفاف",
+    composerThemeReset: "بازنشانی",
+    composerThemeSave: "ذخیره",
+    composerThemeSaveAs: "ذخیره با نام جدید",
+    composerThemeDelete: "حذف",
+    composerThemeSaveAsPrompt: "نام پوستهٔ دلخواه را وارد کنید:",
+    composerThemeNameRequired: "نام پوسته نمی‌تواند خالی باشد.",
+    composerThemeNameDuplicate: "پوسته‌ای با این نام وجود دارد.",
+    composerThemeDeleteConfirm: "این پوستهٔ دلخواه حذف شود؟",
+    composerThemeSaved: "پوسته ذخیره شد",
+    composerThemeCustomChatBg: "زمینهٔ گفت‌وگو",
+    composerThemeCustomText: "متن اصلی",
+    composerThemeCustomMutedText: "متن کم‌رنگ",
+    composerThemeCustomBorder: "کادر",
+    composerThemeCustomShadow: "سایه",
+    composerThemeCustomAccent: "رنگ تأکیدی",
+    composerThemeCustomKeyword: "کلیدواژه",
+    composerThemeCustomLink: "پیوند",
+    composerThemeCustomUserBubbleBg: "زمینهٔ پیام کاربر",
+    composerThemeCustomUserBubbleText: "متن پیام کاربر",
+    composerThemeCustomUserBubbleBorder: "کادر پیام کاربر",
+    composerThemeCustomAssistantBubbleBg: "زمینهٔ پیام دستیار",
+    composerThemeCustomAssistantBubbleText: "متن پیام دستیار",
+    composerThemeCustomAssistantBubbleBorder: "کادر پیام دستیار",
+    composerThemeCustomComposerBg: "زمینهٔ بخش نوشتن پیام",
+    composerThemeCustomInputBg: "زمینهٔ کادر ورودی",
+    composerThemeCustomInputText: "متن کادر ورودی",
+    composerThemeCustomInputPlaceholder: "متن راهنمای ورودی",
+    composerThemeCustomCodeBg: "زمینهٔ کد",
+    composerThemeCustomCodeText: "متن کد",
+    composerThemeCustomMenuBg: "زمینهٔ منو",
+    composerThemeCustomChipBg: "زمینهٔ برچسب",
+  },
   "en-US": {
     composerTheme: "Plugin Theme",
     composerThemeDefault: "Default",
@@ -2244,6 +2448,33 @@ const SETTINGS_I18N_COMPOSER_THEME_OVERRIDES: Partial<Record<Lang, Dict>> = {
   },
 };
 const SETTINGS_I18N_TYPOGRAPHY_OVERRIDES: Partial<Record<Lang, Dict>> = {
+  "fa-IR": {
+    basicConfig: "تنظیمات پایه",
+    maintenance: "نگهداری",
+    fontSize: "اندازهٔ قلم",
+    fontSizeOpen: "نمایش و متن",
+    fontInspectorTitle: "نمایش و متن",
+    fontReset: "بازنشانی",
+    fontClose: "بستن",
+    fontPresetCompact: "فشرده",
+    fontPresetStandard: "استاندارد",
+    fontPresetComfortable: "جادار",
+    fontPresetLarge: "بزرگ",
+    fontChatSection: "گفت‌وگو",
+    fontComposerSection: "کادر نوشتن پیام",
+    fontSelectionSection: "ترجمهٔ متن انتخاب‌شده",
+    fontTextSize: "اندازهٔ متن",
+    fontLineHeight: "ارتفاع سطر",
+    fontMessageGap: "فاصلهٔ بین پیام‌ها",
+    fontBubblePaddingY: "حاشیهٔ داخلی عمودی پیام",
+    fontBubblePaddingX: "حاشیهٔ داخلی افقی پیام",
+    fontComposerPaddingY: "حاشیهٔ داخلی عمودی کادر ورودی",
+    fontComposerPaddingX: "حاشیهٔ داخلی افقی کادر ورودی",
+    fontComposerGap: "فاصلهٔ بین پیوست‌ها",
+    fontSelectionPopupWidth: "پهنای پنجرهٔ ترجمه",
+    fontImageSection: "تصاویر",
+    fontImageScale: "مقیاس نمایش",
+  },
   "en-US": {
     basicConfig: "Basic Configuration",
     maintenance: "Maintenance",
@@ -2421,6 +2652,12 @@ const SETTINGS_I18N_RUNTIME_OVERRIDES: Partial<Record<Lang, Dict>> = {
     selectionTranslateClearCache: "Limpar cache de inicializacao",
     selectionTranslateClearCacheRunning: "Limpando...",
     selectionTranslateClearCacheDone: "Cache de inicializacao limpo",
+  },
+  "fa-IR": {
+    composerThemeSoftBlue: "آبی ملایم",
+    selectionTranslateClearCache: "پاک کردن حافظهٔ نهان آماده‌سازی",
+    selectionTranslateClearCacheRunning: "در حال پاک کردن…",
+    selectionTranslateClearCacheDone: "حافظهٔ نهان آماده‌سازی پاک شد",
   },
   "ar-SA": {
     language: "لغة الواجهة",

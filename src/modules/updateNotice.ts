@@ -21,7 +21,13 @@ type UpdateNoticeCopy = {
   close: string;
 };
 
-const COPIES: Record<PanelLang, UpdateNoticeCopy> = {
+// Archived announcements only contain translations available when they shipped.
+// The lookup below already falls back to the original English copy.
+type ArchivedCopies = Partial<Record<PanelLang, UpdateNoticeCopy>> & {
+  "en-US": UpdateNoticeCopy;
+};
+
+const COPIES: ArchivedCopies = {
   "en-US": {
     eyebrow: "Update",
     title: "OpenAI OAuth now supports image generation",
@@ -154,7 +160,7 @@ const COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   },
 };
 
-const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
+const OAUTH_ENV_UPDATE_COPIES: ArchivedCopies = {
   "en-US": {
     eyebrow: "Update",
     title: "Library sidebar and selection translation improvements",
@@ -491,7 +497,7 @@ for (const lang of Object.keys(OAUTH_ENV_UPDATE_COPIES) as PanelLang[]) {
   }
 }
 
-const PDF_TRANSLATION_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
+const PDF_TRANSLATION_UPDATE_COPIES: ArchivedCopies = {
   "en-US": {
     eyebrow: "Update",
     title: "Full-document translation reliability and streaming display fixes",
@@ -903,7 +909,7 @@ const PDF_TRANSLATION_UPDATE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
   },
 };
 
-const ZOTERO_10_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> = {
+const ZOTERO_10_UPDATE_NOTICE_COPIES: ArchivedCopies = {
   "en-US": {
     eyebrow: "Update",
     title: "Zotero 10 compatibility",
@@ -1546,6 +1552,35 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
       note: "Antes de usar o menu de contexto, escolha um modelo e prepare o ambiente na aba Tradução do AIdea. Reinicie o Zotero após atualizar.",
       confirm: "Entendi",
       close: "Fechar aviso de atualização",
+      exampleLabel: "",
+      examplePrompt: "",
+    },
+    "fa-IR": {
+      eyebrow: "به‌روزرسانی",
+      title: "AIdea v3.8.0: ترجمهٔ PDF با یک کلیک و بهبود رابط کاربری",
+      lead: "ترجمهٔ کامل PDF را از منوی راست‌کلیک یک مدرک در Zotero شروع کنید. فایل ترجمه‌شده به همان مدرک پیوست می‌شود و در نمایشگر Zotero باز می‌شود. این نسخه رنگ‌های پوسته، به‌روزرسانی محیط ترجمه و پیام‌های خطای اتصال را نیز بهبود می‌دهد.",
+      alsoLabel: "در این نسخه",
+      alsoItems: [
+        {
+          label: "ترجمهٔ PDF از منوی مدرک",
+          text: "روی مدرکی که PDF دارد راست‌کلیک کنید. ترجمه با تنظیمات ذخیره‌شدهٔ زبانهٔ ترجمه انجام می‌شود و نتیجه پس از پیوست شدن به مدرک، در Zotero باز می‌شود.",
+        },
+        {
+          label: "بهبود پوسته‌ها",
+          text: "رنگ‌های پوسته‌های داخلی کنتراست بهتری دارند. رنگ‌هایی که خودتان انتخاب کرده‌اید پس از به‌روزرسانی حفظ می‌شوند.",
+        },
+        {
+          label: "به‌روزرسانی محیط ترجمه",
+          text: "AIdea نسخه‌های سازگار را بررسی می‌کند. با انتخاب «نصب یا به‌روزرسانی» در زبانهٔ ترجمه، محیط بررسی‌شده نصب می‌شود.",
+        },
+        {
+          label: "خطاهای روشن‌تر و پایداری بیشتر",
+          text: "اگر فهرست مدل‌ها به‌روز نشود، به‌جای اعلام موفقیت با صفر مدل، دلیل خطای شبکه، دسترسی یا ورود نمایش داده می‌شود. مشکلات دیگری در گفتگو و ترجمه نیز برطرف شده‌اند.",
+        },
+      ],
+      note: "پیش از ترجمه از منوی مدرک، در زبانهٔ ترجمهٔ AIdea یک مدل انتخاب و محیط ترجمه را آماده کنید. پس از به‌روزرسانی، Zotero را دوباره اجرا کنید.",
+      confirm: "متوجه شدم",
+      close: "بستن پیام به‌روزرسانی",
       exampleLabel: "",
       examplePrompt: "",
     },

@@ -35,6 +35,7 @@ const LOGIN_TIMEOUT_MS = 10 * 60_000;
 type OAuthUiLang = PanelLang;
 
 const OAUTH_COPIED_TOAST: Record<OAuthUiLang, string> = {
+  "fa-IR": "✅ کد کپی شد",
   "en-US": "\u2705 Code copied",
   "zh-CN": "\u2705 已复制授权码",
   "zh-TW": "\u2705 已複製授權碼",
@@ -126,6 +127,13 @@ const COPILOT_DEVICE_LOGIN_COPY: Record<OAuthUiLang, CopilotDeviceLoginCopy> = {
     instructions:
       "Clique em OK para copiar o codigo e abrir a pagina de autorizacao no navegador.\nCole este codigo na pagina do navegador para concluir a autorizacao.",
     cancelled: "Autorizacao cancelada pelo usuario",
+  },
+  "fa-IR": {
+    title: "ورود به GitHub Copilot با OAuth",
+    codeLabel: "کد مجوز دسترسی شما",
+    instructions:
+      "روی «تأیید» کلیک کنید تا کد کپی شود و صفحهٔ مجوز دسترسی در مرورگر باز شود.\nبرای تکمیل مجوزدهی، کد را در همان صفحه جای‌گذاری کنید.",
+    cancelled: "کاربر مجوزدهی را لغو کرد",
   },
   "ar-SA": {
     title: "تسجيل دخول GitHub Copilot OAuth",

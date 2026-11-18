@@ -60,6 +60,7 @@ describe("context panel i18n", function () {
         "ru-RU",
         "pt-BR",
         "ar-SA",
+        "fa-IR",
         "hi-IN",
       ],
     );

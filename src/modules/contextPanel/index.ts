@@ -66,7 +66,11 @@ import {
   getSharedLibraryPanelHost,
 } from "./libraryPanel";
 import { isContextPanelSectionEnabled } from "./librarySelection";
-import { getPanelI18n } from "./i18n";
+import { getPanelI18n, getPanelLang } from "./i18n";
+import {
+  getUiLanguageOption,
+  setTranslationContentLanguage,
+} from "./languages";
 import {
   isSelectionTranslateEnabled,
   translateSelectedTextForReader,
@@ -1214,6 +1218,9 @@ export function registerReaderSelectionTracking() {
             "div",
           ) as HTMLDivElement;
           wrap.className = "llm-selection-translate-wrap";
+          const uiLanguage = getUiLanguageOption(getPanelLang());
+          wrap.lang = uiLanguage.htmlLang;
+          wrap.dir = uiLanguage.dir;
           wrap.style.cssText = [
             "display:flex",
             "flex-direction:column",
@@ -1873,6 +1880,7 @@ export function registerReaderSelectionTracking() {
           let latestSelectionTranslation: {
             selectedText: string;
             translation: string;
+            targetLang: string;
             model: string;
             provider?: string;
           } | null = null;
@@ -1967,6 +1975,8 @@ export function registerReaderSelectionTracking() {
                 selectedText: effectiveSelectedText,
                 callbacks: {
                   onStage(stage) {
+                    resultBox.dir = uiLanguage.dir;
+                    resultBox.lang = uiLanguage.htmlLang;
                     resultBox.textContent =
                       stage === "cold-start"
                         ? text.coldStart
@@ -1975,8 +1985,9 @@ export function registerReaderSelectionTracking() {
                           : text.translating;
                     selectionTranslateContentChanged?.();
                   },
-                  onDelta(delta) {
+                  onDelta(delta, targetLang) {
                     if (!delta) return;
+                    setTranslationContentLanguage(resultBox, targetLang);
                     receivedStreamingContent = true;
                     popupStream?.push(delta);
                   },
@@ -1990,7 +2001,9 @@ export function registerReaderSelectionTracking() {
                 selectionTranslateContentChanged?.(receivedStreamingContent);
                 return;
               }
+              setTranslationContentLanguage(resultBox, result.targetLang);
               latestSelectionTranslation = {
+                targetLang: result.targetLang,
                 selectedText: effectiveSelectedText,
                 translation: result.translation,
                 model: result.model,
@@ -2008,6 +2021,8 @@ export function registerReaderSelectionTracking() {
               popupStream?.invalidate();
               popupStream = null;
               ztoolkit.log("LLM: selection translation failed", err);
+              resultBox.lang = uiLanguage.htmlLang;
+              resultBox.dir = uiLanguage.dir;
               resultBox.textContent = `${text.failed}: ${
                 err instanceof Error ? err.message : String(err)
               }`;

@@ -1,8 +1,34 @@
 import { assert } from "chai";
+import {
+  detectPanelLangFromLocale,
+  getUiLanguageOption,
+  normalizeUiLanguageCode,
+  translationTextDirection,
+  TRANSLATION_LANGUAGE_OPTIONS,
+} from "../src/modules/contextPanel/languages";
 import { confirmPdfLayout } from "../src/modules/pdfTranslator/persianLayout";
 import { generateConfigToml } from "../src/modules/pdfTranslator/configWriter";
 
 describe("Persian translation", function () {
+  it("normalizes Persian locales and exposes one Persian translation target distinct from Arabic", function () {
+    for (const tag of ["fa", "fa-IR", "fa_IR", "FA-ir"]) {
+      assert.equal(normalizeUiLanguageCode(tag), "fa-IR");
+      assert.equal(detectPanelLangFromLocale(tag), "fa-IR");
+    }
+    assert.equal(detectPanelLangFromLocale("false"), "en-US");
+    assert.include(getUiLanguageOption("fa-IR"), {
+      dir: "rtl",
+      htmlLang: "fa",
+      label: "فارسی",
+    });
+    assert.deepEqual(
+      TRANSLATION_LANGUAGE_OPTIONS.filter((o) => o.code === "fa"),
+      [{ code: "fa", label: "فارسی" }],
+    );
+    assert.equal(translationTextDirection("fa"), "rtl");
+    assert.equal(translationTextDirection("en"), "ltr");
+  });
+
   it("preserves fa in the actual engine configuration", function () {
     const config = generateConfigToml({
       model: "test",

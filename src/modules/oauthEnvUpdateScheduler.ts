@@ -226,6 +226,22 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
     snoozed: "Adiado",
     ok: "OK",
   },
+  "fa-IR": {
+    title: "محیط OAuth به به‌روزرسانی نیاز دارد",
+    active:
+      "محیط مجوزدهی OAuth به به‌روزرسانی یا تعمیر نیاز دارد. چون اکنون از Zotero استفاده می‌کنید، AIdea آن را خودکار به‌روز نمی‌کند.",
+    idle: "محیط مجوزدهی OAuth به به‌روزرسانی یا تعمیر نیاز دارد. به نظر می‌رسد از Zotero استفاده نمی‌کنید؛ پس از پایان شمارش معکوس، به‌روزرسانی خودکار آغاز می‌شود.",
+    updating: "در حال به‌روزرسانی محیط مجوزدهی OAuth…",
+    done: "محیط مجوزدهی OAuth به‌روز شد.",
+    failed:
+      "به‌روزرسانی محیط OAuth کامل نشد. گزارش را در بخش تنظیمات بررسی کنید.",
+    providers: "سرویس‌های مجوزدهی",
+    now: "اکنون به‌روز شود",
+    later: "بعداً",
+    countdown: "به‌روزرسانی خودکار تا {n} ثانیهٔ دیگر",
+    snoozed: "به تعویق افتاد",
+    ok: "تأیید",
+  },
   "ar-SA": {
     title: "يلزم تحديث بيئة OAuth",
     active:
@@ -262,6 +278,11 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
 const OAUTH_ENV_UPDATE_MODE_BODY_OVERRIDES: Partial<
   Record<PanelLang, { auto: string; notify: string }>
 > = {
+  "fa-IR": {
+    auto: "محیط مجوزدهی OAuth به به‌روزرسانی یا تعمیر نیاز دارد. پس از پایان شمارش معکوس، به‌روزرسانی خودکار آغاز می‌شود. برای تعویق ۲۴ ساعته، «بعداً» را انتخاب کنید یا پنجره را کوچک کنید.",
+    notify:
+      "محیط مجوزدهی OAuth به به‌روزرسانی یا تعمیر نیاز دارد. تا وقتی «اکنون به‌روز شود» را انتخاب نکنید، تغییری اعمال نمی‌شود.",
+  },
   "en-US": {
     auto: "AIdea detected that the OAuth authorization environment needs an update or repair. AIdea will update automatically after the countdown unless you postpone or minimize it.",
     notify:
@@ -301,6 +322,11 @@ const OAUTH_ENV_UPDATE_CONTROL_COPIES: Record<
     restore: "Развернуть",
   },
   "pt-BR": { close: "Fechar", minimize: "Minimizar", restore: "Restaurar" },
+  "fa-IR": {
+    close: "بستن",
+    minimize: "کوچک کردن",
+    restore: "بازگرداندن پنجره",
+  },
   "ar-SA": { close: "إغلاق", minimize: "تصغير", restore: "استعادة" },
   "hi-IN": { close: "बंद करें", minimize: "छोटा करें", restore: "फैलाएँ" },
 };

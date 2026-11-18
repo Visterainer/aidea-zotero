@@ -9118,3 +9118,13 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 .llm-panel .llm-tr-dropdown-group {
   color: var(--llm-ui-accent-text);
 }
+
+.llm-selection-translate-result[dir="rtl"] {
+  text-align: start;
+}
+.llm-selection-translate-result[dir="rtl"] :is(pre, code, .katex, a) {
+  unicode-bidi: isolate;
+}
+.llm-selection-translate-result[dir="rtl"] :is(pre, code, .katex) {
+  direction: ltr;
+}

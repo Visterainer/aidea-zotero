@@ -10,6 +10,7 @@ export type PanelLang =
   | "ru-RU"
   | "pt-BR"
   | "ar-SA"
+  | "fa-IR"
   | "hi-IN";
 
 export type LanguageDirection = "ltr" | "rtl";
@@ -118,6 +119,14 @@ export const UI_LANGUAGE_OPTIONS: UiLanguageOption[] = [
     dir: "rtl",
   },
   {
+    uiCode: "fa-IR",
+    translateCode: "fa",
+    htmlLang: "fa",
+    label: "فارسی",
+    englishName: "Persian",
+    dir: "rtl",
+  },
+  {
     uiCode: "hi-IN",
     translateCode: "hi",
     htmlLang: "hi",
@@ -153,6 +162,7 @@ export function normalizeUiLanguageCode(
   if (normalized === "es") return "es-ES";
   if (normalized === "ru") return "ru-RU";
   if (normalized === "pt") return "pt-BR";
+  if (/^fa(?:[-_]ir)?$/i.test(normalized)) return "fa-IR";
   if (normalized === "ar") return "ar-SA";
   if (normalized === "hi") return "hi-IN";
   return null;
@@ -172,6 +182,7 @@ export function detectPanelLangFromLocale(locale: string): PanelLang {
   if (lower.startsWith("es")) return "es-ES";
   if (lower.startsWith("ru")) return "ru-RU";
   if (lower.startsWith("pt")) return "pt-BR";
+  if (/^fa(?:-|$)/.test(lower)) return "fa-IR";
   if (lower.startsWith("ar")) return "ar-SA";
   if (lower.startsWith("hi")) return "hi-IN";
   return DEFAULT_PANEL_LANG;
@@ -186,7 +197,6 @@ export const TRANSLATION_LANGUAGE_OPTIONS: TranslationLanguageOption[] = [
     code: language.translateCode,
     label: language.label,
   })),
-  { code: "fa", label: "فارسی" },
   { code: "it", label: "Italiano" },
   { code: "nl", label: "Nederlands" },
   { code: "pl", label: "Polski" },
@@ -196,3 +206,17 @@ export const TRANSLATION_LANGUAGE_OPTIONS: TranslationLanguageOption[] = [
   { code: "id", label: "Bahasa Indonesia" },
   { code: "uk", label: "Українська" },
 ];
+
+/** The result follows the target language, not the language of the toolbar. */
+export function translationTextDirection(code: string): LanguageDirection {
+  return /^(fa|ar)(?:[-_]|$)/i.test(code.trim()) ? "rtl" : "ltr";
+}
+
+/** Keep translation output independent of the surrounding UI language. */
+export function setTranslationContentLanguage(
+  element: HTMLElement,
+  code: string,
+): void {
+  element.lang = code;
+  element.dir = translationTextDirection(code);
+}

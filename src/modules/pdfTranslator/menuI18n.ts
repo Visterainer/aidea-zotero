@@ -303,6 +303,34 @@ const COPY: Record<PanelLang, TranslateMenuCopy> = {
     openExisting: "Abrir a existente",
     translateAgain: "Traduzir novamente",
   },
+  "fa-IR": {
+    menuTranslate: "AIdea: ترجمهٔ کامل PDF",
+    menuCancel: (percent) => `AIdea: لغو ترجمهٔ PDF (${percent}٪)`,
+    progressTitle: "ترجمهٔ PDF با AIdea",
+    preparing: "در حال آماده‌سازی برای ترجمه…",
+    translating: (percent) => `در حال ترجمه… ${percent}٪`,
+    page: (current, total) => `صفحهٔ ${current} از ${total}`,
+    cancelHint:
+      "برای لغو، روی یکی از موارد کتابخانه راست‌کلیک کنید و «لغو ترجمهٔ PDF» را انتخاب کنید.",
+    confirmCancel: "ترجمهٔ PDF در حال انجام است. لغو شود؟",
+    busy: "یک فایل PDF در حال ترجمه است. منتظر بمانید تا ترجمه تمام شود یا ابتدا آن را لغو کنید.",
+    noPdf: "برای این مورد فایل PDF پیدا نشد.",
+    noModel:
+      "مدلی برای ترجمه در دسترس نیست. ابتدا در زبانهٔ «ترجمه» در AIdea یک مدل انتخاب کنید.",
+    envNotReady:
+      "محیط ترجمه آماده نیست. آن را در زبانهٔ «ترجمه» در AIdea نصب یا تعمیر کنید.",
+    credentialsFailed: (detail) =>
+      `دریافت اطلاعات ورود به سرویس مدل ترجمه ممکن نشد: ${detail}`,
+    failed: (detail) => `ترجمه ناموفق بود: ${detail}`,
+    cancelled: "ترجمه لغو شد.",
+    done: "ترجمه به پایان رسید و به مورد کتابخانه پیوست شد.",
+    attachFailed: (detail, outputDir) =>
+      `ترجمه به پایان رسید، اما فایل PDF به Zotero پیوست نشد: ${detail}\nمحل ذخیرهٔ فایل‌ها: ${outputDir}`,
+    existsPrompt: (targetLang) =>
+      `ترجمهٔ این فایل PDF به زبان ${targetLang} از قبل به این مورد پیوست شده است.`,
+    openExisting: "باز کردن ترجمهٔ موجود",
+    translateAgain: "ترجمهٔ دوباره",
+  },
   "ar-SA": {
     menuTranslate: "AIdea: ترجمة ملف PDF كاملًا",
     menuCancel: (percent) => `AIdea: إلغاء ترجمة PDF (${percent}%)`,

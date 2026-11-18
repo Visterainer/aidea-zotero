@@ -1,3 +1,4 @@
+import { translationTextDirection } from "./languages";
 import { citationMarkdown, evidenceForExport } from "./citations";
 import { renderMarkdownForNote } from "../../utils/markdown";
 import { getZoteroItem } from "../../utils/zoteroItems";
@@ -246,6 +247,15 @@ const SELECTION_TRANSLATION_NOTE_COPIES: Record<
     time: "Hora",
     currentPdf: "PDF atual",
   },
+  "fa-IR": {
+    original: "متن اصلی",
+    translation: "ترجمه",
+    source: "منبع",
+    model: "مدل",
+    provider: "ارائه‌دهنده",
+    time: "زمان",
+    currentPdf: "فایل PDF فعلی",
+  },
   "ar-SA": {
     original: "النص الأصلي",
     translation: "الترجمة",
@@ -267,6 +277,7 @@ const SELECTION_TRANSLATION_NOTE_COPIES: Record<
 };
 
 type SelectionTranslationNoteParams = {
+  targetLang?: string;
   selectedText: string;
   translation: string;
   model: string;
@@ -323,9 +334,9 @@ function buildSelectionTranslationNoteEntryHtml(
 
   return [
     `<p><strong>${escapeNoteHtml(copy.original)}</strong></p>`,
-    `<blockquote>${originalHtml}</blockquote>`,
+    `<blockquote dir="auto">${originalHtml}</blockquote>`,
     `<p><strong>${escapeNoteHtml(copy.translation)}</strong></p>`,
-    `<div>${translationHtml}</div>`,
+    `<div dir="${params.targetLang ? translationTextDirection(params.targetLang) : "auto"}">${translationHtml}</div>`,
     `<p><small>${metaParts.join(" · ")}</small></p>`,
   ].join("");
 }

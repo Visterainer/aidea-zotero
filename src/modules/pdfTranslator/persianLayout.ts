@@ -2,7 +2,7 @@ import type { PanelLang } from "../contextPanel/languages";
 
 // Horizontal, single-style paragraphs are shaped with a selectable text map.
 // Other page structures retain the engine layout rather than losing content.
-const warnings: Record<PanelLang | "fa-IR", string> = {
+const warnings: Record<PanelLang, string> = {
   "en-US":
     "Persian PDF export supports ordinary text. Rotated text, complex formatting or inline equations may keep the engine’s original layout and copy order. Continue?",
   "zh-CN":
@@ -33,7 +33,7 @@ const warnings: Record<PanelLang | "fa-IR", string> = {
 
 export function confirmPdfLayout(
   targetLang: string,
-  uiLang: PanelLang | "fa-IR",
+  uiLang: PanelLang,
   confirm: (message: string) => boolean = (message) =>
     Zotero.getMainWindow().confirm(message),
 ): boolean {

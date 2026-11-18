@@ -1,0 +1,11 @@
+startup-begin = AIdea در حال بارگذاری است
+startup-finish = AIdea آماده است
+menuitem-label = AIdea
+menupopup-label = AIdea
+menuitem-submenulabel = AIdea
+menuitem-filemenulabel = AIdea
+prefs-title = AIdea
+prefs-table-title = AIdea
+prefs-table-detail = AIdea
+tabpanel-lib-tab-label = AIdea
+tabpanel-reader-tab-label = AIdea

@@ -899,6 +899,7 @@ describe("custom endpoint settings UI", function () {
       "ru-RU",
       "pt-BR",
       "ar-SA",
+      "fa-IR",
       "hi-IN",
     ];
     let englishCopyLabel = "";

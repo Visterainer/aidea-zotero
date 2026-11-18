@@ -54,12 +54,17 @@ async function assertTranslatesWithEmptyContext(params: {
   kind: ReaderDocumentKind;
   contentType: string;
   itemID: number;
+  persian?: boolean;
 }): Promise<void> {
   const item = makeAttachment(params.itemID, params.contentType);
   pdfTextCache.set(item.id, makeEmptyContext(params.kind));
   const stages: string[] = [];
   let requestCount = 0;
   let seenPrompt = "";
+  const expected = params.persian
+    ? "پژوهشگران می‌نویسند: GPT-4.1 (2026)."
+    : "已翻译";
+  let deltaLang = "";
   globalThis.fetch = (async (
     _url: string | URL | Request,
     init?: RequestInit,
@@ -77,7 +82,7 @@ async function assertTranslatesWithEmptyContext(params: {
       "You are an academic translator",
     );
     assert.notInclude(String(messages?.[0]?.content), "ONLY_CUSTOM_JSON");
-    return buildOpenAICompatSseResponse("已翻译");
+    return buildOpenAICompatSseResponse(expected);
   }) as typeof globalThis.fetch;
 
   const result = await selectionTranslate.translateSelectedTextForReader({
@@ -85,10 +90,18 @@ async function assertTranslatesWithEmptyContext(params: {
     selectedText: "Selected source text",
     callbacks: {
       onStage: (stage) => stages.push(stage),
+      onDelta: (_delta, lang) => {
+        deltaLang = lang;
+      },
     },
   });
 
-  assert.strictEqual(result.translation, "已翻译");
+  assert.strictEqual(result.translation, expected);
+  if (params.persian) {
+    assert.include(seenPrompt, "Target language: Persian (fa)");
+    assert.equal(result.targetLang, "fa");
+    assert.equal(deltaLang, "fa");
+  }
   assert.strictEqual(requestCount, 1);
   assert.deepEqual(stages, ["no-context"]);
   assert.notInclude(seenPrompt, "<retrieved-document-context>");
@@ -147,6 +160,21 @@ describe("selection translation without document context", function () {
     (globalThis as Record<string, unknown>).Zotero = originalZotero;
     (globalThis as Record<string, unknown>).ztoolkit = originalZtoolkit;
     globalThis.fetch = originalFetch;
+  });
+
+  it("requests Persian for PDF selections without changing the interface language", async function () {
+    const key = "extensions.zotero.aidea.selectionTranslate.targetLang";
+    Zotero.Prefs.set(key, "fa", true);
+    try {
+      await assertTranslatesWithEmptyContext({
+        kind: "pdf",
+        contentType: PDF_CONTENT_TYPE,
+        itemID: 99,
+        persian: true,
+      });
+    } finally {
+      Zotero.Prefs.set(key, "zh-CN", true);
+    }
   });
 
   it("translates PDF selections with an empty context", async function () {

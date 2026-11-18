@@ -1,0 +1,13 @@
+pref-title = AIdea
+pref-api-base = نشانی پایهٔ API
+pref-api-key = کلید محرمانه / کلید API
+pref-model = نام مدل
+pref-system-prompt = دستور سیستمی (اختیاری)
+pref-system-prompt-placeholder = دستورهای دلخواه برای دستیار هوش مصنوعی…
+pref-test-button = آزمایش اتصال
+pref-test-running = در حال آزمایش…
+pref-test-success = اتصال برقرار شد
+pref-test-failed = ناموفق
+pref-sidebar-moved-title = تنظیمات به نوار کناری منتقل شده است
+pref-sidebar-moved-desc = تنظیمات AIdea اکنون در یکی از زبانه‌های نوار کناری گفت‌وگو قرار دارد.
+pref-sidebar-moved-action = یک فایل PDF باز کنید یا موردی را در کتابخانه انتخاب کنید، سپس در نوار کناری Zotero به زبانهٔ «تنظیمات» بروید.

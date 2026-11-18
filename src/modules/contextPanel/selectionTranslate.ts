@@ -69,10 +69,11 @@ type SelectionTranslateContextMode =
 
 export type SelectionTranslateCallbacks = {
   onStage?: (stage: SelectionTranslateStage) => void;
-  onDelta?: (delta: string) => void;
+  onDelta?: (delta: string, targetLang: string) => void;
 };
 
 export type SelectionTranslateResult = {
+  targetLang: string;
   translation: string;
   model: string;
   provider?: string;
@@ -103,6 +104,8 @@ const LANGUAGE_LABELS: Record<string, string> = {
   "ru-RU": "Russian",
   pt: "Portuguese",
   "pt-BR": "Portuguese",
+  fa: "Persian",
+  "fa-IR": "Persian",
   ar: "Arabic",
   "ar-SA": "Arabic",
   hi: "Hindi",
@@ -601,7 +604,7 @@ export async function translateSelectedTextForReader(params: {
         ),
       },
       (delta) => {
-        if (delta) params.callbacks?.onDelta?.(delta);
+        if (delta) params.callbacks?.onDelta?.(delta, prefs.targetLang);
       },
     ),
   );
@@ -609,6 +612,7 @@ export async function translateSelectedTextForReader(params: {
     throw new Error("Selection translation returned empty content");
   }
   return {
+    targetLang: prefs.targetLang,
     translation,
     model: modelConfig.model,
     provider: modelConfig.providerId || modelConfig.providerLabel,

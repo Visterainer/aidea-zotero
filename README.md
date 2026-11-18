@@ -101,8 +101,6 @@ Sign in with your existing account through OAuth. AIdea supports multiple provid
 
 Translate full papers directly inside Zotero and export either a **bilingual PDF** (side-by-side or top-bottom layout) or a **single-language PDF**. The translation workflow supports model selection, output path configuration, and end-to-end execution in the side panel.
 
-**Persian (فارسی):** Ordinary horizontal paragraphs in translated-only and bilingual PDFs support right-to-left text. With the verified translation environment, AIdea shapes these PDF paragraphs and preserves their logical text for selection and search in Zotero. Rotated text, overlapping elements, inline formulas and mixed-style paragraphs may retain the engine’s native layout; review the completion warnings for those pages. This correction does not modify the original side of a bilingual PDF.
-
 <p align="center">
   <img src="doc/screenshots/translate_panel_en.png" alt="Full-document translation panel" width="800" />
 </p>
@@ -160,7 +158,9 @@ AIdea captures and recalls useful information across conversations to improve co
 
 ### 🌍 Interface Languages
 
-The plugin interface now supports **12 UI languages**: **English**, **简体中文**, **繁體中文**, **日本語**, **한국어**, **Français**, **Deutsch**, **Español**, **Русский**, **Português**, **العربية**, and **हिन्दी**. Full-document translation keeps its broader target-language list independent from the UI language list.
+The plugin interface supports **13 UI languages**: **English**, **简体中文**, **繁體中文**, **日本語**, **한국어**, **Français**, **Deutsch**, **Español**, **Русский**, **Português**, **العربية**, **فارسی**, and **हिन्दी**. The translation target is independent of the interface language.
+
+**Persian (فارسی):** Selection translations and ordinary horizontal paragraphs in translated-only and bilingual PDFs support right-to-left text. With the verified translation environment, AIdea shapes these PDF paragraphs and preserves their logical text for selection and search in Zotero. Rotated text, overlapping elements, inline formulas and mixed-style paragraphs may retain the engine’s native layout; review the completion warnings for those pages. This correction does not modify the original side of a bilingual PDF.
 
 ---
 
