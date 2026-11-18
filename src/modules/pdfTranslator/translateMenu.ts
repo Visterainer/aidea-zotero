@@ -247,6 +247,7 @@ async function addToQueue(items: Zotero.Item[]): Promise<void> {
     // The user just chose "translate again" for this one document.
     single ? { skipExisting: false } : {},
   );
+  if (result.cancelled) return;
   if (result.noModel) {
     notify(copy().noModel, "fail");
     return;

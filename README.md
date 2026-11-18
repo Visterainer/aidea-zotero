@@ -101,6 +101,8 @@ Sign in with your existing account through OAuth. AIdea supports multiple provid
 
 Translate full papers directly inside Zotero and export either a **bilingual PDF** (side-by-side or top-bottom layout) or a **single-language PDF**. The translation workflow supports model selection, output path configuration, and end-to-end execution in the side panel.
 
+**Persian (فارسی):** Ordinary horizontal paragraphs in translated-only and bilingual PDFs support right-to-left text. With the verified translation environment, AIdea shapes these PDF paragraphs and preserves their logical text for selection and search in Zotero. Rotated text, overlapping elements, inline formulas and mixed-style paragraphs may retain the engine’s native layout; review the completion warnings for those pages. This correction does not modify the original side of a bilingual PDF.
+
 <p align="center">
   <img src="doc/screenshots/translate_panel_en.png" alt="Full-document translation panel" width="800" />
 </p>

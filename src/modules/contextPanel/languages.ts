@@ -186,6 +186,7 @@ export const TRANSLATION_LANGUAGE_OPTIONS: TranslationLanguageOption[] = [
     code: language.translateCode,
     label: language.label,
   })),
+  { code: "fa", label: "فارسی" },
   { code: "it", label: "Italiano" },
   { code: "nl", label: "Nederlands" },
   { code: "pl", label: "Polski" },

@@ -1,3 +1,4 @@
+import { confirmPdfLayout } from "./persianLayout";
 /* ---------------------------------------------------------------------------
  * pdfTranslator/translateTabController.ts
  *
@@ -1512,6 +1513,7 @@ async function startTranslation(body: Element): Promise<void> {
   const tgtLang =
     (body.querySelector("#llm-tr-target-lang") as HTMLElement)?.dataset.value ||
     "zh-CN";
+  if (!confirmPdfLayout(tgtLang, getPanelLang())) return;
   const monoChecked =
     (body.querySelector("#llm-tr-mono") as HTMLInputElement)?.checked ?? true;
   const dualChecked =

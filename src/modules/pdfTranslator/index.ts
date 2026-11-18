@@ -200,7 +200,7 @@ export class TranslateController {
     this.activeLockPath = lockPath;
 
     /* 6. Find bridge script */
-    const bridgePath = this.getBridgeScriptPath(tmpDir);
+    const bridgePath = this.getBridgeScriptPath(tmpDir, params.targetLang);
     this.callback({
       type: "env_progress",
       step: "bridge",
@@ -346,7 +346,7 @@ export class TranslateController {
   }
 
   /** Resolve path to addon/scripts/aidea_bridge.py */
-  private getBridgeScriptPath(stageDir: string): string {
+  private getBridgeScriptPath(stageDir: string, targetLang: string): string {
     const rootUris = this.getAddonRootUriCandidates();
     const candidates = this.getAddonDirCandidates(rootUris);
     for (const addonDir of candidates) {
@@ -356,7 +356,11 @@ export class TranslateController {
     }
 
     for (const root of rootUris) {
-      const extracted = this.extractBridgeFromJarRootUri(root, stageDir);
+      const extracted = this.extractBridgeFromJarRootUri(
+        root,
+        stageDir,
+        targetLang,
+      );
       if (extracted && this.fileExists(extracted)) return extracted;
     }
 
@@ -408,6 +412,7 @@ export class TranslateController {
   private extractBridgeFromJarRootUri(
     rootUri: string,
     stageDir: string,
+    targetLang: string,
   ): string {
     const raw = this.asNonEmptyString(rootUri);
     if (!raw || !raw.startsWith("jar:")) return "";
@@ -424,32 +429,32 @@ export class TranslateController {
       const jarRoot = String(jarUri.JAREntry || "")
         .replace(/^\/+/, "")
         .replace(/\/+$/, "");
-      const bridgeEntry = [jarRoot, "scripts", "aidea_bridge.py"]
-        .filter(Boolean)
-        .join("/");
-
+      const scripts = ["aidea_bridge.py"];
+      if (/^fa(?:[-_]|$)/i.test(targetLang)) {
+        scripts.push(
+          "aidea_persian_backend.py",
+          "aidea_persian_render.py",
+          "aidea_persian_text.py",
+        );
+      }
       const zipReader = Cc["@mozilla.org/libjar/zip-reader;1"].createInstance(
         Ci.nsIZipReader,
       );
       zipReader.open(jarFile);
       try {
-        if (!zipReader.hasEntry(bridgeEntry)) return "";
-
-        const outPath = this.tryJoin(stageDir, "aidea_bridge.py");
-        if (!outPath) return "";
-        const outFile = Cc["@mozilla.org/file/local;1"].createInstance(
-          Ci.nsIFile,
-        );
-        outFile.initWithPath(outPath);
-        if (outFile.exists()) {
-          try {
-            outFile.remove(false);
-          } catch {
-            /* ignore */
-          }
+        for (const name of scripts) {
+          const entry = [jarRoot, "scripts", name].filter(Boolean).join("/");
+          if (!zipReader.hasEntry(entry)) return "";
+          const outPath = this.tryJoin(stageDir, name);
+          if (!outPath) return "";
+          const file = Cc["@mozilla.org/file/local;1"].createInstance(
+            Ci.nsIFile,
+          );
+          file.initWithPath(outPath);
+          if (file.exists()) file.remove(false);
+          zipReader.extract(entry, file);
         }
-        zipReader.extract(bridgeEntry, outFile);
-        return outPath;
+        return this.tryJoin(stageDir, scripts[0]);
       } finally {
         try {
           zipReader.close();

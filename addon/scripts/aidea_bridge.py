@@ -51,7 +51,11 @@ def _ensure_loopback_no_proxy(env):
     return env
 
 
-def _prepare_pdf2zh_runtime_env():
+def _is_persian_layout_target(lang):
+    return str(lang or "").strip().lower().replace("_", "-") in ("fa", "fa-ir")
+
+
+def _prepare_pdf2zh_runtime_env(target_lang=""):
     """
     Build a subprocess env for pdf2zh_next that injects a sitecustomize patch.
 
@@ -90,18 +94,51 @@ def _prepare_pdf2zh_runtime_env():
         "            \"                    input_[2].unicode = original_unicodes[input_index]\\n\"\n"
         "        )\n"
         "        if _bad in _text:\n"
-        "            _path.write_text(_text.replace(_bad, _good, 1), encoding='utf-8')\n"
-        "            print('[aidea_bridge] Applied BabelDOC fallback restore compatibility patch', file=sys.stderr, flush=True)\n"
-        "        _cache_dir = _path.parent / '__pycache__'\n"
-        "        if _cache_dir.exists():\n"
-        "            for _pyc in _cache_dir.glob('il_translator_llm_only*.pyc'):\n"
-        "                try:\n"
-        "                    _pyc.unlink()\n"
-        "                except Exception:\n"
-        "                    pass\n"
-        "except Exception as _err:\n"
+        + (
+            # For Persian the adapter already runs in an isolated worker. Keep
+            # the existing batch-retry fix in memory too; do not write into a
+            # managed/read-only environment or race another running Zotero.
+            "            import importlib.machinery as _im\n"
+            "            class _FixedLoader(_im.SourceFileLoader):\n"
+            "                def get_code(self, fullname):\n"
+            "                    return compile(_text.replace(_bad, _good, 1), self.path, 'exec')\n"
+            "            class _OneModuleFinder:\n"
+            "                def find_spec(self, fullname, path, target=None):\n"
+            "                    if fullname == _spec.name:\n"
+            "                        return importlib.util.spec_from_file_location(fullname, _spec.origin, loader=_FixedLoader(fullname, _spec.origin))\n"
+            "            sys.meta_path.insert(0, _OneModuleFinder())\n"
+            if _is_persian_layout_target(target_lang) else
+            "            _path.write_text(_text.replace(_bad, _good, 1), encoding='utf-8')\n"
+            "            print('[aidea_bridge] Applied BabelDOC fallback restore compatibility patch', file=sys.stderr, flush=True)\n"
+            "        _cache_dir = _path.parent / '__pycache__'\n"
+            "        if _cache_dir.exists():\n"
+            "            for _pyc in _cache_dir.glob('il_translator_llm_only*.pyc'):\n"
+            "                try:\n"
+            "                    _pyc.unlink()\n"
+            "                except Exception:\n"
+            "                    pass\n"
+        )
+        + "except Exception as _err:\n"
         "    print(f'[aidea_bridge] BabelDOC fallback compatibility patch skipped: {_err}', file=sys.stderr, flush=True)\n"
     )
+    if _is_persian_layout_target(target_lang):
+        # Expose only our shipped helpers, in this child's private import path.
+        # Do not install packages or patch files in the user's Python env.
+        try:
+            for name in ("aidea_persian_backend.py", "aidea_persian_render.py", "aidea_persian_text.py"):
+                shutil.copyfile(os.path.join(os.path.dirname(os.path.abspath(__file__)), name), os.path.join(patch_dir, name))
+        except Exception:
+            shutil.rmtree(patch_dir, ignore_errors=True)
+            raise
+        patch_code += (
+            "\ntry:\n"
+            "    from aidea_persian_backend import install as _aidea_install_persian\n"
+            "    _aidea_persian_ready = _aidea_install_persian(target_language='fa')\n"
+            "except Exception as e:\n"
+            "    raise SystemExit(f'AIdea Persian PDF layout initialization failed: {e}')\n"
+            "if not _aidea_persian_ready:\n"
+            "    raise SystemExit('AIdea Persian PDF layout requires the verified translation environment')\n"
+        )
     with open(sitecustomize_path, "w", encoding="utf-8") as f:
         f.write(patch_code)
 
@@ -1111,7 +1148,10 @@ def _postprocess_mono_pdf(
     reference_pages,
     log_line,
 ):
-    if fitz is None or proxy is None or not model_id:
+    # This legacy residual-text overlay paints LTR and cannot supply the RTL
+    # selection map. Never overlay it on top of the corrected Persian page.
+    if _is_persian_layout_target(target_lang) or fitz is None or proxy is None or not model_id:
+
         return 0
     doc = fitz.open(pdf_file)
     translation_cache = {}
@@ -2751,7 +2791,7 @@ def main():
                     f"refs={reference_pages}; appendix={appendix_pages}"
                 )
 
-        runtime_env, patch_dir = _prepare_pdf2zh_runtime_env()
+        runtime_env, patch_dir = _prepare_pdf2zh_runtime_env(target_lang)
         _log_runtime_package_versions(log_line)
 
         cmd = [
@@ -2836,6 +2876,7 @@ def main():
         last_total = None
         tail_lines = deque(maxlen=80)
         error_lines = []  # Track ERROR output from pdf2zh_next (full text)
+        persian_pages = {}
         warning_stats = {
             "sameAsInput": 0,
             "lengthMismatch": 0,
@@ -2870,6 +2911,12 @@ def main():
             log_line(line)
             tail_lines.append(line)
 
+            if _is_persian_layout_target(target_lang) and line.startswith("AIDEA_PERSIAN_PAGE "):
+                marker = re.match(r"AIDEA_PERSIAN_PAGE page=(\d+) replaced=(\d+) skipped=(\d+)\b", line)
+                if marker:
+                    page_no, replaced, skipped = map(int, marker.groups())
+                    persian_pages[page_no] = (replaced, skipped)
+                continue
             warning_key = _categorize_warning_line(line)
             if warning_key:
                 warning_stats[warning_key] = warning_stats.get(warning_key, 0) + 1
@@ -3000,6 +3047,16 @@ def main():
                 logFile=log_file,
                 stage="done",
             )
+            if _is_persian_layout_target(target_lang):
+                corrected = sum(row[0] for row in persian_pages.values())
+                skipped = sum(row[1] for row in persian_pages.values())
+                done_data["persianLayout"] = {"corrected": corrected, "skipped": skipped}
+                if skipped or not corrected:
+                    detail = (f"Persian RTL layout: {corrected} paragraph(s) corrected; "
+                              f"{skipped} left in native layout. Inspect the translated PDF."
+                              if persian_pages else "No Persian RTL layout report; inspect the translated PDF.")
+                    error_lines = [*error_lines, detail]
+                    log_line(detail)
             if overlay_changes > 0:
                 done_data["detail"] = f"Overlay-translated {overlay_changes} residual text region(s)."
             if translation_stats:

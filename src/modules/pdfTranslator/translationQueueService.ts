@@ -1,3 +1,5 @@
+import { confirmPdfLayout } from "./persianLayout";
+import { getPanelLang } from "../contextPanel/i18n";
 /* ---------------------------------------------------------------------------
  * pdfTranslator/translationQueueService.ts  –  The one queue, wired to Zotero
  *
@@ -106,6 +108,7 @@ export function shouldSkipExistingTranslations(): boolean {
 }
 
 export interface EnqueueResult extends QueueAddResult {
+  cancelled?: boolean;
   /** Selected items that have no PDF. */
   withoutPdf: number;
   /** No translation model has been chosen yet; nothing was added. */
@@ -184,6 +187,20 @@ export async function enqueueLibraryItems(
   const model = await resolveQueueModel();
   if (!model.modelName) {
     return { added: 0, skipped: 0, duplicates: 0, withoutPdf, noModel: true };
+  }
+  // Ask once per submission, never once per document or on startup.
+  if (
+    entries.some((entry) => !entry.alreadyTranslated) &&
+    !confirmPdfLayout(options.targetLang, getPanelLang())
+  ) {
+    return {
+      added: 0,
+      skipped: 0,
+      duplicates: 0,
+      withoutPdf,
+      noModel: false,
+      cancelled: true,
+    };
   }
   const added = getTranslationQueue().add(entries, {
     ...model,
