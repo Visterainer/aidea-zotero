@@ -1,9 +1,14 @@
 import {
   createGlobalConversation,
   createPaperConversation,
+  getGlobalConversation,
+  getLatestEmptyGlobalConversation,
 } from "../src/utils/chatStore";
 import { documentFingerprint } from "../src/utils/documentFingerprint";
-import { collectAndDeleteUnreferencedBlobs } from "../src/utils/attachmentRefStore";
+import {
+  collectAndDeleteUnreferencedBlobs,
+  reconcileNoteAttachmentRefsFromNoteContent,
+} from "../src/utils/attachmentRefStore";
 import { assert } from "chai";
 import { getAttachmentSourceRevision } from "../src/modules/contextPanel/document/adapters/shared";
 import {
@@ -158,6 +163,64 @@ describe("chat archive migration and merging (real SQLite)", function () {
     globals.Zotero = prior;
     globals.IOUtils = priorIO;
     for (const f of opened.splice(0)) f.db.close();
+  });
+
+  it("keeps note-only blobs on read failures but collects confirmed removals", async function () {
+    const f = make();
+    use(f);
+    globals.Zotero.DataDirectory = { dir: "/data" };
+    const pathFor = (id: number) =>
+      `/data/chat-attachments/blobs/${String(id).repeat(64)}/file.txt`;
+    for (const id of [1, 2, 3, 4, 5]) {
+      const hash = String(id).repeat(64);
+      files.set(pathFor(id), new Uint8Array([id]));
+      f.db
+        .prepare("INSERT INTO zotero_ai_attachment_blobs VALUES (?,?,1,0)")
+        .run(hash, pathFor(id));
+      f.db
+        .prepare("INSERT INTO zotero_ai_attachment_refs VALUES ('note',?,?,0)")
+        .run(id, hash);
+    }
+    const lookup = (id: number) => {
+      if (id === 1) throw new Error("Item lookup failed");
+      if (id === 4) return false; // deleted note
+      return {
+        isNote: () => true,
+        getNote: () => {
+          if (id === 2) throw new Error("Note data not loaded");
+          if (id === 3) return `<a href="file://${pathFor(id)}">File</a>`;
+          return ""; // user removed the link
+        },
+      };
+    };
+    globals.Zotero.Items.get = lookup;
+    globals.Zotero.Items.getAsync = async (id: number) => lookup(id);
+    await reconcileNoteAttachmentRefsFromNoteContent();
+    await collectAndDeleteUnreferencedBlobs(0);
+    assert.sameMembers([...files.keys()], [1, 2, 3].map(pathFor));
+  });
+
+  it("reads pinned draft summaries through Zotero's strict row proxies", async function () {
+    const f = make();
+    use(f);
+    f.db.exec(`ALTER TABLE ${G} ADD COLUMN is_pinned INTEGER DEFAULT 0;
+      INSERT INTO ${G} VALUES (2000000001,1,100,'Draft',1)`);
+    const query = f.api.queryAsync.bind(f.api);
+    f.api.queryAsync = async (sql, args) =>
+      (await query(sql, args)).map(
+        (row) =>
+          new Proxy(row, {
+            get(target, property) {
+              if (!(property in target))
+                throw new Error(`DB column '${String(property)}' not found`);
+              return Reflect.get(target, property);
+            },
+          }),
+      );
+    const latest = await getLatestEmptyGlobalConversation(1);
+    assert.equal(latest?.conversationKey, 2000000001);
+    assert.isTrue(latest?.isPinned);
+    assert.deepEqual(await getGlobalConversation(2000000001), latest);
   });
 
   it("associates delayed papers without changing message IDs, branches or UUIDs", async function () {

@@ -8,10 +8,14 @@ function isAuthorProfileNote(note: Zotero.Item | null | undefined): boolean {
   if (!note?.isNote?.()) return false;
   try {
     const html = note.getNote?.() || "";
+    if (html.includes(`<!-- ${NOTE_MARKER} -->`)) return true;
+    // Zotero's editor can strip comments. Match the generated title and
+    // timestamp header, not words that can occur in an unrelated child note.
     return (
-      html.includes(NOTE_MARKER) ||
-      (html.includes("AIdea") &&
-        getAllAuthorProfileNoteTitles().some((title) => html.includes(title)))
+      getAllAuthorProfileNoteTitles().includes(note.getNoteTitle()) &&
+      /<p\b[^>]*>\s*(?:<small\b[^>]*>\s*)?AIdea [^<:：]+[:：]\s*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z/u.test(
+        html,
+      )
     );
   } catch {
     return false;

@@ -120,6 +120,69 @@ describe("author profile title-search matching", function () {
     assert.equal(result.authors[0]?.name, "Ada Right");
   });
 
+  it("does not overwrite a personal note that mentions AIdea and the profile title", async function () {
+    const { saveAuthorProfileNote } =
+      await import("../src/modules/authorProfiles/cache");
+    const title = "Corresponding Author Profile";
+    const personalHtml = `<p>Reading notes</p><p>Compare AIdea's ${title} with the paper.</p>`;
+    class Note {
+      constructor(public html = "") {}
+      isNote() {
+        return true;
+      }
+      getNote() {
+        return this.html;
+      }
+      getNoteTitle() {
+        return this.html === personalHtml ? "Reading notes" : title;
+      }
+      setNote(html: string) {
+        this.html = html;
+      }
+      async saveTx() {
+        if (!notes.includes(this)) notes.push(this);
+      }
+    }
+    const notes: Note[] = [new Note(personalHtml)];
+    const parent = {
+      id: 42,
+      libraryID: 1,
+      getNotes: () => notes.map((_, i) => i + 1),
+    } as Zotero.Item;
+    const result = {
+      language: "en",
+      noteTitle: title,
+      markdown: "Profile v1",
+      sources: [],
+      model: "test",
+      generatedAt: "2026-03-01T00:00:00.000Z",
+    };
+    const previous = (globalThis as any).Zotero;
+    try {
+      (globalThis as any).Zotero = {
+        ...previous,
+        Item: Note,
+        Items: { get: (id: number) => notes[id - 1] },
+      };
+      assert.equal(await saveAuthorProfileNote(parent, result), "created");
+      assert.equal(notes[0].html, personalHtml);
+      // Zotero's editor can strip the ownership comment on a real profile.
+      notes[1].html = notes[1].html.replace(/<!--.*?-->/, "");
+      assert.equal(
+        await saveAuthorProfileNote(parent, {
+          ...result,
+          markdown: "Profile v2",
+        }),
+        "updated",
+      );
+      assert.lengthOf(notes, 2);
+      assert.equal(notes[0].html, personalHtml);
+      assert.include(notes[1].html, "Profile v2");
+    } finally {
+      (globalThis as any).Zotero = previous;
+    }
+  });
+
   it("does not title-check DOI lookups", async function () {
     stubFetch((url) =>
       url.includes("filter=doi")

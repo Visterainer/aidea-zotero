@@ -4,7 +4,6 @@ import {
   removeAttachmentFile,
 } from "../modules/contextPanel/attachmentStorage";
 import { fileUrlToPath } from "./pathFileUrl";
-import { getZoteroItem } from "./zoteroItems";
 
 export type AttachmentRefOwnerType = "conversation" | "note";
 
@@ -157,21 +156,18 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
   for (const row of rows) {
     const ownerId = Number(row.ownerId);
     if (!Number.isFinite(ownerId) || ownerId <= 0) continue;
-    let note: Zotero.Item | null;
+    let noteHtml: string | null;
     try {
-      note = getZoteroItem(ownerId);
+      const note = await Zotero.Items.getAsync(ownerId);
+      noteHtml = note && note.isNote() ? note.getNote() : null;
     } catch (_err) {
-      note = null;
-    }
-    if (!note || (typeof note.isNote === "function" && !note.isNote())) {
-      await clearOwnerAttachmentRefs("note", ownerId);
+      // Unloaded or unreadable note data is not evidence of deletion. Keep
+      // its refs so the following GC cannot delete a still-linked file.
       continue;
     }
-    let noteHtml: string;
-    try {
-      noteHtml = typeof note.getNote === "function" ? note.getNote() || "" : "";
-    } catch (_err) {
-      noteHtml = "";
+    if (noteHtml === null) {
+      await clearOwnerAttachmentRefs("note", ownerId);
+      continue;
     }
     const hashes = extractManagedBlobHashesFromNoteHtml(noteHtml);
     await replaceOwnerAttachmentRefs("note", ownerId, hashes);

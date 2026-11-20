@@ -1717,13 +1717,14 @@ export async function getLatestEmptyGlobalConversation(
             gc.library_id AS libraryID,
             gc.created_at AS createdAt,
             gc.title AS title,
+            gc.is_pinned AS isPinned,
             gc.created_at AS lastActivityAt,
             SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) AS userTurnCount
      FROM ${GLOBAL_CONVERSATIONS_TABLE} gc
      LEFT JOIN ${CHAT_MESSAGES_TABLE} m
        ON m.conversation_key = gc.conversation_key
      WHERE gc.library_id = ?
-     GROUP BY gc.conversation_key, gc.library_id, gc.created_at, gc.title
+     GROUP BY gc.conversation_key, gc.library_id, gc.created_at, gc.title, gc.is_pinned
      HAVING SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) = 0
      ORDER BY gc.created_at DESC, gc.conversation_key DESC
      LIMIT 1`,
@@ -1743,13 +1744,14 @@ export async function getGlobalConversation(
             gc.library_id AS libraryID,
             gc.created_at AS createdAt,
             gc.title AS title,
+            gc.is_pinned AS isPinned,
             COALESCE(MAX(m.timestamp), gc.created_at) AS lastActivityAt,
             SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) AS userTurnCount
      FROM ${GLOBAL_CONVERSATIONS_TABLE} gc
      LEFT JOIN ${CHAT_MESSAGES_TABLE} m
        ON m.conversation_key = gc.conversation_key
      WHERE gc.conversation_key = ?
-     GROUP BY gc.conversation_key, gc.library_id, gc.created_at, gc.title
+     GROUP BY gc.conversation_key, gc.library_id, gc.created_at, gc.title, gc.is_pinned
      LIMIT 1`,
     [normalizedKey],
   )) as GlobalConversationSummaryRow[] | undefined;
