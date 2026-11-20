@@ -76,6 +76,7 @@ declare namespace _ZoteroTypes {
       "translate.outputAttach": boolean;
       "translate.queueSkipExisting": boolean;
       "translate.queueState": string;
+      "translate.batchDraft": string;
       "translate.qps": string;
       "translate.poolMaxWorker": string;
       "translate.keepAppendixTranslated": boolean;

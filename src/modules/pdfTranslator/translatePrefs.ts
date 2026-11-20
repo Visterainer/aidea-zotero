@@ -25,6 +25,7 @@ export const TRANSLATE_PREFS = {
   /** Batch add: skip documents that already have this translation (default on). */
   queueSkipExisting: "translate.queueSkipExisting",
   queueState: "translate.queueState",
+  batchDraft: "translate.batchDraft",
   qps: "translate.qps",
   poolMaxWorker: "translate.poolMaxWorker",
   keepAppendixTranslated: "translate.keepAppendixTranslated",
@@ -87,15 +88,32 @@ export function getBoolPref(key: string, defaultValue: boolean): boolean {
 
 /**
  * Whether results are also copied to the output folder. Before this option
- * existed they always were, so it starts on for anyone who had already
- * chosen a folder and off for everyone else. (It has no default in
- * prefs.js for that reason.)
+ * existed they always were, so on first use it is turned on for anyone who
+ * had already chosen a folder and off for everyone else. The decision is
+ * stored at once: left implicit, it would flip as soon as a folder is typed
+ * in, while the checkbox still showed the old state. (It has no default in
+ * prefs.js so that "never decided" can be told apart.)
  */
 export function isSaveToOutputDirEnabled(): boolean {
-  return getBoolPref(
-    TRANSLATE_PREFS.outputSaveToDir,
-    getStringPref(TRANSLATE_PREFS.outputDir, "") !== "",
-  );
+  let stored: unknown;
+  try {
+    stored = Zotero.Prefs.get(
+      translatePrefKey(TRANSLATE_PREFS.outputSaveToDir),
+      true,
+    );
+  } catch {
+    stored = undefined;
+  }
+  if (typeof stored === "boolean") return stored;
+  if (typeof stored === "number" || typeof stored === "string") {
+    const value = String(stored).trim().toLowerCase();
+    if (["false", "0", "true", "1"].includes(value)) {
+      return value === "true" || value === "1";
+    }
+  }
+  const initial = getStringPref(TRANSLATE_PREFS.outputDir, "") !== "";
+  setBoolPref(TRANSLATE_PREFS.outputSaveToDir, initial);
+  return initial;
 }
 
 export function setBoolPref(key: string, value: boolean): void {

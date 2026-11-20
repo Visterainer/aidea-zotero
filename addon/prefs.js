@@ -67,6 +67,7 @@ pref("translate.outputDir", "");
 pref("translate.outputAttach", true);
 pref("translate.queueSkipExisting", true);
 pref("translate.queueState", "");
+pref("translate.batchDraft", "[]");
 pref("translate.qps", "10");
 pref("translate.poolMaxWorker", "1");
 pref("translate.keepAppendixTranslated", true);

@@ -7573,6 +7573,67 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 }
 
 /* ── Output options and translation queue ── */
+.llm-panel .llm-tr-batch {
+  display: grid;
+  gap: 4px;
+  margin-block: 0 8px;
+  min-width: 0;
+}
+
+.llm-panel .llm-tr-batch-intake {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed color-mix(in srgb, currentColor 48%, transparent);
+  border-radius: 4px;
+}
+
+.llm-panel #llm-tab-btn-translate.llm-tr-drop-active,
+.llm-panel #llm-tab-panel-translate.llm-tr-drop-active .llm-tr-batch-intake {
+  outline: 2px solid var(--accent-teal, #0d9488);
+  outline-offset: -2px;
+  background-color: color-mix(in srgb, #0d9488 14%, transparent);
+}
+
+.llm-panel .llm-tr-batch-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 12em;
+  overflow: auto;
+}
+
+.llm-panel .llm-tr-batch-list:empty,
+.llm-panel .llm-tr-batch-warning:empty,
+.llm-panel .llm-tr-batch-feedback:empty {
+  display: none;
+}
+
+.llm-panel #llm-tr-begin-batch {
+  justify-self: start;
+}
+
+.llm-panel .llm-tr-batch-feedback,
+.llm-panel .llm-tr-batch-warning,
+.llm-panel .llm-tr-queue-saved {
+  font-size: var(--llm-fs-11, 11px);
+  overflow-wrap: anywhere;
+}
+
+.llm-panel .llm-tr-batch-warning {
+  border-inline-start: 3px solid var(--accent-orange, #b45309);
+  padding-inline-start: 6px;
+}
+
+.llm-panel .llm-tr-queue-saved {
+  user-select: text;
+  direction: ltr;
+  text-align: start;
+}
+
 .llm-tr-output-options {
   margin-top: 4px;
 }

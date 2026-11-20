@@ -10,19 +10,15 @@
 import { config } from "../../../package.json";
 import { getPanelLang } from "../contextPanel/i18n";
 import { getTranslateMenuCopy, type TranslateMenuCopy } from "./menuI18n";
-import { describeAddResult, getQueueCopy, type QueueCopy } from "./queueI18n";
-import { readSavedTranslateOptions } from "./translatePrefs";
+import { getQueueCopy, type QueueCopy } from "./queueI18n";
+import { stageLibraryItems, startSingleLibraryItem } from "./translationBatch";
+import { batchCopy } from "./translationBatchStrings";
 import {
-  findExistingTranslations,
   findPdfAttachment,
   pickAttachmentToOpen,
-  type TranslationOutputKind,
 } from "./translationAttachment";
-import type { QueueState, QueueSummary } from "./translationQueue";
-import {
-  enqueueLibraryItems,
-  getTranslationQueue,
-} from "./translationQueueService";
+import type { QueueBatchResult } from "./translationQueue";
+import { getTranslationQueue } from "./translationQueueService";
 
 declare const Services: any;
 
@@ -85,49 +81,10 @@ async function openInReader(item: Zotero.Item | null): Promise<void> {
   }
 }
 
-/**
- * Ask what to do when the item already has this translation.
- * @returns "open" | "translate" | "cancel"
- */
-function promptExistingTranslation(
-  targetLang: string,
-): "open" | "translate" | "cancel" {
-  const strings = copy();
-  const prompt = Services.prompt;
-  const choice = prompt.confirmEx(
-    Zotero.getMainWindow(),
-    strings.progressTitle,
-    strings.existsPrompt(targetLang),
-    prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_IS_STRING +
-      prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
-      prompt.BUTTON_POS_2 * prompt.BUTTON_TITLE_IS_STRING,
-    strings.openExisting,
-    null,
-    strings.translateAgain,
-    null,
-    {},
-  );
-  if (choice === 0) return "open";
-  if (choice === 2) return "translate";
-  return "cancel";
-}
-
 /* ── Queue-backed flow ── */
 
 function queueCopy(): QueueCopy {
   return getQueueCopy(getPanelLang());
-}
-
-/** "2/5": position of the running document among those not skipped. */
-function runningPosition(state: QueueState): { index: number; total: number } {
-  const counted = state.items.filter((item) => item.status !== "skipped");
-  const finished = counted.filter((item) =>
-    ["done", "failed", "cancelled"].includes(item.status),
-  ).length;
-  return {
-    index: Math.min(counted.length, finished + 1),
-    total: counted.length,
-  };
 }
 
 let progressWindow: ProgressWindow | null = null;
@@ -163,7 +120,7 @@ function renderQueueProgress(): void {
     return;
   }
   const strings = queueCopy();
-  const { index, total } = runningPosition(state);
+  const { index, total } = queue.getBatchPosition();
   const page =
     typeof running.pageCurrent === "number" && running.pageTotal
       ? ` · ${copy().page(running.pageCurrent, running.pageTotal)}`
@@ -188,24 +145,50 @@ function renderQueueProgress(): void {
   }
 }
 
-function onQueueDrained(summary: QueueSummary): void {
+function onQueueDrained(result: QueueBatchResult): void {
   closeProgressWindow(progressWindow);
   progressWindow = null;
+  if (!result.done && !result.failed && !result.cancelled && !result.skipped)
+    return;
+  const strings = queueCopy();
+  const cancelled = result.cancelled
+    ? `${strings.separator}${strings.status.cancelled}: ${result.cancelled}`
+    : "";
   notify(
-    queueCopy().batchDone(summary.done, summary.failed, summary.skipped),
-    summary.failed ? "fail" : "success",
+    strings.batchDone(result.done, result.failed, result.skipped) + cancelled,
+    result.failed ? "fail" : "success",
   );
   // Opening a reader tab per document would bury the user in tabs; do it
   // only when a single document was translated.
-  const finished = getTranslationQueue()
-    .getState()
-    .items.filter((item) => item.status === "done");
-  if (summary.done === 1 && summary.failed === 0 && finished.length) {
-    const ids = finished[finished.length - 1].resultItemIDs || [];
+  if (
+    result.done === 1 &&
+    !result.failed &&
+    !result.cancelled &&
+    !result.skipped &&
+    result.lastDone
+  ) {
+    const ids = result.lastDone.resultItemIDs || [];
     void openInReader(
       pickAttachmentToOpen(ids.map((id) => Zotero.Items.get(id))),
     );
   }
+}
+
+/** Say once, after startup, that a queue from the last session is waiting. */
+function announceRestoredQueue(): void {
+  setTimeout(() => {
+    try {
+      const queue = getTranslationQueue();
+      const state = queue.getState();
+      if (!state.paused || state.pauseKind !== "restored") return;
+      const waiting = queue.getSummary().queued;
+      if (!waiting) return;
+      const strings = queueCopy();
+      notify(`${strings.title}: ${waiting}\n${strings.pausedHint}`, "default");
+    } catch {
+      /* a missed reminder is harmless; the tab shows the queue */
+    }
+  }, 8000);
 }
 
 function watchQueue(): void {
@@ -215,55 +198,20 @@ function watchQueue(): void {
   unsubscribeDrained = queue.onDrained(onQueueDrained);
 }
 
-/**
- * One selected item that is already translated: offer to open it instead of
- * silently skipping it. Batches follow the tab's "skip" option instead.
- * @returns false when nothing should be queued.
- */
-async function confirmSingleExisting(item: Zotero.Item): Promise<boolean> {
-  const attachment = findPdfAttachment(item);
-  if (!attachment) return true;
-  const options = readSavedTranslateOptions();
-  const wanted: TranslationOutputKind[] = [];
-  if (options.generateMono || !options.generateDual) wanted.push("mono");
-  if (options.generateDual) wanted.push("dual");
-  const existing = findExistingTranslations(attachment, options.targetLang);
-  if (!wanted.every((kind) => existing[kind])) return true;
-  const choice = promptExistingTranslation(options.targetLang);
-  if (choice === "open") {
-    await openInReader(
-      pickAttachmentToOpen(wanted.map((kind) => existing[kind])),
-    );
-  }
-  return choice === "translate";
-}
-
 async function addToQueue(items: Zotero.Item[]): Promise<void> {
-  const single = items.length === 1;
-  if (single && !(await confirmSingleExisting(items[0]))) return;
   watchQueue();
-  const result = await enqueueLibraryItems(
-    items,
-    // The user just chose "translate again" for this one document.
-    single ? { skipExisting: false } : {},
-  );
-  if (result.cancelled) return;
-  if (result.noModel) {
-    notify(copy().noModel, "fail");
+  if (items.length === 1) {
+    await startSingleLibraryItem(items[0]);
+    if (getTranslationQueue().getState().paused)
+      notify(queueCopy().pausedHint, "default");
     return;
   }
-  if (!result.added && !result.skipped && !result.duplicates) {
-    notify(copy().noPdf, "fail");
-    return;
-  }
-  const strings = queueCopy();
-  const lines = [describeAddResult(strings, result)];
-  if (getTranslationQueue().getState().paused) lines.push(strings.pausedHint);
-  notify(lines.join("\n"), "default");
+  const result = await stageLibraryItems(items);
+  notify(`${batchCopy().staged(result)}\n${batchCopy().prepared}`, "default");
 }
 
 function onAddCommand(items: Zotero.Item[] | undefined): void {
-  const selected = (items || []).filter((item) => findPdfAttachment(item));
+  const selected = items || [];
   if (!selected.length || starting) return;
   starting = true;
   void addToQueue(selected)
@@ -309,7 +257,12 @@ export function registerTranslateMenu(): void {
           ).length;
           context.setVisible(count > 0);
           context.setEnabled(count > 0 && !starting);
-          context.menuElem.setAttribute("label", queueCopy().menuAdd(count));
+          context.menuElem.setAttribute(
+            "label",
+            (context.items || []).length > 1
+              ? batchCopy().menuAdd(count)
+              : queueCopy().menuAdd(count),
+          );
         },
         onCommand: (_event, context) => onAddCommand(context.items),
       },
@@ -332,7 +285,10 @@ export function registerTranslateMenu(): void {
     ],
   });
   registered = Boolean(result);
-  if (registered) watchQueue();
+  if (registered) {
+    watchQueue();
+    announceRestoredQueue();
+  }
 }
 
 export function unregisterTranslateMenu(): void {

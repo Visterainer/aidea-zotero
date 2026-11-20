@@ -69,6 +69,57 @@ describe("translation queue view and strings", function () {
     );
   });
 
+  it("words error codes and flags results that finished with errors", function () {
+    const strings = i18n.getQueueCopy("en-US");
+    const text = {
+      pdfMissing: "No PDF file was found for this item.",
+      withErrors: (count: number) => `${count} engine errors`,
+    };
+    assert.equal(
+      view.describeQueueItem(
+        item({ status: "failed", error: "@pdf_missing" }),
+        strings,
+        text,
+      ),
+      "Failed: No PDF file was found for this item.",
+    );
+    assert.equal(
+      view.describeQueueItem(
+        item({ status: "done", warningCount: 3 }),
+        strings,
+        text,
+      ),
+      "Done · 3 engine errors",
+    );
+  });
+
+  it("rebuilds the list only when rows or buttons change", function () {
+    const state = (
+      percent: number,
+      status: QueueItem["status"],
+    ): QueueState => ({
+      paused: false,
+      items: [item({ status, percent })],
+    });
+    const key = view.queueStructureKey;
+    assert.equal(
+      key(state(10, "running"), "en-US"),
+      key(state(55, "running"), "en-US"),
+    );
+    assert.notEqual(
+      key(state(55, "running"), "en-US"),
+      key(state(100, "done"), "en-US"),
+    );
+    assert.notEqual(
+      key(state(10, "running"), "en-US"),
+      key(state(10, "running"), "zh-CN"),
+    );
+    assert.notEqual(
+      key(state(0, "queued"), "en-US"),
+      key({ ...state(0, "queued"), paused: true, pauseKind: "user" }, "en-US"),
+    );
+  });
+
   it("offers only the actions that make sense for a row", function () {
     const actions = view.queueRowActions;
     assert.deepEqual(actions(item({ status: "running" })), ["cancel"]);
@@ -83,7 +134,8 @@ describe("translation queue view and strings", function () {
     ]);
     assert.deepEqual(actions(item({ status: "done" })), ["remove"]);
     assert.deepEqual(actions(item({ status: "failed" })), ["retry", "remove"]);
-    assert.deepEqual(actions(item({ status: "skipped" })), ["retry", "remove"]);
+    assert.deepEqual(actions(item({ status: "skipped" })), ["remove"]);
+    assert.deepEqual(actions(item({ status: "cancelled" })), ["remove"]);
   });
 
   it("counts finished documents without the skipped ones", function () {
@@ -101,6 +153,109 @@ describe("translation queue view and strings", function () {
       finished: 2,
       total: 4,
     });
+  });
+
+  it("reports partial delivery with the failure, even after the engine stopped", function () {
+    const strings = i18n.getQueueCopy("en-US");
+    const partial = { done: 2, total: 4 };
+    for (const status of ["running", "failed", "done"] as const) {
+      const line = view.describeQueueItem(
+        item({ status, error: "copy failed", deliveryProgress: partial }),
+        strings,
+      );
+      assert.include(line, "2/4");
+      if (status === "failed") assert.include(line, "copy failed");
+    }
+  });
+
+  it("consumes explicit overwrite consent once, without reading or writing a pref", function () {
+    const field = { checked: true };
+    const body = {
+      querySelector: (s: string) => (s === "#llm-tr-overwrite" ? field : null),
+    } as Element;
+    assert.isTrue(view.takeTabOverwrite(body));
+    assert.isFalse(field.checked);
+    assert.isFalse(view.takeTabOverwrite(body));
+  });
+
+  it("accepts only explicit Zotero IDs, never borrowing the selection or reading files", async function () {
+    const { getZoteroDragItemIds } =
+      await import("../../src/modules/contextPanel/setupHandlers/controllers/fileIntakeController");
+    const drag = (types: string[], raw: string) =>
+      ({
+        dataTransfer: {
+          types,
+          getData: (key: string) => (key === "zotero/item" ? raw : ""),
+          get files() {
+            throw new Error("Unexpected file intake");
+          },
+        },
+      }) as unknown as DragEvent;
+    const stub = (globalThis as any).Zotero;
+    const previous = stub.getActiveZoteroPane;
+    stub.getActiveZoteroPane = () => ({
+      getSelectedItems: () => [{ id: 34 }, { id: 56 }, { id: 78 }],
+    });
+    try {
+      assert.deepEqual(
+        getZoteroDragItemIds(drag(["Files", "zotero/item"], "12,34,12")),
+        [12, 34],
+      );
+      for (const [types, value] of [
+        [["Files"], "12"],
+        [["text/plain"], "56"],
+        [["zotero/item"], ""],
+        [["zotero/item"], "file:///paper-123.pdf"],
+        [["zotero/item"], "-12"],
+      ] as [string[], string][]) {
+        assert.deepEqual(getZoteroDragItemIds(drag(types, value)), []);
+      }
+    } finally {
+      stub.getActiveZoteroPane = previous;
+    }
+  });
+
+  it("strictly validates both groups and rejects a checked folder without a path", async function () {
+    const { tabOutputIssue } =
+      await import("../../src/modules/pdfTranslator/translateBatchView");
+    const { batchCopy } =
+      await import("../../src/modules/pdfTranslator/translationBatchStrings");
+    const fields: Record<string, { checked?: boolean; value?: string }> = {};
+    const body = {
+      querySelector: (s: string) => fields[s],
+    } as unknown as Element;
+    const c = batchCopy();
+    assert.equal(tabOutputIssue(body), c.needDestination);
+    fields["#llm-tr-output-attach"] = { checked: true };
+    assert.equal(tabOutputIssue(body), c.needFormat);
+    fields["#llm-tr-dual"] = { checked: true };
+    assert.equal(tabOutputIssue(body), "");
+    fields["#llm-tr-output-save-dir"] = { checked: true };
+    fields["#llm-tr-output-dir"] = { value: " " };
+    assert.equal(tabOutputIssue(body), c.needFolder);
+    fields["#llm-tr-output-dir"].value = "/folder";
+    fields["#llm-tr-output-attach"].checked = false;
+    assert.equal(tabOutputIssue(body), "");
+  });
+
+  it("localizes the preflight and warns about annotations only for actual replacements", async function () {
+    const { batchCopy } =
+      await import("../../src/modules/pdfTranslator/translationBatchStrings");
+    for (const { uiCode } of languages.UI_LANGUAGE_OPTIONS) {
+      const c = batchCopy(uiCode);
+      const s = {
+        documents: 15,
+        skip: 12,
+        generate: 3,
+        missing: 6,
+        replace: 4,
+      };
+      for (const count of Object.values(s))
+        assert.include(c.confirm(s), String(count));
+      assert.include(c.confirm(s), c.overwriteWarning);
+      assert.notInclude(c.confirm({ ...s, replace: 0 }), c.overwriteWarning);
+      if (uiCode !== "en-US") assert.notEqual(c.drop, batchCopy("en-US").drop);
+    }
   });
 
   it("has complete strings for every panel language", function () {

@@ -36,7 +36,6 @@ export type QueueCopy = {
   btnFirst: string;
   optAttach: string;
   optSaveToDir: string;
-  optSkipExisting: string;
   storageNote: string;
   needFolder: string;
 };
@@ -95,8 +94,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "Cancel",
     btnFirst: "Move to front",
     optAttach: "Add the translation to the Zotero item",
-    optSaveToDir: "Also save to the output folder",
-    optSkipExisting: "Batch: skip documents that are already translated",
+    optSaveToDir: "Save to the output folder",
     storageNote:
       "Translations added to items count toward Zotero storage; two output formats take twice the space.",
     needFolder:
@@ -145,8 +143,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "取消",
     btnFirst: "移到最前",
     optAttach: "将译文添加到对应的 Zotero 条目",
-    optSaveToDir: "同时保存到输出文件夹",
-    optSkipExisting: "批量添加时跳过已有译文的文档",
+    optSaveToDir: "保存到输出文件夹",
     storageNote:
       "添加到条目的译文会占用 Zotero 存储空间；同时生成两种格式时占用翻倍。",
     needFolder: "请选择输出文件夹，或勾选“添加到 Zotero 条目”。",
@@ -194,8 +191,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "取消",
     btnFirst: "移到最前",
     optAttach: "將譯文加入對應的 Zotero 條目",
-    optSaveToDir: "同時儲存到輸出資料夾",
-    optSkipExisting: "批次加入時略過已有譯文的文件",
+    optSaveToDir: "儲存到輸出資料夾",
     storageNote:
       "加入條目的譯文會佔用 Zotero 儲存空間；同時產生兩種格式時佔用加倍。",
     needFolder: "請選擇輸出資料夾，或勾選「加入 Zotero 條目」。",
@@ -252,8 +248,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "キャンセル",
     btnFirst: "先頭へ",
     optAttach: "訳文を Zotero アイテムに追加",
-    optSaveToDir: "出力フォルダーにも保存",
-    optSkipExisting: "一括追加時に翻訳済みの文書をスキップ",
+    optSaveToDir: "出力フォルダーに保存",
     storageNote:
       "アイテムに追加した訳文は Zotero のストレージを使用します。2 形式を出力すると使用量は 2 倍になります。",
     needFolder:
@@ -309,8 +304,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "취소",
     btnFirst: "맨 앞으로",
     optAttach: "번역본을 Zotero 항목에 추가",
-    optSaveToDir: "출력 폴더에도 저장",
-    optSkipExisting: "일괄 추가 시 이미 번역된 문서 건너뛰기",
+    optSaveToDir: "출력 폴더에 저장",
     storageNote:
       "항목에 추가한 번역본은 Zotero 저장 공간을 사용하며, 두 형식을 모두 출력하면 두 배가 됩니다.",
     needFolder: "출력 폴더를 선택하거나 'Zotero 항목에 추가'를 켜세요.",
@@ -368,8 +362,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "Annuler",
     btnFirst: "Placer en tête",
     optAttach: "Ajouter la traduction à l'élément Zotero",
-    optSaveToDir: "Enregistrer aussi dans le dossier de sortie",
-    optSkipExisting: "Par lot : ignorer les documents déjà traduits",
+    optSaveToDir: "Enregistrer dans le dossier de sortie",
     storageNote:
       "Les traductions ajoutées aux éléments occupent le stockage Zotero ; deux formats de sortie doublent l'espace utilisé.",
     needFolder:
@@ -428,8 +421,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "Abbrechen",
     btnFirst: "Nach vorn",
     optAttach: "Übersetzung zum Zotero-Eintrag hinzufügen",
-    optSaveToDir: "Zusätzlich im Ausgabeordner speichern",
-    optSkipExisting: "Stapel: bereits übersetzte Dokumente überspringen",
+    optSaveToDir: "Im Ausgabeordner speichern",
     storageNote:
       "Zu Einträgen hinzugefügte Übersetzungen belegen Zotero-Speicher; zwei Ausgabeformate verdoppeln den Platzbedarf.",
     needFolder:
@@ -488,8 +480,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "Cancelar",
     btnFirst: "Mover al principio",
     optAttach: "Añadir la traducción al elemento de Zotero",
-    optSaveToDir: "Guardar también en la carpeta de salida",
-    optSkipExisting: "Por lotes: omitir documentos ya traducidos",
+    optSaveToDir: "Guardar en la carpeta de salida",
     storageNote:
       "Las traducciones añadidas a los elementos ocupan almacenamiento de Zotero; dos formatos de salida duplican el espacio.",
     needFolder:
@@ -548,8 +539,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "Отмена",
     btnFirst: "В начало",
     optAttach: "Добавлять перевод к элементу Zotero",
-    optSaveToDir: "Также сохранять в папку вывода",
-    optSkipExisting: "Пакетно: пропускать уже переведённые документы",
+    optSaveToDir: "Сохранять в папку вывода",
     storageNote:
       "Переводы, добавленные к элементам, занимают хранилище Zotero; два формата вывода занимают вдвое больше места.",
     needFolder:
@@ -608,8 +598,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "Cancelar",
     btnFirst: "Mover para o início",
     optAttach: "Adicionar a tradução ao item do Zotero",
-    optSaveToDir: "Salvar também na pasta de saída",
-    optSkipExisting: "Em lote: ignorar documentos já traduzidos",
+    optSaveToDir: "Salvar na pasta de saída",
     storageNote:
       "As traduções adicionadas aos itens ocupam o armazenamento do Zotero; dois formatos de saída ocupam o dobro do espaço.",
     needFolder:
@@ -668,9 +657,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "لغو",
     btnFirst: "انتقال به ابتدای صف",
     optAttach: "پیوست کردن ترجمه به مورد کتابخانهٔ Zotero",
-    optSaveToDir: "ذخیرهٔ یک نسخه در پوشهٔ خروجی",
-    optSkipExisting:
-      "در ترجمهٔ گروهی، از سندهایی که قبلاً ترجمه شده‌اند صرف‌نظر شود",
+    optSaveToDir: "ذخیره در پوشهٔ خروجی",
     storageNote:
       "ترجمه‌های پیوست‌شده از فضای ذخیره‌سازی Zotero استفاده می‌کنند. ذخیرهٔ هر دو قالب خروجی به دو برابر فضا نیاز دارد.",
     needFolder:
@@ -729,8 +716,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "إلغاء",
     btnFirst: "نقل إلى البداية",
     optAttach: "إضافة الترجمة إلى عنصر Zotero",
-    optSaveToDir: "الحفظ أيضًا في مجلد الإخراج",
-    optSkipExisting: "عند الإضافة المجمّعة: تخطي المستندات المترجمة مسبقًا",
+    optSaveToDir: "الحفظ في مجلد الإخراج",
     storageNote:
       "الترجمات المضافة إلى العناصر تستهلك مساحة تخزين Zotero، وإخراج تنسيقين يضاعف المساحة.",
     needFolder: "اختر مجلد إخراج أو فعّل الإضافة إلى عنصر Zotero.",
@@ -788,8 +774,7 @@ const COPY: Record<PanelLang, QueueCopy> = {
     btnCancel: "रद्द करें",
     btnFirst: "सबसे आगे करें",
     optAttach: "अनुवाद को Zotero आइटम में जोड़ें",
-    optSaveToDir: "आउटपुट फ़ोल्डर में भी सहेजें",
-    optSkipExisting: "बैच: पहले से अनूदित दस्तावेज़ छोड़ें",
+    optSaveToDir: "आउटपुट फ़ोल्डर में सहेजें",
     storageNote:
       "आइटम में जोड़े गए अनुवाद Zotero संग्रहण का उपयोग करते हैं; दो आउटपुट प्रारूप दोगुनी जगह लेते हैं।",
     needFolder: "आउटपुट फ़ोल्डर चुनें, या Zotero आइटम में जोड़ना चालू करें।",

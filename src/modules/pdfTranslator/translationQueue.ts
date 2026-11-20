@@ -10,6 +10,7 @@
  * -------------------------------------------------------------------------*/
 
 import type { TranslateEvent } from "./index";
+import type { OutputPlan } from "./translationOutputs";
 import type { SavedTranslateOptions } from "./translatePrefs";
 import type {
   TranslationJobHandle,
@@ -33,6 +34,16 @@ export interface QueueOutputTarget {
   attach: boolean;
   /** Also copy them into this folder; "" for none. */
   saveDir: string;
+  /** Frozen with the batch, not read from live preferences at run time. */
+  overwrite?: boolean;
+}
+
+interface PendingDelivery {
+  plan: OutputPlan;
+  files: string[];
+  dir: string;
+  /** Satisfied cell IDs, including existing outputs we must not replace. */
+  completed: string[];
 }
 
 export interface QueueItem {
@@ -41,18 +52,29 @@ export interface QueueItem {
   title: string;
   status: QueueItemStatus;
   percent: number;
+  /** View-only: the finished PDF is already being imported/copied. */
+  filing?: boolean;
   pageCurrent?: number;
   pageTotal?: number;
   /** Why the item failed. */
   error?: string;
+  /** Errors the engine logged although it produced a result. */
+  warningCount?: number;
   // Settings are captured when the document is added, so one batch is
   // translated consistently even if the tab is changed while it runs.
   modelName: string;
   providerId: string;
   options: SavedTranslateOptions;
   output: QueueOutputTarget;
+  /** Replacement scope approved for this document at submission. */
+  replaceIds?: string[];
+  pendingDelivery?: PendingDelivery;
+  deliveryProgress?: { done: number; total: number };
+  savedFiles?: string[];
   addedAt: number;
   finishedAt?: number;
+  /** Directory retained when the engine produced unfiled outputs. */
+  retainedDir?: string;
   /** Attachments that hold the result, for "open". */
   resultItemIDs?: number[];
 }
@@ -83,11 +105,27 @@ export interface QueueSummary {
   skipped: number;
 }
 
+/** What happened between the queue starting work and running out of it. */
+export interface QueueBatchResult {
+  done: number;
+  failed: number;
+  cancelled: number;
+  skipped: number;
+  /** The last document that finished, for "open the result". */
+  lastDone: QueueItem | null;
+}
+
+/** Marks an error the views translate instead of showing verbatim. */
+export const QUEUE_ERROR_PDF_MISSING = "@pdf_missing";
+
 export interface QueueAddEntry {
+  /** The preview could not safely inspect this specific document. */
+  preflightError?: string;
   attachmentID: number;
   title: string;
   /** The item already has this translation and the user chose to skip. */
   alreadyTranslated?: boolean;
+  replaceIds?: string[];
 }
 
 export interface QueueAddSettings {
@@ -115,13 +153,24 @@ export interface QueueDeps {
   /** True while a translation the queue did not start is running. */
   isOtherTranslationRunning(): boolean;
   resolvePdfPath(attachmentID: number): Promise<string | null>;
-  deliver(
+  inspect?(item: QueueItem, pdfPath: string): Promise<OutputPlan>;
+  publish?(
+    plan: OutputPlan,
+    files: string[],
+    completed: string[],
+    onCell: (cellId: string, itemID?: number) => void,
+  ): Promise<{ itemIDs: number[]; savedFiles: string[] }>;
+  /** Confine paths to the real queue staging root and reject links. Required
+   * to resume a delivery restored from preferences. */
+  validateStaging?(dir: string, files: string[]): Promise<boolean>;
+  /** Compatibility path for callers without an output planner. */
+  deliver?(
     attachmentID: number,
     files: string[],
     output: QueueOutputTarget,
   ): Promise<QueueDeliverResult>;
   createOutputDir(): Promise<string>;
-  removeDir(dir: string): Promise<void>;
+  removeDir(dir: string, deliveredFiles?: string[]): Promise<boolean | void>;
   load(): string;
   save(json: string): void;
   now(): number;
@@ -139,18 +188,30 @@ const ACTIVE: QueueItemStatus[] = ["queued", "running", "interrupted"];
  */
 export function classifyFailure(message: string): QueuePauseKind | "document" {
   const text = String(message || "").toLowerCase();
-  if (/\b429\b|rate.?limit|too many requests|quota|usage limit/.test(text)) {
+  // Log records also contain page numbers, token counts and foo.py:429.
+  // Only interpret a number as a status when the diagnostic identifies it.
+  const status =
+    /\b(?:http(?:\/\d(?:\.\d)?)?\s+|(?:status(?: code)?|error code)\s*[:=]?\s*)(401|403|429)\b/g;
+  const codes = Array.from(text.matchAll(status), (match) => match[1]);
+  if (
+    codes.includes("429") ||
+    /\bratelimiterror\b|\brate[-_ ]limit(?:ed|s|[_ ]exceeded|[_ ]reached)?\b|too many requests|insufficient_quota|quota exceeded|exceeded .*quota|usage limit/.test(
+      text,
+    )
+  ) {
     return "rate_limit";
   }
   if (
-    /\b40[13]\b|unauthori[sz]ed|invalid.{0,12}(api.?key|token)|not logged in|sign in again|credential/.test(
+    codes.includes("401") ||
+    codes.includes("403") ||
+    /unauthori[sz]ed|403 forbidden|authenticationerror|permissiondeniederror|invalid.{0,12}(api.?key|token|credentials)|not logged in|sign in again/.test(
       text,
     )
   ) {
     return "credentials";
   }
   if (
-    /networkerror|econnrefused|econnreset|enotfound|etimedout|connection (refused|reset|error)|could not connect|failed to connect|proxy|name resolution|ssl|certificate/.test(
+    /networkerror|apiconnectionerror|apitimeouterror|urlopen error|econnrefused|econnreset|enotfound|etimedout|connection (refused|reset|error|aborted|timed out)|could not connect|failed to connect|cannot connect|name resolution|getaddrinfo|\bssl:|sslerror|certificate.verify|proxyerror|proxy connection|tunnel connection failed/.test(
       text,
     )
   ) {
@@ -178,6 +239,66 @@ function isQueueItem(value: unknown): value is QueueItem {
   );
 }
 
+function validPlan(plan: OutputPlan | undefined): plan is OutputPlan {
+  if (
+    !plan ||
+    typeof plan.overwrite !== "boolean" ||
+    !Array.isArray(plan.cells)
+  )
+    return false;
+  const ids = new Set<string>();
+  for (const cell of plan.cells) {
+    if (
+      !cell ||
+      typeof cell.id !== "string" ||
+      !cell.id ||
+      ids.has(cell.id) ||
+      (cell.kind !== "mono" && cell.kind !== "dual") ||
+      typeof cell.exists !== "boolean"
+    )
+      return false;
+    ids.add(cell.id);
+  }
+  return (
+    Array.isArray(plan.generateKinds) &&
+    plan.generateKinds.every((kind) => kind === "mono" || kind === "dual")
+  );
+}
+
+/** A checkpoint must never turn the publisher/cleanup manifest into a way to
+ * read or remove an unrelated file. Only direct PDF children are expected.
+ * The service additionally checks the *actual* staging root and symlinks. */
+function validManifest(dir: string, files: string[]): boolean {
+  if (typeof dir !== "string" || !Array.isArray(files) || !files.length)
+    return false;
+  // On POSIX a backslash is a filename character, not a separator. Treating
+  // it as one could make a sibling of the job directory look like its child.
+  const windows = /^(?:[a-z]:[\\/]|\\\\|\/\/)/i.test(dir);
+  const normalize = (path: string) =>
+    windows ? path.replace(/\\/g, "/") : path;
+  const folder = normalize(dir);
+  if (
+    !/^(?:\/|[a-z]:\/)/i.test(folder) ||
+    folder.includes("\0") ||
+    /\/$|(?:^|\/)\.{1,2}(?:\/|$)/.test(folder)
+  )
+    return false;
+  return files.every((file) => {
+    if (typeof file !== "string") return false;
+    const path = normalize(file);
+    const slash = path.lastIndexOf("/");
+    const name = path.slice(slash + 1);
+    return (
+      path.slice(0, slash) === folder &&
+      !path.includes("\0") &&
+      (!windows || !name.includes(":")) &&
+      /.+\.pdf$/i.test(name)
+    );
+  });
+}
+
+type SettledStatus = "done" | "failed" | "cancelled" | "skipped";
+
 export class TranslationQueue {
   private items: QueueItem[] = [];
   private paused = false;
@@ -186,10 +307,15 @@ export class TranslationQueue {
   private current: { id: string; handle: TranslationJobHandle | null } | null =
     null;
   private listeners = new Set<() => void>();
-  private drainListeners = new Set<(summary: QueueSummary) => void>();
+  private drainListeners = new Set<(result: QueueBatchResult) => void>();
+  // One terminal result per row in the current batch, including rows removed
+  // from the visible history. Retry withdraws its old result.
+  private settled = new Map<string, SettledStatus>();
+  private deliveringId: string | null = null;
+  // Compatibility for pure in-memory publishers. A parsed preference can
+  // never be a member; restored paths must pass the service's FS guard.
+  private freshDeliveries = new WeakSet<PendingDelivery>();
   private recheckScheduled = false;
-  /** True from the first start until the queue has nothing left to do. */
-  private batchActive = false;
   private idCounter = 0;
 
   constructor(private readonly deps: QueueDeps) {
@@ -200,7 +326,10 @@ export class TranslationQueue {
 
   getState(): QueueState {
     return {
-      items: this.items.map((item) => ({ ...item })),
+      items: this.items.map((item) => ({
+        ...item,
+        filing: item.id === this.deliveringId,
+      })),
       paused: this.paused,
       pauseKind: this.paused ? this.pauseKind : undefined,
       pauseDetail: this.paused ? this.pauseDetail : undefined,
@@ -226,12 +355,26 @@ export class TranslationQueue {
 
   getRunningItem(): QueueItem | null {
     const item = this.current && this.find(this.current.id);
-    return item ? { ...item } : null;
+    return item?.status === "running"
+      ? { ...item, filing: item.id === this.deliveringId }
+      : null;
   }
 
   /** True while a document is being translated by the queue. */
   isRunning(): boolean {
     return this.current !== null;
+  }
+
+  /** "2 of 5" for the document being translated, within the current batch. */
+  getBatchPosition(): { index: number; total: number } {
+    const finished = [...this.settled.values()].filter(
+      (status) => status !== "skipped",
+    ).length;
+    const pending = this.items.filter((item) =>
+      ACTIVE.includes(item.status),
+    ).length;
+    const total = finished + pending;
+    return { index: Math.min(total, finished + 1), total };
   }
 
   hasPending(): boolean {
@@ -244,7 +387,7 @@ export class TranslationQueue {
   }
 
   /** Called once each time the queue runs out of work. */
-  onDrained(listener: (summary: QueueSummary) => void): () => void {
+  onDrained(listener: (result: QueueBatchResult) => void): () => void {
     this.drainListeners.add(listener);
     return () => this.drainListeners.delete(listener);
   }
@@ -258,28 +401,47 @@ export class TranslationQueue {
         .filter((item) => ACTIVE.includes(item.status))
         .map((item) => item.attachmentID),
     );
+    const skippedIds: string[] = [];
     for (const entry of entries) {
       if (pendingIDs.has(entry.attachmentID)) {
         result.duplicates += 1;
         continue;
       }
       pendingIDs.add(entry.attachmentID);
-      const skipped = entry.alreadyTranslated === true;
+      // Preflight is a snapshot. If inspection is available, check the actual
+      // destinations when this row reaches the front of the queue instead.
+      const skipped = !this.deps.inspect && entry.alreadyTranslated === true;
+      const id = this.nextId();
+      if (entry.preflightError) this.settled.set(id, "failed");
+      else if (skipped) skippedIds.push(id);
       this.items.push({
-        id: this.nextId(),
+        id,
         attachmentID: entry.attachmentID,
         title: entry.title,
-        status: skipped ? "skipped" : "queued",
+        status: entry.preflightError
+          ? "failed"
+          : skipped
+            ? "skipped"
+            : "queued",
+        ...(entry.preflightError
+          ? { error: entry.preflightError.slice(0, 1600) }
+          : {}),
         percent: 0,
         modelName: settings.modelName,
         providerId: settings.providerId,
         options: { ...settings.options },
         output: { ...settings.output },
+        ...(entry.replaceIds ? { replaceIds: [...entry.replaceIds] } : {}),
         addedAt: this.deps.now(),
-        ...(skipped ? { finishedAt: this.deps.now() } : {}),
+        ...(skipped || entry.preflightError
+          ? { finishedAt: this.deps.now() }
+          : {}),
       });
       if (skipped) result.skipped += 1;
       else result.added += 1;
+    }
+    if (this.hasPending()) {
+      for (const id of skippedIds) this.settled.set(id, "skipped");
     }
     this.trim();
     this.changed();
@@ -290,11 +452,13 @@ export class TranslationQueue {
   /** Stop one document. A running one is cancelled; a waiting one is dropped. */
   cancel(id: string): void {
     const item = this.find(id);
-    if (!item) return;
+    if (!item || !ACTIVE.includes(item.status) || id === this.deliveringId)
+      return;
     if (this.current?.id === id) {
       // Marked first: the job may settle synchronously.
       item.status = "cancelled";
       item.finishedAt = this.deps.now();
+      this.settled.set(item.id, "cancelled");
       try {
         this.current.handle?.cancel();
       } catch {
@@ -303,23 +467,50 @@ export class TranslationQueue {
     } else if (item.status === "queued" || item.status === "interrupted") {
       item.status = "cancelled";
       item.finishedAt = this.deps.now();
+      this.settled.set(item.id, "cancelled");
     }
     this.changed();
+    this.pump();
   }
 
-  /** Put a finished document back in line. */
+  /** Retry only failures: a completed, skipped or cancelled row is history. */
   retry(id: string): void {
     const item = this.find(id);
-    if (!item || ACTIVE.includes(item.status)) return;
+    if (item && this.requeueFailure(item)) {
+      this.changed();
+      this.pump();
+    }
+  }
+
+  retryFailed(): void {
+    let changed = false;
+    for (const item of this.items) {
+      if (this.requeueFailure(item)) changed = true;
+    }
+    if (changed) {
+      this.changed();
+      this.pump();
+    }
+  }
+
+  private requeueFailure(item: QueueItem): boolean {
+    if (item.status !== "failed" || this.current?.id === item.id) return false;
+    this.settled.delete(item.id);
     item.status = "queued";
-    item.percent = 0;
-    item.pageCurrent = undefined;
-    item.pageTotal = undefined;
     item.error = undefined;
     item.finishedAt = undefined;
-    item.resultItemIDs = undefined;
-    this.changed();
-    this.pump();
+    // A filing retry must not discard the model's work or its receipts.
+    if (!("pendingDelivery" in item)) {
+      item.percent = 0;
+      item.pageCurrent = undefined;
+      item.pageTotal = undefined;
+      item.warningCount = undefined;
+      item.retainedDir = undefined;
+      item.deliveryProgress = undefined;
+      item.resultItemIDs = undefined;
+      item.savedFiles = undefined;
+    }
+    return true;
   }
 
   /** Remove a document that is not running from the list. */
@@ -327,11 +518,13 @@ export class TranslationQueue {
     if (this.current?.id === id) return;
     this.items = this.items.filter((item) => item.id !== id);
     this.changed();
+    this.pump();
   }
 
   moveToFront(id: string): void {
     const item = this.find(id);
-    if (!item || item.status !== "queued") return;
+    if (!item || (item.status !== "queued" && item.status !== "interrupted"))
+      return;
     const firstWaiting = this.items.findIndex(
       (other) => other.status === "queued" || other.status === "interrupted",
     );
@@ -357,7 +550,11 @@ export class TranslationQueue {
   stop(): void {
     this.setPaused("user", "");
     const running = this.current && this.find(this.current.id);
-    if (running && this.current) {
+    if (
+      running?.status === "running" &&
+      running.id !== this.deliveringId &&
+      this.current
+    ) {
       // Back in line rather than cancelled: "stop" is not "discard".
       running.status = "interrupted";
       try {
@@ -380,8 +577,12 @@ export class TranslationQueue {
   /* ── Internals ── */
 
   private nextId(): string {
-    this.idCounter += 1;
-    return `q${this.deps.now().toString(36)}-${this.idCounter}`;
+    const prefix = `q${this.deps.now().toString(36)}-`;
+    let id: string;
+    do {
+      id = prefix + ++this.idCounter;
+    } while (this.find(id) || this.settled.has(id));
+    return id;
   }
 
   private find(id: string): QueueItem | undefined {
@@ -398,7 +599,11 @@ export class TranslationQueue {
     let excess = this.items.length - MAX_ITEMS;
     if (excess <= 0) return;
     this.items = this.items.filter((item) => {
-      if (excess > 0 && !ACTIVE.includes(item.status)) {
+      if (
+        excess > 0 &&
+        !ACTIVE.includes(item.status) &&
+        !item.pendingDelivery
+      ) {
         excess -= 1;
         return false;
       }
@@ -421,15 +626,30 @@ export class TranslationQueue {
       status: item.status === "running" ? "interrupted" : item.status,
     }));
     // Never start spending the user's quota just because Zotero was opened.
-    if (this.hasPending()) this.setPaused("restored", "");
+    if (this.hasPending()) {
+      this.setPaused("restored", "");
+      const ledger = (parsed as { settled?: unknown }).settled;
+      if (Array.isArray(ledger))
+        for (const entry of ledger) {
+          if (
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            typeof entry[0] === "string" &&
+            ["done", "failed", "cancelled", "skipped"].includes(entry[1])
+          )
+            this.settled.set(entry[0], entry[1]);
+        }
+    }
   }
 
   private persist(): void {
-    try {
-      this.deps.save(JSON.stringify({ version: 1, items: this.items }));
-    } catch {
-      /* the queue still works for this session */
-    }
+    this.deps.save(
+      JSON.stringify({
+        version: 1,
+        items: this.items,
+        settled: [...this.settled],
+      }),
+    );
   }
 
   private notify(): void {
@@ -443,12 +663,16 @@ export class TranslationQueue {
   }
 
   private changed(): void {
-    this.persist();
+    try {
+      this.persist();
+    } catch {
+      /* Best effort for ordinary state; publication uses strict checkpoints. */
+    }
     this.notify();
   }
 
   private pump(): void {
-    if (this.paused || this.current) return;
+    if (this.current) return;
     // An interrupted document is simply first in line again.
     const next = this.items.find(
       (item) => item.status === "queued" || item.status === "interrupted",
@@ -457,7 +681,9 @@ export class TranslationQueue {
       this.finishBatch();
       return;
     }
-    if (this.deps.isOtherTranslationRunning()) {
+    if (this.paused) return;
+    const filingOnly = "pendingDelivery" in next;
+    if (!filingOnly && this.deps.isOtherTranslationRunning()) {
       // A translation started from the tab is running; wait for it.
       if (!this.recheckScheduled) {
         this.recheckScheduled = true;
@@ -468,13 +694,14 @@ export class TranslationQueue {
       }
       return;
     }
-    this.batchActive = true;
     this.current = { id: next.id, handle: null };
     next.status = "running";
-    next.percent = 0;
+    next.percent = filingOnly ? 100 : 0;
+    this.deliveringId = filingOnly ? next.id : null;
     next.error = undefined;
     this.changed();
     void this.runItem(next).finally(() => {
+      this.deliveringId = null;
       this.current = null;
       this.changed();
       this.pump();
@@ -482,12 +709,28 @@ export class TranslationQueue {
   }
 
   private finishBatch(): void {
-    if (!this.batchActive || this.hasPending()) return;
-    this.batchActive = false;
-    const summary = this.getSummary();
+    if (!this.settled.size || this.hasPending()) return;
+    const result: QueueBatchResult = {
+      done: 0,
+      failed: 0,
+      cancelled: 0,
+      skipped: 0,
+      lastDone: null,
+    };
+    for (const [id, status] of this.settled) {
+      result[status]++;
+      if (status === "done") result.lastDone = this.find(id) || null;
+    }
+    this.settled.clear();
+    // No work left to resume. A later batch must not be silently held by a
+    // pause-after-current request on the last document.
+    this.paused = false;
+    this.pauseKind = undefined;
+    this.pauseDetail = "";
+    this.changed();
     for (const listener of this.drainListeners) {
       try {
-        listener(summary);
+        listener(result);
       } catch {
         /* ignore */
       }
@@ -496,8 +739,9 @@ export class TranslationQueue {
 
   private fail(item: QueueItem, message: string): void {
     item.status = "failed";
-    item.error = message;
+    item.error = message.slice(0, 1600);
     item.finishedAt = this.deps.now();
+    this.settled.set(item.id, "failed");
   }
 
   /** The setup is broken: keep the document waiting and stop the queue. */
@@ -514,21 +758,49 @@ export class TranslationQueue {
   private async runItem(item: QueueItem): Promise<void> {
     let outputDir = "";
     let keepOutput = false;
+    let deliveredFiles: string[] | undefined;
     try {
+      if ("pendingDelivery" in item) {
+        // Do not restart generation. The publisher rechecks its destinations.
+        await this.publishPending(item);
+        return;
+      }
       const pdfPath = await this.deps.resolvePdfPath(item.attachmentID);
       if (item.status !== "running") return;
       if (!pdfPath) {
-        this.fail(item, "PDF file not found");
+        this.fail(item, QUEUE_ERROR_PDF_MISSING);
         return;
       }
+      let plan: OutputPlan | undefined;
+      if (this.deps.inspect) {
+        plan = await this.deps.inspect(item, pdfPath);
+        if (item.status !== "running") return;
+        if (!validPlan(plan))
+          throw new Error("Invalid translation output plan");
+        if (!plan.generateKinds.length) {
+          item.status = "skipped";
+          item.percent = 100;
+          item.finishedAt = this.deps.now();
+          this.settled.set(item.id, "skipped");
+          return;
+        }
+        if (!this.deps.publish) throw new Error("Missing output publisher");
+      }
       outputDir = await this.deps.createOutputDir();
+      if (item.status !== "running") return;
       const handle = this.deps.startJob(
         {
           pdfPath,
           outputDir,
           modelName: item.modelName,
           providerId: item.providerId,
-          options: item.options,
+          options: plan
+            ? {
+                ...item.options,
+                generateMono: plan.generateKinds.includes("mono"),
+                generateDual: plan.generateKinds.includes("dual"),
+              }
+            : item.options,
         },
         (event) => this.onJobEvent(item, event),
       );
@@ -538,11 +810,32 @@ export class TranslationQueue {
       const outcome = await handle.done;
       // cancel() and stop() set the final status themselves.
       if (item.status !== "running") return;
-      keepOutput = await this.applyOutcome(item, outcome);
+      if (outcome.status === "done") {
+        this.deliveringId = item.id;
+        item.percent = 100;
+        this.notify();
+      }
+      keepOutput = await this.applyOutcome(item, outcome, outputDir, plan);
+      if (outcome.status === "done") deliveredFiles = outcome.outputFiles;
     } catch (err) {
       if (item.status === "running") this.fail(item, errorText(err));
     } finally {
-      if (outputDir && !keepOutput) await this.deps.removeDir(outputDir);
+      if (outputDir && !keepOutput && !item.pendingDelivery) {
+        await this.cleanup(item, outputDir, deliveredFiles);
+      }
+    }
+  }
+
+  private async cleanup(
+    item: QueueItem,
+    dir: string,
+    files?: string[],
+  ): Promise<void> {
+    try {
+      if (await this.deps.removeDir(dir, files)) item.retainedDir = dir;
+    } catch {
+      // Cleanup is best effort, and can never undo successful publication.
+      item.retainedDir = dir;
     }
   }
 
@@ -567,14 +860,96 @@ export class TranslationQueue {
     this.notify();
   }
 
-  /** @returns true when the output folder must be kept. */
+  private async publishPending(item: QueueItem): Promise<void> {
+    const p = item.pendingDelivery;
+    if (
+      !p ||
+      !validPlan(p.plan) ||
+      !p.plan.cells.length ||
+      !p.plan.generateKinds.length ||
+      !validManifest(p.dir, p.files)
+    )
+      throw new Error(
+        "Invalid staged translation checkpoint; files left untouched",
+      );
+    const expected = new Set(p.plan.cells.map((c) => c.id));
+    if (
+      !Array.isArray(p.completed) ||
+      !p.completed.every((id) => expected.has(id)) ||
+      new Set(p.completed).size !== p.completed.length
+    )
+      throw new Error(
+        "Invalid staged translation receipts; files left untouched",
+      );
+
+    const checkpoint = () => {
+      item.deliveryProgress = {
+        done: p.completed.length,
+        total: expected.size,
+      };
+      this.persist(); // Fail closed: no destination write without a checkpoint.
+      this.notify();
+    };
+    checkpoint();
+    const safe = this.deps.validateStaging
+      ? await this.deps.validateStaging(p.dir, p.files)
+      : this.freshDeliveries.has(p);
+    if (!safe)
+      throw new Error(
+        "Cannot verify staged translation files; files left untouched",
+      );
+    if (!this.deps.publish) throw new Error("Missing output publisher");
+
+    const delivered = await this.deps.publish(
+      p.plan,
+      [...p.files],
+      [...p.completed],
+      (id, itemID) => {
+        if (!expected.has(id))
+          throw new Error("Unexpected publication receipt");
+        if (!p.completed.includes(id)) p.completed.push(id);
+        if (itemID !== undefined && !item.resultItemIDs?.includes(itemID))
+          (item.resultItemIDs ??= []).push(itemID);
+        checkpoint();
+      },
+    );
+    if (p.completed.length !== expected.size)
+      throw new Error(
+        `Incomplete publication (${p.completed.length}/${expected.size} outputs filed)`,
+      );
+
+    item.resultItemIDs = [
+      ...new Set([...(item.resultItemIDs ?? []), ...delivered.itemIDs]),
+    ];
+    item.savedFiles = delivered.savedFiles;
+    item.status = "done";
+    item.finishedAt = this.deps.now();
+    this.settled.set(item.id, "done");
+    delete item.pendingDelivery;
+    delete item.retainedDir;
+    try {
+      // A restart must see a terminal row *before* its staged inputs disappear.
+      this.persist();
+    } catch (err) {
+      item.status = "running";
+      item.pendingDelivery = p;
+      item.retainedDir = p.dir;
+      throw err;
+    }
+    await this.cleanup(item, p.dir, p.files);
+  }
+
+  /** @returns true when the output folder must be kept or was already handled. */
   private async applyOutcome(
     item: QueueItem,
     outcome: TranslationJobOutcome,
+    outputDir: string,
+    plan: OutputPlan | undefined,
   ): Promise<boolean> {
     if (outcome.status === "cancelled") {
       item.status = "cancelled";
       item.finishedAt = this.deps.now();
+      this.settled.set(item.id, "cancelled");
       return false;
     }
     if (outcome.status === "blocked") {
@@ -595,15 +970,60 @@ export class TranslationQueue {
     }
     if (outcome.status === "error") {
       const kind = classifyFailure(outcome.message);
-      if (kind === "document") this.fail(item, outcome.message);
-      else this.holdForSetup(item, kind, outcome.message);
+      // errorDetail may include the whole tail of a traceback. Classify it,
+      // but don't persist the engine log in the queue preference.
+      const detail = outcome.message.slice(0, 1000);
+      if (kind === "document") this.fail(item, detail);
+      else this.holdForSetup(item, kind, detail);
       return false;
     }
     if (!outcome.outputFiles.length) {
-      this.fail(item, "The engine produced no output file");
-      return false;
+      this.fail(
+        item,
+        `No output filenames reported. Output kept for inspection: ${outputDir}`,
+      );
+      item.retainedDir = outputDir;
+      return true;
+    }
+    // BabelDOC counts paragraphs accepted by the batch translator and those
+    // sent to the simple translator. Neither counter measures fallback success.
+    // ERROR records can be incidental too (e.g. token usage accounting).
+    const progress = outcome.progress;
+    const errorLines = progress?.errorLines || [];
+    const errorCount = Math.max(
+      progress?.errorCount || 0,
+      errorLines.length,
+      progress?.hasErrors ? 1 : 0,
+    );
+    for (const line of errorLines) {
+      const kind = classifyFailure(line);
+      if (kind !== "document") {
+        // The setup needs attention, but even a zero first-pass success
+        // count doesn't prove the output is useless. Leave it recoverable.
+        const kept = `Output kept for inspection: ${outcome.outputFiles[0]}`;
+        item.error = kept; // survives a restart (the pause detail doesn't)
+        this.holdForSetup(item, kind, `${kept}\n${line.slice(0, 500)}`);
+        return true;
+      }
+    }
+    if (plan) {
+      item.warningCount = errorCount || undefined;
+      item.retainedDir = outputDir;
+      item.pendingDelivery = {
+        plan,
+        files: [...outcome.outputFiles],
+        dir: outputDir,
+        completed: plan.cells
+          .filter((c) => c.exists && !plan.overwrite)
+          .map((c) => c.id),
+      };
+      this.freshDeliveries.add(item.pendingDelivery);
+      await this.publishPending(item);
+      // The checkpoint owns cleanup from now on (also when restored).
+      return true;
     }
     try {
+      if (!this.deps.deliver) throw new Error("Missing output publisher");
       const delivered = await this.deps.deliver(
         item.attachmentID,
         outcome.outputFiles,
@@ -612,7 +1032,9 @@ export class TranslationQueue {
       item.status = "done";
       item.percent = 100;
       item.resultItemIDs = delivered.itemIDs;
+      item.warningCount = errorCount || undefined;
       item.finishedAt = this.deps.now();
+      this.settled.set(item.id, "done");
       return false;
     } catch (err) {
       // The translation itself succeeded; keep the files so it is not lost.

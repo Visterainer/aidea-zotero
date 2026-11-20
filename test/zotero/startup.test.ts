@@ -16,7 +16,7 @@ describe("startup", function () {
     assert.isNotEmpty(Zotero[config.addonInstance]);
   });
 
-  it("registers PDF translation only for a single PDF library selection", function () {
+  it("offers PDF translation for single and multiple PDF library selections", function () {
     const win = Zotero.getMainWindow();
     const popup = win.document.createXULElement("menupopup");
     win.document.documentElement.appendChild(popup);
@@ -46,7 +46,9 @@ describe("startup", function () {
       assert.isFalse(single!.hasAttribute("hidden"), popup.outerHTML);
       assert.include(single!.getAttribute("label") || "", "PDF");
       assert.isTrue(update([])!.hasAttribute("hidden"));
-      assert.isTrue(update([pdf, pdf])!.hasAttribute("hidden"));
+      const batch = update([pdf, pdf]);
+      assert.isFalse(batch!.hasAttribute("hidden"));
+      assert.include(batch!.getAttribute("label") || "", "2");
     } finally {
       popup.remove();
     }

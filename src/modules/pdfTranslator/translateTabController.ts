@@ -16,8 +16,8 @@ import {
   getTranslateReasoningEffort,
   setTranslateReasoningEffort,
 } from "../../utils/reasoningEffort";
-import type { ProgressData, TranslationStats, WarningStats } from "./types";
-import { restartPausedTranslation } from "./translationLifecycle";
+import type { TranslationStats, WarningStats } from "./types";
+import type { TranslateController, TranslateUICallback } from "./index";
 import {
   TRANSLATE_PREFS,
   getBoolPref,
@@ -27,6 +27,8 @@ import {
   getStringPref,
   persistTranslateModel,
   persistTranslateProvider,
+  readSavedTranslateOptions,
+  type SavedTranslateOptions,
   setBoolPref,
   setNumberPref,
   setStringPref,
@@ -35,18 +37,25 @@ import {
 import {
   buildTranslateParams,
   checkTranslationEnvironment,
-  isTranslationRunning,
   resolveTranslationCredentials,
-  trackTranslationController,
-  untrackTranslationController,
+  tryReserveTranslation,
 } from "./translationJob";
 import { getQueueCopy } from "./queueI18n";
 import { getTranslateMenuCopy } from "./menuI18n";
-import { mountTranslateQueueView } from "./translateQueueView";
 import {
-  deliverTranslatedPdfs,
+  mountTranslateQueueView,
+  takeTabOverwrite,
+} from "./translateQueueView";
+import { batchCopy } from "./translationBatchStrings";
+import {
   findPdfAttachment,
+  type TranslationOutputKind,
 } from "./translationAttachment";
+import {
+  inspectTranslationOutputs,
+  publishTranslationOutputs,
+  type OutputPlan,
+} from "./translationOutputs";
 
 declare const Zotero: any;
 
@@ -222,7 +231,9 @@ function setTranslateCollapsible(
   collapsed: boolean,
 ): void {
   if (!toggle || !body) return;
-  toggle.dataset.collapsed = collapsed ? "true" : "false";
+  toggle.dataset.collapsed = String(collapsed);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.setAttribute("aria-controls", body.id);
   body.style.display = collapsed ? "none" : "";
 }
 
@@ -500,20 +511,33 @@ export function getTranslateModel(dropdownEl: HTMLElement): string {
 
 /* ── Init: wire up event listeners ── */
 
+type TabController = Pick<
+  TranslateController,
+  "getState" | "start" | "pause" | "abort"
+>;
+
+const tabEngine = {
+  inspectTranslationOutputs,
+  publishTranslationOutputs,
+  resolveTranslationCredentials,
+  checkTranslationEnvironment,
+  async createController(
+    callback: TranslateUICallback,
+  ): Promise<TabController> {
+    const { TranslateController } = await import("./index");
+    return new TranslateController(callback);
+  },
+};
+
 /**
  * Initialize the translate tab controller.
  * Call this once after buildUI completes and the DOM is ready.
  *
  * @param body  the panel body element (contains #llm-main)
  */
-export function initTranslateTab(body: Element): void {
+export function initTranslateTab(body: Element, engine = tabEngine): void {
   const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   if (!modelSelect) return;
-  try {
-    mountTranslateQueueView(body);
-  } catch (err) {
-    ztoolkit?.log?.("AIdea: failed to mount the translation queue view", err);
-  }
 
   const outputDirEl = body.querySelector(
     "#llm-tr-output-dir",
@@ -619,6 +643,15 @@ export function initTranslateTab(body: Element): void {
   bindTranslateScrollPref(body);
   if (outputDirEl)
     outputDirEl.value = getStringPref(TRANSLATE_PREFS.outputDir, "");
+  try {
+    mountTranslateQueueView(body, () => {
+      persistCurrentTranslateOptions(body);
+      persistTranslateModel(modelSelect.dataset.value || "");
+      persistTranslateProvider(modelSelect.dataset.providerId || "");
+    });
+  } catch (err) {
+    ztoolkit?.log?.("AIdea: failed to mount the translation queue view", err);
+  }
 
   // Persist translate options on change
   outputDirEl?.addEventListener("change", () =>
@@ -712,7 +745,9 @@ export function initTranslateTab(body: Element): void {
           ) as HTMLInputElement | null;
           if (dirInput) {
             dirInput.value = path;
-            setStringPref(TRANSLATE_PREFS.outputDir, path);
+            // Native picker changes do not fire DOM events. Notify the same
+            // preference and validation listeners as a manually edited path.
+            dirInput.dispatchEvent(new win.Event("change", { bubbles: true }));
           }
         }
       } catch (err) {
@@ -856,7 +891,7 @@ export function initTranslateTab(body: Element): void {
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       try {
-        await startTranslation(body);
+        await startTranslation(body, engine);
       } catch (err) {
         const i18n = getPanelI18n();
         consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
@@ -874,23 +909,12 @@ export function initTranslateTab(body: Element): void {
       try {
         if (session.isPaused) {
           // Resume from pdf2zh_next's cache with a fresh bridge/OAuth proxy.
-          const i18n = getPanelI18n();
-          pauseBtn.textContent = `⏸ ${i18n.trPause}`;
-          pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
-          consoleLog(body, `▶️ ${i18n.trLogResumed}`, "info");
-          restartPausedTranslation(
-            session,
-            () => startTranslation(body),
-            (err) => {
-              consoleLog(
-                body,
-                `❌ ${i18n.trLogPauseError(String(err))}`,
-                "error",
-              );
-              restoreTranslationControls(body);
-            },
-          );
-        } else {
+          // Keep the paused controller and original source until a restart is
+          // admitted and prepared. A busy/failed attempt must remain resumable.
+          if (session.activeRequest) {
+            await startTranslation(body, engine, session.activeRequest);
+          }
+        } else if (session.activeController.getState() === "running") {
           // Pause
           session.activeController.pause();
           session.isPaused = true;
@@ -911,8 +935,8 @@ export function initTranslateTab(body: Element): void {
     clearBtn.addEventListener("click", async () => {
       // Block clearing while translation is actively running
       const session = getTranslationSession(body);
-      const activeState = session.activeController?.getState?.();
-      if (activeState === "running" && !session.isPaused) {
+      const release = tryReserveTranslation();
+      if (!release) {
         const i18n = getPanelI18n();
         consoleLog(body, `⚠️ ${i18n.trLogCannotClearRunning}`, "error");
         return;
@@ -939,6 +963,7 @@ export function initTranslateTab(body: Element): void {
         const i18n = getPanelI18n();
         consoleLog(body, `❌ ${i18n.trLogClearError(String(err))}`, "error");
       } finally {
+        release();
         resetTranslationSessionUi(session, body);
       }
     });
@@ -955,12 +980,20 @@ export function refreshTranslateModels(body: Element): void {
 
 /* ── Internal helpers ── */
 
-/** Store the currently selected PDF path as a data attribute */
+interface TabRequest {
+  pdfPath: string;
+  modelName: string;
+  modelProviderId: string;
+  options: SavedTranslateOptions;
+  plan: OutputPlan;
+}
+
 interface TranslationSession {
   selectedPdfPath: string;
   translationStartTime: number;
   isPaused: boolean;
-  activeController: any;
+  activeController: TabController | null;
+  activeRequest: TabRequest | null;
   progressTimer: ReturnType<typeof setInterval> | null;
   targetProgressPct: number;
   displayProgressPct: number;
@@ -981,6 +1014,7 @@ function createTranslationSession(): TranslationSession {
     translationStartTime: 0,
     isPaused: false,
     activeController: null,
+    activeRequest: null,
     progressTimer: null,
     targetProgressPct: 0,
     displayProgressPct: 0,
@@ -1240,6 +1274,7 @@ function resetTranslationSessionUi(
   session.translationStartTime = 0;
   session.isPaused = false;
   session.activeController = null;
+  session.activeRequest = null;
   resetProgressTracking(session);
   updateProgress(session, body, 0, "", { force: true });
   restoreTranslationControls(body);
@@ -1339,7 +1374,7 @@ function consoleLog(
   body: Element,
   msg: string,
   level: "info" | "success" | "error" = "info",
-): void {
+): HTMLDivElement | undefined {
   const consoleBody = body.querySelector(
     "#llm-tr-console-body",
   ) as HTMLElement | null;
@@ -1357,8 +1392,7 @@ function consoleLog(
     consoleToggle.dataset.collapsed === "true" &&
     consoleEl
   ) {
-    consoleToggle.dataset.collapsed = "false";
-    consoleEl.style.display = "";
+    setTranslateCollapsible(consoleToggle, consoleEl, false);
   }
 
   const line = doc.createElement("div");
@@ -1378,6 +1412,7 @@ function consoleLog(
 
   // Auto-scroll to bottom
   consoleBody.scrollTop = consoleBody.scrollHeight;
+  return line;
 }
 
 /** Clear all console log lines. */
@@ -1475,191 +1510,262 @@ async function findAttachmentForPdfPath(pdfPath: string): Promise<any | null> {
 /**
  * Main translation flow.
  */
-async function startTranslation(body: Element): Promise<void> {
-  const i18n = getPanelI18n();
-  const session = getTranslationSession(body);
-  const activeState = session.activeController?.getState?.();
-  if (activeState === "running") {
-    consoleLog(body, i18n.trLogError(i18n.trTranslating), "error");
-    return;
-  }
-  // The queue, or another panel, is translating; two engines at once would
-  // double the request rate against the same account.
-  if (isTranslationRunning()) {
+async function startTranslation(
+  body: Element,
+  engine: typeof tabEngine,
+  resumeRequest?: TabRequest,
+): Promise<void> {
+  const release = tryReserveTranslation();
+  if (!release) {
     consoleLog(
       body,
-      i18n.trLogError(getTranslateMenuCopy(getPanelLang()).busy),
+      getPanelI18n().trLogError(getTranslateMenuCopy(getPanelLang()).busy),
       "error",
     );
     return;
   }
+  try {
+    const request = resumeRequest ?? (await prepareTabRequest(body, engine));
+    if (request)
+      await runTabTranslation(body, engine, request, !!resumeRequest);
+  } finally {
+    release();
+  }
+}
 
-  // Gather parameters
-  const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
-  const modelName = modelSelect?.dataset.value || "";
-  const modelProviderId = modelSelect?.dataset.providerId || "";
+/** Snapshot the settings, source, and authorized destinations at Start. A resume
+ * reuses this exact plan; it cannot inherit new targets or overwrite consent. */
+async function prepareTabRequest(
+  body: Element,
+  engine: typeof tabEngine,
+): Promise<TabRequest | null> {
+  const i18n = getPanelI18n();
+  const copy = batchCopy();
+  const overwrite = takeTabOverwrite(body);
+  const pdfPath = getTranslationSession(body).selectedPdfPath;
+  const model = body.querySelector<HTMLElement>("#llm-tr-model");
+  const modelName = model?.dataset.value || "";
+  const modelProviderId = model?.dataset.providerId || "";
+  if (!pdfPath) {
+    consoleLog(body, i18n.trLogError(i18n.trNoPdfFound), "error");
+    return null;
+  }
+  persistCurrentTranslateOptions(body);
+  const options = readSavedTranslateOptions();
+  const checked = (id: string, fallback: boolean) =>
+    body.querySelector<HTMLInputElement>(`#llm-tr-${id}`)?.checked ?? fallback;
+  const kinds: TranslationOutputKind[] = [];
+  if (checked("mono", options.generateMono)) kinds.push("mono");
+  if (checked("dual", options.generateDual)) kinds.push("dual");
+  const wantsAttach = checked(
+    "output-attach",
+    getBoolPref(TRANSLATE_PREFS.outputAttach, true),
+  );
+  const wantsFolder = checked("output-save-dir", isSaveToOutputDirEnabled());
+  const saveDir = wantsFolder
+    ? (
+        body.querySelector<HTMLInputElement>("#llm-tr-output-dir")?.value || ""
+      ).trim()
+    : "";
+  const invalid = !kinds.length
+    ? copy.needFormat
+    : !wantsAttach && !wantsFolder
+      ? copy.needDestination
+      : wantsFolder && !saveDir
+        ? copy.needFolder
+        : "";
+  if (invalid) {
+    consoleLog(body, invalid, "error");
+    return null;
+  }
+  if (saveDir) setStringPref(TRANSLATE_PREFS.outputDir, saveDir);
+  const source = await findAttachmentForPdfPath(pdfPath);
+  if (!source && !saveDir) {
+    consoleLog(body, copy.needFolder, "error");
+    return null;
+  }
+  const plan = await engine.inspectTranslationOutputs(
+    source,
+    pdfPath,
+    options.targetLang,
+    kinds,
+    { attach: wantsAttach && !!source, saveDir },
+    overwrite,
+  );
+  if (!plan.generateKinds.length) {
+    consoleLog(body, getQueueCopy(getPanelLang()).status.skipped, "info");
+    return null;
+  }
   if (!modelName) {
     consoleLog(body, i18n.trLogError(i18n.modelNoModels), "error");
-    return;
+    return null;
   }
-  if (!session.selectedPdfPath) {
-    consoleLog(body, i18n.trLogError(i18n.trNoPdfFound), "error");
-    return;
+  if (!confirmPdfLayout(options.targetLang, getPanelLang())) return null;
+  const existing = plan.cells.filter((cell) => cell.exists).length;
+  if (plan.overwrite && existing) {
+    const summary = copy.confirm({
+      documents: 1,
+      skip: 0,
+      generate: 1,
+      replace: existing,
+      missing: plan.cells.length - existing,
+    });
+    if (!body.ownerDocument?.defaultView?.confirm(summary)) return null;
   }
-
-  const srcLang =
-    (body.querySelector("#llm-tr-source-lang") as HTMLElement)?.dataset.value ||
-    "en";
-  const tgtLang =
-    (body.querySelector("#llm-tr-target-lang") as HTMLElement)?.dataset.value ||
-    "zh-CN";
-  if (!confirmPdfLayout(tgtLang, getPanelLang())) return;
-  const monoChecked =
-    (body.querySelector("#llm-tr-mono") as HTMLInputElement)?.checked ?? true;
-  const dualChecked =
-    (body.querySelector("#llm-tr-dual") as HTMLInputElement)?.checked ?? true;
-  const outputDirInput = (
-    (body.querySelector("#llm-tr-output-dir") as HTMLInputElement)?.value || ""
-  ).trim();
-  const skipReferencesAuto =
-    (body.querySelector("#llm-tr-skip-refs-auto") as HTMLInputElement)
-      ?.checked ?? true;
-  // ── Performance inputs ──
-  const qps = readStepperValue(
-    body.querySelector("#llm-tr-qps") as HTMLElement | null,
-    10,
-    1,
-    100,
-  );
-  const poolMaxWorker = readStepperValue(
-    body.querySelector("#llm-tr-pool-max-worker") as HTMLElement | null,
-    1,
-    1,
-    32,
-  );
-
-  // ── Advanced settings (read from collapsible panel) ──
-  const keepAppendixTranslated =
-    (body.querySelector("#llm-tr-keep-appendix") as HTMLInputElement)
-      ?.checked ?? true;
-  const protectAuthorBlock =
-    (body.querySelector("#llm-tr-protect-author") as HTMLInputElement)
-      ?.checked ?? true;
-  const disableRichTextTranslate =
-    (body.querySelector("#llm-tr-disable-rich-text") as HTMLInputElement)
-      ?.checked ?? false;
-  const enhanceCompatibility =
-    (body.querySelector("#llm-tr-enhance-compat") as HTMLInputElement)
-      ?.checked ?? false;
-  const translateTableText =
-    (body.querySelector("#llm-tr-translate-table") as HTMLInputElement)
-      ?.checked ?? false;
-  const ocrEl = body.querySelector("#llm-tr-ocr") as HTMLInputElement | null;
-  const autoOcrEl = body.querySelector(
-    "#llm-tr-auto-ocr",
-  ) as HTMLInputElement | null;
-  const ocr = ocrEl?.checked ?? getBoolPref(TRANSLATE_PREFS.ocr, false);
-  const autoOcr =
-    autoOcrEl?.checked ?? getBoolPref(TRANSLATE_PREFS.autoOcr, false);
-  const saveGlossary =
-    (body.querySelector("#llm-tr-save-glossary") as HTMLInputElement)
-      ?.checked ?? true;
-  const disableGlossary =
-    (body.querySelector("#llm-tr-disable-glossary") as HTMLInputElement)
-      ?.checked ?? false;
-  const fontFamily = ((body.querySelector("#llm-tr-font-family") as HTMLElement)
-    ?.dataset.value || "auto") as "auto" | "serif" | "sans-serif" | "script";
-  persistCurrentTranslateOptions(body);
-
-  // Where the result goes: the Zotero item, the output folder, or both.
-  // A PDF without a Zotero item can only go to the folder, so a chosen
-  // folder is used for it even when the folder option is off.
-  const wantsFolder = isSaveToOutputDirEnabled();
-  const sourceAttachment = getBoolPref(TRANSLATE_PREFS.outputAttach, true)
-    ? await findAttachmentForPdfPath(session.selectedPdfPath)
-    : null;
-  const saveToDir = wantsFolder || (!sourceAttachment && !!outputDirInput);
-  if (saveToDir && !outputDirInput) {
-    consoleLog(body, `⚠️ ${i18n.requiredOutputFolder}`, "error");
-    return;
-  }
-  if (!saveToDir && !sourceAttachment) {
-    // A PDF picked from disk has no Zotero item to receive the result.
-    consoleLog(body, `⚠️ ${getQueueCopy(getPanelLang()).needFolder}`, "error");
-    return;
-  }
-  if (outputDirInput) setStringPref(TRANSLATE_PREFS.outputDir, outputDirInput);
-  let temporaryOutputDir = "";
-  if (!saveToDir) {
-    temporaryOutputDir = PathUtils.join(
-      PathUtils.tempDir,
-      "aidea-translate",
-      "tab-output",
-      `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    await IOUtils.makeDirectory(temporaryOutputDir, { createAncestors: true });
-  }
-  const outputDir = saveToDir ? outputDirInput : temporaryOutputDir;
-  let producedFiles: string[] = [];
-  const fileResult = async () => {
-    try {
-      if (sourceAttachment && producedFiles.length) {
-        const delivered = await deliverTranslatedPdfs(
-          sourceAttachment,
-          producedFiles,
-          { attach: true, saveDir: "" },
-        );
-        consoleLog(
-          body,
-          `📎 ${getTranslateMenuCopy(getPanelLang()).done} (${delivered.items.length})`,
-          "success",
-        );
-      }
-      if (temporaryOutputDir) {
-        await IOUtils.remove(temporaryOutputDir, {
-          recursive: true,
-          ignoreAbsent: true,
-        });
-      }
-    } catch (err) {
-      // Keep the files: the translation itself succeeded.
-      consoleLog(
-        body,
-        `❌ ${getTranslateMenuCopy(getPanelLang()).attachFailed(String(err), outputDir)}`,
-        "error",
-      );
-    }
+  return {
+    pdfPath,
+    modelName,
+    modelProviderId,
+    plan,
+    options: {
+      ...options,
+      generateMono: plan.generateKinds.includes("mono"),
+      generateDual: plan.generateKinds.includes("dual"),
+    },
   };
+}
+
+/** The bridge reports filenames. Never publish or unlink a path outside this
+ * invocation's private directory, even if an engine reports an absolute path. */
+function stagedFiles(dir: string, manifest: string[]): string[] {
+  if (!manifest.length)
+    throw new Error("The engine did not report the output filenames.");
+  return manifest.map((entry) => {
+    const name = entry.split(/[\\/]/).pop() || "";
+    if (!/\.pdf$/i.test(name)) throw new Error(`Unexpected output: ${entry}`);
+    const file = PathUtils.join(dir, name);
+    if (entry !== name && entry !== file)
+      throw new Error(`Output outside the task directory: ${entry}`);
+    return file;
+  });
+}
+
+async function fileTabResult(
+  body: Element,
+  engine: typeof tabEngine,
+  plan: OutputPlan,
+  dir: string,
+  manifest: string[],
+  elapsed: number,
+): Promise<void> {
+  const i18n = getPanelI18n();
+  const retained = (err: unknown) =>
+    consoleLog(
+      body,
+      `${i18n.trLogError(String(err))}\n${i18n.trLogOutputLabel}: ${dir}`,
+      "error",
+    );
+  let files: string[];
+  try {
+    files = stagedFiles(dir, manifest);
+  } catch (err) {
+    retained(err);
+    return;
+  }
+
+  // Retrying this log entry only completes this plan, independent of current
+  // selections. Already-filed cells (especially replacements) are not replayed.
+  const completed: string[] = [];
+  let failureLine: HTMLDivElement | undefined;
+  const publish = async (): Promise<boolean> => {
+    try {
+      const { savedFiles } = await engine.publishTranslationOutputs(
+        plan,
+        files,
+        completed,
+        (id) => {
+          if (!completed.includes(id)) completed.push(id);
+        },
+      );
+      for (const file of savedFiles)
+        consoleLog(body, i18n.trLogOutputFile(file), "success");
+    } catch (err) {
+      failureLine = retained(err);
+      return false;
+    }
+    consoleLog(
+      body,
+      `${i18n.trDone}! ${i18n.trLogTotalTime(formatDuration(elapsed))}`,
+      "success",
+    );
+    consoleLog(body, `─── ${i18n.trLogJobFinished} ───`, "success");
+    try {
+      // A glossary or unreported file may be the only copy. Never clean recursively.
+      for (const file of files)
+        await IOUtils.remove(file, { ignoreAbsent: true });
+      if (!(await IOUtils.getChildren(dir)).length) await IOUtils.remove(dir);
+      else consoleLog(body, `${i18n.trLogOutputLabel}: ${dir}`);
+    } catch (err) {
+      retained(err); // Filing succeeded; cleanup is not a reason to republish.
+    }
+    return true;
+  };
+  if ((await publish()) || !failureLine || !body.ownerDocument) return;
+  const retry = body.ownerDocument.createElement("button");
+  retry.type = "button";
+  retry.className = "llm-tr-btn llm-tr-btn-small";
+  retry.textContent = getQueueCopy(getPanelLang()).btnRetry;
+  retry.addEventListener("click", async () => {
+    if (retry.disabled) return;
+    const release = tryReserveTranslation();
+    if (!release) {
+      consoleLog(body, getTranslateMenuCopy(getPanelLang()).busy, "error");
+      return;
+    }
+    retry.disabled = true;
+    try {
+      if (await publish()) retry.remove();
+      else retry.disabled = false;
+    } finally {
+      release();
+    }
+  });
+  failureLine.appendChild(retry);
+}
+
+async function runTabTranslation(
+  body: Element,
+  engine: typeof tabEngine,
+  request: TabRequest,
+  resuming: boolean,
+): Promise<void> {
+  const i18n = getPanelI18n();
+  const session = getTranslationSession(body);
+  const { pdfPath, modelName, modelProviderId, options, plan } = request;
+  // Always stage in a new directory. The engine must never see a user-selected
+  // destination (it can replace a live PDF before asking us to file anything).
+  const outputDir = PathUtils.join(
+    PathUtils.tempDir,
+    "aidea-translate",
+    "tab-output",
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  let manifest: string[] = [];
 
   // Detailed console logging
-  const pdfBasename =
-    session.selectedPdfPath.split(/[\\/]/).pop() || session.selectedPdfPath;
+  const pdfBasename = pdfPath.split(/[\\/]/).pop() || pdfPath;
   consoleLog(body, `─── ${i18n.trLogJobStarted} ───`, "info");
   consoleLog(body, `📄 ${i18n.trLogPdfLabel}: ${pdfBasename}`, "info");
-  consoleLog(
-    body,
-    `   ${i18n.trLogFullPath}: ${session.selectedPdfPath}`,
-    "info",
-  );
+  consoleLog(body, `   ${i18n.trLogFullPath}: ${pdfPath}`, "info");
   consoleLog(body, `🤖 ${i18n.trLogModelLabel}: ${modelName}`, "info");
   consoleLog(
     body,
-    `🌐 ${i18n.trLogLanguageLabel}: ${srcLang} → ${tgtLang}`,
+    `🌐 ${i18n.trLogLanguageLabel}: ${options.sourceLang} → ${options.targetLang}`,
     "info",
   );
   consoleLog(body, `📁 ${i18n.trLogOutputLabel}: ${outputDir}`, "info");
   consoleLog(
     body,
-    `📝 ${i18n.trLogOutputFormat(monoChecked, dualChecked)}`,
+    `📝 ${i18n.trLogOutputFormat(options.generateMono, options.generateDual)}`,
     "info",
   );
   consoleLog(
     body,
     `⚙️ ${i18n.trLogAdvancedOptions(
-      skipReferencesAuto,
-      enhanceCompatibility,
-      ocr,
-      autoOcr,
+      options.skipReferencesAuto,
+      options.enhanceCompatibility,
+      options.ocr,
+      options.autoOcr,
     )}`,
     "info",
   );
@@ -1668,7 +1774,7 @@ async function startTranslation(body: Element): Promise<void> {
   consoleLog(body, `🔑 ${i18n.trLogResolvingCredentials}`, "info");
   let resolved;
   try {
-    resolved = await resolveTranslationCredentials(
+    resolved = await engine.resolveTranslationCredentials(
       modelName,
       modelProviderId || undefined,
     );
@@ -1694,7 +1800,7 @@ async function startTranslation(body: Element): Promise<void> {
 
   // Check environment
   consoleLog(body, `🔍 ${i18n.trLogCheckingEnvironment}`, "info");
-  const envCheck = await checkTranslationEnvironment();
+  const envCheck = await engine.checkTranslationEnvironment();
   if (!envCheck.ok && envCheck.reason === "not_ready") {
     consoleLog(
       body,
@@ -1740,32 +1846,17 @@ async function startTranslation(body: Element): Promise<void> {
     "info",
   );
 
-  // Reset timer and pause state
-  session.translationStartTime = Date.now();
-  session.isPaused = false;
-  resetProgressTracking(session);
-  updateProgress(session, body, 0, "", { force: true });
-  _startProgressTimer(session, body);
-
-  // Show pause button, hide start button
+  // Keep the previous (possibly paused) controls intact until preflight succeeds.
   const startBtn = body.querySelector(
     "#llm-tr-start",
   ) as HTMLButtonElement | null;
   const pauseBtn = body.querySelector(
     "#llm-tr-pause",
   ) as HTMLButtonElement | null;
-  if (startBtn) startBtn.style.display = "none";
-  if (pauseBtn) {
-    pauseBtn.style.display = "";
-    pauseBtn.textContent = `⏸ ${i18n.trPause}`;
-    pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
-  }
-
-  // Use TranslateController to run the translation
-  const { TranslateController } = await import("./index");
   let lastStageLogged = "";
 
-  const controller = new TranslateController((event) => {
+  const controller = await engine.createController((event) => {
+    if (session.activeController !== controller || session.isPaused) return;
     switch (event.type) {
       case "progress": {
         const pct = event.data.progress;
@@ -1843,11 +1934,7 @@ async function startTranslation(body: Element): Promise<void> {
 
         // Log output files on completion
         if (status === "done" && event.data.outputFiles?.length) {
-          producedFiles = event.data.outputFiles.map((name) =>
-            /^([A-Za-z]:[\\/]|\\\\|\/)/.test(name)
-              ? name
-              : PathUtils.join(outputDir, name),
-          );
+          manifest = event.data.outputFiles;
           for (const f of event.data.outputFiles) {
             consoleLog(body, `   📄 ${i18n.trLogOutputFile(f)}`, "success");
           }
@@ -1911,35 +1998,15 @@ async function startTranslation(body: Element): Promise<void> {
       }
       case "state":
         if (event.state === "done") {
-          const totalElapsed =
-            session.translationStartTime > 0
-              ? (Date.now() - session.translationStartTime) / 1000
-              : 0;
           updateProgress(session, body, 100, "", { force: true });
-          consoleLog(
-            body,
-            `✅ ${i18n.trDone}! ${i18n.trLogTotalTime(formatDuration(totalElapsed))}`,
-            "success",
-          );
-          consoleLog(body, `─── ${i18n.trLogJobFinished} ───`, "success");
-          void fileResult();
-          session.translationStartTime = 0;
-          session.activeController = null;
-          session.isPaused = false;
-          _stopProgressTimer(session);
-          restoreTranslationControls(body);
         } else if (event.state === "error") {
           consoleLog(
             body,
             `❌ ${i18n.trError} - ${i18n.trLogSeeDetailsAbove}`,
             "error",
           );
-          session.translationStartTime = 0;
-          session.activeController = null;
-          session.isPaused = false;
-          _stopProgressTimer(session);
-          restoreTranslationControls(body);
         } else if (event.state === "running") {
+          if (pauseBtn) pauseBtn.disabled = false;
           lastStageLogged = "";
           consoleLog(body, `⏳ ${i18n.trLogEngineStarted}`, "info");
         } else if (event.state === "paused") {
@@ -1956,49 +2023,65 @@ async function startTranslation(body: Element): Promise<void> {
         break;
     }
   });
+  await IOUtils.makeDirectory(outputDir, {
+    createAncestors: true,
+    ignoreExisting: false,
+    permissions: 0o700,
+  });
   session.activeController = controller;
-  trackTranslationController(controller);
+  session.activeRequest = request;
+  session.isPaused = false;
+  session.translationStartTime = Date.now();
+  resetProgressTracking(session);
+  updateProgress(session, body, 0, "", { force: true });
+  _startProgressTimer(session, body);
+  if (startBtn) startBtn.style.display = "none";
+  if (pauseBtn) {
+    pauseBtn.style.display = "";
+    pauseBtn.disabled = true; // start() also awaits preflight before launching
+    pauseBtn.textContent = `⏸ ${i18n.trPause}`;
+    pauseBtn.className = "llm-tr-btn llm-tr-btn-warning";
+  }
+  if (resuming) consoleLog(body, `▶️ ${i18n.trLogResumed}`, "info");
 
   consoleLog(body, `⏳ ${i18n.trLogLaunchingEngine}`, "info");
 
   try {
     await controller.start(
       buildTranslateParams({
-        pdfPath: session.selectedPdfPath,
+        pdfPath,
         outputDir,
         modelId: creds.modelId,
-        options: {
-          sourceLang: srcLang,
-          targetLang: tgtLang,
-          generateMono: monoChecked,
-          generateDual: dualChecked,
-          qps,
-          poolMaxWorker,
-          skipReferencesAuto,
-          keepAppendixTranslated,
-          protectAuthorBlock,
-          disableRichTextTranslate,
-          enhanceCompatibility,
-          translateTableText,
-          ocr,
-          autoOcr,
-          saveGlossary,
-          disableGlossary,
-          fontFamily,
-        },
+        options,
       }),
       creds,
     );
+    if (!session.isPaused && controller.getState() === "done")
+      await fileTabResult(
+        body,
+        engine,
+        plan,
+        outputDir,
+        manifest,
+        (Date.now() - session.translationStartTime) / 1000,
+      );
   } catch (err) {
     if (err instanceof Error && err.stack) {
       consoleLog(body, `${i18n.trLogStackTrace}:\n${err.stack}`, "error");
     }
     consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
-    session.translationStartTime = 0;
-    _stopProgressTimer(session);
-    restoreTranslationControls(body);
   } finally {
-    // `start` only returns once the engine process has ended.
-    untrackTranslationController(controller);
+    _stopProgressTimer(session);
+    // A refused launch or pause may have produced nothing. Nonrecursive
+    // removal is intentional: partial engine output must remain recoverable.
+    if (controller.getState() !== "done") {
+      await IOUtils.remove(outputDir, { recursive: false }).catch(() => {});
+    }
+    if (!session.isPaused) {
+      session.activeController = null;
+      session.activeRequest = null;
+      session.translationStartTime = 0;
+      restoreTranslationControls(body);
+    }
   }
 }

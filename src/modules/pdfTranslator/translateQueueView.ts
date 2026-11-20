@@ -7,7 +7,12 @@
  * markup and its IDs stay untouched.
  * -------------------------------------------------------------------------*/
 
-import { getPanelLang } from "../contextPanel/i18n";
+import { createElement } from "../../utils/domHelpers";
+import { getPanelI18n, getPanelLang } from "../contextPanel/i18n";
+import { batchCopy } from "./translationBatchStrings";
+import { mountTranslateBatchView } from "./translateBatchView";
+export { takeTabOverwrite } from "./translateBatchView";
+import { getTranslateMenuCopy } from "./menuI18n";
 import { getQueueCopy, type QueueCopy } from "./queueI18n";
 import {
   getBoolPref,
@@ -21,6 +26,7 @@ import type {
   QueueState,
   TranslationQueue,
 } from "./translationQueue";
+import { QUEUE_ERROR_PDF_MISSING } from "./translationQueue";
 import { getTranslationQueue } from "./translationQueueService";
 
 declare const Zotero: any;
@@ -34,8 +40,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
   className: string,
   text?: string,
 ): HTMLElementTagNameMap[K] {
-  const node = doc.createElement(tag);
-  if (className) node.className = className;
+  const node = createElement(doc, tag, className);
   if (text !== undefined) node.textContent = text;
   return node;
 }
@@ -45,19 +50,75 @@ function copy(): QueueCopy {
 }
 
 /** What one row says under the title. */
-export function describeQueueItem(item: QueueItem, strings: QueueCopy): string {
+export interface QueueRowText {
+  /** Wording for a queue error code such as a missing PDF. */
+  pdfMissing?: string;
+  /** "Finished with N errors". */
+  withErrors?: (count: number) => string;
+}
+
+/** The first line of a row's failure, with error codes put into words. */
+export function queueItemError(item: QueueItem, text: QueueRowText): string {
+  if (!item.error) return "";
+  if (item.error === QUEUE_ERROR_PDF_MISSING) {
+    return text.pdfMissing || "PDF file not found";
+  }
+  return item.error.split("\n")[0];
+}
+
+/** What one row says under the title. */
+export function describeQueueItem(
+  item: QueueItem,
+  strings: QueueCopy,
+  text: QueueRowText = {},
+): string {
   const label = strings.status[item.status] || item.status;
+  const delivery = item.deliveryProgress;
+  const cells =
+    delivery && delivery.total > 0
+      ? `${batchCopy().outputs}: ${delivery.done}/${delivery.total}`
+      : "";
+  const suffix = cells ? ` · ${cells}` : "";
+  if (item.status === "running" && item.filing && cells) return cells;
   if (item.status === "running") {
     const page =
       typeof item.pageCurrent === "number" && item.pageTotal
         ? ` · ${item.pageCurrent}/${item.pageTotal}`
         : "";
-    return `${label} ${item.percent}%${page}`;
+    return `${label} ${item.percent}%${page}${suffix}`;
   }
   if (item.status === "failed" && item.error) {
-    return `${label}: ${item.error.split("\n")[0]}`;
+    return `${label}: ${queueItemError(item, text)}${suffix}`;
   }
-  return label;
+  if (item.status === "done" && item.warningCount) {
+    // The result exists, but parts of it may be untranslated.
+    return `${label} · ${
+      text.withErrors
+        ? text.withErrors(item.warningCount)
+        : `${item.warningCount} errors`
+    }${suffix}`;
+  }
+  return label + suffix;
+}
+
+/**
+ * Everything that decides which rows and buttons exist. While it is
+ * unchanged only the running row's text and bar need touching, so progress
+ * ticks do not rebuild the list under the user's pointer.
+ */
+export function queueStructureKey(state: QueueState, lang: string): string {
+  return [
+    lang,
+    state.paused
+      ? `paused:${state.pauseKind || ""}:${state.pauseDetail || ""}`
+      : "",
+    ...state.items.map(
+      (item) =>
+        `${item.id}:${item.status}:${item.filing ? 1 : 0}:${item.warningCount || 0}:${item.error || ""}:${
+          item.resultItemIDs?.length || 0
+        }`,
+    ),
+  ].join("|");
 }
 
 export type QueueRowAction = "cancel" | "retry" | "remove" | "open" | "first";
@@ -66,14 +127,16 @@ export type QueueRowAction = "cancel" | "retry" | "remove" | "open" | "first";
 export function queueRowActions(item: QueueItem): QueueRowAction[] {
   switch (item.status) {
     case "running":
-      return ["cancel"];
+      return item.filing ? [] : ["cancel"];
     case "queued":
     case "interrupted":
       return ["first", "cancel"];
     case "done":
       return item.resultItemIDs?.length ? ["open", "remove"] : ["remove"];
-    default:
+    case "failed":
       return ["retry", "remove"];
+    default:
+      return ["remove"];
   }
 }
 
@@ -116,11 +179,45 @@ function runAction(
   else void openResult(item);
 }
 
+function updateBar(bar: HTMLElement, item: QueueItem): void {
+  const delivery = item.deliveryProgress;
+  const progress =
+    item.filing && delivery?.total
+      ? (100 * delivery.done) / delivery.total
+      : item.percent;
+  bar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+}
+
 function renderQueue(root: HTMLElement, queue: TranslationQueue): void {
   const doc = root.ownerDocument!;
   const strings = copy();
   const state = queue.getState();
+  root.hidden = !state.items.length;
   const { finished, total } = queueProgressCounts(state);
+  const rowText: QueueRowText = {
+    pdfMissing: getTranslateMenuCopy(getPanelLang()).noPdf,
+    withErrors: (count) => getPanelI18n().trLogCompletedWithErrors(count),
+  };
+  const key = queueStructureKey(state, getPanelLang());
+  if (root.dataset.structure === key) {
+    // Same rows and buttons: only progress moved.
+    for (const item of state.items) {
+      if (item.status !== "running") continue;
+      const row = root.querySelector(`[data-queue-id="${item.id}"]`);
+      const status = row?.querySelector(".llm-tr-queue-item-status");
+      const fill = row?.querySelector(
+        ".llm-tr-queue-bar-fill",
+      ) as HTMLElement | null;
+      if (status)
+        status.textContent = describeQueueItem(item, strings, rowText);
+      if (fill) updateBar(fill, item);
+    }
+    return;
+  }
+  root.dataset.structure = key;
+  const scrollTop =
+    (root.querySelector(".llm-tr-queue-list") as HTMLElement | null)
+      ?.scrollTop || 0;
   root.textContent = "";
 
   const header = el(doc, "div", "llm-tr-queue-header");
@@ -156,7 +253,23 @@ function renderQueue(root: HTMLElement, queue: TranslationQueue): void {
     pause.addEventListener("click", () => queue.pause());
     headerActions.appendChild(pause);
   }
-  if (state.items.some((item) => !queueRowActions(item).includes("cancel"))) {
+  if (state.items.some((item) => item.status === "failed")) {
+    const retry = el(
+      doc,
+      "button",
+      "llm-tr-btn llm-tr-btn-small",
+      batchCopy().retryFailed,
+    );
+    retry.id = "llm-tr-retry-failed";
+    retry.type = "button";
+    retry.addEventListener("click", () => queue.retryFailed());
+    headerActions.appendChild(retry);
+  }
+  if (
+    state.items.some((item) =>
+      ["done", "failed", "cancelled", "skipped"].includes(item.status),
+    )
+  ) {
     const clear = el(
       doc,
       "button",
@@ -201,6 +314,7 @@ function renderQueue(root: HTMLElement, queue: TranslationQueue): void {
   for (const item of state.items) {
     const row = el(doc, "div", "llm-tr-queue-row");
     row.dataset.status = item.status;
+    row.dataset.queueId = item.id;
     const text = el(doc, "div", "llm-tr-queue-text");
     const title = el(doc, "div", "llm-tr-queue-item-title", item.title);
     title.title = `${item.title}\n${item.modelName}`;
@@ -208,14 +322,29 @@ function renderQueue(root: HTMLElement, queue: TranslationQueue): void {
       doc,
       "div",
       "llm-tr-queue-item-status",
-      describeQueueItem(item, strings),
+      describeQueueItem(item, strings, rowText),
     );
-    if (item.error) status.title = item.error;
+    if (item.error) {
+      status.title =
+        item.error === QUEUE_ERROR_PDF_MISSING
+          ? queueItemError(item, rowText)
+          : item.error;
+    }
+    if (item.retainedDir) {
+      status.textContent += ` · 📁 ${item.retainedDir}`;
+      status.title = item.retainedDir;
+    }
     text.append(title, status);
+    for (const path of item.savedFiles || []) {
+      const saved = el(doc, "div", "llm-tr-queue-saved", path);
+      saved.title = path;
+      saved.dir = "auto";
+      text.append(saved);
+    }
     if (item.status === "running") {
       const bar = el(doc, "div", "llm-tr-queue-bar");
       const fill = el(doc, "div", "llm-tr-queue-bar-fill");
-      fill.style.width = `${Math.max(0, Math.min(100, item.percent))}%`;
+      updateBar(fill, item);
       bar.appendChild(fill);
       text.appendChild(bar);
     }
@@ -235,21 +364,23 @@ function renderQueue(root: HTMLElement, queue: TranslationQueue): void {
     list.appendChild(row);
   }
   root.appendChild(list);
+  list.scrollTop = scrollTop;
 }
 
 function checkbox(
   doc: Document,
   id: string,
   label: string,
-  prefKey: string,
+  prefKey: string | null,
   defaultValue: boolean,
 ): HTMLLabelElement {
   const wrapper = el(doc, "label", "llm-tr-checkbox-label");
   const input = el(doc, "input", "");
   input.type = "checkbox";
   input.id = id;
-  input.checked = getBoolPref(prefKey, defaultValue);
-  input.addEventListener("change", () => setBoolPref(prefKey, input.checked));
+  input.checked = prefKey ? getBoolPref(prefKey, defaultValue) : defaultValue;
+  if (prefKey)
+    input.addEventListener("change", () => setBoolPref(prefKey, input.checked));
   wrapper.append(input, doc.createTextNode(` ${label}`));
   return wrapper;
 }
@@ -282,13 +413,7 @@ function mountOutputOptions(body: Element): void {
       TRANSLATE_PREFS.outputSaveToDir,
       isSaveToOutputDirEnabled(),
     ),
-    checkbox(
-      doc,
-      "llm-tr-queue-skip-existing",
-      strings.optSkipExisting,
-      TRANSLATE_PREFS.queueSkipExisting,
-      true,
-    ),
+    checkbox(doc, "llm-tr-overwrite", batchCopy().overwrite, null, false),
   );
   block.append(row, el(doc, "div", "llm-tr-output-note", strings.storageNote));
   anchor.parentNode.insertBefore(block, anchor.nextSibling);
@@ -298,7 +423,10 @@ function mountOutputOptions(body: Element): void {
  * Add the queue list and the output options to a Translate tab. Safe to call
  * again for the same tab; the list keeps itself current from then on.
  */
-export function mountTranslateQueueView(body: Element): void {
+export function mountTranslateQueueView(
+  body: Element,
+  beforeBatchStart?: () => void,
+): void {
   mountOutputOptions(body);
   if (body.querySelector(`#${QUEUE_ID}`)) return;
   const anchor = body
@@ -309,14 +437,32 @@ export function mountTranslateQueueView(body: Element): void {
   root.id = QUEUE_ID;
   anchor.parentNode.insertBefore(root, anchor);
 
+  const win = body.ownerDocument?.defaultView;
+  if (!win) return;
+  const lifecycle = new win.AbortController();
   const queue = getTranslationQueue();
-  const unsubscribe = queue.subscribe(() => {
-    // The panel this list lives in was thrown away.
-    if (root.closest("[data-llm-disposed]")) {
-      unsubscribe();
-      return;
+  const unsubscribe = queue.subscribe(() => renderQueue(root, queue));
+  lifecycle.signal.addEventListener("abort", unsubscribe, { once: true });
+  // A cached host may be detached and remounted. Only disposal or replacing
+  // this host's content is terminal, not isConnected === false. Observe the
+  // host, never the document, and release both subscriptions even if idle.
+  const observer = new win.MutationObserver((records: MutationRecord[]) => {
+    if (!body.contains(root) || records.some((r) => r.type === "attributes")) {
+      lifecycle.abort();
     }
-    renderQueue(root, queue);
   });
+  observer.observe(body, {
+    childList: true,
+    attributes: true,
+    attributeFilter: ["data-llm-disposed"],
+  });
+  lifecycle.signal.addEventListener("abort", () => observer.disconnect(), {
+    once: true,
+  });
+  win.addEventListener("unload", () => lifecycle.abort(), {
+    once: true,
+    signal: lifecycle.signal,
+  });
+  mountTranslateBatchView(body, lifecycle.signal, beforeBatchStart);
   renderQueue(root, queue);
 }

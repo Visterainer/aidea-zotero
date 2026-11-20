@@ -169,46 +169,20 @@ export interface TranslationControllerLike {
   abort(): void;
 }
 
-const trackedControllers = new Set<
-  Pick<TranslationControllerLike, "getState">
->();
-let reservedJobs = 0;
+let owner: symbol | null = null;
 
-/**
- * Register a controller so other entry points can see that it is running.
- * Controllers that are no longer running are dropped on the next query.
- */
-export function trackTranslationController(
-  controller: Pick<TranslationControllerLike, "getState">,
-): void {
-  trackedControllers.add(controller);
+/** Acquire before the first await; release in finally, after start has settled. */
+export function tryReserveTranslation(): (() => void) | null {
+  if (owner !== null) return null;
+  const token = Symbol();
+  owner = token;
+  return () => {
+    if (owner === token) owner = null;
+  };
 }
 
-/**
- * Forget a controller whose `start` has returned or thrown. A launch failure
- * can leave a controller reporting "running" although nothing is running.
- */
-export function untrackTranslationController(
-  controller: Pick<TranslationControllerLike, "getState">,
-): void {
-  trackedControllers.delete(controller);
-}
-
-/** True while any tracked translation is running or being prepared. */
 export function isTranslationRunning(): boolean {
-  if (reservedJobs > 0) return true;
-  let running = false;
-  for (const controller of trackedControllers) {
-    let state: TranslateState | "" = "";
-    try {
-      state = controller.getState();
-    } catch {
-      /* treat as finished */
-    }
-    if (state === "running") running = true;
-    else trackedControllers.delete(controller);
-  }
-  return running;
+  return owner !== null;
 }
 
 /* ── One job from start to finish ── */
@@ -290,6 +264,18 @@ export function startTranslationJob(
     detail = "",
   ): TranslationJobOutcome => ({ status: "blocked", reason, detail });
 
+  const abortController = () => {
+    // The running event fires just before launchProcess installs its handle.
+    // Even a cancel from that event's listener must wait for the handle.
+    void Promise.resolve().then(() => {
+      try {
+        controller?.abort();
+      } catch {
+        /* keep the reservation until start actually returns */
+      }
+    });
+  };
+
   const run = async (): Promise<TranslationJobOutcome> => {
     if (!request.modelName) return blocked("no_model");
 
@@ -315,6 +301,13 @@ export function startTranslationJob(
     let lastError = "";
     let doneProgress: ProgressData | null = null;
     controller = await deps.createController((event) => {
+      if (cancelled) {
+        // If cancellation met an idle controller still preparing, don't let
+        // a subsequent launch escape it.
+        if (event.type === "state" && event.state === "running")
+          abortController();
+        return;
+      }
       if (event.type === "error") lastError = event.message;
       if (event.type === "progress" && event.data.status === "done") {
         doneProgress = event.data;
@@ -325,25 +318,17 @@ export function startTranslationJob(
         /* a listener failure must not break the job */
       }
     });
-    trackTranslationController(controller);
     if (cancelled) return { status: "cancelled" };
 
-    try {
-      await controller.start(
-        buildTranslateParams({
-          pdfPath: request.pdfPath,
-          outputDir: request.outputDir,
-          modelId: resolved.creds.modelId,
-          options: request.options,
-        }),
-        resolved.creds,
-      );
-    } catch (err) {
-      if (cancelled) return { status: "cancelled" };
-      return { status: "error", message: errorText(err) };
-    } finally {
-      untrackTranslationController(controller);
-    }
+    await controller.start(
+      buildTranslateParams({
+        pdfPath: request.pdfPath,
+        outputDir: request.outputDir,
+        modelId: resolved.creds.modelId,
+        options: request.options,
+      }),
+      resolved.creds,
+    );
     if (cancelled) return { status: "cancelled" };
 
     if (controller.getState() !== "done") {
@@ -362,28 +347,26 @@ export function startTranslationJob(
     };
   };
 
-  if (isTranslationRunning()) {
+  const release = tryReserveTranslation();
+  if (!release) {
     return { cancel: () => undefined, done: Promise.resolve(blocked("busy")) };
   }
 
-  reservedJobs += 1;
   const done = run()
     .catch((err): TranslationJobOutcome => ({
       status: "error",
       message: errorText(err),
     }))
-    .finally(() => {
-      reservedJobs -= 1;
-    });
+    .then((outcome): TranslationJobOutcome =>
+      cancelled ? { status: "cancelled" } : outcome,
+    )
+    .finally(release);
 
   return {
     cancel() {
+      if (cancelled) return;
       cancelled = true;
-      try {
-        controller?.abort();
-      } catch {
-        /* ignore */
-      }
+      abortController();
     },
     done,
   };

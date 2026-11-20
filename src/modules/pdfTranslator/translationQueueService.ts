@@ -1,5 +1,3 @@
-import { confirmPdfLayout } from "./persianLayout";
-import { getPanelLang } from "../contextPanel/i18n";
 /* ---------------------------------------------------------------------------
  * pdfTranslator/translationQueueService.ts  –  The one queue, wired to Zotero
  *
@@ -15,26 +13,31 @@ import {
   getStringPref,
   isSaveToOutputDirEnabled,
   readSavedTranslateOptions,
-  setStringPref,
   TRANSLATE_PREFS,
 } from "./translatePrefs";
+import { config } from "../../../package.json";
+import { batchCopy } from "./translationBatchStrings";
 import {
-  deliverTranslatedPdfs,
-  findExistingTranslations,
-  findPdfAttachment,
+  inspectTranslationOutputs,
+  publishTranslationOutputs,
   type TranslationOutputKind,
-} from "./translationAttachment";
-import { isTranslationRunning, startTranslationJob } from "./translationJob";
+} from "./translationOutputs";
 import {
-  TranslationQueue,
-  type QueueAddEntry,
-  type QueueAddResult,
-  type QueueOutputTarget,
-} from "./translationQueue";
+  cleanQueueWorkspace,
+  createQueueWorkspace,
+  validateQueueWorkspace,
+} from "./queueWorkspace";
+import { isTranslationRunning, startTranslationJob } from "./translationJob";
+import { TranslationQueue, type QueueOutputTarget } from "./translationQueue";
 
 declare const Zotero: any;
 
 let queue: TranslationQueue | null = null;
+
+/** Do not instantiate an unused queue or touch UI during application exit. */
+export function stopQueueIfLoaded(): void {
+  if (queue?.hasPending()) queue.stop();
+}
 
 export function getTranslationQueue(): TranslationQueue {
   if (queue) return queue;
@@ -44,7 +47,7 @@ export function getTranslationQueue(): TranslationQueue {
     // a translation started from the Translate tab.
     isOtherTranslationRunning: () => isTranslationRunning(),
     async resolvePdfPath(attachmentID) {
-      const attachment = Zotero.Items.get(attachmentID);
+      const attachment = await Zotero.Items.getAsync(attachmentID);
       if (!attachment || attachment.deleted) return null;
       try {
         return String((await attachment.getFilePathAsync?.()) || "") || null;
@@ -52,38 +55,37 @@ export function getTranslationQueue(): TranslationQueue {
         return null;
       }
     },
-    async deliver(attachmentID, files, output) {
-      const attachment = Zotero.Items.get(attachmentID);
-      if (!attachment) throw new Error("The source item no longer exists");
-      const delivered = await deliverTranslatedPdfs(attachment, files, output);
-      return {
-        itemIDs: delivered.items
-          .map((item: { id?: number }) => Number(item?.id))
-          .filter((id: number) => Number.isInteger(id) && id > 0),
-      };
-    },
-    async createOutputDir() {
-      const tempDir = String(PathUtils.tempDir || "").trim();
-      if (!tempDir) throw new Error("PathUtils.tempDir is empty");
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const dir = PathUtils.join(
-        tempDir,
-        "aidea-translate",
-        "queue-output",
-        id,
+    async inspect(item, pdfPath) {
+      const source = await Zotero.Items.getAsync(item.attachmentID);
+      if (!source || source.deleted)
+        throw new Error("Source PDF is unavailable");
+      const plan = await inspectTranslationOutputs(
+        source,
+        pdfPath,
+        item.options.targetLang,
+        wantedFormats(item.options),
+        item.output,
+        item.output.overwrite === true,
       );
-      await IOUtils.makeDirectory(dir, { createAncestors: true });
-      return dir;
-    },
-    async removeDir(dir) {
-      try {
-        await IOUtils.remove(dir, { recursive: true, ignoreAbsent: true });
-      } catch {
-        /* best effort */
+      if (
+        plan.overwrite &&
+        plan.cells.some((c) => c.exists && !item.replaceIds?.includes(c.id))
+      ) {
+        throw new Error(batchCopy().changedOutputs);
       }
+      return plan;
     },
+    publish: publishTranslationOutputs,
+    validateStaging: validateQueueWorkspace,
+    createOutputDir: createQueueWorkspace,
+    removeDir: cleanQueueWorkspace,
     load: () => getStringPref(TRANSLATE_PREFS.queueState, ""),
-    save: (json) => setStringPref(TRANSLATE_PREFS.queueState, json),
+    save: (json) =>
+      Zotero.Prefs.set(
+        `${config.prefsPrefix}.${TRANSLATE_PREFS.queueState}`,
+        json,
+        true,
+      ),
     now: () => Date.now(),
     schedule: (callback, delayMs) => {
       setTimeout(callback, delayMs);
@@ -94,28 +96,30 @@ export function getTranslationQueue(): TranslationQueue {
 
 /** Where finished translations go, as chosen in the Translate tab. */
 export function readOutputTarget(): QueueOutputTarget {
-  const saveDir = isSaveToOutputDirEnabled()
+  const folder = isSaveToOutputDirEnabled();
+  const saveDir = folder
     ? getStringPref(TRANSLATE_PREFS.outputDir, "").trim()
     : "";
   const attach = getBoolPref(TRANSLATE_PREFS.outputAttach, true);
-  // With nothing chosen (or a folder option without a folder) the result
-  // would have nowhere to go; attaching is the safe destination.
-  return { attach: attach || !saveDir, saveDir };
+  if (folder && !saveDir) throw new Error(batchCopy().needFolder);
+  if (!attach && !folder) throw new Error(batchCopy().needDestination);
+  return { attach, saveDir };
 }
 
-export function shouldSkipExistingTranslations(): boolean {
-  return getBoolPref(TRANSLATE_PREFS.queueSkipExisting, true);
+export function wantedFormats(
+  options: Pick<
+    ReturnType<typeof readSavedTranslateOptions>,
+    "generateMono" | "generateDual"
+  >,
+): TranslationOutputKind[] {
+  const kinds: TranslationOutputKind[] = [];
+  if (options.generateMono) kinds.push("mono");
+  if (options.generateDual) kinds.push("dual");
+  if (!kinds.length) throw new Error(batchCopy().needFormat);
+  return kinds;
 }
 
-export interface EnqueueResult extends QueueAddResult {
-  cancelled?: boolean;
-  /** Selected items that have no PDF. */
-  withoutPdf: number;
-  /** No translation model has been chosen yet; nothing was added. */
-  noModel: boolean;
-}
-
-async function resolveQueueModel(): Promise<{
+export async function resolveQueueModel(): Promise<{
   modelName: string;
   providerId: string;
 }> {
@@ -131,81 +135,4 @@ async function resolveQueueModel(): Promise<{
     modelName: first?.model || "",
     providerId: first?.providerId || "",
   };
-}
-
-function itemTitle(attachment: any): string {
-  const parent = attachment.parentItemID
-    ? Zotero.Items.get(attachment.parentItemID)
-    : null;
-  return (
-    String(parent?.getDisplayTitle?.() || "").trim() ||
-    String(attachment.getDisplayTitle?.() || "").trim() ||
-    String(attachment.attachmentFilename || "").trim() ||
-    `#${attachment.id}`
-  );
-}
-
-/**
- * Add library items to the queue with the settings saved by the Translate
- * tab. Nothing is asked per document: items without a PDF are counted, and
- * documents that already have the translation follow `skipExisting`.
- */
-export async function enqueueLibraryItems(
-  items: any[],
-  choices: { skipExisting?: boolean } = {},
-): Promise<EnqueueResult> {
-  const skipExisting = choices.skipExisting ?? shouldSkipExistingTranslations();
-  const options = readSavedTranslateOptions();
-  // With both formats switched off the engine would produce nothing.
-  if (!options.generateMono && !options.generateDual) {
-    options.generateMono = true;
-  }
-  const wanted: TranslationOutputKind[] = [];
-  if (options.generateMono) wanted.push("mono");
-  if (options.generateDual) wanted.push("dual");
-
-  const entries: QueueAddEntry[] = [];
-  const seen = new Set<number>();
-  let withoutPdf = 0;
-  for (const item of items || []) {
-    const attachment = findPdfAttachment(item);
-    if (!attachment?.id) {
-      withoutPdf += 1;
-      continue;
-    }
-    if (seen.has(attachment.id)) continue;
-    seen.add(attachment.id);
-    const existing = findExistingTranslations(attachment, options.targetLang);
-    entries.push({
-      attachmentID: attachment.id,
-      title: itemTitle(attachment),
-      alreadyTranslated:
-        skipExisting && wanted.every((kind) => Boolean(existing[kind])),
-    });
-  }
-
-  const model = await resolveQueueModel();
-  if (!model.modelName) {
-    return { added: 0, skipped: 0, duplicates: 0, withoutPdf, noModel: true };
-  }
-  // Ask once per submission, never once per document or on startup.
-  if (
-    entries.some((entry) => !entry.alreadyTranslated) &&
-    !confirmPdfLayout(options.targetLang, getPanelLang())
-  ) {
-    return {
-      added: 0,
-      skipped: 0,
-      duplicates: 0,
-      withoutPdf,
-      noModel: false,
-      cancelled: true,
-    };
-  }
-  const added = getTranslationQueue().add(entries, {
-    ...model,
-    options,
-    output: readOutputTarget(),
-  });
-  return { ...added, withoutPdf, noModel: false };
 }

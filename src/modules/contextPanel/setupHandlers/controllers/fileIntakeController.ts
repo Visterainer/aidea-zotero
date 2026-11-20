@@ -131,7 +131,7 @@ export function isZoteroItemDragEvent(event: DragEvent): boolean {
   return types.includes("zotero/item");
 }
 
-function getSelectedZoteroItems(): Zotero.Item[] {
+export function getSelectedZoteroItems(): Zotero.Item[] {
   try {
     const pane = Zotero.getActiveZoteroPane?.() as
       | {
@@ -148,7 +148,20 @@ function getSelectedZoteroItems(): Zotero.Item[] {
   return [];
 }
 
-function getZoteroDragItemIds(event: DragEvent): number[] {
+/** Read only Zotero's item-ID payload. Neither files, text nor the current
+ * selection are evidence of which items were dropped on the Translate tab. */
+export function getZoteroDragItemIds(event: DragEvent): number[] {
+  if (!isZoteroItemDragEvent(event)) return [];
+  const raw = event.dataTransfer?.getData("zotero/item")?.trim() || "";
+  if (!/^\d+(?:[\s,]+\d+)*$/.test(raw)) return [];
+  return [...new Set(raw.split(/[\s,]+/).map(Number))].filter(
+    (id) => Number.isSafeInteger(id) && id > 0,
+  );
+}
+
+function getChatDragItemIds(event: DragEvent): number[] {
+  // Chat intake historically also accepts serialized selections and expands
+  // partial drags. Keep that behavior separate from explicit batch intake.
   const raw = event.dataTransfer?.getData("zotero/item") || "";
   const rawIds = Array.from(raw.matchAll(/\d+/g))
     .map((match) => Number.parseInt(match[0], 10))
@@ -216,7 +229,7 @@ function isReadableLocalAttachment(
 export async function resolveZoteroItemFiles(
   event: DragEvent,
 ): Promise<File[]> {
-  const ids = getZoteroDragItemIds(event);
+  const ids = getChatDragItemIds(event);
   const files: File[] = [];
   const seenAttachmentIds = new Set<number>();
   for (const id of ids) {

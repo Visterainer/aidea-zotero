@@ -240,18 +240,97 @@ describe("pdfTranslator translation job", function () {
     assert.isFalse(job.isTranslationRunning());
   });
 
-  it("treats a tab-owned running controller as busy", async function () {
-    let state: TranslateState = "running";
-    job.trackTranslationController({ getState: () => state });
+  it("a stale release cannot unlock a new owner", function () {
+    const first = job.tryReserveTranslation()!;
+    first();
+    const second = job.tryReserveTranslation()!;
+    try {
+      first();
+      assert.isNull(job.tryReserveTranslation());
+    } finally {
+      second();
+    }
+    assert.isFalse(job.isTranslationRunning());
+  });
 
-    const blocked = job.startTranslationJob(
+  for (const phase of ["credentials", "environment", "factory"] as const) {
+    it(`cancellation wins over a late ${phase} failure and releases the slot`, async function () {
+      let entered!: () => void;
+      const waiting = new Promise<void>((resolve) => (entered = resolve));
+      let reject!: (error: Error) => void;
+      const failLater = () => {
+        entered();
+        return new Promise<never>((_, r) => (reject = r));
+      };
+      const overrides = {
+        credentials: { resolveCredentials: failLater },
+        environment: { checkEnvironment: failLater },
+        factory: { createController: failLater },
+      };
+      const handle = job.startTranslationJob(
+        request(),
+        undefined,
+        deps(() => assert.fail("unexpected start"), overrides[phase]),
+      );
+      await waiting;
+      handle.cancel();
+      assert.isTrue(job.isTranslationRunning());
+      reject(new Error("late failure"));
+      assert.deepEqual(await handle.done, { status: "cancelled" });
+      assert.isFalse(job.isTranslationRunning());
+      assert.isEmpty(controllers);
+    });
+  }
+
+  it("aborts a late launch if cancel met an idle controller in start preflight", async function () {
+    let enter!: () => void, launch!: () => void;
+    const entered = new Promise<void>((r) => (enter = r));
+    const prepared = new Promise<void>((r) => (launch = r));
+    let killed = false;
+    const handle = job.startTranslationJob(
       request(),
       undefined,
-      deps(() => assert.fail("must not start")),
+      deps(() => undefined, {
+        createController(emit) {
+          let state: TranslateState = "idle";
+          return {
+            getState: () => state,
+            async start() {
+              enter();
+              await prepared;
+              state = "running";
+              emit({ type: "state", state });
+              await Promise.resolve();
+            },
+            abort() {
+              if (state === "running") killed = true;
+              state = "idle";
+            },
+          };
+        },
+      }),
     );
-    assert.deepInclude(await blocked.done, { reason: "busy" });
+    await entered;
+    handle.cancel();
+    await Promise.resolve(); // the initial abort finds no process
+    assert.isTrue(job.isTranslationRunning());
+    launch();
+    assert.deepEqual(await handle.done, { status: "cancelled" });
+    assert.isTrue(killed);
+    assert.isFalse(job.isTranslationRunning());
+  });
 
-    state = "paused";
+  it("can cancel from the running event just before the process handle exists", async function () {
+    const handle = job.startTranslationJob(
+      request(),
+      (event) => {
+        if (event.type === "state" && event.state === "running")
+          handle.cancel();
+      },
+      deps((controller) => controller.waitForAbort()),
+    );
+    assert.deepEqual(await handle.done, { status: "cancelled" });
+    assert.isTrue(controllers[0].aborted);
     assert.isFalse(job.isTranslationRunning());
   });
 

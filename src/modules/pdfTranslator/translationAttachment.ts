@@ -1,63 +1,32 @@
-/* ---------------------------------------------------------------------------
- * pdfTranslator/translationAttachment.ts  –  Translated PDFs as attachments
- *
- * Finds the PDF attachment to translate for a library item, and files the
- * engine's output next to it: a stored attachment under the same parent for
- * stored sources, a linked file in the same directory for linked sources.
- * An attachment that already holds the same translation is updated in place
- * instead of being duplicated.
- * -------------------------------------------------------------------------*/
+/* Zotero placement and discovery. Filesystem inspection and all publication
+ * decisions live in translationOutputs, shared by both translation entry points. */
 
 declare const Zotero: any;
-
-type ZItem = any; /* Zotero.Item */
-
+type ZItem = Zotero.Item;
 export type TranslationOutputKind = "mono" | "dual";
+export const TRANSLATION_TAG = "AIdea Translation";
 
-function fileBaseName(path: string): string {
-  return String(path).split(/[\\/]/).pop() || "";
-}
-
-function fileStem(path: string): string {
-  return fileBaseName(path).replace(/\.pdf$/i, "");
+export function fileBaseName(path: string): string {
+  return path.split(/[\\/]/).pop() || "";
 }
 
 export function isPdfAttachment(item: ZItem): boolean {
-  if (!item?.isAttachment?.()) return false;
-  try {
-    if (typeof item.isPDFAttachment === "function") {
-      return Boolean(item.isPDFAttachment());
-    }
-  } catch {
-    /* fall through to the filename check */
-  }
-  return /\.pdf$/i.test(String(item.attachmentFilename || ""));
+  if (!item || item.deleted || !item.isAttachment?.()) return false;
+  return typeof item.isPDFAttachment === "function"
+    ? item.isPDFAttachment()
+    : /\.pdf$/i.test(item.attachmentFilename || "");
 }
 
 function childAttachments(parent: ZItem): ZItem[] {
-  let ids: number[];
-  try {
-    ids = parent?.getAttachments?.() || [];
-  } catch {
-    return [];
-  }
-  const out: ZItem[] = [];
-  for (const id of ids) {
-    const child = Zotero.Items.get(id);
-    if (child && !child.deleted) out.push(child);
-  }
-  return out;
+  return (parent.getAttachments?.() || [])
+    .map((id) => Zotero.Items.get(id))
+    .filter(isPdfAttachment);
 }
 
-/**
- * Synchronous check used while a context menu opens: the PDF attachment this
- * item would be translated from, or null.
- */
 export function findPdfAttachment(item: ZItem): ZItem | null {
-  if (!item) return null;
+  if (!item || item.deleted) return null;
   if (item.isAttachment?.()) return isPdfAttachment(item) ? item : null;
-  if (!item.isRegularItem?.()) return null;
-  return childAttachments(item).find(isPdfAttachment) || null;
+  return item.isRegularItem?.() ? childAttachments(item)[0] || null : null;
 }
 
 export interface SourcePdf {
@@ -65,280 +34,191 @@ export interface SourcePdf {
   pdfPath: string;
 }
 
-/**
- * Resolve the PDF attachment to translate and its file on disk. For a regular
- * item Zotero's "best attachment" wins when it is a PDF, so the original is
- * preferred over a translation added later.
- */
 export async function resolveSourcePdf(item: ZItem): Promise<SourcePdf | null> {
-  if (!item) return null;
+  if (!item || item.deleted) return null;
   const candidates: ZItem[] = [];
-  if (item.isAttachment?.()) {
-    candidates.push(item);
-  } else if (item.isRegularItem?.()) {
+  if (item.isAttachment?.()) candidates.push(item);
+  else if (item.isRegularItem?.()) {
     try {
-      const best = await item.getBestAttachment?.();
+      const best = await item.getBestAttachment();
       if (best) candidates.push(best);
     } catch {
-      /* fall back to the child list */
+      /* Best attachment unavailable: check the other children. */
     }
     candidates.push(...childAttachments(item));
   }
-  for (const attachment of candidates) {
+  for (const attachment of new Set(candidates)) {
     if (!isPdfAttachment(attachment)) continue;
-    let pdfPath: string;
     try {
-      pdfPath = String((await attachment.getFilePathAsync?.()) || "");
+      const pdfPath = await attachment.getFilePathAsync();
+      if (pdfPath) return { attachment, pdfPath };
     } catch {
-      continue;
+      /* A different child may have a local copy. */
     }
-    if (pdfPath) return { attachment, pdfPath };
   }
   return null;
 }
 
-/**
- * A top-level PDF has no parent to collect its translations under, so they
- * are linked to it as related items when they are created.
- */
-function relatedPdfAttachments(source: ZItem): ZItem[] {
-  let keys: string[];
-  try {
-    keys = source?.relatedItems || [];
-  } catch {
-    return [];
-  }
-  const out: ZItem[] = [];
-  for (const key of keys) {
-    let related: ZItem | false | null = null;
-    try {
-      related = Zotero.Items.getByLibraryAndKey(source.libraryID, key);
-    } catch {
-      /* skip an unreadable relation */
-    }
-    if (
-      related &&
-      !related.deleted &&
-      related.id !== source.id &&
-      isPdfAttachment(related)
-    ) {
-      out.push(related);
-    }
-  }
-  return out;
-}
-
-async function relateToSource(item: ZItem, source: ZItem): Promise<void> {
-  try {
-    if (item.addRelatedItem?.(source)) await item.saveTx();
-    if (source.addRelatedItem?.(item)) await source.saveTx();
-  } catch {
-    /* the translation is in place; only duplicate detection is affected */
-  }
-}
-
-/**
- * Other live PDF attachments that belong with `source`: its siblings under
- * the same parent, or its related items when it has no parent.
- */
-function siblingAttachments(source: ZItem): ZItem[] {
-  const parentID = source?.parentItemID || source?.parentID;
-  if (!parentID) return relatedPdfAttachments(source);
-  const parent = Zotero.Items.get(parentID);
-  if (!parent) return [];
-  return childAttachments(parent).filter(
-    (child) => child.id !== source.id && isPdfAttachment(child),
-  );
-}
-
-/**
- * The engine names its output `<source stem>[.no_watermark].<lang>.<kind>.pdf`.
- * Returns the kind when `filename` is such an output for this source and
- * target language, otherwise null.
- */
+/** Match the complete engine name, not a prefix or an incidental 'mono'. */
 export function matchTranslationOutput(
   filename: string,
   sourceFilename: string,
   targetLang: string,
 ): TranslationOutputKind | null {
-  const stem = fileStem(sourceFilename);
+  const stem = fileBaseName(sourceFilename).replace(/\.pdf$/i, "");
   const name = fileBaseName(filename);
   if (!stem || !name.startsWith(`${stem}.`)) return null;
   const rest = name.slice(stem.length).toLowerCase();
-  const lang = targetLang.toLowerCase();
   for (const kind of ["mono", "dual"] as const) {
-    if (rest.endsWith(`.${lang}.${kind}.pdf`)) return kind;
+    const suffix = `.${targetLang.toLowerCase()}.${kind}.pdf`;
+    if (rest === suffix || rest === `.no_watermark${suffix}`) return kind;
   }
   return null;
 }
 
-/**
- * Translations of `source` into `targetLang` that already sit under the same
- * parent item, by kind.
- */
-export function findExistingTranslations(
+export interface DeliveryTarget {
+  attach: boolean;
+  saveDir: string;
+}
+
+function parentID(item: ZItem): number | undefined {
+  return item.parentItemID || undefined;
+}
+
+/** Top-level items have no sibling list. Discover managed names directly in
+ * the library, including after a crash immediately following the Zotero import.
+ * Legacy top-level outputs may ONLY be attributed via a source relation. */
+export async function translationCandidates(
   source: ZItem,
   targetLang: string,
-): Partial<Record<TranslationOutputKind, ZItem>> {
-  const sourceName = String(source?.attachmentFilename || "");
-  const found: Partial<Record<TranslationOutputKind, ZItem>> = {};
-  if (!sourceName) return found;
-  for (const sibling of siblingAttachments(source)) {
-    const kind = matchTranslationOutput(
-      String(sibling.attachmentFilename || ""),
-      sourceName,
-      targetLang,
+  kinds: TranslationOutputKind[],
+  managedName: (kind: TranslationOutputKind) => string,
+): Promise<Partial<Record<TranslationOutputKind, ZItem>>> {
+  const parent = parentID(source);
+  let candidates: ZItem[];
+  if (parent) {
+    const item = await Zotero.Items.getAsync(parent);
+    if (!item || item.deleted || item.libraryID !== source.libraryID)
+      throw new Error("Source attachment parent is unavailable");
+    candidates = await Zotero.Items.getAsync(item.getAttachments());
+  } else {
+    const related = await Promise.all(
+      (source.relatedItems || []).map((key) =>
+        Zotero.Items.getByLibraryAndKeyAsync(source.libraryID, key),
+      ),
     );
-    if (kind && !found[kind]) found[kind] = sibling;
+    // A stored path is 'storage:<leaf>'; a linked path is absolute or
+    // 'attachments:<relative>'. Filter managed leaves before loading items.
+    const patterns = kinds.flatMap((kind) => {
+      const name = managedName(kind);
+      return [`storage:${name}`, `attachments:${name}`, `%/${name}`];
+    });
+    const ids: number[] = await Zotero.DB.columnQueryAsync(
+      `SELECT itemID FROM itemAttachments JOIN items USING (itemID)
+       WHERE libraryID=? AND parentItemID IS NULL AND (${patterns.map(() => "REPLACE(path, CHAR(92), '/') LIKE ?").join(" OR ")})`,
+      [source.libraryID, ...patterns],
+    );
+    candidates = [...related, ...(await Zotero.Items.getAsync(ids))];
+  }
+  candidates = candidates.filter(
+    (item) =>
+      isPdfAttachment(item) &&
+      item.id !== source.id &&
+      item.libraryID === source.libraryID &&
+      parentID(item) === parent,
+  );
+  function unambiguousLegacy(
+    item: ZItem,
+    kind: TranslationOutputKind,
+  ): boolean {
+    const name = item.attachmentFilename;
+    if (
+      /^AIdea-(attachment|folder)-/i.test(name) ||
+      matchTranslationOutput(name, source.attachmentFilename, targetLang) !==
+        kind
+    )
+      return false;
+    // Both duplicate stems and a source actually named foo.no_watermark.pdf
+    // could have produced this legacy name. Do not claim it for either one.
+    return !candidates.some(
+      (other) =>
+        other.id !== item.id &&
+        matchTranslationOutput(name, other.attachmentFilename, targetLang) ===
+          kind,
+    );
+  }
+  const found: Partial<Record<TranslationOutputKind, ZItem>> = {};
+  for (const kind of kinds) {
+    const matches = candidates.filter(
+      (sibling) =>
+        sibling.attachmentFilename === managedName(kind) ||
+        unambiguousLegacy(sibling, kind),
+    );
+    if (new Set(matches.map((item) => item.id)).size > 1)
+      throw new Error(
+        `Multiple ${kind} translations match ${source.attachmentFilename}; resolve the duplicate attachments first`,
+      );
+    if (matches[0]) found[kind] = matches[0];
   }
   return found;
 }
 
-function isLinkedFile(item: ZItem): boolean {
-  return item?.attachmentLinkMode === Zotero.Attachments.LINK_MODE_LINKED_FILE;
+export function canLinkBeside(source: ZItem): boolean {
+  return (
+    source.attachmentLinkMode === Zotero.Attachments.LINK_MODE_LINKED_FILE &&
+    Zotero.Libraries.get(source.libraryID).allowsLinkedFiles === true
+  );
 }
 
-function attachmentPath(item: ZItem): string {
-  try {
-    return String(item.getFilePath?.() || "");
-  } catch {
-    return "";
-  }
+export function checkAttachmentWritable(source: ZItem): void {
+  const library = Zotero.Libraries.get(source.libraryID);
+  if (!library?.editable || !library.filesEditable)
+    throw new Error(
+      `Library ${source.libraryID} is not writable for attachments`,
+    );
 }
 
-export interface AttachResult {
-  /** One attachment per output file, in the order given. */
-  items: ZItem[];
-  created: number;
-  updated: number;
-}
-
-/**
- * File the translated PDFs next to `source`.
- *
- * - An existing sibling attachment with the same filename has its file
- *   replaced, so translating again never adds a second copy.
- * - Otherwise a linked source gets the PDF copied into its directory and
- *   linked; any other source gets a stored copy under the same parent (or as
- *   a top-level item in the same collections when the source has no parent).
- */
-export async function attachTranslatedPdfs(
+/** The source file and its metadata are never modified. The managed filename
+ * is enough to rediscover even a top-level item before its optional tag saves. */
+export async function createTranslationAttachment(
   source: ZItem,
-  files: string[],
-): Promise<AttachResult> {
-  const result: AttachResult = { items: [], created: 0, updated: 0 };
-  const parentItemID: number | undefined =
-    source.parentItemID || source.parentID || undefined;
+  file: string,
+  name: string,
+  linked: boolean,
+): Promise<ZItem> {
+  const parentItemID = parentID(source);
   const placement = parentItemID
     ? { parentItemID }
-    : { collections: source.getCollections?.() || [] };
-  const siblings = siblingAttachments(source);
-  const sourcePath = attachmentPath(source);
-
-  for (const file of files) {
-    const name = fileBaseName(file);
-    if (!name) continue;
-
-    const existing = siblings.find(
-      (sibling) => String(sibling.attachmentFilename || "") === name,
-    );
-    const existingPath = existing ? attachmentPath(existing) : "";
-    if (existing && existingPath) {
-      if (existingPath !== file) await IOUtils.copy(file, existingPath);
-      result.items.push(existing);
-      result.updated += 1;
-      continue;
-    }
-
-    let item: ZItem;
-    const sourceDir = sourcePath ? PathUtils.parent(sourcePath) : null;
-    if (isLinkedFile(source) && sourceDir) {
-      const target = PathUtils.join(sourceDir, name);
-      if (target !== file) await IOUtils.copy(file, target);
-      item = await Zotero.Attachments.linkFromFile({
-        file: target,
-        title: name,
-        ...placement,
+    : { libraryID: source.libraryID, collections: source.getCollections() };
+  const options = {
+    file,
+    title: `${source.attachmentFilename.replace(/\.pdf$/i, "")}.${name.split(".").slice(-3).join(".")}`,
+    contentType: "application/pdf",
+    ...placement,
+  };
+  const item: ZItem = linked
+    ? await Zotero.Attachments.linkFromFile(options)
+    : await Zotero.Attachments.importFromFile({
+        ...options,
+        fileBaseName: name.slice(0, -4),
       });
-    } else {
-      item = await Zotero.Attachments.importFromFile({
-        file,
-        title: name,
-        ...(parentItemID ? {} : { libraryID: source.libraryID }),
-        ...placement,
-      });
-    }
-    if (!parentItemID) await relateToSource(item, source);
-    result.items.push(item);
-    result.created += 1;
+  try {
+    item.addTag(TRANSLATION_TAG);
+    item.addRelatedItem(source);
+    await item.saveTx();
+  } catch (error) {
+    Zotero.logError(error);
   }
-  return result;
+  return item;
 }
 
-/** Tag put on every translated PDF so they can be found (and removed) together. */
-export const TRANSLATION_TAG = "AIdea Translation";
-
-export interface DeliveryTarget {
-  /** Add the PDFs to the source's Zotero item. */
-  attach: boolean;
-  /** Also copy them into this folder; "" for none. */
-  saveDir: string;
-}
-
-export interface DeliveryResult {
-  /** Attachments created or updated; empty when nothing was attached. */
-  items: ZItem[];
-  /** Copies written to the folder. */
-  savedFiles: string[];
-}
-
-/**
- * Put finished translations where the user asked for them: on the Zotero
- * item, in a folder, or both. With neither chosen they are attached, so a
- * finished translation is never thrown away.
- */
-export async function deliverTranslatedPdfs(
-  source: ZItem,
-  files: string[],
-  target: DeliveryTarget,
-): Promise<DeliveryResult> {
-  const saveDir = String(target.saveDir || "").trim();
-  const result: DeliveryResult = { items: [], savedFiles: [] };
-  // The folder copy comes first: it cannot be affected by a Zotero error.
-  if (saveDir) {
-    await IOUtils.makeDirectory(saveDir, { createAncestors: true });
-    for (const file of files) {
-      const name = fileBaseName(file);
-      if (!name) continue;
-      const destination = PathUtils.join(saveDir, name);
-      if (destination !== file) await IOUtils.copy(file, destination);
-      result.savedFiles.push(destination);
-    }
-  }
-  if (target.attach || !saveDir) {
-    const attached = await attachTranslatedPdfs(source, files);
-    result.items = attached.items;
-    for (const item of attached.items) {
-      try {
-        if (!item.hasTag?.(TRANSLATION_TAG)) {
-          item.addTag(TRANSLATION_TAG);
-          await item.saveTx();
-        }
-      } catch {
-        /* the attachment is in place; the tag is a convenience */
-      }
-    }
-  }
-  return result;
-}
-
-/** Prefer the translated-only PDF when both kinds were produced. */
-export function pickAttachmentToOpen(items: ZItem[]): ZItem | null {
+export function pickAttachmentToOpen(
+  items: (ZItem | false | undefined)[],
+): ZItem | null {
+  const live = items.filter((item): item is ZItem => !!item && !item.deleted);
   return (
-    items.find((item) =>
-      /\.mono\.pdf$/i.test(String(item?.attachmentFilename || "")),
-    ) ||
-    items[0] ||
+    live.find((item) => /\.mono\.pdf$/i.test(item.attachmentFilename)) ||
+    live[0] ||
     null
   );
 }
