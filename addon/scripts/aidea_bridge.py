@@ -231,6 +231,69 @@ def parse_progress(line):
     return None
 
 
+# pdf2zh-next uses RichHandler: the level is on the first physical line,
+# while the exception and its HTTP status often wrap onto subsequent lines.
+_ENGINE_LEVEL = re.compile(
+    r"^\s*(?:" + RICH_TIMESTAMP_RE.pattern + r")?"
+    r"(DEBUG|INFO|WARNING|ERROR|CRITICAL)(?=[:\s]|$)"
+)
+
+
+class _EngineErrors:
+    """Count ERROR records, not failed paragraphs; keep bounded diagnostics."""
+
+    def __init__(self):
+        self.count = 0
+        self.samples = deque(maxlen=12)
+        self.current = None
+        self.service_error = None
+        self.level_column = None
+
+    def feed(self, line):
+        level = _ENGINE_LEVEL.match(line)
+        if level and line.lstrip().startswith("["):
+            self.level_column = level.start(1)
+        elif level and self.level_column is not None and level.start(1) > self.level_column:
+            # Indented under Rich's message column, not its severity column.
+            level = None
+        if level:
+            self._end_record()
+            if level[1] == "ERROR":
+                self.count += 1
+                self.current = _sanitize_log_line(line.strip(), max_len=2000)
+                return True
+        elif self.current is not None:
+            if line[:1].isspace() or re.match(r"^[\w.]+(?:Error|Exception):", line):
+                # Keep the exception end, not an unbounded echoed paragraph or traceback.
+                self.current = (self.current + " " + line.strip()[-2000:])[-2000:]
+            else:
+                self._end_record()
+        return False
+
+    def _end_record(self):
+        if self.current is None:
+            return
+        # The simple translator quotes the entire source paragraph before the
+        # exception. Don't treat a status mentioned by the PDF as an HTTP error.
+        message = self.current.rsplit("). Error:", 1)[-1].strip()
+        self.samples.append(message)
+        # Keep a representative explicit service failure even when later layout
+        # errors fill the rolling sample. Retries logged at WARNING never enter it.
+        if re.search(r"\b(?:HTTP\s+|Error code:\s*)(?:401|403|429)\b|"
+                     r"(?:Authentication|RateLimit|APIConnection|APITimeout)Error\b|"
+                     r"\b(?:urlopen error|connection refused|connection reset by peer)\b",
+                     message, re.IGNORECASE):
+            self.service_error = message
+        self.current = None
+
+    def finish(self):
+        self._end_record()
+        lines = list(self.samples)
+        if self.service_error is not None and self.service_error not in lines:
+            lines.insert(0, self.service_error)
+        return lines
+
+
 def _categorize_warning_line(line):
     text = str(line or "")
     lower = text.lower()
@@ -1151,7 +1214,6 @@ def _postprocess_mono_pdf(
     # This legacy residual-text overlay paints LTR and cannot supply the RTL
     # selection map. Never overlay it on top of the corrected Persian page.
     if _is_persian_layout_target(target_lang) or fitz is None or proxy is None or not model_id:
-
         return 0
     doc = fitz.open(pdf_file)
     translation_cache = {}
@@ -2875,7 +2937,7 @@ def main():
         last_current = None
         last_total = None
         tail_lines = deque(maxlen=80)
-        error_lines = []  # Track ERROR output from pdf2zh_next (full text)
+        errors = _EngineErrors()
         persian_pages = {}
         warning_stats = {
             "sameAsInput": 0,
@@ -2909,7 +2971,7 @@ def main():
 
             print(line, flush=True)
             log_line(line)
-            tail_lines.append(line)
+            tail_lines.append(_sanitize_log_line(line, max_len=1000))
 
             if _is_persian_layout_target(target_lang) and line.startswith("AIDEA_PERSIAN_PAGE "):
                 marker = re.match(r"AIDEA_PERSIAN_PAGE page=(\d+) replaced=(\d+) skipped=(\d+)\b", line)
@@ -2929,17 +2991,12 @@ def main():
                     "fallback": int(stats_match.group(3)),
                 }
 
-            # Track ERROR lines from engine — keep FULL text for debugging
-            is_error_line = bool(re.search(r'\bERROR\b', line))
-            if is_error_line:
-                full_error = _sanitize_log_line(line, max_len=2000)
-                error_lines.append(full_error)
-                # Immediately write error detail to progress (no throttle)
+            if errors.feed(line):
                 write_progress(progress_file, make_progress(
                     "running", last_pct,
-                    f"⚠ Engine error ({len(error_lines)})",
-                    detail=full_error,
-                    errorCount=len(error_lines),
+                    f"⚠ Engine error ({errors.count})",
+                    detail=errors.current,
+                    errorCount=errors.count,
                     stage="translating",
                 ))
                 last_write_time = time.time()
@@ -2988,6 +3045,10 @@ def main():
                     ))
                     last_write_time = now
 
+        error_lines = errors.finish()
+        # Fatal/no-output outcomes use the tail, not the done diagnostics.
+        if errors.service_error:
+            tail_lines = [errors.service_error, *tail_lines]
         returncode = proc.wait()
         if returncode == 0:
             output_files = _collect_output_files(
@@ -3056,6 +3117,7 @@ def main():
                               f"{skipped} left in native layout. Inspect the translated PDF."
                               if persian_pages else "No Persian RTL layout report; inspect the translated PDF.")
                     error_lines = [*error_lines, detail]
+                    errors.count += 1
                     log_line(detail)
             if overlay_changes > 0:
                 done_data["detail"] = f"Overlay-translated {overlay_changes} residual text region(s)."
@@ -3066,8 +3128,8 @@ def main():
                 done_data["warningStats"] = nonzero_warning_stats
             # Warn if pdf2zh_next logged ERROR lines (e.g. API failures)
             if error_lines:
-                done_data["errorCount"] = len(error_lines)
-                done_data["errorLines"] = error_lines[:50]  # keep up to 50 for debugging
+                done_data["errorCount"] = errors.count
+                done_data["errorLines"] = error_lines
                 done_data["hasErrors"] = True
             write_progress(progress_file, done_data)
         else:

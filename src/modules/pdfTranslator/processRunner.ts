@@ -42,14 +42,29 @@ function killPosixProcessGroup(pid: number): void {
   }
 }
 
-let runningProcessCount = 0;
+const liveProcesses = new Set<RunningProcess>();
+let shuttingDown = false;
+
+/** Stop only bridge children owned by this plugin instance. A late async
+ * preparation must not launch a new child after the plugin has shut down. */
+export function shutdownTranslationProcesses(): void {
+  shuttingDown = true;
+  for (const process of liveProcesses) {
+    try {
+      process.kill();
+    } catch {
+      /* an already exited child is harmless */
+    }
+  }
+}
 
 /** True while any bridge process launched from here has not exited. */
 export function hasRunningProcess(): boolean {
-  return runningProcessCount > 0;
+  return liveProcesses.size > 0;
 }
 
 export function launchProcess(exe: string, args: string[]): RunningProcess {
+  if (shuttingDown) throw new Error("Translation engine is shutting down");
   const file = (Components.classes as any)[
     "@mozilla.org/file/local;1"
   ].createInstance((Components.interfaces as any).nsIFile);
@@ -95,15 +110,17 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
       proc.runAsync(args, args.length, observer);
     }
   });
-  runningProcessCount++;
-  const release = () => {
-    runningProcessCount--;
-  };
-  done.then(release, release);
-
-  return {
+  let killRequested = false;
+  const handle: RunningProcess = {
     kill() {
-      const pid = Number((proc as any).pid || 0);
+      if (killRequested || !liveProcesses.has(handle)) return;
+      killRequested = true;
+      let pid = 0;
+      try {
+        pid = Number(proc.pid) || 0;
+      } catch {
+        /* PID not available */
+      }
       if (IS_WIN_PROC && pid > 0 && killWindowsProcessTree(pid)) return;
       // The bridge leads its own process group, so signalling the group
       // also stops the translation engine and its workers; killing only the
@@ -117,6 +134,12 @@ export function launchProcess(exe: string, args: string[]): RunningProcess {
     },
     done,
   };
+  liveProcesses.add(handle);
+  const release = () => {
+    liveProcesses.delete(handle);
+  };
+  done.then(release, release);
+  return handle;
 }
 
 /**

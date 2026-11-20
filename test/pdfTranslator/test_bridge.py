@@ -851,6 +851,26 @@ with tempfile.TemporaryDirectory() as out_dir:
         "new and updated outputs are fresh",
     )
 
+print("\n=== bounded engine ERROR records ===")
+errors = bridge._EngineErrors()
+errors.feed("[07/21/26 10:08:04] WARNING  Retrying after Error code: 429")
+errors.feed("                             ERROR is a literal in the warning")
+errors.feed("[07/21/26 10:08:05] INFO     Completed fallback translation")
+assert_eq(errors.finish(), [], "a recovered warning is not a failed request")
+errors.feed("[07/21/26 10:08:06] ERROR    Error translating paragraph. Paragraph: abc (paper mentions HTTP 401")
+errors.feed("                             in its text). Error: font not found.")
+assert_eq(errors.finish(), ["font not found."], "ignores HTTP status quoted from the source PDF")
+errors.feed("                    ERROR    Error translating paragraph. Paragraph: xyz (text). Error: Error")
+errors.feed("                             code: 500 - {'message': 'HTTP")
+errors.feed("                             429 from API'}")
+for i in range(100):
+    errors.feed(f"ERROR:renderer:bad glyph {i} " + "x" * 4000)
+lines = errors.finish()
+assert_eq(errors.count, 102, "count is independent of the diagnostic sample size")
+assert_eq(len(lines) <= 13, True, "only a bounded number of ERROR records are retained")
+assert_eq(all(len(line) <= 2000 for line in lines), True, "each diagnostic record is bounded")
+assert_eq(any("HTTP 429 from API" in line for line in lines), True, "retains wrapped service error amid subsequent noise")
+
 print("\n=== no-output failure progress ===")
 no_output = _make_no_output_error_progress(
     38,

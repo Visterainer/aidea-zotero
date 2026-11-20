@@ -156,4 +156,22 @@ describe("pdfTranslator process runner", function () {
     const running = launchProcess("C:\\Python\\python.exe", ["bridge.py"]);
     assert.equal(await running.done, 7);
   });
+
+  it("stops only its live children on shutdown and refuses a late launch", async function () {
+    // Use a private module instance so its terminal shutdown state cannot
+    // affect other tests in this Node process.
+    const path = "../../src/modules/pdfTranslator/processRunner.ts?quit-test";
+    const mod: typeof import("../../src/modules/pdfTranslator/processRunner") =
+      await import(path);
+    const child = createMainProcess(0);
+    processQueue.push(child);
+    const handle = mod.launchProcess("python", ["bridge.py"]);
+    mod.shutdownTranslationProcesses();
+    mod.shutdownTranslationProcesses();
+    assert.equal(child.directKillCount, 1);
+    assert.throws(() => mod.launchProcess("python", []), /shutting down/);
+    for (const exit of pendingExits.splice(0)) exit();
+    await handle.done;
+    assert.isFalse(mod.hasRunningProcess());
+  });
 });

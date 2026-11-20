@@ -43,6 +43,7 @@ export class TranslateController {
   private process: RunningProcess | null = null;
   private poller: ProgressPoller | null = null;
   private activeLockPath = "";
+  private runGeneration = 0;
 
   constructor(private callback: TranslateUICallback) {}
 
@@ -74,6 +75,7 @@ export class TranslateController {
     params: TranslateParams,
     credentials: TranslateCredentials,
   ): Promise<void> {
+    const generation = ++this.runGeneration;
     /* 1. Check environment */
     const env = await checkEnvironment();
     if (env.status !== "ready") {
@@ -176,7 +178,6 @@ export class TranslateController {
       protectAuthorBlock: params.protectAuthorBlock,
       oauthProxy: credentials.oauthProxy,
     });
-    await IOUtils.writeUTF8(taskPath, taskJson);
 
     /* 5. Clean stale progress file */
     try {
@@ -197,27 +198,41 @@ export class TranslateController {
         2,
       ),
     );
+    if (generation !== this.runGeneration) {
+      await IOUtils.remove(lockPath, { ignoreAbsent: true });
+      return;
+    }
     this.activeLockPath = lockPath;
 
-    /* 6. Find bridge script */
-    const bridgePath = this.getBridgeScriptPath(tmpDir, params.targetLang);
-    this.callback({
-      type: "env_progress",
-      step: "bridge",
-      detail: `Bridge script: ${bridgePath}`,
-    });
-    this.callback({
-      type: "env_progress",
-      step: "workspace",
-      detail: `Task workspace: ${tmpDir}`,
-    });
-
-    /* 7. Launch bridge subprocess */
-    this.setState("running");
     try {
+      /* 6. Find bridge script */
+      const bridgePath = this.getBridgeScriptPath(tmpDir, params.targetLang);
+      this.callback({
+        type: "env_progress",
+        step: "bridge",
+        detail: `Bridge script: ${bridgePath}`,
+      });
+      this.callback({
+        type: "env_progress",
+        step: "workspace",
+        detail: `Task workspace: ${tmpDir}`,
+      });
+
+      /* 7. Launch bridge subprocess */
+      // Write credentials last. A failure resolving the bridge or preparing
+      // its workspace must not leave an unused credential file behind.
+      await IOUtils.writeUTF8(taskPath, taskJson);
+      if (generation !== this.runGeneration) {
+        await IOUtils.remove(taskPath, { ignoreAbsent: true });
+        return;
+      }
+      this.setState("running");
       this.process = launchProcess(env.pythonBin, [bridgePath, taskPath]);
     } catch (err) {
       this.clearActiveLock();
+      await IOUtils.remove(taskPath, { ignoreAbsent: true }).catch(
+        () => undefined,
+      );
       // Nothing is running; "running" would block every later translation.
       this.setState("error");
       throw err;
@@ -286,6 +301,7 @@ export class TranslateController {
 
   pause(): void {
     if (this.state !== "running") return;
+    ++this.runGeneration;
     this.process?.kill();
     this.poller?.stop();
     this.process = null;
@@ -294,6 +310,7 @@ export class TranslateController {
   }
 
   abort(): void {
+    ++this.runGeneration;
     this.process?.kill();
     this.poller?.stop();
     this.process = null;

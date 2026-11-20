@@ -40,6 +40,17 @@ import {
   unregisterTranslateMenu,
 } from "./modules/pdfTranslator/translateMenu";
 
+import { shutdownTranslationProcesses } from "./modules/pdfTranslator/processRunner";
+import { stopQueueIfLoaded } from "./modules/pdfTranslator/translationQueueService";
+
+function stopTranslationWork(): void {
+  try {
+    stopQueueIfLoaded();
+  } finally {
+    shutdownTranslationProcesses();
+  }
+}
+
 const PREF_PANE_ID = `${config.addonRef}-preferences-pane`;
 
 async function onStartup() {
@@ -200,6 +211,11 @@ function onShutdown(): void {
   } catch (err) {
     ztoolkit.log("LLM: failed to enumerate main windows on shutdown", err);
   }
+  try {
+    stopTranslationWork();
+  } catch (err) {
+    ztoolkit.log("AIdea: failed to stop translations", err);
+  }
   unregisterReaderSelectionTracking();
   unregisterReaderContextPanel();
   try {
@@ -264,6 +280,7 @@ function onDialogEvents(_type: string) {
 export default {
   onStartup,
   onShutdown,
+  stopTranslationWork,
   onMainWindowLoad,
   onMainWindowUnload,
   onNotify,

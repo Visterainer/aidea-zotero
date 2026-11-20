@@ -44,6 +44,8 @@ async function onMainWindowUnload({ window }, reason) {
 
 async function shutdown({ id, version, resourceURI, rootURI }, reason) {
   if (reason === APP_SHUTDOWN) {
+    // Zotero handles window cleanup at exit, but not our external Python jobs.
+    Zotero.__addonInstance__?.hooks.stopTranslationWork?.();
     return;
   }
 

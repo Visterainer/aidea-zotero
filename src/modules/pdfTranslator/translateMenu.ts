@@ -292,12 +292,6 @@ export function registerTranslateMenu(): void {
 }
 
 export function unregisterTranslateMenu(): void {
-  try {
-    // The document goes back in line and is offered again after a restart.
-    getTranslationQueue().stop();
-  } catch {
-    /* ignore */
-  }
   unsubscribeQueue?.();
   unsubscribeDrained?.();
   unsubscribeQueue = null;
