@@ -3,6 +3,7 @@ import { callLLM, callLLMStream } from "../src/utils/llmClient";
 import { fetchCustomEndpointModels } from "../src/utils/oauthCli";
 import {
   cacheApiReasoningCatalog,
+  normalizeReasoningApiBase,
   getApiReasoningSupport,
   getCachedModelReasoningSupport,
   parseApiReasoningSupport,
@@ -147,6 +148,18 @@ describe("API Key reasoning capability and transport", function () {
         { ...adaptive, supported_parameters: ["reasoning"] },
         "https://openrouter.ai/api/v1",
       ).catalogMissing,
+    );
+  });
+
+  it("keeps a trailing slash in a tenant query value when normalizing model routes", function () {
+    const base = "https://example.test/v1";
+    assert.equal(
+      normalizeReasoningApiBase(`${base}/models?route=team/`),
+      `${base}?route=team/`,
+    );
+    assert.notEqual(
+      normalizeReasoningApiBase(`${base}?route=team/`),
+      normalizeReasoningApiBase(`${base}?route=team`),
     );
   });
 

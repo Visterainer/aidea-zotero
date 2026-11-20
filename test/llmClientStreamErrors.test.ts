@@ -170,6 +170,25 @@ describe("llmClient audit regressions", function () {
       );
     });
 
+    it("preserves tenant path and query case when inheriting a key", function () {
+      prefs.set(
+        `${PREFIX}.apiBasePrimary`,
+        "https://primary.example/Team?account=A",
+      );
+      for (const apiBase of [
+        "https://primary.example/team?account=A",
+        "https://primary.example/Team?account=a",
+      ]) {
+        assert.equal(llmClient.getApiConfig({ apiBase }).apiKey, "");
+      }
+      assert.equal(
+        llmClient.getApiConfig({
+          apiBase: "https://PRIMARY.EXAMPLE/Team?account=A",
+        }).apiKey,
+        "primary-secret",
+      );
+    });
+
     it("prefers an explicit key for any endpoint", function () {
       assert.equal(
         llmClient.getApiConfig({

@@ -6229,21 +6229,21 @@ export async function bootstrapSettingTab(
             `Zotero could not reach the provider (${listed.detail || "network error"}). Check the proxy Zotero uses. / Zotero 无法连接到该服务，请检查 Zotero 使用的代理设置。`,
           );
         }
-        if (!models.length && /\b403\b/.test(listed.detail || "")) {
+        if (listed.failure === "forbidden") {
           throw new Error(
-            "The provider refused the request (HTTP 403). This is usually a region or proxy-node restriction, not an expired sign-in; try another proxy node. / 服务拒绝了请求（HTTP 403），通常是地区或代理节点受限，而不是登录失效；请更换代理节点后重试。",
+            "The provider denied access (HTTP 403). Check this account’s permissions. / 服务拒绝访问（HTTP 403），请检查当前账号的访问权限。",
           );
         }
-        if (!models.length && !(cache[provider] || []).length) {
+        if (listed.failure === "rejected") {
           throw new Error(
-            `The provider rejected the saved sign-in${listed.detail ? ` (${listed.detail})` : ""}. Sign in again. / 登录状态已失效或被拒绝，请重新登录。`,
+            `The provider rejected the saved sign-in (${listed.detail}). Sign in again. / 登录凭据被拒绝，请重新登录。`,
           );
         }
-        // The fetch reports network/token failures as an empty list. Storing
-        // that would wipe the provider's models and the user's selection, so
-        // treat "empty while we already had models" as a failed refresh.
-        if (!models.length && (cache[provider] || []).length) {
-          throw new Error("Model list refresh returned no models");
+        // Leave the current models and selections untouched on provider errors.
+        if (!models.length) {
+          throw new Error(
+            listed.detail || "Model list refresh returned no models",
+          );
         }
         cache = { ...cache, [provider]: models };
       } else {

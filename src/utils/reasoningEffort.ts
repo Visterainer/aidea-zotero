@@ -355,7 +355,8 @@ export function normalizeReasoningApiBase(apiBase: string): string {
     url.pathname = url.pathname
       .replace(/\/+$/, "")
       .replace(/\/(?:chat\/completions|responses|models)$/, "");
-    return url.toString().replace(/\/$/, "");
+    // A final slash in a query value belongs to the tenant, not the path.
+    return url.search ? url.href : url.href.replace(/\/$/, "");
   } catch {
     return "";
   }

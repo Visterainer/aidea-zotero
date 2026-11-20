@@ -238,11 +238,20 @@ const DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2";
 const prefKey = (key: string) => `${config.prefsPrefix}.${key}`;
 const getPref = (key: string) => Zotero.Prefs.get(prefKey(key), true) as string;
 
-const normalizeApiBaseForCompare = (value: string | undefined) =>
-  String(value || "")
-    .trim()
-    .replace(/\/+$/, "")
-    .toLowerCase();
+function normalizeApiBaseForCompare(value: string | undefined): string {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    // URL canonicalizes the host, but tenant paths and query values are
+    // case-sensitive. Never fold them when deciding who gets a bearer key.
+    if (!url.search && !url.hash)
+      url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.href;
+  } catch {
+    return raw;
+  }
+}
 
 /**
  * An explicit key always wins. The primary profile's key is only a fallback

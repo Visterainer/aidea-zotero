@@ -4,7 +4,10 @@ import {
   currentPlatform,
   escapeShellArg,
 } from "./processRunner";
-import { fetchWithTransientRetry } from "./transientRetry";
+import {
+  fetchWithTransientRetry,
+  parseHttpStatusFromErrorMessage,
+} from "./transientRetry";
 import { formatDocumentContext } from "./llmPrompts";
 import { providerContextWindow } from "./modelContextWindow";
 import {
@@ -1585,6 +1588,8 @@ function setOAuthPref(key: string, value: string): void {
 
 // ---------- GitHub Copilot credential read/write ----------
 function saveCopilotGithubToken(token: string): void {
+  if (token !== getCopilotGithubToken())
+    setOAuthPref("oauthCopilotApiToken", "");
   setOAuthPref("oauthCopilotGithubToken", token);
 }
 function getCopilotGithubToken(): string {
@@ -1793,6 +1798,9 @@ async function exchangeCopilotToken(githubToken: string): Promise<{
     // Default: 30 minutes from now
     expiresAt = Date.now() + 30 * 60 * 1000;
   }
+  if (githubToken !== getCopilotGithubToken()) {
+    throw new Error("GitHub account changed during Copilot token exchange");
+  }
   saveCopilotApiToken({ token, expiresAt });
   return { token, expiresAt, baseUrl: deriveCopilotApiBaseUrl(token) };
 }
@@ -1819,7 +1827,11 @@ async function ensureCopilotApiToken(
   } catch (err) {
     // A longer lifetime was requested but the exchange failed (offline blip).
     // A cached token that is still comfortably valid beats failing outright.
-    if (cached && cached.expiresAt - Date.now() > 5 * 60 * 1000) {
+    if (
+      cached &&
+      githubToken === getCopilotGithubToken() &&
+      cached.expiresAt - Date.now() > 5 * 60 * 1000
+    ) {
       return {
         token: cached.token,
         baseUrl: deriveCopilotApiBaseUrl(cached.token),
@@ -1901,11 +1913,9 @@ export function parseCopilotModelsResponse(
   );
 }
 
-async function fetchCopilotAvailableModels(): Promise<ProviderModelOption[]> {
+async function fetchCopilotAvailableModels(): Promise<ModelListResult> {
   const copilotResult = await ensureCopilotApiToken();
-  if (!copilotResult) {
-    return [];
-  }
+  if (!copilotResult) return { models: [], failure: "not-logged-in" };
 
   const modelsRes = await getFetch()(`${copilotResult.baseUrl}/models`, {
     method: "GET",
@@ -1915,12 +1925,13 @@ async function fetchCopilotAvailableModels(): Promise<ProviderModelOption[]> {
       ...buildCopilotDynamicHeaders(),
     },
   });
-  if (!modelsRes.ok) {
-    throw new Error(`Copilot models HTTP ${modelsRes.status}`);
+  if (modelsRes.status === 404 || modelsRes.status === 405) {
+    return { models: [...COPILOT_KNOWN_MODELS] };
   }
+  if (!modelsRes.ok) return modelListHttpFailure(modelsRes.status);
 
-  const modelsData = (await modelsRes.json()) as unknown;
-  return parseCopilotModelsResponse(modelsData);
+  const models = parseCopilotModelsResponse(await modelsRes.json());
+  return models.length ? { models } : { models, failure: "provider" };
 }
 
 function getCachedProviderModelOptions(
@@ -2189,7 +2200,14 @@ export function parseCodexModelsResponse(data: unknown): ProviderModelOption[] {
     .filter((m) => m.id);
 }
 
-export type ModelListFailure = "not-logged-in" | "network" | "rejected";
+export type ModelListFailure =
+  "not-logged-in" | "network" | "rejected" | "forbidden" | "provider";
+
+function modelListHttpFailure(status: number): ModelListResult {
+  const failure =
+    status === 401 ? "rejected" : status === 403 ? "forbidden" : "provider";
+  return { models: [], failure, detail: `HTTP ${status}` };
+}
 
 export interface ModelListResult {
   models: ProviderModelOption[];
@@ -2214,157 +2232,63 @@ export async function fetchAvailableModels(
 export async function fetchAvailableModelsDetailed(
   provider: OAuthProviderId,
 ): Promise<ModelListResult> {
-  let failure: ModelListFailure | undefined;
-  let detail = "";
-  const models = await fetchAvailableModelsWithReason(provider, (f, d) => {
-    failure = f;
-    detail = d || "";
-  });
-  if (models.length) return { models };
-  return { models, failure: failure || "rejected", detail };
-}
-
-async function fetchAvailableModelsWithReason(
-  provider: OAuthProviderId,
-  report: (failure: ModelListFailure, detail?: string) => void,
-): Promise<ProviderModelOption[]> {
   await ensureZoteroProxyFromSystem({ forceRefresh: true });
-  const cred = await readProviderOAuthCredential(provider);
-  if (!cred) {
-    report("not-logged-in");
-    return [];
-  }
   try {
-    if (provider === "openai-codex") {
-      let activeCred = cred;
-      let triedCliRefresh = false;
+    if (provider === "github-copilot")
+      return await fetchCopilotAvailableModels();
+    const cred = await readCodexOAuthCredential();
+    if (!cred) return { models: [], failure: "not-logged-in" };
 
-      const buildHeaders = (
-        credential: OAuthCredential,
-      ): Record<string, string> => {
-        return {
-          ...ensureProviderAuthHeaderInit(credential),
-          Accept: "application/json",
-        };
+    let activeCred = cred;
+    for (;;) {
+      const headers = {
+        ...ensureProviderAuthHeaderInit(activeCred),
+        Accept: "application/json",
       };
-
-      const fetchDynamicModels = async (
-        headers: Record<string, string>,
-      ): Promise<ProviderModelOption[]> => {
-        const res = await getFetch()(
-          "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0",
-          {
-            method: "GET",
-            headers,
-          },
+      const catalog = await getFetch()(
+        "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0",
+        { method: "GET", headers },
+      );
+      if (catalog.ok) {
+        const models = dedupeModels(
+          parseCodexModelsResponse(await catalog.json()),
         );
-        if (res.ok) {
-          const rows = parseCodexModelsResponse(await res.json());
-          if (rows.length > 0) {
-            ztoolkit?.log?.(
-              `AIdea: Codex dynamic models: ${rows.map((r) => r.id).join(", ")}`,
-            );
-            return dedupeModels(rows);
-          }
-        }
-        return [];
-      };
-
-      const validateToken = async (
-        headers: Record<string, string>,
-      ): Promise<boolean> => {
-        const usageRes = await getFetch()(
+        if (models.length) return { models };
+      }
+      let status = catalog.status;
+      // A missing/empty catalog can occur on older backends. Only offer
+      // the compatibility list if the independent usage request succeeds.
+      // In particular, a working usage endpoint cannot override a catalog
+      // outage or a refusal to list this account's models.
+      if (catalog.ok || status === 404 || status === 405) {
+        const usage = await getFetch()(
           "https://chatgpt.com/backend-api/wham/usage",
           {
             method: "GET",
             headers,
           },
         );
-        lastRejectionStatus = usageRes.status;
-        return usageRes.status !== 401 && usageRes.status !== 403;
-      };
-      // 401 means the session expired; 403 is usually the service refusing
-      // the network location (region or proxy exit), which a new login
-      // cannot fix. The UI needs to tell these apart.
-      let lastRejectionStatus = 0;
-
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const headers = buildHeaders(activeCred);
-        let requestsFailed = 0;
-        let lastError = "";
-        try {
-          const rows = await fetchDynamicModels(headers);
-          if (rows.length > 0) {
-            return rows;
-          }
-        } catch (err) {
-          requestsFailed += 1;
-          lastError = err instanceof Error ? err.message : String(err);
-          ztoolkit?.log?.("AIdea: Codex dynamic model fetch failed", err);
-        }
-
-        try {
-          if (await validateToken(headers)) {
-            return [...CODEX_KNOWN_MODELS];
-          }
-        } catch (err) {
-          requestsFailed += 1;
-          lastError = err instanceof Error ? err.message : String(err);
-          ztoolkit?.log?.("AIdea: Codex token validation failed", err);
-        }
-
-        if (requestsFailed === 2) {
-          // Neither request got an answer: Zotero cannot reach the service.
-          // Refreshing the token through the CLI would not change that.
-          report("network", lastError);
-          return [];
-        }
-
-        if (!triedCliRefresh) {
-          triedCliRefresh = true;
-          const refreshed = await refreshCodexOAuthCredentialViaCli();
-          if (refreshed?.accessToken) {
-            activeCred = refreshed;
-            continue;
-          }
-        }
-
-        ztoolkit?.log?.(
-          "AIdea: Codex OAuth credential could not be validated; model list unavailable",
-        );
-        report(
-          "rejected",
-          lastRejectionStatus ? `HTTP ${lastRejectionStatus}` : "",
-        );
-        return [];
+        if (usage.ok) return { models: [...CODEX_KNOWN_MODELS] };
+        status = usage.status;
       }
-      return [];
-    }
-
-    if (provider === "github-copilot") {
-      try {
-        const models = await fetchCopilotAvailableModels();
-        if (models.length > 0) {
-          ztoolkit?.log?.(
-            `AIdea: Copilot dynamic models: ${models.map((r) => r.id).join(", ")}`,
-          );
-          return models;
+      if (status === 401 && activeCred === cred) {
+        const refreshed = await refreshCodexOAuthCredentialViaCli();
+        if (refreshed && refreshed.accessToken !== cred.accessToken) {
+          activeCred = refreshed;
+          continue;
         }
-      } catch (err) {
-        ztoolkit?.log?.(
-          "AIdea: Copilot dynamic model fetch failed, using static list",
-          err,
-        );
       }
-      return [...COPILOT_KNOWN_MODELS];
+      return modelListHttpFailure(status);
     }
-
-    return [];
   } catch (err) {
-    ztoolkit?.log?.("AIdea: fetchAvailableModels failed", provider, err);
-
-    if (provider === "github-copilot") return [...COPILOT_KNOWN_MODELS];
-    return [];
+    // Copilot token exchange (including its transient retry) throws on HTTP
+    // errors. Preserve the status, not the response body, in diagnostics.
+    const message = err instanceof Error ? err.message : String(err);
+    const status = parseHttpStatusFromErrorMessage(message);
+    if (status !== null) return modelListHttpFailure(status);
+    if (err instanceof SyntaxError)
+      return { models: [], failure: "provider", detail: "Invalid JSON" };
+    return { models: [], failure: "network", detail: message };
   }
 }
 
@@ -2481,11 +2405,20 @@ const COPILOT_GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98";
 const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code";
 const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 
+let copilotLoginGeneration = 0;
+
 async function loginCopilotDeviceCode(): Promise<{
   ok: boolean;
   message: string;
 }> {
+  const generation = ++copilotLoginGeneration;
+  const checkCurrent = () => {
+    if (generation !== copilotLoginGeneration)
+      throw new Error("Copilot login cancelled or superseded");
+  };
   try {
+    await ensureZoteroProxyFromSystem({ forceRefresh: true });
+    checkCurrent();
     const dcBody = new URLSearchParams({
       client_id: COPILOT_GITHUB_CLIENT_ID,
       scope: "read:user",
@@ -2511,6 +2444,7 @@ async function loginCopilotDeviceCode(): Promise<{
     if (!deviceCode || !userCode)
       throw new Error("GitHub device code response missing fields");
 
+    checkCurrent();
     // Show dialog to user with i18n and copy-to-clipboard
     const win = Zotero.getMainWindow?.();
     const lang = getUiLang();
@@ -2536,12 +2470,9 @@ async function loginCopilotDeviceCode(): Promise<{
     const deadline = Date.now() + expiresIn * 1000;
     let pollIntervalSec = interval;
     let consecutivePollFailures = 0;
-    const loginGeneration = ++copilotLoginGeneration;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, pollIntervalSec * 1000));
-      if (loginGeneration !== copilotLoginGeneration) {
-        throw new Error("Superseded by a newer login attempt");
-      }
+      checkCurrent();
       const tokenBody = new URLSearchParams({
         client_id: COPILOT_GITHUB_CLIENT_ID,
         device_code: deviceCode,
@@ -2574,6 +2505,7 @@ async function loginCopilotDeviceCode(): Promise<{
         if (consecutivePollFailures >= 5) throw pollErr;
         continue;
       }
+      checkCurrent();
       if (
         typeof tokenJson.access_token === "string" &&
         tokenJson.access_token
@@ -2585,6 +2517,7 @@ async function loginCopilotDeviceCode(): Promise<{
         } catch {
           /* will retry later */
         }
+        checkCurrent();
         return {
           ok: true,
           message: `${getProviderLabel("github-copilot")} OAuth ready`,
@@ -2615,8 +2548,6 @@ async function loginCopilotDeviceCode(): Promise<{
   }
 }
 
-let copilotLoginGeneration = 0;
-
 const loginInFlight = new Map<
   OAuthProviderId,
   Promise<{ ok: boolean; message: string }>
@@ -2630,7 +2561,7 @@ export function runProviderOAuthLogin(
   // closed the tab); the superseded poll loop stops by itself. Codex login
   // holds a local callback port, so its flow is shared instead.
   if (provider === "github-copilot") {
-    return runProviderOAuthLoginOnce(provider);
+    return loginCopilotDeviceCode();
   }
   const running = loginInFlight.get(provider);
   if (running) return running;
@@ -2645,10 +2576,6 @@ async function runProviderOAuthLoginOnce(
   provider: OAuthProviderId,
 ): Promise<{ ok: boolean; message: string }> {
   await ensureZoteroProxyFromSystem({ forceRefresh: true });
-  // Qwen and Copilot use in-plugin Device Code flows
-
-  if (provider === "github-copilot") return loginCopilotDeviceCode();
-
   // Codex uses external CLI tool (hidden mode)
   const spec = getProviderCliSpec(provider);
   if (!spec) {
@@ -2705,6 +2632,7 @@ export async function removeProviderOAuthCredential(
   provider: OAuthProviderId,
 ): Promise<{ ok: boolean; message: string }> {
   if (provider === "github-copilot") {
+    ++copilotLoginGeneration;
     setOAuthPref("oauthCopilotGithubToken", "");
     setOAuthPref("oauthCopilotApiToken", "");
     return {
@@ -3991,9 +3919,8 @@ export async function pingModel(
       }, 15_000);
     });
     const res = await Promise.race([fetchPromise, timeoutPromise]);
-    // 404 = model does not exist; 401/403 = the credentials were rejected,
-    // so nothing was learned about the model and it must not show as usable.
-    if (res.status === 404 || res.status === 401 || res.status === 403) {
+    // Auth, quota, and upstream errors say nothing about model availability.
+    if ([401, 403, 404, 429].includes(res.status) || res.status >= 500) {
       return "fail";
     }
     // Also check response body for "model_not_found" style errors
@@ -4039,7 +3966,7 @@ export async function pingCodexModel(
 
   try {
     let res = await runPing(headers);
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       const refreshed = await refreshCodexOAuthCredentialViaCli();
       if (refreshed?.accessToken) {
         const retryHeaders: Record<string, string> = {
@@ -4049,8 +3976,7 @@ export async function pingCodexModel(
         res = await runPing(retryHeaders);
       }
     }
-    // Any non-network response means token is at least partially valid
-    return res.status !== 401 && res.status !== 403 ? "ok" : "fail";
+    return res.ok ? "ok" : "fail";
   } catch {
     return "fail";
   }

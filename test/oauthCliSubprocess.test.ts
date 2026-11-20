@@ -3,6 +3,10 @@ import {
   autoConfigureEnvironment,
   chatWithProviderOAuth,
   fetchAvailableModelsDetailed,
+  pingCodexModel,
+  pingModel,
+  readCopilotOAuthCredential,
+  removeProviderOAuthCredential,
   runProviderOAuthLogin,
 } from "../src/utils/oauthCli";
 import {
@@ -227,11 +231,97 @@ describe("oauthCli subprocess and credential handling", function () {
     assert.equal(result.detail, "HTTP 401");
   });
 
-  it("keeps the status when the provider refuses the network location", async function () {
-    globals.fetch = async () => new Response("", { status: 403 });
+  it("reports a catalog 403 as forbidden, even if the usage endpoint would allow access", async function () {
+    const urls: string[] = [];
+    globals.fetch = async (url: string) => {
+      urls.push(url);
+      return new Response(null, {
+        status: url.includes("/models?") ? 403 : 200,
+      });
+    };
     const result = await fetchAvailableModelsDetailed("openai-codex");
-    assert.equal(result.failure, "rejected");
-    assert.equal(result.detail, "HTTP 403");
+    assert.deepEqual(result, {
+      models: [],
+      failure: "forbidden",
+      detail: "HTTP 403",
+    });
+    assert.lengthOf(urls, 1);
+    assert.lengthOf(processes, 0);
+  });
+
+  for (const [modelsStatus, usageStatus, expected] of [
+    [503, 503, 503],
+    [503, 200, 503],
+    [404, 502, 502],
+    [404, 429, 429],
+  ]) {
+    it(`does not replace the Codex catalog for models ${modelsStatus} / usage ${usageStatus}`, async function () {
+      globals.fetch = async (url: string) =>
+        new Response(null, {
+          status: url.includes("/models?") ? modelsStatus : usageStatus,
+        });
+      assert.deepEqual(await fetchAvailableModelsDetailed("openai-codex"), {
+        models: [],
+        failure: "provider",
+        detail: `HTTP ${expected}`,
+      });
+      assert.lengthOf(processes, 0);
+    });
+  }
+
+  it("keeps the Codex compatibility list for an absent catalog with a successful usage check", async function () {
+    globals.fetch = async (url: string) =>
+      new Response(null, {
+        status: url.includes("/models?") ? 404 : 200,
+      });
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.isNotEmpty(result.models);
+    assert.isUndefined(result.failure);
+    assert.lengthOf(processes, 0);
+  });
+
+  it("retries a Codex catalog 401 once with the refreshed credential", async function () {
+    onSpawn = (proc) => {
+      accessToken = "token-2";
+      proc.finish(0);
+    };
+    globals.fetch = async (_url: string, init: RequestInit) =>
+      (init.headers as Record<string, string>).Authorization ===
+      "Bearer token-2"
+        ? Response.json({ models: [{ slug: "fresh-model" }] })
+        : new Response(null, { status: 401 });
+    const result = await fetchAvailableModelsDetailed("openai-codex");
+    assert.deepEqual(
+      result.models.map((row) => row.id),
+      ["fresh-model"],
+    );
+    assert.lengthOf(processes, 1);
+  });
+
+  it("does not replace the account-specific Copilot catalog on a 503", async function () {
+    globals.Zotero.Prefs.set(
+      "extensions.zotero.aidea.oauthCopilotGithubToken",
+      "test-github",
+    );
+    globals.fetch = async (url: string) =>
+      url.endsWith("/models")
+        ? new Response(null, { status: 503 })
+        : Response.json({ token: "test-api" });
+    assert.deepEqual(await fetchAvailableModelsDetailed("github-copilot"), {
+      models: [],
+      failure: "provider",
+      detail: "HTTP 503",
+    });
+  });
+
+  it("does not label models available when the post-refresh probe returns 503", async function () {
+    globals.fetch = async () => new Response(null, { status: 503 });
+    assert.equal(await pingCodexModel({}), "fail");
+    assert.equal(
+      await pingModel("https://example.test/v1", "", "model"),
+      "fail",
+    );
+    assert.lengthOf(processes, 0);
   });
 
   it("reports a provider that is not signed in", async function () {
@@ -279,6 +369,74 @@ describe("oauthCli subprocess and credential handling", function () {
     assert.equal(result.code, 3);
     await new Promise((resolve) => setTimeout(resolve, 40));
     assert.isFalse(processes[0].killed);
+  });
+
+  describe("Copilot account changes during authorization", function () {
+    const githubKey = "extensions.zotero.aidea.oauthCopilotGithubToken";
+    const apiKey = "extensions.zotero.aidea.oauthCopilotApiToken";
+    const deviceCode = () =>
+      Response.json({ device_code: "device", user_code: "code", interval: 1 });
+
+    beforeEach(function () {
+      globals.Zotero.getMainWindow = () => ({ confirm: () => true });
+    });
+
+    it("does not sign back in when a pending poll completes after sign-out", async function () {
+      let reply!: (response: Response) => void;
+      let started!: () => void;
+      const polling = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      globals.fetch = async (url: string) => {
+        if (url.endsWith("/device/code")) return deviceCode();
+        if (url.endsWith("/access_token")) {
+          started();
+          return new Promise<Response>((resolve) => {
+            reply = resolve;
+          });
+        }
+        return Response.json({ token: "old-api" });
+      };
+      const login = runProviderOAuthLogin("github-copilot");
+      await polling;
+      await removeProviderOAuthCredential("github-copilot");
+      reply(Response.json({ access_token: "old-github" }));
+      assert.isFalse((await login).ok);
+      assert.equal(globals.Zotero.Prefs.get(githubKey), "");
+      assert.equal(globals.Zotero.Prefs.get(apiKey), "");
+    });
+
+    it("discards an exchanged token if its GitHub account is no longer current", async function () {
+      globals.Zotero.Prefs.set(githubKey, "old-github");
+      let reply!: (response: Response) => void;
+      globals.fetch = () =>
+        new Promise<Response>((resolve) => {
+          reply = resolve;
+        });
+      const credential = readCopilotOAuthCredential();
+      await waitFor(() => Boolean(reply));
+      globals.Zotero.Prefs.set(githubKey, "new-github");
+      reply(Response.json({ token: "old-api" }));
+      assert.isNull(await credential);
+      assert.isNotOk(globals.Zotero.Prefs.get(apiKey));
+    });
+
+    it("never reuses the previous account's token if the new account cannot exchange", async function () {
+      globals.Zotero.Prefs.set(githubKey, "old-github");
+      globals.Zotero.Prefs.set(
+        apiKey,
+        JSON.stringify({ token: "old-api", expiresAt: Date.now() + 3_600_000 }),
+      );
+      globals.fetch = async (url: string) => {
+        if (url.endsWith("/device/code")) return deviceCode();
+        if (url.endsWith("/access_token"))
+          return Response.json({ access_token: "new-github" });
+        return new Response(null, { status: 403 });
+      };
+      await runProviderOAuthLogin("github-copilot");
+      assert.equal(globals.Zotero.Prefs.get(githubKey), "new-github");
+      assert.isNull(await readCopilotOAuthCredential());
+    });
   });
 
   it("shares one Codex login between concurrent callers", async function () {
