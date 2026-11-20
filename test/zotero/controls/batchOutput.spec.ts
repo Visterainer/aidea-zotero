@@ -216,4 +216,72 @@ describe("batch PDF output in Zotero", function () {
       await IOUtils.remove(dir, { recursive: true });
     }
   });
+
+  for (const linked of [false, true]) {
+    it(`invalidates the ${linked ? "linked" : "stored"} translation's stale full-text cache when replacing its PDF`, async function () {
+      this.timeout(60000);
+      const dir = await IOUtils.createUniqueDirectory(
+        PathUtils.tempDir,
+        "aidea-fulltext-fixture",
+      );
+      const stage = await createQueueWorkspace();
+      const parent = new Zotero.Item("journalArticle");
+      parent.libraryID = Zotero.Libraries.userLibraryID;
+      await parent.saveTx();
+      try {
+        const input = PathUtils.join(dir, "index.pdf");
+        await IOUtils.writeUTF8(input, sample("Source"));
+        const params = { file: input, parentItemID: parent.id };
+        const src = linked
+          ? await Zotero.Attachments.linkFromFile(params)
+          : await Zotero.Attachments.importFromFile(params);
+        const inspect = (overwrite: boolean) =>
+          inspectTranslationOutputs(
+            src,
+            src.getFilePath() as string,
+            "zh-CN",
+            ["mono"],
+            { attach: true, saveDir: "" },
+            overwrite,
+          );
+        const file = PathUtils.join(stage, "index.zh-CN.mono.pdf");
+        await IOUtils.writeUTF8(file, sample("OldIndexMarker"));
+        const first = await publishTranslationOutputs(
+          await inspect(false),
+          [file],
+          [],
+          () => {},
+        );
+        const item = await Zotero.Items.getAsync(first.itemIDs[0]);
+        await Zotero.FullText.indexItems([item.id], { complete: true });
+        const cache = Zotero.FullText.getItemCacheFile(item).path;
+        assert.include(await IOUtils.readUTF8(cache), "OldIndexMarker");
+        await IOUtils.writeUTF8(file, sample("NewIndexMarker"));
+        await publishTranslationOutputs(
+          await inspect(true),
+          [file],
+          [],
+          () => {},
+        );
+        if (await IOUtils.exists(cache))
+          assert.notInclude(await IOUtils.readUTF8(cache), "OldIndexMarker");
+        // In production the host's own queue throttles re-indexing. Wait for
+        // that queue rather than rebuilding it manually (which hides the bug).
+        const limit = Date.now() + 25000;
+        while (
+          Date.now() < limit &&
+          (!(await IOUtils.exists(cache)) ||
+            !(await IOUtils.readUTF8(cache)).includes("NewIndexMarker"))
+        )
+          await Zotero.Promise.delay(100);
+        assert.include(await IOUtils.readUTF8(cache), "NewIndexMarker");
+        assert.notInclude(await IOUtils.readUTF8(cache), "OldIndexMarker");
+        assert.equal((await inspect(false)).cells[0].itemID, item.id);
+      } finally {
+        await parent.eraseTx();
+        await cleanQueueWorkspace(stage);
+        await IOUtils.remove(dir, { recursive: true });
+      }
+    });
+  }
 });

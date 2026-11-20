@@ -84,6 +84,55 @@ describe("llmClient audit regressions", function () {
       assert.include((await rejection(result)).message, "Insufficient credits");
     });
 
+    it("keeps text and later images in a completed-only Responses event", async function () {
+      const { result, deltas } = streamWith(
+        `data: ${JSON.stringify({
+          type: "response.completed",
+          response: {
+            output: [
+              {
+                type: "message",
+                content: [{ type: "output_text", text: "Caption" }],
+              },
+              {
+                type: "image_generation_call",
+                result: "cG5n",
+                output_format: "png",
+              },
+              { type: "reasoning", summary: [{ text: "thinking" }] },
+            ],
+          },
+        })}`,
+        RESPONSES_BASE,
+      );
+      const text = await result;
+      assert.include(text, "Caption");
+      assert.include(text, "data:image/png;base64,cG5n");
+      assert.equal(deltas.join(""), text);
+    });
+
+    it("does not emit the same image twice when the final event repeats a streamed item", async function () {
+      const item = {
+        type: "image_generation_call",
+        result: "cG5n",
+        output_format: "png",
+      };
+      const events = [
+        { type: "response.output_item.done", item },
+        {
+          type: "response.completed",
+          response: { output_text: "Caption", output: [item] },
+        },
+      ];
+      const { result } = streamWith(
+        events.map((e) => `data: ${JSON.stringify(e)}`).join("\n\n"),
+        RESPONSES_BASE,
+      );
+      const text = await result;
+      assert.lengthOf(text.match(/data:image\/png;base64,cG5n/g) || [], 1);
+      assert.include(text, "Caption");
+    });
+
     it("surfaces a Responses response.failed event", async function () {
       const { result } = streamWith(
         `data: ${JSON.stringify({

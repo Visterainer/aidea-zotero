@@ -10,8 +10,9 @@ import {
   readOutputTarget,
   resolveQueueModel,
   wantedFormats,
+  writeBatchPreference,
 } from "./translationQueueService";
-import type { QueueAddEntry } from "./translationQueue";
+import { previewSource, type QueueAddEntry } from "./translationQueue";
 
 interface DraftRow {
   attachmentID: number;
@@ -56,7 +57,7 @@ function rows(): DraftRow[] {
 }
 
 function replaceDraft(next: DraftRow[]): void {
-  Zotero.Prefs.set(DRAFT_PREF, JSON.stringify(next), true);
+  writeBatchPreference(DRAFT_PREF, JSON.stringify(next));
   draft = next;
   for (const notify of listeners) {
     try {
@@ -175,6 +176,7 @@ async function submit(
           output,
           overwrite,
         );
+        const source = previewSource(plan);
         const existing = plan.cells.filter((cell) => cell.exists);
         summary.missing += plan.cells.length - existing.length;
         summary.replace += overwrite ? existing.length : 0;
@@ -182,6 +184,7 @@ async function submit(
         else summary.skip++;
         entries.push({
           ...row,
+          source,
           replaceIds: overwrite ? existing.map((cell) => cell.id) : [],
         });
       } catch (err) {

@@ -6,6 +6,8 @@ import { createHash } from "node:crypto";
 import {
   inspectTranslationOutputs as inspect,
   publishTranslationOutputs as publish,
+  validateGeneratedManifest,
+  verifyPlanSource,
   type OutputPlan,
   type TranslationOutputKind,
 } from "../../src/modules/pdfTranslator/translationOutputs";
@@ -146,7 +148,15 @@ describe("translation output plan and publication", function () {
     ];
     source = item(write(p.join(store, "ORIGINAL", "Paper.pdf"), "SOURCE"));
     z = g.Zotero = {
-      File: { pathToFile: ns },
+      File: { pathToFile: ns, getContents: (f: any) => text(f.path) },
+      Users: { getCurrentUserID: () => 42, getLocalUserKey: () => "localABC" },
+      Groups: { getGroupIDFromLibraryID: () => 12345 },
+      FullText: {
+        getSyncedContentCacheFile: (it: any) =>
+          ns(p.join(store, it.key, ".zotero-ft-unprocessed")),
+        clearItemWords: async (_id: number) => {},
+        queueItem: async (_it: any) => {},
+      },
       DataDirectory: { dir },
       getStorageDirectory: () => ns(store),
       Items: {
@@ -157,11 +167,13 @@ describe("translation output plan and publication", function () {
       Libraries: {
         get: (lib: number) => ({
           editable: true,
+          libraryType: lib === 1 ? "user" : "group",
           filesEditable: true,
           allowsLinkedFiles: lib === 1,
         }),
       },
       DB: {
+        executeTransaction: async (fn: () => Promise<any>) => fn(),
         queryAsync: async () =>
           items
             .filter((i) => i.attachmentLinkMode === 2)
@@ -207,6 +219,8 @@ describe("translation output plan and publication", function () {
     z.Items.getByLibraryAndKeyAsync = z.Items.getByLibraryAndKey;
     g.PathUtils = { parent: p.dirname, join: p.join, isAbsolute: p.isAbsolute };
     io = g.IOUtils = {
+      getChildren: async (dir: string) =>
+        fs.readdirSync(dir).map((name) => p.join(dir, name)),
       stat: async (path: string) =>
         wrap(() => {
           const s = fs.statSync(path);
@@ -482,6 +496,223 @@ describe("translation output plan and publication", function () {
     assert.deepEqual(source.relatedItems, []);
     assert.deepEqual((await plan(true, "", false, ["mono"])).generateKinds, []);
   });
+
+  it("validates whole-report coverage before any writes or receipts, then permits a reduced retry", async function () {
+    const a = await plan(false, folder, true);
+    const mono = generated(),
+      dual = generated("dual");
+    const monoPath = cell(a, "folder").path!;
+    write(monoPath, "PRIOR");
+    const replace = await plan(false, folder, true);
+    const done: string[] = [];
+    assert.throws(
+      () => validateGeneratedManifest(replace, [mono]),
+      /Missing staged dual/,
+    );
+    assert.throws(
+      () => validateGeneratedManifest(replace, [mono, dual, dual]),
+      /duplicate/,
+    );
+    assert.deepEqual(
+      [...validateGeneratedManifest(replace, [mono, dual]).keys()],
+      ["mono", "dual"],
+    );
+    await rejects(
+      publish(replace, [mono], [], (id) => done.push(id)),
+      /Missing staged dual/,
+    );
+    assert.equal(text(monoPath), data("PRIOR"));
+    fs.writeFileSync(dual, "corrupt");
+    await rejects(
+      publish(replace, [mono, dual], [], (id) => done.push(id)),
+      /Not a readable PDF/,
+    );
+    assert.equal(text(monoPath), data("PRIOR"));
+    assert.isEmpty(done);
+    generated("dual");
+    // No receipt: mono was replaced just before the previous process died.
+    write(monoPath, "DELIVERED MONO");
+    const out = await publish(replace, [dual], [], (id) => done.push(id));
+    assert.lengthOf(out.savedFiles, 2);
+    assert.lengthOf(done, 2);
+    assert.equal(text(monoPath), data("DELIVERED MONO"));
+    // A stale receipt alone never satisfies a missing file.
+    fs.unlinkSync(monoPath);
+    await rejects(publish(replace, [dual], done, noOp), /Missing staged mono/);
+  });
+
+  it("rejects a changed or relinked source after input staging", async function () {
+    const a = await plan(false);
+    await verifyPlanSource(a);
+    source.path = write(p.join(dir, "OTHER.pdf"), "OTHER");
+    await rejects(verifyPlanSource(a), /source attachment/);
+    source.path = a.pdfPath;
+    write(source.path, "CHANGED AFTER COPYING");
+    await rejects(verifyPlanSource(a), /changed after inspection/);
+  });
+
+  it("recovers an exclusive reservation only for the exact serialized plan and cell", async function () {
+    const a = await plan(false);
+    const other = await plan(false);
+    assert.match(a.reservationToken!, /^[a-f0-9]{32}$/);
+    assert.notEqual(a.reservationToken, other.reservationToken);
+    const files = [generated(), generated("dual")];
+    const mono = cell(a, "folder").path!,
+      dual = cell(a, "folder", "dual").path!;
+    const pathToFile = z.File.pathToFile;
+    z.File.pathToFile = (path: string) => {
+      const f = pathToFile(path);
+      if (p.basename(path) === "output.pdf")
+        f.renameTo = () => {
+          throw Error("process died before rename");
+        };
+      return f;
+    };
+    await rejects(publish(a, files, [], noOp), /before rename/);
+    z.File.pathToFile = pathToFile;
+    const marker = text(mono);
+    assert.notInclude(marker, a.reservationToken!);
+    // A fresh job (or a rolled-back checkpoint token) must not steal it.
+    await rejects(publish(other, files, [], noOp), /Not a readable PDF/);
+    await rejects(
+      publish({ ...a, reservationToken: "" }, files, [], noOp),
+      /reservation token/,
+    );
+    await rejects(plan(false), /Not a readable PDF/);
+    assert.equal(text(mono), marker);
+    // A byte-for-byte copy to a different cell still doesn't belong there.
+    fs.writeFileSync(dual, marker);
+    await rejects(publish(a, files, [], noOp), /Not a readable PDF/);
+    assert.equal(text(mono), marker);
+    assert.equal(text(dual), marker);
+    fs.unlinkSync(dual);
+    const restored = JSON.parse(JSON.stringify(a));
+    await publish(restored, files, [], noOp);
+    assert.equal(text(mono), data("NEW"));
+    assert.equal(text(dual), data("NEW"));
+  });
+
+  it("does not unlink an arbitrary replacement even when reservation creation initially succeeded", async function () {
+    const a = await plan(false, folder, false, ["mono"]);
+    const path = a.cells[0].path!;
+    const reserve = io.writeUTF8;
+    let foreign = "";
+    io.writeUTF8 = async (path: string, marker: string, opts: any) => {
+      await reserve(path, marker, opts);
+      foreign = marker.slice(0, -1) + (marker.endsWith("0") ? "1" : "0");
+      fs.writeFileSync(path, foreign);
+    };
+    await rejects(publish(a, [generated()], [], noOp), /Not a readable PDF/);
+    assert.equal(text(path), foreign);
+    io.writeUTF8 = reserve;
+    await rejects(publish(a, [generated()], [], noOp), /Not a readable PDF/);
+    assert.equal(text(path), foreign);
+  });
+
+  it("uses the group ID and item key across different local library IDs; never claims an ambiguous loose legacy file", async function () {
+    source.libraryID = 5;
+    const first = await plan(false, folder, false, ["mono"]);
+    assert.include(first.cells[0].path!, `G12345-${source.key}`);
+    source.libraryID = 12;
+    const second = await plan(false, folder, false, ["mono"]);
+    assert.equal(first.cells[0].path, second.cells[0].path);
+    z.Groups.getGroupIDFromLibraryID = () => 54321;
+    assert.notEqual(first.cells[0].path, (await plan(false)).cells[0].path);
+    const loose = write(
+      p.join(folder, `AIdea-folder-L99-${source.key}.zh-cn.mono.pdf`),
+      "UNPROVEN",
+    );
+    await rejects(plan(false, folder, true, ["mono"]), /Cannot verify legacy/);
+    await rejects(plan(false, folder, false, ["mono"]), /Cannot verify legacy/);
+    assert.deepEqual(fs.readdirSync(folder), [p.basename(loose)]);
+    assert.equal(text(loose), data("UNPROVEN"));
+    source.libraryID = 1;
+    await rejects(plan(false), /Cannot verify legacy/);
+  });
+
+  it("reuses a related legacy group attachment from another device in place and refuses an unproven one", async function () {
+    source.libraryID = items[0].libraryID = 12;
+    const path = write(
+      p.join(
+        store,
+        "LEGACY",
+        `AIdea-attachment-L5-${source.key}.zh-cn.mono.pdf`,
+      ),
+      "OLD",
+    );
+    const prior = item(path, { libraryID: 12 });
+    await rejects(plan(true, "", true, ["mono"]), /Cannot verify the source/);
+    assert.equal(text(path), data("OLD"));
+    prior.relatedItems = [source.key];
+    assert.deepEqual((await plan(true, "", false, ["mono"])).generateKinds, []);
+    const a = await plan(true, "", true, ["mono"]);
+    assert.deepEqual((await publish(a, [generated()], [], noOp)).itemIDs, [
+      prior.id,
+    ]);
+    assert.equal(text(path), data("NEW"));
+    assert.lengthOf(items, 3);
+  });
+
+  for (const mode of ["stored", "linked"]) {
+    it(`invalidates and reindexes ${mode} bytes on overwrite and interrupted-write recovery, not on a skip`, async function () {
+      const linked = mode === "linked";
+      const path = write(
+        p.join(linked ? dir : store, "RESULT", "Paper.zh-CN.mono.pdf"),
+        "OLD",
+      );
+      const prior = item(path, { attachmentLinkMode: linked ? 2 : 0 });
+      const files = [generated()];
+      const a = await plan(true, "", true, ["mono"]);
+      const events: string[] = [];
+      const cache = z.FullText.getSyncedContentCacheFile(prior).path;
+      write(cache, "OLD PENDING SYNC");
+      let inTransaction = false,
+        crash = true,
+        unblock!: () => void;
+      z.DB.executeTransaction = async (fn: () => Promise<void>) => {
+        inTransaction = true;
+        try {
+          await fn();
+        } finally {
+          inTransaction = false;
+        }
+      };
+      z.FullText.clearItemWords = async (id: number) => {
+        assert.isTrue(inTransaction);
+        assert.equal(id, prior.id);
+        assert.isFalse(fs.existsSync(cache));
+        events.push("invalidate");
+        if (crash) throw Error("crash after rename");
+      };
+      z.FullText.queueItem = (it: any) => {
+        assert.isFalse(inTransaction);
+        assert.equal(it, prior);
+        events.push("schedule");
+        return new Promise<void>((resolve) => {
+          unblock = resolve;
+        });
+      };
+      await rejects(publish(a, files, [], noOp), /crash after rename/);
+      assert.equal(text(path), data("NEW"));
+      const before = fs.statSync(path).ino;
+      crash = false;
+      await publish(JSON.parse(JSON.stringify(a)), files, [], noOp);
+      assert.deepEqual(events, ["invalidate", "invalidate", "schedule"]);
+      assert.equal(
+        fs.statSync(path).ino,
+        before,
+        "retry must not replace the file again",
+      );
+      unblock();
+      // An ordinary overwrite must refresh it too; a fresh skip must not.
+      const next = await plan(true, "", true, ["mono"]);
+      await publish(next, [generated("mono", "MORE BYTES")], [], noOp);
+      unblock();
+      await publish(await plan(true, "", false, ["mono"]), [], [], noOp);
+      assert.deepEqual(events.slice(3), ["invalidate", "schedule"]);
+      assert.equal(prior.attachmentSyncState, linked ? undefined : "to_upload");
+    });
+  }
 
   it("uses stable, distinct paths for disk-only inputs with identical names", async function () {
     const opts = { attach: false, saveDir: folder };

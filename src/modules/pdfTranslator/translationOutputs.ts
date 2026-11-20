@@ -4,7 +4,9 @@ import {
   createTranslationAttachment,
   fileBaseName,
   isPdfAttachment,
+  legacyManagedName,
   matchTranslationOutput,
+  refreshTranslationAttachment,
   translationCandidates,
   type DeliveryTarget,
   type TranslationOutputKind,
@@ -37,6 +39,48 @@ export interface OutputPlan {
   cells: OutputCell[];
   generateKinds: TranslationOutputKind[];
   overwrite: boolean;
+  /** Private per-job nonce. Persist this with the plan before any publication. */
+  reservationToken?: string;
+}
+
+export function newReservationToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+/** Check the complete engine report before checkpointing a fresh job. A
+ * publisher resuming that checkpoint only needs bytes for still-needed cells. */
+export function validateGeneratedManifest(
+  plan: OutputPlan,
+  files: readonly string[],
+): Map<TranslationOutputKind, string> {
+  return manifestByKind(plan, files, plan.generateKinds);
+}
+
+export class MissingStagedFormatError extends Error {
+  constructor(readonly kind: TranslationOutputKind) {
+    super(`Missing staged ${kind} translation`);
+    this.name = "MissingStagedFormatError";
+  }
+}
+
+function manifestByKind(
+  plan: OutputPlan,
+  files: readonly string[],
+  required: Iterable<TranslationOutputKind>,
+): Map<TranslationOutputKind, string> {
+  const byKind = new Map<TranslationOutputKind, string>();
+  for (const path of files) {
+    const kind = matchTranslationOutput(path, plan.pdfPath, plan.targetLang);
+    if (!kind || !plan.generateKinds.includes(kind) || byKind.has(kind))
+      throw new Error(`Unexpected or duplicate engine output: ${path}`);
+    byKind.set(kind, path);
+  }
+  for (const kind of required) {
+    if (!byKind.has(kind)) throw new MissingStagedFormatError(kind);
+  }
+  return byKind;
 }
 
 function absolute(path: string): string {
@@ -75,7 +119,12 @@ function canonical(path: string): string {
   return Zotero.isWin ? f.path.toLowerCase() : f.path;
 }
 
-async function pdfStamp(path: string): Promise<string | undefined> {
+const MARKER_PREFIX = "AIdea publication in progress: ";
+
+async function pdfStamp(
+  path: string,
+  reservation?: string,
+): Promise<string | undefined> {
   absolute(path);
   try {
     if (Zotero.File.pathToFile(path).isSymlink())
@@ -85,7 +134,14 @@ async function pdfStamp(path: string): Promise<string | undefined> {
     // Read a small prefix, not the whole document. Stat alone counts broken,
     // placeholder or unreadable files as already translated.
     const bytes = await IOUtils.read(path, { maxBytes: 1024 });
-    if (!/%PDF-\d\.\d/.test(String.fromCharCode(...bytes)))
+    const prefix = String.fromCharCode(...bytes);
+    if (
+      reservation &&
+      info.size === reservation.length &&
+      prefix === reservation
+    )
+      return undefined;
+    if (prefix.startsWith(MARKER_PREFIX) || !/%PDF-\d\.\d/.test(prefix))
       throw new Error(`Not a readable PDF: ${path}`);
     return `${info.size}:${info.lastModified}:${info.creationTime ?? ""}`;
   } catch (err) {
@@ -111,14 +167,79 @@ async function ownerToken(
     if (
       !Number.isSafeInteger(source.libraryID) ||
       source.libraryID < 1 ||
+      typeof source.key !== "string" ||
       !/^[a-zA-Z0-9]{1,32}$/.test(source.key)
     )
       throw new Error("Invalid source library or item key");
-    return `L${source.libraryID}-${source.key}`;
+    const library = Zotero.Libraries.get(source.libraryID);
+    const libraryType = library && library.libraryType;
+    if (libraryType === "group") {
+      const group = Zotero.Groups.getGroupIDFromLibraryID(source.libraryID);
+      if (!Number.isSafeInteger(group) || group < 1)
+        throw new Error("Cannot identify the source Zotero group");
+      return `G${group}-${source.key}`;
+    }
+    if (libraryType !== "user") throw new Error("Unsupported source library");
+    const user = Zotero.Users.getCurrentUserID();
+    if (Number.isSafeInteger(user) && user > 0) return `U${user}-${source.key}`;
+    const local = Zotero.Users.getLocalUserKey();
+    if (typeof local !== "string" || !/^[A-Za-z0-9]{1,32}$/.test(local))
+      throw new Error("Invalid local Zotero user key");
+    return `P${local}-${source.key}`;
   }
-  const bytes = new TextEncoder().encode(canonical(pdfPath));
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  return `file-${Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  return `file-${await sha256(canonical(pdfPath))}`;
+}
+
+async function sha256(text: string): Promise<string> {
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  return Array.from(new Uint8Array(hash), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+/** A marker is a capability for just this persisted job and originally
+ * observed cell. Don't put the nonce itself on a shared filesystem. */
+async function reservations(plan: OutputPlan): Promise<Map<string, string>> {
+  const marks = new Map<string, string>();
+  if (
+    typeof plan.reservationToken !== "string" ||
+    !/^[a-f0-9]{32}$/.test(plan.reservationToken)
+  )
+    throw new Error("Invalid or missing publication reservation token");
+  for (const cell of plan.cells) {
+    if (!cell.path) continue;
+    const digest = await sha256(
+      JSON.stringify([
+        plan.reservationToken,
+        plan.libraryID,
+        plan.sourceKey,
+        plan.pdfPath,
+        plan.sourceStamp,
+        cell.id,
+        cell.path,
+      ]),
+    );
+    marks.set(reservationKey(cell), MARKER_PREFIX + digest);
+  }
+  return marks;
+}
+
+function reservationKey(
+  cell: Pick<
+    OutputCell,
+    "destination" | "kind" | "path" | "itemID" | "itemKey"
+  >,
+): string {
+  return JSON.stringify([
+    cell.destination,
+    cell.kind,
+    cell.path,
+    cell.itemID,
+    cell.itemKey,
+  ]);
 }
 
 function managedName(
@@ -261,6 +382,26 @@ export async function inspectTranslationOutputs(
   output: DeliveryTarget,
   overwrite: boolean,
 ): Promise<OutputPlan> {
+  const plan = await inspect(
+    source,
+    pdfPath,
+    targetLang,
+    kinds,
+    output,
+    overwrite,
+  );
+  return { ...plan, reservationToken: newReservationToken() };
+}
+
+async function inspect(
+  source: Zotero.Item | null,
+  pdfPath: string,
+  targetLang: string,
+  kinds: TranslationOutputKind[],
+  output: DeliveryTarget,
+  overwrite: boolean,
+  marks?: ReadonlyMap<string, string>,
+): Promise<OutputPlan> {
   absolute(pdfPath);
   if (
     !/\.pdf$/i.test(pdfPath) ||
@@ -292,11 +433,34 @@ export async function inspectTranslationOutputs(
   kinds = [...new Set(kinds)];
   const name = (kind: TranslationOutputKind) =>
     managedName(token, "attachment", lang, kind);
+  const includeOffline = token.startsWith("U");
   const attached =
     attach && source
-      ? await translationCandidates(source, lang, kinds, name)
+      ? await translationCandidates(source, lang, kinds, name, includeOffline)
       : {};
   const cells: OutputCell[] = [];
+  const leaves = new Map<string, string[]>();
+  async function checkLegacy(
+    path: string,
+    dest: OutputCell["destination"],
+    kind: TranslationOutputKind,
+  ) {
+    if (!source) return;
+    // Even our local ID could denote a different library on another client.
+    // A loose old folder copy or orphaned link is not provenance.
+    const dir = PathUtils.parent(path)!;
+    if (!leaves.has(dir))
+      leaves.set(dir, (await IOUtils.getChildren(dir)).map(fileBaseName));
+    const legacy = leaves
+      .get(dir)!
+      .find((n) =>
+        legacyManagedName(n, dest, source.key, lang, kind, includeOffline),
+      );
+    if (legacy)
+      throw new Error(
+        `Cannot verify legacy output ${legacy}; move it aside after verifying its source`,
+      );
+  }
   if (saveDir) {
     const dir = await directory(saveDir, false);
     for (const kind of kinds) {
@@ -305,7 +469,11 @@ export async function inspectTranslationOutputs(
         managedName(token, "folder", lang, kind),
       );
       protectSource(path, pdfPath);
-      const stamp = await pdfStamp(path);
+      const stamp = await pdfStamp(
+        path,
+        marks?.get(reservationKey({ destination: "folder", kind, path })),
+      );
+      if (!stamp) await checkLegacy(path, "folder", kind);
       if (!stamp || overwrite) {
         await directory(dir, true);
         await checkBacking(path);
@@ -330,7 +498,19 @@ export async function inspectTranslationOutputs(
       let stamp: string | undefined;
       if (path) {
         protectSource(path, pdfPath);
-        const physical = await pdfStamp(path);
+        const physical = await pdfStamp(
+          path,
+          marks?.get(
+            reservationKey({
+              destination: "attachment",
+              kind,
+              path,
+              itemKey: item?.key,
+              itemID: item?.id,
+            }),
+          ),
+        );
+        if (!item && !physical) await checkLegacy(path, "attachment", kind);
         if (item) {
           stamp = physical;
           checkSync(item, !!stamp);
@@ -390,6 +570,12 @@ function sourceFrom(plan: OutputPlan): Zotero.Item | null {
   return item;
 }
 
+export async function verifyPlanSource(plan: OutputPlan): Promise<void> {
+  sourceFrom(plan);
+  if (!plan.sourceStamp || (await pdfStamp(plan.pdfPath)) !== plan.sourceStamp)
+    throw new Error("The source PDF changed after inspection");
+}
+
 /** IOUtils.move({noOverwrite:true}) uses a separate stat before rename and
  * treats a directory as a container. Reserve a missing leaf with PR_EXCL,
  * then rename the complete staged file to that exact leaf on the same volume.
@@ -401,6 +587,7 @@ async function commitStagedPdf(
   temp: string,
   path: string,
   replace: boolean,
+  marker: string | undefined,
 ): Promise<boolean> {
   const rename = () =>
     Zotero.File.pathToFile(temp).renameTo(
@@ -411,35 +598,28 @@ async function commitStagedPdf(
     rename();
     return true;
   }
-  const nonce = crypto.getRandomValues(new Uint32Array(4)).join("-");
-  const marker = `AIdea publication in progress: ${nonce}`;
-  const owns = async () => {
-    const f = Zotero.File.pathToFile(path);
-    if (f.isSymlink() || !f.isFile() || f.fileSize !== marker.length)
-      return false;
-    return (
-      String.fromCharCode(
-        ...(await IOUtils.read(path, { maxBytes: marker.length })),
-      ) === marker
-    );
-  };
+  if (!marker) throw new Error(`Output identity changed: ${path}`);
+  let createError: unknown;
   try {
-    await IOUtils.writeUTF8(path, marker, { mode: "create" }); // PR_CREATE_FILE | PR_EXCL, no tmpPath
+    await IOUtils.writeUTF8(path, marker, { mode: "create", flush: true }); // PR_CREATE_FILE | PR_EXCL
   } catch (error) {
-    if (await pdfStamp(path)) return false;
-    throw error;
+    createError = error; // EEXIST may be our own reservation from before a crash.
   }
-  try {
-    if (!(await owns())) {
-      if (await pdfStamp(path)) return false;
-      throw new Error(`Output reservation changed: ${path}`);
-    }
+  // Read this tiny record synchronously. In particular don't yield to another
+  // JS creator between the final check and the rename. Never unlink the leaf,
+  // even after a rename failure: the same checkpoint can reclaim it in place.
+  const f = Zotero.File.pathToFile(path);
+  if (
+    !f.isSymlink() &&
+    f.isFile() &&
+    f.fileSize === marker.length &&
+    Zotero.File.getContents(f, "UTF-8", marker.length + 1) === marker
+  ) {
     rename();
     return true;
-  } catch (err) {
-    if (await owns()) Zotero.File.pathToFile(path).remove(false);
-    throw err;
   }
+  if (await pdfStamp(path)) return false;
+  throw createError || new Error(`Output reservation changed: ${path}`);
 }
 
 /** Copy across volumes into an exclusive private stage *on the final volume*,
@@ -449,6 +629,7 @@ async function installPdf(
   file: string,
   path: string,
   replace: boolean,
+  marker: string | undefined,
   beforeCommit: () => Promise<boolean>,
 ): Promise<boolean> {
   const parent = PathUtils.parent(path)!;
@@ -462,7 +643,7 @@ async function installPdf(
     await IOUtils.copy(file, temp, { noOverwrite: true });
     if (!(await pdfStamp(temp))) throw new Error(`Cannot stage ${file}`);
     if (!(await beforeCommit())) return false;
-    return await commitStagedPdf(temp, path, replace);
+    return await commitStagedPdf(temp, path, replace, marker);
   } finally {
     await IOUtils.remove(stage, { recursive: true, ignoreAbsent: true });
   }
@@ -476,13 +657,15 @@ async function publish(
 ) {
   const source = sourceFrom(plan);
   const token = await ownerToken(source, plan.pdfPath);
-  const fresh = await inspectTranslationOutputs(
+  const marks = await reservations(plan);
+  const fresh = await inspect(
     source,
     plan.pdfPath,
     plan.targetLang,
     plan.kinds,
     plan.output,
     false,
+    marks,
   );
   if (plan.sourceStamp !== fresh.sourceStamp)
     throw new Error("The source PDF changed after inspection");
@@ -493,41 +676,72 @@ async function publish(
       fresh.cells.length
   )
     throw new Error("Invalid saved translation output plan");
-  for (const cell of plan.cells) {
+  const lang = plan.targetLang.toLowerCase();
+  // Attachment-only checkpoints made before group-stable names can still be
+  // resumed against the proven related record. Folder paths must match exactly.
+  const oldOwner = (cell: OutputCell) =>
+    source &&
+    cell.id === makeCell(`L${plan.libraryID}-${plan.sourceKey}`, lang, cell).id
+      ? `L${plan.libraryID}-${plan.sourceKey}`
+      : token;
+  const canReplace = (old: OutputCell, now: OutputCell) =>
+    plan.overwrite &&
+    old.exists &&
+    !completed.includes(old.id) &&
+    old.id === makeCell(oldOwner(old), lang, now).id;
+  const checkLive = (
+    old: OutputCell,
+    now: OutputCell | undefined,
+  ): OutputCell => {
     if (
-      cell.exists !== !!cell.stamp ||
-      cell.id !== makeCell(token, plan.targetLang.toLowerCase(), cell).id ||
-      !fresh.cells.some(
-        (c) =>
-          c.kind === cell.kind &&
-          c.destination === cell.destination &&
-          (cell.destination !== "folder" || c.path === cell.path),
-      )
-    )
-      throw new Error("Invalid saved translation output cell");
-  }
-  const byKind = new Map<TranslationOutputKind, string>();
-  for (const path of files) {
-    const kind = matchTranslationOutput(path, plan.pdfPath, plan.targetLang);
-    if (
-      !kind ||
-      !plan.generateKinds.includes(kind) ||
-      byKind.has(kind) ||
-      !(await pdfStamp(path))
+      !now ||
+      (old.destination === "folder" && now.path !== old.path) ||
+      (!now.exists && old.path && now.path !== old.path) ||
+      (!now.exists &&
+        old.itemID &&
+        (now.itemID !== old.itemID || now.itemKey !== old.itemKey))
     )
       throw new Error(
-        `Unexpected, duplicate or missing engine output: ${path}`,
+        "Invalid saved output cell or destination changed after inspection",
       );
+    return now;
+  };
+  const required = new Set<TranslationOutputKind>();
+  for (const old of plan.cells) {
+    if (
+      old.exists !== !!old.stamp ||
+      old.id !== makeCell(oldOwner(old), lang, old).id
+    )
+      throw new Error("Invalid saved translation output cell");
+    const now = checkLive(
+      old,
+      fresh.cells.find(
+        (c) => c.kind === old.kind && c.destination === old.destination,
+      ),
+    );
+    if (!now.exists || canReplace(old, now)) required.add(old.kind);
+  }
+  const byKind = manifestByKind(plan, files, required);
+  // Verify *all* still-needed formats before changing even the first cell.
+  // A retry can omit a format already satisfied on disk, even without a receipt
+  // (e.g. the process died after rename). Per-cell checks below still run live.
+  for (const [kind, path] of byKind) {
     protectSource(path, plan.pdfPath);
-    if (fresh.cells.some((c) => c.path && c.path === path))
+    if (
+      fresh.cells.some((c) => c.path && canonical(c.path) === canonical(path))
+    )
       throw new Error(`Engine output is not staged: ${path}`);
-    byKind.set(kind, path);
+    if (!(await pdfStamp(path))) {
+      if (required.has(kind))
+        throw new Error(`Missing staged ${kind} translation: ${path}`);
+      byKind.delete(kind);
+    }
   }
   const itemIDs: number[] = [],
     savedFiles: string[] = [];
   for (const old of plan.cells) {
     const liveCell = async () => {
-      const justThis = await inspectTranslationOutputs(
+      const justThis = await inspect(
         sourceFrom(plan),
         plan.pdfPath,
         plan.targetLang,
@@ -537,27 +751,18 @@ async function publish(
           saveDir: old.destination === "folder" ? plan.output.saveDir : "",
         },
         false,
+        marks,
       );
-      const now = justThis.cells[0];
-      if (
-        plan.sourceStamp !== justThis.sourceStamp ||
-        (old.destination === "folder" && now.path !== old.path) ||
-        (!now.exists && old.path && now.path !== old.path) ||
-        (!now.exists && old.itemID && now.itemID !== old.itemID)
-      )
-        throw new Error("Source or destination changed after inspection");
-      return now;
+      if (plan.sourceStamp !== justThis.sourceStamp)
+        throw new Error("Source changed after inspection");
+      return checkLive(old, justThis.cells[0]);
     };
     let cell = await liveCell();
     const file = byKind.get(old.kind);
     const existing = cell.itemID
       ? Zotero.Items.get(cell.itemID) || undefined
       : undefined;
-    const replace =
-      plan.overwrite &&
-      old.exists &&
-      !completed.includes(old.id) &&
-      old.id === cell.id;
+    const replace = canReplace(old, cell);
     if (!cell.exists || replace) {
       if (!file)
         throw new Error(
@@ -573,23 +778,26 @@ async function publish(
             createAncestors: false,
             ignoreExisting: true,
           });
-        const didWrite = await installPdf(file, path, replace, async () => {
-          const now = await liveCell();
-          if (
-            now.path !== path ||
-            now.itemID !== cell.itemID ||
-            now.id !== cell.id
-          ) {
-            if (now.exists) return false;
-            throw new Error(`Output changed during publication: ${path}`);
-          }
-          await checkBacking(path, existing || undefined);
-          return true;
-        });
-        if (didWrite && existing?.isStoredFileAttachment()) {
-          existing.attachmentSyncState = "to_upload";
-          await existing.saveTx();
-        }
+        const didWrite = await installPdf(
+          file,
+          path,
+          replace,
+          marks.get(reservationKey(cell)),
+          async () => {
+            const now = await liveCell();
+            if (
+              now.path !== path ||
+              now.itemID !== cell.itemID ||
+              now.id !== cell.id
+            ) {
+              if (now.exists) return false;
+              throw new Error(`Output changed during publication: ${path}`);
+            }
+            await checkBacking(path, existing || undefined);
+            return true;
+          },
+        );
+        if (didWrite && existing) await refreshTranslationAttachment(existing);
         if (!existing && cell.destination === "attachment" && source) {
           // After a failed linkFromFile, retry may find our completed backing
           // file with no item yet. An unrelated file is never adopted/erased.
@@ -622,7 +830,8 @@ async function publish(
       file &&
       old.itemID === cell.itemID &&
       cell.path &&
-      existing?.isStoredFileAttachment() &&
+      existing &&
+      old.itemKey === existing.key &&
       !completed.includes(old.id) &&
       (!old.exists || plan.overwrite) &&
       cell.id !== old.id
@@ -634,8 +843,7 @@ async function publish(
         (await IOUtils.computeHexDigest(cell.path, "sha256"))
       ) {
         checkAttachmentWritable(existing);
-        existing.attachmentSyncState = "to_upload";
-        await existing.saveTx();
+        await refreshTranslationAttachment(existing);
       }
     }
     if (!cell.exists)

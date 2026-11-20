@@ -2,6 +2,7 @@ import {
   ATTACHMENT_BLOBS_TABLE,
   extractManagedBlobHash,
   removeAttachmentFile,
+  tryLockAttachmentBlob,
 } from "../modules/contextPanel/attachmentStorage";
 import { fileUrlToPath } from "./pathFileUrl";
 
@@ -106,8 +107,10 @@ export async function replaceOwnerAttachmentRefs(
   const normalizedOwnerId = normalizeOwnerId(ownerId);
   if (!normalizedOwnerId) return;
   await ensureAttachmentRefTables();
-  const normalizedHashes = await filterKnownBlobHashes(normalizeHashes(hashes));
+  const requestedHashes = normalizeHashes(hashes);
   const write = async () => {
+    // GC may have claimed a blob while this owner was waiting for its turn.
+    const normalizedHashes = await filterKnownBlobHashes(requestedHashes);
     await Zotero.DB.queryAsync(
       `DELETE FROM ${ATTACHMENT_REFS_TABLE}
        WHERE owner_type = ?
@@ -174,16 +177,19 @@ export async function reconcileNoteAttachmentRefsFromNoteContent(): Promise<void
   }
 }
 
+function hasChatMessagesTable() {
+  return Zotero.DB.valueQueryAsync(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='zotero_ai_chat_messages'",
+  );
+}
+
 /** Rebuild from every branch, including archives imported by older builds. */
 export async function reconcileConversationAttachmentRefs(
   conversationKeys?: readonly number[],
   options?: { inTransaction?: boolean },
 ): Promise<void> {
   await ensureAttachmentRefTables();
-  const exists = await Zotero.DB.valueQueryAsync(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='zotero_ai_chat_messages'",
-  );
-  if (!exists) return;
+  if (!(await hasChatMessagesTable())) return;
   const rows = (await Zotero.DB.queryAsync(
     "SELECT conversation_key, attachments_json FROM zotero_ai_chat_messages",
   )) as Array<{ conversation_key: number; attachments_json?: string }>;
@@ -229,40 +235,53 @@ export async function collectAndDeleteUnreferencedBlobs(
     : ATTACHMENT_GC_MIN_AGE_MS;
   const cutoff = Date.now() - minAge;
   const rows = (await Zotero.DB.queryAsync(
-    `SELECT b.hash AS hash, b.path AS path
+    `SELECT b.hash AS hash, b.path AS path, b.created_at AS created_at
      FROM ${ATTACHMENT_BLOBS_TABLE} b
      LEFT JOIN ${ATTACHMENT_REFS_TABLE} r
        ON r.blob_hash = b.hash
      WHERE r.blob_hash IS NULL
        AND b.created_at <= ?`,
     [cutoff],
-  )) as Array<{ hash?: unknown; path?: unknown }> | undefined;
+  )) as Array<{ hash: string; path: string; created_at: number }> | undefined;
   if (!rows?.length) return;
 
-  for (const row of rows) {
-    const hash =
-      typeof row.hash === "string" && /^[a-f0-9]{64}$/i.test(row.hash.trim())
-        ? row.hash.trim().toLowerCase()
-        : "";
-    if (!hash) continue;
-    const path = typeof row.path === "string" ? row.path.trim() : "";
-    if (path) {
-      try {
-        await removeAttachmentFile(path);
-      } catch (err) {
-        ztoolkit.log("LLM: Failed to delete unreferenced attachment blob", err);
-        continue;
-      }
+  // Message saves and their ref-table sync are separate. A newly saved message
+  // containing the hash (in its path or contentHash) vetoes the claim even in
+  // that gap. Err on the side of retention for ambiguous attachment metadata.
+  const messageGuard = (await hasChatMessagesTable())
+    ? `AND NOT EXISTS (SELECT 1 FROM zotero_ai_chat_messages WHERE attachments_json LIKE ?)`
+    : "";
+  for (const { hash, path, created_at } of rows) {
+    if (!/^[a-f0-9]{64}$/.test(hash) || extractManagedBlobHash(path) !== hash)
+      continue;
+    let release: (() => void) | undefined;
+    try {
+      // Import already owns a DB transaction when it persists bytes. Take
+      // the transaction first and skip busy hashes rather than waiting for IO.
+      const claimed = await Zotero.DB.executeTransaction(async () => {
+        release = tryLockAttachmentBlob(hash);
+        if (!release) return false;
+        // Matching the selected timestamp revalidates the original age cutoff.
+        return Zotero.DB.valueQueryAsync<string>(
+          `DELETE FROM ${ATTACHMENT_BLOBS_TABLE}
+           WHERE hash = ? AND path = ? AND created_at = ?
+             AND NOT EXISTS (SELECT 1 FROM ${ATTACHMENT_REFS_TABLE} WHERE blob_hash = ?)
+             ${messageGuard}
+           RETURNING path`,
+          [
+            hash,
+            path,
+            created_at,
+            hash,
+            ...(messageGuard ? [`%${hash}%`] : []),
+          ],
+        );
+      });
+      // Never unlink on a failed/rolled-back claim. Keep only the hash locked
+      // until the old file is gone: a re-upload can then safely reuse its path.
+      if (claimed === path) await removeAttachmentFile(path);
+    } finally {
+      release?.();
     }
-    await Zotero.DB.queryAsync(
-      `DELETE FROM ${ATTACHMENT_BLOBS_TABLE}
-       WHERE hash = ?
-         AND NOT EXISTS (
-           SELECT 1
-           FROM ${ATTACHMENT_REFS_TABLE}
-           WHERE blob_hash = ?
-         )`,
-      [hash, hash],
-    );
   }
 }

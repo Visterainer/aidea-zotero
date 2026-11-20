@@ -871,6 +871,12 @@ assert_eq(len(lines) <= 13, True, "only a bounded number of ERROR records are re
 assert_eq(all(len(line) <= 2000 for line in lines), True, "each diagnostic record is bounded")
 assert_eq(any("HTTP 429 from API" in line for line in lines), True, "retains wrapped service error amid subsequent noise")
 
+for status in (502,503,504):
+    outage = bridge._EngineErrors()
+    outage.feed(f"ERROR: provider: HTTP/1.1 {status}")
+    for i in range(20): outage.feed(f"ERROR: renderer: bad glyph {i}")
+    assert_eq(any(str(status) in line for line in outage.finish()), True, f"retains upstream {status} after unrelated engine noise")
+
 print("\n=== no-output failure progress ===")
 no_output = _make_no_output_error_progress(
     38,

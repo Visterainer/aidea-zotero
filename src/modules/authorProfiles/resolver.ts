@@ -260,53 +260,85 @@ function dedupeContacts(contacts: AuthorContact[]): AuthorContact[] {
   return out;
 }
 
-/** First letter of the given name, or "" when the name has no given part. */
-function givenInitial(author: PaperAuthor): string {
-  const given = normalizeName(author.givenName || "");
-  if (given) return given[0];
-  const parts = normalizeName(author.name).split(/\s+/).filter(Boolean);
-  return parts.length > 1 ? parts[0][0] : "";
+type AuthorName = Pick<PaperAuthor, "name" | "givenName" | "familyName">;
+
+function givenParts(author: AuthorName): string[] {
+  const given =
+    author.givenName ||
+    normalizeWhitespace(author.name).split(/\s+/u).slice(0, -1).join(" ");
+  return normalizeName(given.replace(/\./gu, " "))
+    .split(/[\s-]+/u)
+    .filter(Boolean);
 }
 
-/** "Wei Zhang" and "Li Zhang" are different people, even side by side. */
-function haveConflictingGivenNames(a: PaperAuthor, b: PaperAuthor): boolean {
-  const left = givenInitial(a);
-  const right = givenInitial(b);
-  return Boolean(left && right && left !== right);
+/** A shared initial is weak evidence only if it is actually an abbreviation.
+ * Two different expanded names (e.g. Wei/Wen) cannot be reconciled by order. */
+function compatibleAbbreviation(a: AuthorName, b: AuthorName): boolean {
+  const surname = (x: AuthorName) =>
+    normalizeName(x.familyName || lastNameKey(x.name));
+  if (!surname(a) || surname(a) !== surname(b)) return false;
+  const left = givenParts(a),
+    right = givenParts(b);
+  if (
+    !left.length ||
+    !right.length ||
+    ![...left, ...right].some((p) => Array.from(p).length === 1)
+  )
+    return false;
+  return left
+    .slice(0, right.length)
+    .every(
+      (v, i) =>
+        v === right[i] ||
+        (Array.from(v).length === 1 && right[i].startsWith(v)) ||
+        (Array.from(right[i]).length === 1 && v.startsWith(right[i])),
+    );
 }
 
-function addAuthorToMap(map: Map<string, PaperAuthor>, author: PaperAuthor) {
-  const key = normalizeName(author.name);
-  if (!key) return;
-  const existing =
-    map.get(key) ||
-    Array.from(map.values()).find((candidate) => {
-      const candidateKey = normalizeName(candidate.name);
-      return (
-        candidateKey === key ||
-        (lastNameKey(candidate.name) &&
-          lastNameKey(candidate.name) === lastNameKey(author.name) &&
-          !haveConflictingGivenNames(candidate, author) &&
-          Math.abs((candidate.sequence || 0) - (author.sequence || 0)) <= 1)
-      );
-    });
-  if (existing) {
-    mergeIntoAuthor(existing, author);
-    return;
-  }
-  map.set(key, author);
+function uniqueByName<T extends AuthorName>(
+  authors: T[],
+  name: string,
+): T | undefined {
+  const exact = authors.filter(
+    (author) => normalizeName(author.name) === normalizeName(name),
+  );
+  if (exact.length) return exact.length === 1 ? exact[0] : undefined;
+  const possible = authors.filter((author) =>
+    compatibleAbbreviation(author, { name }),
+  );
+  return possible.length === 1 ? possible[0] : undefined;
 }
 
-function mergeAuthors(
-  metadata: PaperMetadata,
+export function mergeAuthors(
+  metadata: Pick<PaperMetadata, "creators">,
   fetchedAuthors: PaperAuthor[],
 ): PaperAuthor[] {
   const map = new Map<string, PaperAuthor>();
-  for (const author of metadata.creators) addAuthorToMap(map, author);
-  for (const author of fetchedAuthors) addAuthorToMap(map, author);
-  const authors = Array.from(map.values());
-  authors.sort((a, b) => (a.sequence || 9999) - (b.sequence || 9999));
-  return authors;
+  // Resolve complete names first so 'W. Zhang' cannot acquire another
+  // author's identifiers just because that source happened to arrive first.
+  const abbreviated = (x: AuthorName) =>
+    givenParts(x).some((p) => Array.from(p).length === 1);
+  const candidates = [...metadata.creators, ...fetchedAuthors].sort(
+    (a, b) => Number(abbreviated(a)) - Number(abbreviated(b)),
+  );
+  for (const author of candidates) {
+    const key = normalizeName(author.name);
+    if (!key) continue;
+    let existing = map.get(key);
+    if (!existing) {
+      const possible = Array.from(map.values()).filter(
+        (candidate) =>
+          compatibleAbbreviation(candidate, author) &&
+          Math.abs((candidate.sequence || 0) - (author.sequence || 0)) <= 1,
+      );
+      if (possible.length === 1) existing = possible[0];
+    }
+    if (existing) mergeIntoAuthor(existing, author);
+    else map.set(key, author);
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => (a.sequence || 9999) - (b.sequence || 9999),
+  );
 }
 
 function extractExplicitCorrespondingNameFragments(
@@ -350,21 +382,18 @@ function matchAuthorsByNameFragments(
   for (const fragment of fragments) {
     const fragmentName = normalizeName(fragment);
     if (!fragmentName) continue;
-    const fragmentLast = lastNameKey(fragment);
-    for (const author of authors) {
-      const authorName = normalizeName(author.name);
-      const authorLast = lastNameKey(author.name);
-      if (
-        authorName === fragmentName ||
-        authorName.includes(fragmentName) ||
-        fragmentName.includes(authorName) ||
-        (fragmentLast &&
-          authorLast === fragmentLast &&
-          fragmentName.includes(authorLast))
-      ) {
-        if (!matched.includes(author)) matched.push(author);
-      }
+    // First prefer an explicitly named individual. Fuzzy fragments must
+    // not mark everyone who shares a family name as corresponding.
+    const named = uniqueByName(authors, fragment);
+    if (named) {
+      if (!matched.includes(named)) matched.push(named);
+      continue;
     }
+    const exactInProse = authors.filter((author) =>
+      ` ${fragmentName} `.includes(` ${normalizeName(author.name)} `),
+    );
+    if (exactInProse.length === 1 && !matched.includes(exactInProse[0]))
+      matched.push(exactInProse[0]);
   }
   return matched;
 }
@@ -373,12 +402,7 @@ function applyContactEmails(authors: PaperAuthor[], contacts: AuthorContact[]) {
   for (const contact of contacts) {
     const contactName = normalizeName(contact.name);
     const matched = contactName
-      ? authors.find((author) => normalizeName(author.name) === contactName) ||
-        authors.find(
-          (author) =>
-            lastNameKey(author.name) &&
-            lastNameKey(author.name) === lastNameKey(contact.name || ""),
-        )
+      ? uniqueByName(authors, contact.name || "")
       : undefined;
     if (!matched) continue;
     mergeIntoAuthor(matched, {

@@ -48,7 +48,6 @@ import {
   activeGlobalConversationByLibrary,
   activeConversationModeByLibrary,
   conversationContextPool,
-  draftInputCache,
   activePaperConversationByItem,
 } from "./state";
 import {
@@ -135,6 +134,7 @@ import {
 } from "./attachmentStorage";
 import {
   clearConversation as clearStoredConversation,
+  isChatHistoryClearing,
   cloneActivePathPrefixToConversation,
   createGlobalConversation,
   createPaperConversation,
@@ -160,11 +160,7 @@ import {
   clearOwnerAttachmentRefs,
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
-import type {
-  ChatAttachment,
-  PaperContextRef,
-  SelectedTextContext,
-} from "./types";
+import type { PaperContextRef } from "./types";
 import {
   searchPaperCandidates,
   type PaperSearchAttachmentCandidate,
@@ -207,6 +203,10 @@ import {
   normalizePaperContextEntries,
   resolvePaperContextDisplayMetadata,
 } from "./setupHandlers/controllers/composeContextController";
+import {
+  bindComposeDraft,
+  getComposeHistoryGeneration,
+} from "./setupHandlers/controllers/composeDraftController";
 import {
   createFileIntakeController,
   extractFilesFromClipboard,
@@ -1115,7 +1115,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           if (status) setStatus(status, EDIT_STALE_STATUS_TEXT, "error");
           return;
         }
+        const generation = getComposeHistoryGeneration();
         const latest = await getLatestEditablePair();
+        if (generation !== getComposeHistoryGeneration()) return;
         if (!latest) {
           activeEditSession = null;
           if (status) setStatus(status, i18n.noEditableLatestPrompt, "error");
@@ -5241,178 +5243,21 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   syncModelFromPrefs();
   void refreshGlobalHistoryHeader();
 
-  // ── Draft input persistence ──
-  const DRAFT_PREF_PREFIX = "extensions.AIdea.draftInput.";
-  let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const saveDraftInput = () => {
-    if (!conversationKey) return;
-    const text = inputBox.value || "";
-    draftInputCache.set(conversationKey, text);
-    try {
-      Zotero.Prefs.set(`${DRAFT_PREF_PREFIX}${conversationKey}`, text);
-    } catch (_) {
-      /* pref write failure is non-critical */
-    }
-  };
-
-  const clearDraftInput = () => {
-    if (draftSaveTimer) {
-      clearTimeout(draftSaveTimer);
-      draftSaveTimer = null;
-    }
-    if (!conversationKey) return;
-    draftInputCache.delete(conversationKey);
-    try {
-      Zotero.Prefs.clear(`${DRAFT_PREF_PREFIX}${conversationKey}`);
-    } catch (_) {
-      /* pref clear failure is non-critical */
-    }
-  };
-
-  const scheduleDraftSave = () => {
-    if (draftSaveTimer) clearTimeout(draftSaveTimer);
-    draftSaveTimer = setTimeout(saveDraftInput, 600);
-  };
-
-  // Restore draft on init
-  if (conversationKey && inputBox) {
-    let draft = draftInputCache.get(conversationKey) || "";
-    if (!draft) {
-      try {
-        draft =
-          (Zotero.Prefs.get(
-            `${DRAFT_PREF_PREFIX}${conversationKey}`,
-          ) as string) || "";
-      } catch (_) {
-        /* ignore */
-      }
-    }
-    if (draft) {
-      inputBox.value = draft;
-    }
-  }
-
-  // Save draft on input changes
-  inputBox.addEventListener("input", scheduleDraftSave);
+  const composeDraft = bindComposeDraft({
+    inputBox,
+    getKey: () => conversationKey,
+    getItemId: () => item?.id,
+    refreshAfterClear: () => {
+      activeEditSession = null;
+      closePaperPicker();
+      resetComposePreviewUI();
+    },
+  });
+  const { clearDraftInput, clearComposeState } = composeDraft;
+  composeHook.save = composeDraft.scheduleComposeStateSave;
   inputBox.addEventListener("input", () => {
     if (inputBox.value.length === 0) refreshInputPlaceholder();
   });
-
-  // ── Compose state persistence (files, screenshots, papers) ──
-  const COMPOSE_PREF_PREFIX = "extensions.AIdea.composeState.";
-  const COMPOSE_SNAPSHOT_MAX_CHARS = 512 * 1024;
-  let composeStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const saveComposeState = () => {
-    if (!conversationKey || !item) return;
-    try {
-      const files = (selectedFileAttachmentCache.get(item.id) || []).map(
-        (f) => ({
-          id: f.id,
-          name: f.name,
-          mimeType: f.mimeType,
-          storedPath: f.storedPath,
-          sizeBytes: f.sizeBytes,
-          category: f.category,
-          contentHash: f.contentHash,
-        }),
-      );
-      const screenshots = selectedImageCache.get(item.id) || [];
-      const papers = normalizePaperContextEntries(
-        selectedPaperContextCache.get(item.id) || [],
-      );
-      const textContextKey = getTextContextConversationKey();
-      const textContexts = textContextKey
-        ? getSelectedTextContextEntries(textContextKey)
-        : [];
-      let snapshot = JSON.stringify({
-        files,
-        screenshots,
-        papers,
-        textContexts,
-      });
-      // Screenshots are data URLs (up to ~2 MB each) and Gecko rejects string
-      // prefs above 1 MiB. Keep the rest of the snapshot rather than lose it.
-      if (snapshot.length > COMPOSE_SNAPSHOT_MAX_CHARS) {
-        snapshot = JSON.stringify({
-          files,
-          screenshots: [],
-          papers,
-          textContexts,
-        });
-      }
-      Zotero.Prefs.set(`${COMPOSE_PREF_PREFIX}${conversationKey}`, snapshot);
-    } catch (_) {
-      // A failed write must not leave the previous snapshot in place: it
-      // would restore attachments the user has since removed.
-      try {
-        Zotero.Prefs.clear(`${COMPOSE_PREF_PREFIX}${conversationKey}`);
-      } catch (_err) {
-        /* non-critical */
-      }
-    }
-  };
-
-  const clearComposeState = () => {
-    if (composeStateSaveTimer) {
-      clearTimeout(composeStateSaveTimer);
-      composeStateSaveTimer = null;
-    }
-    if (!conversationKey) return;
-    try {
-      Zotero.Prefs.clear(`${COMPOSE_PREF_PREFIX}${conversationKey}`);
-    } catch (_) {
-      /* non-critical */
-    }
-  };
-
-  const scheduleComposeStateSave = () => {
-    if (composeStateSaveTimer) clearTimeout(composeStateSaveTimer);
-    composeStateSaveTimer = setTimeout(saveComposeState, 800);
-  };
-
-  // Restore compose state from Prefs on init (overrides message-based restore)
-  if (conversationKey && item) {
-    try {
-      const raw = Zotero.Prefs.get(
-        `${COMPOSE_PREF_PREFIX}${conversationKey}`,
-      ) as string;
-      if (raw) {
-        const snapshot = JSON.parse(raw) as {
-          files?: ChatAttachment[];
-          screenshots?: string[];
-          papers?: PaperContextRef[];
-          textContexts?: SelectedTextContext[];
-        };
-        if (Array.isArray(snapshot.files) && snapshot.files.length) {
-          selectedFileAttachmentCache.set(item.id, snapshot.files);
-        }
-        if (
-          Array.isArray(snapshot.screenshots) &&
-          snapshot.screenshots.length
-        ) {
-          selectedImageCache.set(item.id, snapshot.screenshots);
-        }
-        if (Array.isArray(snapshot.papers) && snapshot.papers.length) {
-          selectedPaperContextCache.set(item.id, snapshot.papers);
-        }
-        const textContextKey = getTextContextConversationKey();
-        if (
-          textContextKey &&
-          Array.isArray(snapshot.textContexts) &&
-          snapshot.textContexts.length
-        ) {
-          setSelectedTextContextEntries(textContextKey, snapshot.textContexts);
-        }
-      }
-    } catch (_) {
-      /* ignore parse errors */
-    }
-  }
-
-  // Wire compose-state persistence hook now that scheduleComposeStateSave is defined.
-  composeHook.save = scheduleComposeStateSave;
 
   // Re-render previews with data restored from compose-state snapshot.
   // The initial render at the top of setupHandlers runs before the Prefs
@@ -5429,7 +5274,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   // syncModelFromPrefs → updateModelButton → applyResponsiveActionButtonsLayout
   // mutates DOM → changes flex layout → resizes .llm-messages → shifts scroll
   // position.  pointerenter is sufficient and fires before interaction.
-  const resizeLayoutCleanups: Array<() => void> = [];
+  const resizeLayoutCleanups: Array<() => void> = [composeDraft.dispose];
   const layoutWin = body.ownerDocument?.defaultView || null;
 
   const onPointerEnterSyncModel = () => {
@@ -5604,6 +5449,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   const { processIncomingFiles } = createFileIntakeController({
     body,
     getItem: () => item,
+    getHistoryGeneration: getComposeHistoryGeneration,
     getCurrentModel: () => getSelectedModelInfo().currentModel,
     isScreenshotUnsupportedModel,
     optimizeImageDataUrl,
@@ -6313,7 +6159,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       fileDragDepth = 0;
       setInputDropActive(false);
       if (isZoteroItemDragEvent(dragEvent)) {
+        const generation = getComposeHistoryGeneration();
         void resolveZoteroItemFiles(dragEvent).then((files) => {
+          if (generation !== getComposeHistoryGeneration()) return;
           const fallbackFiles = dragEvent.dataTransfer?.files
             ? Array.from(dragEvent.dataTransfer.files)
             : [];
@@ -6429,8 +6277,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     // While a response is streaming, doSend only shows a "please wait"
     // status and keeps the text in the box. Its saved draft and attachment
     // snapshot must survive too, or a restart loses them.
-    const blocked = isPanelGenerating(body);
-    doSend();
+    const blocked = isPanelGenerating(body) || isChatHistoryClearing();
+    void doSend().catch((err) => ztoolkit.log("LLM: Send failed", err));
     if (blocked) return;
     clearDraftInput();
     clearComposeState();
@@ -6776,15 +6624,18 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
       if (status) setStatus(status, getPanelI18n().selectRegion, "sending");
 
+      const generation = getComposeHistoryGeneration();
       try {
         ztoolkit.log("Screenshot: Starting capture selection...");
         const dataUrl = await captureScreenshotSelection(mainWindow);
+        if (generation !== getComposeHistoryGeneration()) return;
         ztoolkit.log(
           "Screenshot: Capture returned:",
           dataUrl ? "image data" : "null",
         );
         if (dataUrl) {
           const optimized = await optimizeImageDataUrl(mainWindow, dataUrl);
+          if (generation !== getComposeHistoryGeneration()) return;
           const existingImages = selectedImageCache.get(item.id) || [];
           const nextImages = [...existingImages, optimized].slice(
             0,

@@ -343,7 +343,8 @@ export async function resolveModelCredentials(
   const { choices } = getModelChoices();
   const normalized = normalizeModelId(modelName);
 
-  // Find match: prefer providerId-exact match if given, then name-only
+  // A saved provider is a routing constraint, not a preference. Do not send
+  // document text to another endpoint just because it advertises the same ID.
   let entry: ModelChoice | undefined;
   if (providerId) {
     entry =
@@ -355,8 +356,18 @@ export async function resolveModelCredentials(
           normalizeModelId(c.model) === normalized &&
           c.providerId === providerId,
       );
-  }
-  if (!entry) {
+    if (!entry) return null;
+    if (KNOWN_OAUTH_PROVIDERS.has(providerId as OAuthProviderId)) {
+      return resolveOAuthProviderCredentials(
+        providerId as OAuthProviderId,
+        entry.model,
+      );
+    }
+    // A custom provider must supply its own HTTP endpoint. Never infer
+    // an OAuth provider or use the primary profile for a stale custom row.
+    if (!/^https?:\/\//i.test(entry.apiBase?.trim() || "")) return null;
+    return resolveFromApiBaseAndKey(entry.model, entry.apiBase, entry.apiKey);
+  } else {
     entry =
       choices.find((c) => c.model === modelName) ||
       choices.find((c) => normalizeModelId(c.model) === normalized);
@@ -407,6 +418,10 @@ export async function resolveModelCredentialsOrThrow(
 ): Promise<TranslateCredentials> {
   const creds = await resolveModelCredentials(modelName, providerId);
   if (!creds) {
+    if (providerId)
+      throw new Error(
+        `Cannot use the selected provider "${providerId}" for model "${modelName}". Restore its configuration or select a different provider explicitly.`,
+      );
     const guessedProvider = detectOAuthProviderForModel(modelName);
     const providerHint = guessedProvider
       ? ` Provider guess: ${guessedProvider}.`

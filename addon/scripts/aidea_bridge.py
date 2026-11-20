@@ -279,7 +279,7 @@ class _EngineErrors:
         self.samples.append(message)
         # Keep a representative explicit service failure even when later layout
         # errors fill the rolling sample. Retries logged at WARNING never enter it.
-        if re.search(r"\b(?:HTTP\s+|Error code:\s*)(?:401|403|429)\b|"
+        if re.search(r"\b(?:HTTP(?:/\d(?:\.\d)?)?\s+|(?:Error code|Status(?: code)?)\s*[:=]?\s*)(?:401|403|429|502|503|504)\b|"
                      r"(?:Authentication|RateLimit|APIConnection|APITimeout)Error\b|"
                      r"\b(?:urlopen error|connection refused|connection reset by peer)\b",
                      message, re.IGNORECASE):

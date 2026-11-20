@@ -19,6 +19,7 @@ type FileIntakeControllerDeps = {
   body: Element;
   getItem: () => Zotero.Item | null;
   getCurrentModel: () => string;
+  getHistoryGeneration: () => number;
   isScreenshotUnsupportedModel: (modelName: string) => boolean;
   optimizeImageDataUrl: (win: Window, dataUrl: string) => Promise<string>;
   persistAttachmentBlob: (
@@ -304,6 +305,10 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
     const labels = getPanelI18n();
     const item = deps.getItem();
     if (!item || !incomingFiles.length) return;
+    // Local copies may outlive a history clear while a file is being read,
+    // stored, or extracted. Never publish such a copy into a reused key.
+    const generation = deps.getHistoryGeneration();
+    const wasCleared = () => generation !== deps.getHistoryGeneration();
     const imageUnsupported = deps.isScreenshotUnsupportedModel(
       deps.getCurrentModel(),
     );
@@ -319,6 +324,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
     let failedPdfTextExtractionCount = 0;
 
     for (const [index, file] of incomingFiles.entries()) {
+      if (wasCleared()) return;
       const fileName =
         (file.name || "").trim() || `uploaded-file-${Date.now()}-${index + 1}`;
       const lowerName = fileName.toLowerCase();
@@ -386,6 +392,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
       let contentHash: string | undefined;
       try {
         const buffer = await readFileAsArrayBuffer(deps.body, normalizedFile);
+        if (wasCleared()) return;
         const persisted = await deps.persistAttachmentBlob(
           fileName,
           new Uint8Array(buffer),
@@ -393,6 +400,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         storedPath = persisted.storedPath;
         contentHash = persisted.contentHash;
       } catch (err) {
+        if (wasCleared()) return;
         failedPersistCount += 1;
         ztoolkit.log("LLM: Failed to persist uploaded attachment", err);
         // Remove the placeholder on failure
@@ -409,6 +417,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         continue;
       }
 
+      if (wasCleared()) return;
       // --- Extract text using the best available method ---
       let textContent: string | undefined;
       if (
@@ -490,6 +499,7 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
       }
     }
 
+    if (wasCleared()) return;
     if (nextImages.length) {
       deps.selectedImageCache.set(item.id, nextImages);
     }

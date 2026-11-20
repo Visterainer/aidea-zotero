@@ -85,6 +85,27 @@ function parentID(item: ZItem): number | undefined {
   return item.parentItemID || undefined;
 }
 
+/** A local library ID in a loose filename is not proof of ownership. Once
+ * signed in, also consider offline-profile names from before the first sync. */
+export function legacyManagedName(
+  name: string,
+  destination: "attachment" | "folder",
+  sourceKey: string,
+  lang: string,
+  kind: TranslationOutputKind,
+  includeOffline: boolean,
+): boolean {
+  const match =
+    /^AIdea-(attachment|folder)-(L[1-9]\d*|P[A-Za-z0-9]{1,32})-(.+)$/.exec(
+      name,
+    );
+  return (
+    match?.[1] === destination &&
+    (match[2].startsWith("L") || includeOffline) &&
+    match[3] === `${sourceKey}.${lang}.${kind}.pdf`
+  );
+}
+
 /** Top-level items have no sibling list. Discover managed names directly in
  * the library, including after a crash immediately following the Zotero import.
  * Legacy top-level outputs may ONLY be attributed via a source relation. */
@@ -93,6 +114,7 @@ export async function translationCandidates(
   targetLang: string,
   kinds: TranslationOutputKind[],
   managedName: (kind: TranslationOutputKind) => string,
+  includeOffline = false,
 ): Promise<Partial<Record<TranslationOutputKind, ZItem>>> {
   const parent = parentID(source);
   let candidates: ZItem[];
@@ -110,8 +132,17 @@ export async function translationCandidates(
     // A stored path is 'storage:<leaf>'; a linked path is absolute or
     // 'attachments:<relative>'. Filter managed leaves before loading items.
     const patterns = kinds.flatMap((kind) => {
-      const name = managedName(kind);
-      return [`storage:${name}`, `attachments:${name}`, `%/${name}`];
+      const names = [managedName(kind)];
+      names.push(`AIdea-attachment-L%-${source.key}.${targetLang}.${kind}.pdf`);
+      if (includeOffline)
+        names.push(
+          `AIdea-attachment-P%-${source.key}.${targetLang}.${kind}.pdf`,
+        );
+      return names.flatMap((name) => [
+        `storage:${name}`,
+        `attachments:${name}`,
+        `%/${name}`,
+      ]);
     });
     const ids: number[] = await Zotero.DB.columnQueryAsync(
       `SELECT itemID FROM itemAttachments JOIN items USING (itemID)
@@ -149,11 +180,32 @@ export async function translationCandidates(
   }
   const found: Partial<Record<TranslationOutputKind, ZItem>> = {};
   for (const kind of kinds) {
-    const matches = candidates.filter(
-      (sibling) =>
+    const matches = candidates.filter((sibling) => {
+      if (
+        legacyManagedName(
+          sibling.attachmentFilename,
+          "attachment",
+          source.key,
+          targetLang,
+          kind,
+          includeOffline,
+        )
+      ) {
+        // A copied filename, even with our local ID, is not proof of ownership.
+        if (
+          !sibling.relatedItems?.includes(source.key) &&
+          !source.relatedItems?.includes(sibling.key)
+        )
+          throw new Error(
+            `Cannot verify the source of legacy translation #${sibling.id}; resolve it before publishing`,
+          );
+        return true;
+      }
+      return (
         sibling.attachmentFilename === managedName(kind) ||
-        unambiguousLegacy(sibling, kind),
-    );
+        unambiguousLegacy(sibling, kind)
+      );
+    });
     if (new Set(matches.map((item) => item.id)).size > 1)
       throw new Error(
         `Multiple ${kind} translations match ${source.attachmentFilename}; resolve the duplicate attachments first`,
@@ -210,6 +262,31 @@ export async function createTranslationAttachment(
     Zotero.logError(error);
   }
   return item;
+}
+
+/** An in-place write bypasses Attachments.importFromFile's indexing path.
+ * Clear both the search index and extracted-text cache before scheduling a
+ * fresh extraction. A delayed/failed background index is not a failed rename. */
+export async function refreshTranslationAttachment(item: ZItem): Promise<void> {
+  if (item.isStoredFileAttachment()) {
+    item.attachmentSyncState = "to_upload";
+    await item.saveTx();
+  }
+  const ft = Zotero.FullText;
+  // indexItems() prefers text awaiting sync processing to the actual PDF.
+  // The processor-cache accessor was renamed in newer Zotero releases.
+  const pending = (
+    ft.getSyncedContentCacheFile ?? ft.getItemProcessorCacheFile
+  ).call(ft, item);
+  await IOUtils.remove(pending.path, { ignoreAbsent: true });
+  await Zotero.DB.executeTransaction(() => ft.clearItemWords(item.id));
+  try {
+    // queueItem(item) is the API used by Zotero's attachment post-processor.
+    // Do not make delivery depend on when/if PDFWorker gets CPU time.
+    void Promise.resolve(ft.queueItem(item)).catch((e) => Zotero.logError(e));
+  } catch (e) {
+    Zotero.logError(e);
+  }
 }
 
 export function pickAttachmentToOpen(

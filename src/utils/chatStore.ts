@@ -1897,11 +1897,46 @@ export function addChatHistoryClearBlocker(
   return () => chatHistoryClearBlockers.delete(blocker);
 }
 
+let clearingHistory = false;
+export const historyClearInProgressMessage =
+  "History is being cleared. Try again when it finishes. / 正在清空聊天记录，请稍后再试。";
+
+export function isChatHistoryClearing(): boolean {
+  return clearingHistory;
+}
+
+/** Hold the clear blocker across every await, including setup and final writes. */
+export async function withChatHistoryRequest<T>(
+  run: () => Promise<T>,
+  whenClearing: () => T,
+): Promise<T> {
+  if (clearingHistory) return whenClearing();
+  const release = addChatHistoryClearBlocker(
+    () =>
+      "A response is still being generated. Stop it or wait for it to finish, then try again. / 仍有回答正在生成，请先停止或等待完成后再清空。",
+  );
+  try {
+    return await run();
+  } finally {
+    release();
+  }
+}
+
 export async function clearAllChatHistory(): Promise<void> {
+  if (clearingHistory) throw new Error(historyClearInProgressMessage);
   for (const blocker of chatHistoryClearBlockers) {
     const reason = blocker();
     if (reason) throw new Error(reason);
   }
+  clearingHistory = true;
+  try {
+    await clearStoredHistoryAndNotify();
+  } finally {
+    clearingHistory = false;
+  }
+}
+
+async function clearStoredHistoryAndNotify(): Promise<void> {
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_MESSAGES_TABLE}`);
     await Zotero.DB.queryAsync(`DELETE FROM ${CHAT_TREE_STATE_TABLE}`);

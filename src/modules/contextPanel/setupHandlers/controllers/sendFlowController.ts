@@ -1,3 +1,7 @@
+import {
+  historyClearInProgressMessage,
+  withChatHistoryRequest,
+} from "../../../../utils/chatStore";
 import { MAX_SELECTED_IMAGES } from "../../constants";
 import type { ModelProfileKey } from "../../constants";
 import type {
@@ -200,25 +204,20 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       ? resolvedPromptText
       : text || resolvedPromptText;
 
-    if (deps.isGlobalMode()) {
-      const titleSeed =
-        deps.normalizeConversationTitleSeed(text) ||
-        deps.normalizeConversationTitleSeed(resolvedPromptText);
-      void deps
-        .touchGlobalConversationTitle(deps.getConversationKey(item), titleSeed)
-        .catch((err) => {
-          ztoolkit.log("LLM: Failed to touch global conversation title", err);
-        });
-    } else {
-      const titleSeed =
-        deps.normalizeConversationTitleSeed(text) ||
-        deps.normalizeConversationTitleSeed(resolvedPromptText);
-      void deps
-        .touchPaperConversationTitle(deps.getConversationKey(item), titleSeed)
-        .catch((err) => {
-          ztoolkit.log("LLM: Failed to touch paper conversation title", err);
-        });
-    }
+    const titleSeed =
+      deps.normalizeConversationTitleSeed(text) ||
+      deps.normalizeConversationTitleSeed(resolvedPromptText);
+    const touchTitle = deps.isGlobalMode()
+      ? deps.touchGlobalConversationTitle
+      : deps.touchPaperConversationTitle;
+    // The title write is intentionally concurrent with dispatch, but may not
+    // outlive the clear blocker and write under a freshly reused key.
+    void withChatHistoryRequest(
+      () => touchTitle(textContextConversationKey, titleSeed),
+      () => undefined,
+    ).catch((err) =>
+      ztoolkit.log("LLM: Failed to touch conversation title", err),
+    );
 
     const selectedProfile = deps.getSelectedProfile();
     const activeModelName = (
@@ -339,5 +338,10 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
     deps.refreshGlobalHistoryHeader();
   };
 
-  return { doSend };
+  return {
+    doSend: () =>
+      withChatHistoryRequest(doSend, () => {
+        deps.setStatusMessage?.(historyClearInProgressMessage, "warning");
+      }),
+  };
 }

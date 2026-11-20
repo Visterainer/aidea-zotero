@@ -2799,7 +2799,8 @@ async function parseResponsesStream(
   let sawDetailsDelta = false;
   let sawSummaryFinal = false;
   let sawDetailsFinal = false;
-  const emittedImageMarkdown = new Set<string>();
+  const emittedImageSources = new Set<string>();
+  let sawAnswerText = false;
 
   const handleLine = (line: string) => {
     const trimmed = line.trim();
@@ -2939,10 +2940,11 @@ async function parseResponsesStream(
       const emitImageMarkdown = (value: unknown) => {
         const markdown = extractOutputImageMarkdown(
           value,
-          emittedImageMarkdown.size + 1,
+          emittedImageSources.size + 1,
         );
-        if (!markdown || emittedImageMarkdown.has(markdown)) return;
-        emittedImageMarkdown.add(markdown);
+        const source = markdown.slice(markdown.indexOf("](") + 2);
+        if (!markdown || emittedImageSources.has(source)) return;
+        emittedImageSources.add(source);
         const delta = fullText ? `\n\n${markdown}` : markdown;
         fullText += delta;
         onDelta(delta);
@@ -2950,6 +2952,7 @@ async function parseResponsesStream(
 
       if (parsed.type === "response.output_text.delta" && parsed.delta) {
         sawOutputTextDelta = true;
+        sawAnswerText = true;
         fullText += parsed.delta;
         onDelta(parsed.delta);
         return;
@@ -2961,6 +2964,7 @@ async function parseResponsesStream(
         if (sawOutputTextDelta) {
           return;
         }
+        sawAnswerText = true;
         fullText += parsed.text;
         onDelta(parsed.text);
         return;
@@ -2970,8 +2974,9 @@ async function parseResponsesStream(
         parsed.type === "response.completed" &&
         parsed.response?.output_text
       ) {
-        if (!fullText) {
-          fullText = parsed.response.output_text;
+        if (!sawAnswerText) {
+          sawAnswerText = true;
+          fullText += parsed.response.output_text;
           onDelta(parsed.response.output_text);
         }
       }
@@ -3042,12 +3047,26 @@ async function parseResponsesStream(
           }
         }
         const outputs = parsed.response?.output || [];
+        // Some compatible providers put message text only in the completed
+        // output array. Do not duplicate earlier text delta/done events.
+        const readFinalText =
+          parsed.type === "response.completed" && !sawAnswerText;
         for (const out of outputs) {
           emitImageMarkdown(out);
           for (const content of out.content || []) {
+            if (
+              readFinalText &&
+              out.type === "message" &&
+              (content.type === "text" || content.type === "output_text") &&
+              content.text
+            ) {
+              fullText += content.text;
+              onDelta(content.text);
+              sawAnswerText = true;
+            }
             emitImageMarkdown(content);
           }
-          if (out.type !== "reasoning") return;
+          if (out.type !== "reasoning") continue;
           if (!sawSummaryDelta && !sawSummaryFinal) {
             emitReasoning({
               summary: extractSummary(out.summary),

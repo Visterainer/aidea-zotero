@@ -316,7 +316,7 @@ describe("Translate tab job ownership", function () {
     const p = panel(async (c, params) => {
       inputs.push(params.pdfPath);
       await fs.writeFile(
-        join(params.outputDir, "out.pdf"),
+        join(params.outputDir, "A.zh-CN.mono.pdf"),
         basename(params.pdfPath),
       );
       c.emit({
@@ -325,7 +325,7 @@ describe("Translate tab job ownership", function () {
           status: "done",
           progress: 100,
           message: "",
-          outputFiles: ["out.pdf"],
+          outputFiles: ["A.zh-CN.mono.pdf"],
         },
       });
       c.setState("done");
@@ -335,6 +335,7 @@ describe("Translate tab job ownership", function () {
     });
     await second.select(a);
     await p.select(a);
+    p.fields.dual.checked = false;
     const run = p.fields.start.click();
     await entered.wait;
     try {
@@ -685,6 +686,55 @@ describe("Translate tab job ownership", function () {
     assert.isFalse(await globals.IOUtils.exists(stage[0]));
   });
 
+  for (const diagnostic of [
+    "HTTP 401 Unauthorized",
+    "Error code: 429",
+    "HTTP/1.1 503 Service Unavailable",
+  ]) {
+    it(`retains the staged PDF and refuses an approved overwrite after ${diagnostic}`, async function () {
+      let calls = 0;
+      let staged = "";
+      const p = panel(
+        async (c, req) => {
+          const name = "A.zh-CN.mono.pdf";
+          staged = join(req.outputDir, name);
+          await fs.writeFile(staged, "incomplete");
+          c.emit({
+            type: "progress",
+            data: {
+              status: "done",
+              progress: 100,
+              message: "Translation complete",
+              outputFiles: [name],
+              hasErrors: true,
+              errorLines: [diagnostic],
+            },
+          });
+          c.setState("done");
+        },
+        {
+          inspectTranslationOutputs: async (...args) => {
+            const plan = await planFor(...args);
+            plan.cells.forEach((c) => (c.exists = true));
+            return plan;
+          },
+          publishTranslationOutputs: async () => {
+            calls++;
+            return { savedFiles: [], itemIDs: [] };
+          },
+        },
+        () => true,
+      );
+      await p.select(selected);
+      p.fields.dual.checked = false;
+      p.fields.overwrite.checked = true;
+      await p.fields.start.click();
+      assert.equal(calls, 0);
+      assert.equal(await fs.readFile(staged, "utf8"), "incomplete");
+      assert.include(p.logs(), diagnostic);
+    });
+  }
+
   it("rejects a manifest outside the private stage without filing or deleting any PDFs", async function () {
     const outside = selected.getFilePath();
     let dir = "";
@@ -718,7 +768,7 @@ describe("Translate tab job ownership", function () {
         let dir = "";
         const p = panel(async (c, params) => {
           dir = params.outputDir;
-          await fs.writeFile(join(dir, "translated.pdf"), "only copy");
+          await fs.writeFile(join(dir, "A.zh-CN.mono.pdf"), "only copy");
           if (manifest) {
             await fs.writeFile(join(dir, "terms.glossary.csv"), "terms");
             c.emit({
@@ -727,13 +777,14 @@ describe("Translate tab job ownership", function () {
                 status: "done",
                 progress: 100,
                 message: "",
-                outputFiles: ["translated.pdf"],
+                outputFiles: ["A.zh-CN.mono.pdf"],
               },
             });
           }
           c.setState("done");
         });
         await p.select(selected);
+        p.fields.dual.checked = false;
         await p.fields.start.click();
         assert.include(p.logs(), dir);
         if (manifest) {
@@ -746,12 +797,12 @@ describe("Translate tab job ownership", function () {
             "only copy",
           );
           assert.isFalse(
-            await globals.IOUtils.exists(join(dir, "translated.pdf")),
+            await globals.IOUtils.exists(join(dir, "A.zh-CN.mono.pdf")),
           );
         } else {
           assert.isEmpty(imported);
           assert.equal(
-            await fs.readFile(join(dir, "translated.pdf"), "utf8"),
+            await fs.readFile(join(dir, "A.zh-CN.mono.pdf"), "utf8"),
             "only copy",
           );
         }

@@ -1,3 +1,4 @@
+import { publicationBlocker } from "./translationFailure";
 import { confirmPdfLayout } from "./persianLayout";
 import { bindTranslationChoices } from "./translationFields";
 /* ---------------------------------------------------------------------------
@@ -54,6 +55,7 @@ import {
 } from "./translationAttachment";
 import {
   inspectTranslationOutputs,
+  validateGeneratedManifest,
   publishTranslationOutputs,
   type OutputPlan,
 } from "./translationOutputs";
@@ -1562,6 +1564,7 @@ async function fileTabResult(
   let files: string[];
   try {
     files = stagedFiles(dir, manifest);
+    validateGeneratedManifest(plan, files);
   } catch (err) {
     retained(err);
     return;
@@ -1645,6 +1648,7 @@ async function runTabTranslation(
     `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   let manifest: string[] = [];
+  let unsafeOutput = "";
 
   // Detailed console logging
   const pdfBasename = pdfPath.split(/[\\/]/).pop() || pdfPath;
@@ -1837,6 +1841,8 @@ async function runTabTranslation(
         }
 
         // Log output files on completion
+        if (status === "done")
+          unsafeOutput ||= publicationBlocker(event.data)?.detail || "";
         if (status === "done" && event.data.outputFiles?.length) {
           manifest = event.data.outputFiles;
           for (const f of event.data.outputFiles) {
@@ -1960,6 +1966,14 @@ async function runTabTranslation(
       }),
       creds,
     );
+    if (!session.isPaused && controller.getState() === "done" && unsafeOutput) {
+      consoleLog(
+        body,
+        `${i18n.trLogError(unsafeOutput)}\n${i18n.trLogOutputLabel}: ${outputDir}`,
+        "error",
+      );
+      return; // Leave partial outputs for inspection; no filing or overwrite.
+    }
     if (!session.isPaused && controller.getState() === "done")
       await fileTabResult(
         body,

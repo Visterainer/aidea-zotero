@@ -1,3 +1,5 @@
+import { classifyFailure, publicationBlocker } from "./translationFailure";
+export { classifyFailure } from "./translationFailure";
 /* ---------------------------------------------------------------------------
  * pdfTranslator/translationQueue.ts  –  Persistent, serial translation queue
  *
@@ -10,7 +12,12 @@
  * -------------------------------------------------------------------------*/
 
 import type { TranslateEvent } from "./index";
-import type { OutputPlan } from "./translationOutputs";
+import {
+  MissingStagedFormatError,
+  newReservationToken,
+  validateGeneratedManifest,
+  type OutputPlan,
+} from "./translationOutputs";
 import type { SavedTranslateOptions } from "./translatePrefs";
 import type {
   TranslationJobHandle,
@@ -46,6 +53,21 @@ interface PendingDelivery {
   completed: string[];
 }
 
+/** The specific library PDF inspected before the user approved generation. */
+export interface QueueSource {
+  libraryID: number;
+  sourceKey: string;
+  pdfPath: string;
+  sourceStamp: string;
+}
+
+export function previewSource(plan: OutputPlan): QueueSource {
+  const { libraryID, sourceKey, pdfPath, sourceStamp } = plan;
+  if (!libraryID || !sourceKey || !pdfPath || !sourceStamp)
+    throw new Error("Cannot identify the source PDF");
+  return { libraryID, sourceKey, pdfPath, sourceStamp };
+}
+
 export interface QueueItem {
   id: string;
   attachmentID: number;
@@ -66,6 +88,8 @@ export interface QueueItem {
   providerId: string;
   options: SavedTranslateOptions;
   output: QueueOutputTarget;
+  /** Missing on legacy rows and failed previews; neither authorizes a new job. */
+  source?: QueueSource;
   /** Replacement scope approved for this document at submission. */
   replaceIds?: string[];
   pendingDelivery?: PendingDelivery;
@@ -119,6 +143,7 @@ export interface QueueBatchResult {
 export const QUEUE_ERROR_PDF_MISSING = "@pdf_missing";
 
 export interface QueueAddEntry {
+  source?: QueueSource;
   /** The preview could not safely inspect this specific document. */
   preflightError?: string;
   attachmentID: number;
@@ -154,6 +179,11 @@ export interface QueueDeps {
   isOtherTranslationRunning(): boolean;
   resolvePdfPath(attachmentID: number): Promise<string | null>;
   inspect?(item: QueueItem, pdfPath: string): Promise<OutputPlan>;
+  /** Pin the verified input bytes across slow credential/environment setup. */
+  prepareInput?(plan: OutputPlan): Promise<{
+    pdfPath: string;
+    dispose(): Promise<void>;
+  }>;
   publish?(
     plan: OutputPlan,
     files: string[],
@@ -180,45 +210,6 @@ export interface QueueDeps {
 const MAX_ITEMS = 100;
 const BUSY_RECHECK_MS = 3000;
 const ACTIVE: QueueItemStatus[] = ["queued", "running", "interrupted"];
-
-/**
- * Decide whether a failed translation says something about the document or
- * about the setup. Setup failures would repeat for every remaining document,
- * so they pause the queue instead of burning through it.
- */
-export function classifyFailure(message: string): QueuePauseKind | "document" {
-  const text = String(message || "").toLowerCase();
-  // Log records also contain page numbers, token counts and foo.py:429.
-  // Only interpret a number as a status when the diagnostic identifies it.
-  const status =
-    /\b(?:http(?:\/\d(?:\.\d)?)?\s+|(?:status(?: code)?|error code)\s*[:=]?\s*)(401|403|429)\b/g;
-  const codes = Array.from(text.matchAll(status), (match) => match[1]);
-  if (
-    codes.includes("429") ||
-    /\bratelimiterror\b|\brate[-_ ]limit(?:ed|s|[_ ]exceeded|[_ ]reached)?\b|too many requests|insufficient_quota|quota exceeded|exceeded .*quota|usage limit/.test(
-      text,
-    )
-  ) {
-    return "rate_limit";
-  }
-  if (
-    codes.includes("401") ||
-    codes.includes("403") ||
-    /unauthori[sz]ed|403 forbidden|authenticationerror|permissiondeniederror|invalid.{0,12}(api.?key|token|credentials)|not logged in|sign in again/.test(
-      text,
-    )
-  ) {
-    return "credentials";
-  }
-  if (
-    /networkerror|apiconnectionerror|apitimeouterror|urlopen error|econnrefused|econnreset|enotfound|etimedout|connection (refused|reset|error|aborted|timed out)|could not connect|failed to connect|cannot connect|name resolution|getaddrinfo|\bssl:|sslerror|certificate.verify|proxyerror|proxy connection|tunnel connection failed/.test(
-      text,
-    )
-  ) {
-    return "network";
-  }
-  return "document";
-}
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -401,6 +392,11 @@ export class TranslationQueue {
         .filter((item) => ACTIVE.includes(item.status))
         .map((item) => item.attachmentID),
     );
+    // Admission is a transaction: a rejected preference write must not trim
+    // history, affect drain counts, or expose runnable rows to a scheduled pump.
+    const items = this.items.slice();
+    const settled = new Map(this.settled);
+    let counter = this.idCounter;
     const skippedIds: string[] = [];
     for (const entry of entries) {
       if (pendingIDs.has(entry.attachmentID)) {
@@ -411,10 +407,14 @@ export class TranslationQueue {
       // Preflight is a snapshot. If inspection is available, check the actual
       // destinations when this row reaches the front of the queue instead.
       const skipped = !this.deps.inspect && entry.alreadyTranslated === true;
-      const id = this.nextId();
-      if (entry.preflightError) this.settled.set(id, "failed");
+      const prefix = `q${this.deps.now().toString(36)}-`;
+      let id: string;
+      do {
+        id = prefix + ++counter;
+      } while (this.find(id) || settled.has(id));
+      if (entry.preflightError) settled.set(id, "failed");
       else if (skipped) skippedIds.push(id);
-      this.items.push({
+      items.push({
         id,
         attachmentID: entry.attachmentID,
         title: entry.title,
@@ -431,6 +431,7 @@ export class TranslationQueue {
         providerId: settings.providerId,
         options: { ...settings.options },
         output: { ...settings.output },
+        ...(entry.source ? { source: { ...entry.source } } : {}),
         ...(entry.replaceIds ? { replaceIds: [...entry.replaceIds] } : {}),
         addedAt: this.deps.now(),
         ...(skipped || entry.preflightError
@@ -440,11 +441,16 @@ export class TranslationQueue {
       if (skipped) result.skipped += 1;
       else result.added += 1;
     }
-    if (this.hasPending()) {
-      for (const id of skippedIds) this.settled.set(id, "skipped");
+    if (items.length === this.items.length) return result; // only duplicates
+    if (items.some((item) => ACTIVE.includes(item.status))) {
+      for (const id of skippedIds) settled.set(id, "skipped");
     }
-    this.trim();
-    this.changed();
+    const next = this.trimHistory(items);
+    this.persist(next, settled); // throws to submit() before it removes the draft
+    this.items = next;
+    this.settled = settled;
+    this.idCounter = counter;
+    this.notify();
     if (result.added) this.pump();
     return result;
   }
@@ -505,7 +511,8 @@ export class TranslationQueue {
       item.pageCurrent = undefined;
       item.pageTotal = undefined;
       item.warningCount = undefined;
-      item.retainedDir = undefined;
+      // Keep the location of surplus/unreported outputs from the previous
+      // attempt. A retry owns only its own new workspace.
       item.deliveryProgress = undefined;
       item.resultItemIDs = undefined;
       item.savedFiles = undefined;
@@ -576,15 +583,6 @@ export class TranslationQueue {
 
   /* ── Internals ── */
 
-  private nextId(): string {
-    const prefix = `q${this.deps.now().toString(36)}-`;
-    let id: string;
-    do {
-      id = prefix + ++this.idCounter;
-    } while (this.find(id) || this.settled.has(id));
-    return id;
-  }
-
   private find(id: string): QueueItem | undefined {
     return this.items.find((item) => item.id === id);
   }
@@ -595,10 +593,10 @@ export class TranslationQueue {
     this.pauseDetail = detail;
   }
 
-  private trim(): void {
-    let excess = this.items.length - MAX_ITEMS;
-    if (excess <= 0) return;
-    this.items = this.items.filter((item) => {
+  private trimHistory(items: QueueItem[]): QueueItem[] {
+    let excess = items.length - MAX_ITEMS;
+    if (excess <= 0) return items;
+    return items.filter((item) => {
       if (
         excess > 0 &&
         !ACTIVE.includes(item.status) &&
@@ -642,12 +640,12 @@ export class TranslationQueue {
     }
   }
 
-  private persist(): void {
+  private persist(items = this.items, settled = this.settled): void {
     this.deps.save(
       JSON.stringify({
         version: 1,
-        items: this.items,
-        settled: [...this.settled],
+        items,
+        settled: [...settled],
       }),
     );
   }
@@ -759,12 +757,19 @@ export class TranslationQueue {
     let outputDir = "";
     let keepOutput = false;
     let deliveredFiles: string[] | undefined;
+    let input:
+      Awaited<ReturnType<NonNullable<QueueDeps["prepareInput"]>>> | undefined;
     try {
       if ("pendingDelivery" in item) {
         // Do not restart generation. The publisher rechecks its destinations.
         await this.publishPending(item);
         return;
       }
+      const source = item.source;
+      if ((this.deps.inspect && !source) || (source && !this.deps.inspect))
+        throw new Error(
+          "Source PDF was not verified. Add the document again to review it.",
+        );
       const pdfPath = await this.deps.resolvePdfPath(item.attachmentID);
       if (item.status !== "running") return;
       if (!pdfPath) {
@@ -777,6 +782,18 @@ export class TranslationQueue {
         if (item.status !== "running") return;
         if (!validPlan(plan))
           throw new Error("Invalid translation output plan");
+        if (
+          !source?.sourceStamp ||
+          item.attachmentID !== plan.sourceID ||
+          source.libraryID !== plan.libraryID ||
+          source.sourceKey !== plan.sourceKey ||
+          pdfPath !== source.pdfPath ||
+          pdfPath !== plan.pdfPath ||
+          source.sourceStamp !== plan.sourceStamp
+        )
+          throw new Error(
+            "The source PDF changed after preview. Add the document again to review it.",
+          );
         if (!plan.generateKinds.length) {
           item.status = "skipped";
           item.percent = 100;
@@ -788,9 +805,13 @@ export class TranslationQueue {
       }
       outputDir = await this.deps.createOutputDir();
       if (item.status !== "running") return;
+      if (plan && this.deps.prepareInput) {
+        input = await this.deps.prepareInput(plan);
+        if (item.status !== "running") return;
+      }
       const handle = this.deps.startJob(
         {
-          pdfPath,
+          pdfPath: input?.pdfPath ?? pdfPath,
           outputDir,
           modelName: item.modelName,
           providerId: item.providerId,
@@ -820,6 +841,8 @@ export class TranslationQueue {
     } catch (err) {
       if (item.status === "running") this.fail(item, errorText(err));
     } finally {
+      // Input is a private temporary copy, never a staged translation.
+      if (input) await input.dispose();
       if (outputDir && !keepOutput && !item.pendingDelivery) {
         await this.cleanup(item, outputDir, deliveredFiles);
       }
@@ -890,7 +913,6 @@ export class TranslationQueue {
       this.persist(); // Fail closed: no destination write without a checkpoint.
       this.notify();
     };
-    checkpoint();
     const safe = this.deps.validateStaging
       ? await this.deps.validateStaging(p.dir, p.files)
       : this.freshDeliveries.has(p);
@@ -898,21 +920,46 @@ export class TranslationQueue {
       throw new Error(
         "Cannot verify staged translation files; files left untouched",
       );
+    // Older checkpoints predate crash-recoverable destination reservations.
+    // Bind the nonce durably before the publisher creates its first marker.
+    const legacy = p.plan.reservationToken === undefined;
+    if (legacy) p.plan.reservationToken = newReservationToken();
+    if (
+      typeof p.plan.reservationToken !== "string" ||
+      !/^[a-f0-9]{32}$/.test(p.plan.reservationToken)
+    )
+      throw new Error("Invalid staged translation reservation token");
+    checkpoint();
     if (!this.deps.publish) throw new Error("Missing output publisher");
 
-    const delivered = await this.deps.publish(
-      p.plan,
-      [...p.files],
-      [...p.completed],
-      (id, itemID) => {
+    const delivered = await this.deps
+      .publish(p.plan, [...p.files], [...p.completed], (id, itemID) => {
         if (!expected.has(id))
           throw new Error("Unexpected publication receipt");
         if (!p.completed.includes(id)) p.completed.push(id);
         if (itemID !== undefined && !item.resultItemIDs?.includes(itemID))
           (item.resultItemIDs ??= []).push(itemID);
         checkpoint();
-      },
-    );
+      })
+      .catch((err: unknown) => {
+        // Pre-upgrade checkpoints could record an incomplete engine report. If
+        // the publisher still needs that missing kind, it rejected the manifest
+        // before ANY write. No owned reservation is lost by retiring it here.
+        if (
+          !legacy ||
+          !(err instanceof MissingStagedFormatError) ||
+          !p.plan.generateKinds.includes(err.kind)
+        )
+          throw err;
+        delete item.pendingDelivery;
+        item.retainedDir = p.dir;
+        this.fail(
+          item,
+          `${err.message}. Output kept for inspection: ${p.dir}.${item.source ? "" : " Add the document again to review its source."}`,
+        );
+        return null;
+      });
+    if (!delivered) return;
     if (p.completed.length !== expected.size)
       throw new Error(
         `Incomplete publication (${p.completed.length}/${expected.size} outputs filed)`,
@@ -926,7 +973,7 @@ export class TranslationQueue {
     item.finishedAt = this.deps.now();
     this.settled.set(item.id, "done");
     delete item.pendingDelivery;
-    delete item.retainedDir;
+    if (item.retainedDir === p.dir) delete item.retainedDir;
     try {
       // A restart must see a terminal row *before* its staged inputs disappear.
       this.persist();
@@ -995,20 +1042,34 @@ export class TranslationQueue {
       errorLines.length,
       progress?.hasErrors ? 1 : 0,
     );
-    for (const line of errorLines) {
-      const kind = classifyFailure(line);
-      if (kind !== "document") {
-        // The setup needs attention, but even a zero first-pass success
-        // count doesn't prove the output is useless. Leave it recoverable.
-        const kept = `Output kept for inspection: ${outcome.outputFiles[0]}`;
-        item.error = kept; // survives a restart (the pause detail doesn't)
-        this.holdForSetup(item, kind, `${kept}\n${line.slice(0, 500)}`);
-        return true;
-      }
+    const blocker = publicationBlocker(progress);
+    if (blocker) {
+      const kept = `Output kept for inspection: ${outcome.outputFiles[0]}`;
+      item.error = kept;
+      this.holdForSetup(item, blocker.kind, `${kept}\n${blocker.detail}`);
+      return true;
     }
     if (plan) {
       item.warningCount = errorCount || undefined;
-      item.retainedDir = outputDir;
+      try {
+        validateGeneratedManifest(plan, outcome.outputFiles);
+        if (
+          !validManifest(outputDir, outcome.outputFiles) ||
+          (this.deps.validateStaging &&
+            !(await this.deps.validateStaging(outputDir, outcome.outputFiles)))
+        )
+          throw new Error("Cannot verify staged translation files");
+      } catch (err) {
+        // This is an incomplete *generation*, not a retryable filing job.
+        // Do not give any listed filename to either publisher or cleanup.
+        item.retainedDir = outputDir;
+        this.fail(
+          item,
+          `${errorText(err)}. Output kept for inspection: ${outputDir}`,
+        );
+        return true;
+      }
+      item.retainedDir ??= outputDir;
       item.pendingDelivery = {
         plan,
         files: [...outcome.outputFiles],

@@ -1,5 +1,9 @@
 import { isGlobalChatKey } from "../../utils/chatTransfer";
 import { fileEvidence } from "./fileEvidence";
+import {
+  clearAllComposeDrafts,
+  getComposeHistoryGeneration,
+} from "./setupHandlers/controllers/composeDraftController";
 import { checkpointMatches } from "./summaryCheckpoint";
 import {
   estimateTokens,
@@ -48,7 +52,8 @@ import {
   createSiblingBranch,
   loadConversationPath,
   loadConversationTree,
-  addChatHistoryClearBlocker,
+  withChatHistoryRequest,
+  historyClearInProgressMessage,
   onChatHistoryCleared,
   setActiveChild as setStoredActiveChild,
   updateMessageNode,
@@ -178,6 +183,9 @@ import {
 } from "../../utils/memoryStore";
 
 const activeStreamingAssistantMessages = new Map<number, Message>();
+// An assistant placeholder may have an ID even though its final UPDATE failed.
+// Like an ID-less turn, it is not safe to replace from SQLite on stream finish.
+const unsavedAssistantMessages = new WeakSet<Message>();
 
 function getAbortController(): new () => AbortController {
   return (
@@ -634,7 +642,13 @@ async function persistConversationMessage(
       message,
       parentMessageId,
     );
-    await syncConversationAttachmentRefs(conversationKey);
+    if (messageId) {
+      // The row is already durable. An independent reference-sync failure
+      // must not discard its ID and orphan the following assistant update.
+      await persistOrNull(() =>
+        syncConversationAttachmentRefs(conversationKey),
+      );
+    }
     return messageId;
   } catch (err) {
     ztoolkit.log("LLM: Failed to persist chat message", err);
@@ -722,19 +736,26 @@ async function persistOrNull<T>(run: () => Promise<T>): Promise<T | null> {
   }
 }
 
-function overlayActiveStreamingMessage(message: Message): Message {
+function overlayLocalAssistant(
+  message: Message,
+  local?: Map<number, Message>,
+): Message {
   if (!message.messageId) return message;
-  const streaming = activeStreamingAssistantMessages.get(message.messageId);
-  if (!streaming) return message;
-  return {
-    ...message,
-    text: streaming.text,
-    timestamp: streaming.timestamp,
-    modelName: streaming.modelName,
-    reasoningSummary: streaming.reasoningSummary,
-    reasoningDetails: streaming.reasoningDetails,
-    streaming: true,
-  };
+  const live =
+    activeStreamingAssistantMessages.get(message.messageId) ||
+    local?.get(message.messageId);
+  if (!live) return message;
+  // Keep the live object when another window reloads or switches back to
+  // this branch. Its final text and streaming flag must not depend on being
+  // able to reload a successful final UPDATE.
+  return Object.assign(live, {
+    parentMessageId: message.parentMessageId,
+    activeChildMessageId: message.activeChildMessageId,
+    branchIndex: message.branchIndex,
+    siblingIndex: message.siblingIndex,
+    siblingCount: message.siblingCount,
+    siblingMessageIds: message.siblingMessageIds,
+  });
 }
 
 export async function ensureConversationLoaded(
@@ -754,16 +775,18 @@ export async function ensureConversationLoaded(
     return;
   }
 
+  const generation = getComposeHistoryGeneration();
   const task = (async () => {
     try {
       const storedMessages = await loadConversationPath(
         conversationKey,
         PERSISTED_HISTORY_LIMIT,
       );
+      if (generation !== getComposeHistoryGeneration()) return;
       chatHistory.set(
         conversationKey,
         storedMessages.map((message) =>
-          overlayActiveStreamingMessage(toPanelMessage(message)),
+          overlayLocalAssistant(toPanelMessage(message)),
         ),
       );
       // Phase 2: Restore conversation context pool from DB refs.
@@ -811,12 +834,17 @@ export async function ensureConversationLoaded(
       restoreSelectedTextsFromMessages(conversationKey, storedMessages);
     } catch (err) {
       ztoolkit.log("LLM: Failed to load chat history", err);
-      if (!chatHistory.has(conversationKey)) {
+      if (
+        generation === getComposeHistoryGeneration() &&
+        !chatHistory.has(conversationKey)
+      ) {
         chatHistory.set(conversationKey, []);
       }
     } finally {
-      loadedConversationKeys.add(conversationKey);
-      loadingConversationTasks.delete(conversationKey);
+      if (generation === getComposeHistoryGeneration()) {
+        loadedConversationKeys.add(conversationKey);
+        loadingConversationTasks.delete(conversationKey);
+      }
     }
   })();
 
@@ -826,15 +854,33 @@ export async function ensureConversationLoaded(
 
 export async function reloadActiveConversationPath(
   item: Zotero.Item,
-  options?: { forceContextRestore?: boolean },
+  options?: { forceContextRestore?: boolean; preserveLocalTurns?: boolean },
 ): Promise<Message[]> {
   const conversationKey = getConversationKey(item);
+  const generation = getComposeHistoryGeneration();
   const storedMessages = await loadConversationPath(
     conversationKey,
     PERSISTED_HISTORY_LIMIT,
   );
+  if (generation !== getComposeHistoryGeneration()) {
+    return chatHistory.get(conversationKey) || [];
+  }
+  // Another request/window can add a memory-only turn while this read is in
+  // flight. Only an explicit branch switch should discard that visible path.
+  const visible = chatHistory.get(conversationKey);
+  if (options?.preserveLocalTurns && visible?.some((msg) => !msg.messageId)) {
+    return visible;
+  }
+  // Saved placeholders do have IDs: carry the unsaved answer over only if
+  // that node still belongs to the selected path, never onto a sibling.
+  const local = new Map<number, Message>();
+  for (const msg of visible || []) {
+    if (msg.messageId && unsavedAssistantMessages.has(msg)) {
+      local.set(msg.messageId, msg);
+    }
+  }
   const panelMessages = storedMessages.map((message) =>
-    overlayActiveStreamingMessage(toPanelMessage(message)),
+    overlayLocalAssistant(toPanelMessage(message), local),
   );
   chatHistory.set(conversationKey, panelMessages);
   loadedConversationKeys.add(conversationKey);
@@ -842,6 +888,56 @@ export async function reloadActiveConversationPath(
     force: options?.forceContextRestore,
   });
   return panelMessages;
+}
+
+async function settleAssistantTurn(
+  item: Zotero.Item,
+  conversationKey: number,
+  message: Message,
+  refresh: () => void,
+  forceContextRestore = false,
+): Promise<void> {
+  message.streaming = false;
+  const id = message.messageId;
+  // Neither a failed parent insert nor a failed placeholder insert leaves a
+  // row to update. The displayed turn is still valid for this session.
+  if (!id) {
+    refresh();
+    return;
+  }
+  try {
+    await updateMessageNode(conversationKey, id, {
+      role: "assistant",
+      text: message.text,
+      timestamp: message.timestamp,
+      modelName: message.modelName,
+      contextRefs: {
+        ...message.contextRefs,
+        citations: citedEvidence(message.text, message.contextRefs?.citations),
+      },
+    });
+  } catch (err) {
+    // Do not let a local write error become a model error and overwrite a
+    // successful (or partially cancelled) response with the exception text.
+    unsavedAssistantMessages.add(message);
+    ztoolkit.log("LLM: Failed to save assistant response", err);
+  } finally {
+    activeStreamingAssistantMessages.delete(id);
+  }
+  if (
+    !unsavedAssistantMessages.has(message) &&
+    getConversationKey(item) === conversationKey
+  ) {
+    try {
+      await reloadActiveConversationPath(item, {
+        forceContextRestore,
+        preserveLocalTurns: true,
+      });
+    } catch (err) {
+      ztoolkit.log("LLM: Failed to reload settled conversation", err);
+    }
+  }
+  refresh();
 }
 
 export async function switchConversationVariant(
@@ -1077,6 +1173,79 @@ function finishPanelRequestUI(
   if (!finishPanelRequest(body, requestId)) return;
   setHistoryControlsDisabled(body, false);
   restoreRequestUIIdle(body, ui, conversationKey, requestId);
+}
+
+type PanelChatRequest = {
+  ui: PanelRequestUI;
+  thisRequestId: number;
+  requestAbortController: AbortController;
+  trackAssistant: (message: Message) => void;
+};
+
+/** All entry points claim the panel before loading history and release it even
+ * if a detached window throws while installing the controller or rendering. */
+function panelChatRequest<Args extends unknown[], Result>(
+  busyStatus: "preparingRequest" | "preparingRetry",
+  blockedResult: Result,
+  run: (
+    request: PanelChatRequest,
+    body: Element,
+    item: Zotero.Item,
+    ...args: Args
+  ) => Promise<Result>,
+) {
+  return (body: Element, item: Zotero.Item, ...args: Args): Promise<Result> => {
+    const ui = getPanelRequestUI(body);
+    const blocked = (reason: string) => {
+      if (ui.status) setStatus(ui.status, reason, "ready");
+      return blockedResult;
+    };
+    return withChatHistoryRequest(
+      async () => {
+        const i18n = getPanelI18n();
+        if (isPanelGenerating(body))
+          return blocked(i18n.waitForCurrentResponse);
+        const key = getConversationKey(item);
+        const thisRequestId = nextRequestId();
+        beginPanelRequest(body, thisRequestId);
+        let assistant: Message | undefined;
+        try {
+          const requestAbortController = attachNewRequestAbortController(
+            body,
+            thisRequestId,
+          );
+          if (!requestAbortController) return blockedResult;
+          setRequestUIBusy(body, ui, key, i18n[busyStatus]);
+          return await run(
+            {
+              ui,
+              thisRequestId,
+              requestAbortController,
+              trackAssistant(message) {
+                assistant = message;
+                if (message.messageId)
+                  activeStreamingAssistantMessages.set(
+                    message.messageId,
+                    message,
+                  );
+              },
+            },
+            body,
+            item,
+            ...args,
+          );
+        } finally {
+          if (assistant) {
+            assistant.streaming = false;
+            if (assistant.messageId)
+              activeStreamingAssistantMessages.delete(assistant.messageId);
+          }
+          finishPanelRequestUI(body, ui, key, thisRequestId);
+        }
+      },
+      () => blocked(historyClearInProgressMessage),
+    );
+  };
 }
 
 function createPanelUpdateHelpers(
@@ -2289,7 +2458,19 @@ export type EditLatestTurnMarker = {
 export type EditLatestTurnResult =
   "ok" | "missing" | "stale" | "persist-failed";
 
-export async function editUserMessageAndRetry(
+export const editUserMessageAndRetry = panelChatRequest(
+  "preparingRetry",
+  "stale",
+  runEditUserMessageAndRetry,
+);
+
+async function runEditUserMessageAndRetry(
+  {
+    ui,
+    thisRequestId,
+    requestAbortController,
+    trackAssistant,
+  }: PanelChatRequest,
   body: Element,
   item: Zotero.Item,
   messageId: number,
@@ -2299,14 +2480,7 @@ export async function editUserMessageAndRetry(
   apiKey?: string,
   advanced?: AdvancedModelParams,
 ): Promise<EditLatestTurnResult> {
-  const ui = getPanelRequestUI(body);
   const i18n = getPanelI18n();
-  if (isPanelGenerating(body)) {
-    if (ui.status) {
-      setStatus(ui.status, i18n.waitForCurrentResponse, "ready");
-    }
-    return "stale";
-  }
 
   await ensureConversationLoaded(item);
   const conversationKey = getConversationKey(item);
@@ -2361,14 +2535,6 @@ export async function editUserMessageAndRetry(
     { force: true },
   );
 
-  const thisRequestId = nextRequestId();
-  beginPanelRequest(body, thisRequestId);
-  const requestAbortController = attachNewRequestAbortController(
-    body,
-    thisRequestId,
-  );
-  if (!requestAbortController) return "stale";
-  setRequestUIBusy(body, ui, conversationKey, i18n.preparingRetry);
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
     item,
@@ -2388,7 +2554,6 @@ export async function editUserMessageAndRetry(
     ),
   );
   if (!nextUserId) {
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return "persist-failed";
   }
   nextUserMessage.messageId = nextUserId;
@@ -2409,34 +2574,25 @@ export async function editUserMessageAndRetry(
     ),
   );
   if (!assistantId) {
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return "persist-failed";
   }
   assistantMessage.messageId = assistantId;
   assistantMessage.parentMessageId = nextUserId;
-  activeStreamingAssistantMessages.set(assistantId, assistantMessage);
+  trackAssistant(assistantMessage);
 
   await persistOrNull(() =>
     reloadActiveConversationPath(item, { forceContextRestore: true }),
   );
   refreshChatSafely();
 
-  const persistAssistantUpdate = async () => {
-    if (!assistantMessage.messageId) return;
-    await updateMessageNode(conversationKey, assistantMessage.messageId, {
-      role: "assistant",
-      text: assistantMessage.text,
-      timestamp: assistantMessage.timestamp,
-      modelName: assistantMessage.modelName,
-      contextRefs: {
-        ...assistantMessage.contextRefs,
-        citations: citedEvidence(
-          assistantMessage.text,
-          assistantMessage.contextRefs?.citations,
-        ),
-      },
-    });
-  };
+  const settle = () =>
+    settleAssistantTurn(
+      item,
+      conversationKey,
+      assistantMessage,
+      refreshChatSafely,
+      true,
+    );
 
   try {
     const { combinedContext, llmHistory, citations, documentCoverage } =
@@ -2473,14 +2629,7 @@ export async function editUserMessageAndRetry(
 
     if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
+      await settle();
       return "stale";
     }
     const panelAbortController = requestAbortController;
@@ -2542,14 +2691,7 @@ export async function editUserMessageAndRetry(
         assistantMessage.text = `*(${i18n.cancelled})*`;
       assistantMessage.timestamp = Date.now();
       assistantMessage.modelName = effectiveRequestConfig.model;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
+      await settle();
       setStatusSafely(i18n.statusReady, "ready");
       return "ok";
     }
@@ -2563,15 +2705,8 @@ export async function editUserMessageAndRetry(
     assistantMessage.text = sanitizeText(answer) || streamedAnswer;
     assistantMessage.timestamp = Date.now();
     assistantMessage.modelName = effectiveRequestConfig.model;
-    assistantMessage.streaming = false;
-    refreshChatSafely();
-    await persistAssistantUpdate();
-    if (assistantMessage.messageId) {
-      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-    }
-    await syncConversationAttachmentRefs(conversationKey);
-    await reloadActiveConversationPath(item, { forceContextRestore: true });
-    refreshChatSafely();
+    await settle();
+    await persistOrNull(() => syncConversationAttachmentRefs(conversationKey));
 
     setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
@@ -2587,16 +2722,9 @@ export async function editUserMessageAndRetry(
       Boolean(getPanelAbortController(body)?.signal.aborted) ||
       (err as { name?: string }).name === "AbortError";
     if (isCancelled) {
-      assistantMessage.streaming = false;
       if (!assistantMessage.text)
         assistantMessage.text = `*(${i18n.cancelled})*`;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
+      await settle();
       setStatusSafely(i18n.statusReady, "ready");
       return "ok";
     }
@@ -2606,25 +2734,23 @@ export async function editUserMessageAndRetry(
       screenshotImages.length,
     );
     assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
-    assistantMessage.streaming = false;
-    refreshChatSafely();
-    await persistAssistantUpdate();
-    if (assistantMessage.messageId) {
-      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-    }
-    await reloadActiveConversationPath(item, { forceContextRestore: true });
-    refreshChatSafely();
+    await settle();
     setStatusSafely(
       i18n.operationFailed(`${errMsg}${retryHint}`.slice(0, 40)),
       "error",
     );
     return "ok";
-  } finally {
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
   }
 }
 
-export async function editLatestUserMessageAndRetry(
+export const editLatestUserMessageAndRetry = panelChatRequest(
+  "preparingRetry",
+  "stale",
+  runEditLatestUserMessageAndRetry,
+);
+
+async function runEditLatestUserMessageAndRetry(
+  request: PanelChatRequest,
   body: Element,
   item: Zotero.Item,
   displayQuestion: string,
@@ -2654,7 +2780,8 @@ export async function editLatestUserMessageAndRetry(
   ) {
     return "stale";
   }
-  return editUserMessageAndRetry(
+  return runEditUserMessageAndRetry(
+    request,
     body,
     item,
     retryPair.userMessage.messageId,
@@ -2666,7 +2793,19 @@ export async function editLatestUserMessageAndRetry(
   );
 }
 
-export async function retryLatestAssistantResponse(
+export const retryLatestAssistantResponse = panelChatRequest(
+  "preparingRetry",
+  undefined,
+  runRetryLatestAssistantResponse,
+);
+
+async function runRetryLatestAssistantResponse(
+  {
+    ui,
+    thisRequestId,
+    requestAbortController,
+    trackAssistant,
+  }: PanelChatRequest,
   body: Element,
   item: Zotero.Item,
   model?: string,
@@ -2674,14 +2813,7 @@ export async function retryLatestAssistantResponse(
   apiKey?: string,
   advanced?: AdvancedModelParams,
 ) {
-  const ui = getPanelRequestUI(body);
   const i18n = getPanelI18n();
-  if (isPanelGenerating(body)) {
-    if (ui.status) {
-      setStatus(ui.status, i18n.waitForCurrentResponse, "ready");
-    }
-    return;
-  }
 
   await ensureConversationLoaded(item);
   const conversationKey = getConversationKey(item);
@@ -2696,14 +2828,6 @@ export async function retryLatestAssistantResponse(
     return;
   }
 
-  const thisRequestId = nextRequestId();
-  beginPanelRequest(body, thisRequestId);
-  const requestAbortController = attachNewRequestAbortController(
-    body,
-    thisRequestId,
-  );
-  if (!requestAbortController) return;
-  setRequestUIBusy(body, ui, conversationKey, i18n.preparingRetry);
   const { refreshChatSafely, setStatusSafely } = createPanelUpdateHelpers(
     body,
     item,
@@ -2718,7 +2842,6 @@ export async function retryLatestAssistantResponse(
     reconstructRetryPayload(retryPair.userMessage);
   if (!question.trim()) {
     setStatusSafely(i18n.nothingToRetryLatestTurn, "error");
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
 
@@ -2734,7 +2857,6 @@ export async function retryLatestAssistantResponse(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     setStatusSafely(errMsg, "error");
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
 
@@ -2760,34 +2882,25 @@ export async function retryLatestAssistantResponse(
   );
   if (!assistantId) {
     setStatusSafely(i18n.operationFailed("persist"), "error");
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
   assistantMessage.messageId = assistantId;
   assistantMessage.parentMessageId = retryPair.userMessage.messageId;
-  activeStreamingAssistantMessages.set(assistantId, assistantMessage);
+  trackAssistant(assistantMessage);
   await persistOrNull(() =>
     reloadActiveConversationPath(item, { forceContextRestore: true }),
   );
   refreshChatSafely();
   let streamedAnswer = "";
 
-  const persistAssistantUpdate = async () => {
-    if (!assistantMessage.messageId) return;
-    await updateMessageNode(conversationKey, assistantMessage.messageId, {
-      role: "assistant",
-      text: assistantMessage.text,
-      timestamp: assistantMessage.timestamp,
-      modelName: assistantMessage.modelName,
-      contextRefs: {
-        ...assistantMessage.contextRefs,
-        citations: citedEvidence(
-          assistantMessage.text,
-          assistantMessage.contextRefs?.citations,
-        ),
-      },
-    });
-  };
+  const settle = () =>
+    settleAssistantTurn(
+      item,
+      conversationKey,
+      assistantMessage,
+      refreshChatSafely,
+      true,
+    );
 
   try {
     const { combinedContext, llmHistory, citations, documentCoverage } =
@@ -2818,46 +2931,12 @@ export async function retryLatestAssistantResponse(
     refreshChatSafely();
     if (isPanelRequestCancelled(body, thisRequestId)) {
       assistantMessage.text = `*(${i18n.cancelled})*`;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
+      await settle();
       setStatusSafely(i18n.cancelled, "ready");
       return;
     }
 
-    if (isPanelRequestCancelled(body, thisRequestId)) {
-      assistantMessage.text = `*(${i18n.cancelled})*`;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
-      setStatusSafely(i18n.cancelled, "ready");
-      return;
-    }
     const panelAbortController = requestAbortController;
-    if (isPanelRequestCancelled(body, thisRequestId)) {
-      panelAbortController?.abort();
-      assistantMessage.text = `*(${i18n.cancelled})*`;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
-      setStatusSafely(i18n.cancelled, "ready");
-      return;
-    }
 
     // Incremental DOM update: find the skeleton bubble that refreshChat
     // created and patch it in place instead of re-rendering the whole chat.
@@ -2919,14 +2998,7 @@ export async function retryLatestAssistantResponse(
       assistantMessage.text = streamedAnswer || assistantMessage.text;
       assistantMessage.timestamp = Date.now();
       assistantMessage.modelName = effectiveRequestConfig.model;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
+      await settle();
       setStatusSafely(i18n.statusReady, "ready");
       return;
     }
@@ -2940,15 +3012,7 @@ export async function retryLatestAssistantResponse(
     assistantMessage.text = sanitizeText(answer) || streamedAnswer;
     assistantMessage.timestamp = Date.now();
     assistantMessage.modelName = effectiveRequestConfig.model;
-    assistantMessage.streaming = false;
-    refreshChatSafely();
-
-    await persistAssistantUpdate();
-    if (assistantMessage.messageId) {
-      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-    }
-    await reloadActiveConversationPath(item, { forceContextRestore: true });
-    refreshChatSafely();
+    await settle();
 
     setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
@@ -2963,27 +3027,13 @@ export async function retryLatestAssistantResponse(
       Boolean(getPanelAbortController(body)?.signal.aborted) ||
       (err as { name?: string }).name === "AbortError";
     if (isCancelled) {
-      // Keep whatever the LLM has already generated
       if (assistantMessage.text) {
-        assistantMessage.streaming = false;
-        refreshChatSafely();
         assistantMessage.timestamp = Date.now();
         assistantMessage.modelName = effectiveRequestConfig.model;
-        await persistAssistantUpdate();
-        if (assistantMessage.messageId) {
-          activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-        }
       } else {
         assistantMessage.text = `*(${i18n.cancelled})*`;
-        assistantMessage.streaming = false;
-        refreshChatSafely();
-        await persistAssistantUpdate();
-        if (assistantMessage.messageId) {
-          activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-        }
       }
-      await reloadActiveConversationPath(item, { forceContextRestore: true });
-      refreshChatSafely();
+      await settle();
       setStatusSafely(i18n.statusReady, "ready");
       return;
     }
@@ -2994,24 +3044,27 @@ export async function retryLatestAssistantResponse(
       screenshotImages.length,
     );
     assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
-    assistantMessage.streaming = false;
-    refreshChatSafely();
-    await persistAssistantUpdate();
-    if (assistantMessage.messageId) {
-      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-    }
-    await reloadActiveConversationPath(item, { forceContextRestore: true });
-    refreshChatSafely();
+    await settle();
     setStatusSafely(
       `Retry failed: ${`${errMsg}${retryHint}`.slice(0, 48)}`,
       "error",
     );
-  } finally {
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
   }
 }
 
-export async function sendQuestion(
+export const sendQuestion = panelChatRequest(
+  "preparingRequest",
+  undefined,
+  runSendQuestion,
+);
+
+async function runSendQuestion(
+  {
+    ui,
+    thisRequestId,
+    requestAbortController,
+    trackAssistant,
+  }: PanelChatRequest,
   body: Element,
   item: Zotero.Item,
   question: string,
@@ -3027,33 +3080,12 @@ export async function sendQuestion(
   paperContexts?: PaperContextRef[],
   attachments?: ChatAttachment[],
 ) {
-  const ui = getPanelRequestUI(body);
   const i18n = getPanelI18n();
-  if (isPanelGenerating(body)) {
-    if (ui.status) {
-      setStatus(ui.status, i18n.waitForCurrentResponse, "ready");
-    }
-    return;
-  }
-
-  // Track this request
-  const thisRequestId = nextRequestId();
-  beginPanelRequest(body, thisRequestId);
-  const requestAbortController = attachNewRequestAbortController(
-    body,
-    thisRequestId,
-  );
-  if (!requestAbortController) return;
-  const initialConversationKey = getConversationKey(item);
-
-  // Show cancel, hide send
-  setRequestUIBusy(body, ui, initialConversationKey, i18n.preparingRequest);
 
   try {
     await ensureConversationLoaded(item);
     throwIfRequestAborted(requestAbortController.signal);
   } catch (err) {
-    finishPanelRequestUI(body, ui, initialConversationKey, thisRequestId);
     if ((err as { name?: string }).name === "AbortError") return;
     throw err;
   }
@@ -3092,7 +3124,6 @@ export async function sendQuestion(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     setStatusSafely(errMsg, "error");
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
     return;
   }
   const shownQuestion = displayQuestion || question;
@@ -3197,62 +3228,22 @@ export async function sendQuestion(
     assistantMessage.messageId = assistantMessageId;
     assistantMessage.parentMessageId =
       userMessageId || userMessage.messageId || null;
-    activeStreamingAssistantMessages.set(assistantMessageId, assistantMessage);
   }
+  trackAssistant(assistantMessage);
   refreshChatSafely();
 
-  const persistAssistantUpdate = async () => {
-    if (!assistantMessage.messageId) return;
-    await updateMessageNode(conversationKey, assistantMessage.messageId, {
-      role: "assistant",
-      text: assistantMessage.text,
-      timestamp: assistantMessage.timestamp,
-      modelName: assistantMessage.modelName,
-      contextRefs: {
-        ...assistantMessage.contextRefs,
-        citations: citedEvidence(
-          assistantMessage.text,
-          assistantMessage.contextRefs?.citations,
-        ),
-      },
-    });
-  };
-  // Switching answer variants mid-stream replaces the history array with
-  // snapshot copies, so this function's `assistantMessage` may no longer be
-  // the object on screen. Once the stream has settled and been persisted,
-  // reload from the store so the bubble cannot stay frozen as "streaming".
-  const resyncActivePath = async () => {
-    try {
-      await reloadActiveConversationPath(item);
-      refreshChatSafely();
-    } catch (err) {
-      ztoolkit.log("LLM: failed to resync conversation after stream", err);
-    }
-  };
+  const settle = () =>
+    settleAssistantTurn(
+      item,
+      conversationKey,
+      assistantMessage,
+      refreshChatSafely,
+    );
 
   const markCancelled = async () => {
-    if (assistantMessage.text) {
-      // Keep whatever the LLM has already generated
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-    } else {
-      // Nothing generated yet — keep the assistant message as a
-      // "cancelled" placeholder so that the user-assistant pair stays
-      // intact.  This lets the user still edit / retry the last prompt
-      // via findLatestRetryPair().
-      assistantMessage.text = `*(${i18n.cancelled})*`;
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantUpdate();
-      if (assistantMessage.messageId) {
-        activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-      }
-    }
-    await resyncActivePath();
+    // Keep partial output (or the placeholder for editing/retrying).
+    if (!assistantMessage.text) assistantMessage.text = `*(${i18n.cancelled})*`;
+    await settle();
     setStatusSafely(i18n.statusReady, "ready");
   };
 
@@ -3357,13 +3348,7 @@ export async function sendQuestion(
       ),
     );
     assistantMessage.text = sanitizeText(answer) || assistantMessage.text;
-    assistantMessage.streaming = false;
-    refreshChatSafely();
-    await persistAssistantUpdate();
-    if (assistantMessage.messageId) {
-      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-    }
-    await resyncActivePath();
+    await settle();
 
     setStatusSafely(i18n.statusReady, "ready");
     await autoCaptureRequestMemories({
@@ -3385,20 +3370,12 @@ export async function sendQuestion(
     const errMsg = (err as Error).message || "Error";
     const retryHint = resolveMultimodalRetryHint(errMsg, imageCount);
     assistantMessage.text = i18n.operationFailed(`${errMsg}${retryHint}`);
-    assistantMessage.streaming = false;
-    refreshChatSafely();
-    await persistAssistantUpdate();
-    if (assistantMessage.messageId) {
-      activeStreamingAssistantMessages.delete(assistantMessage.messageId);
-    }
-    await resyncActivePath();
+    await settle();
 
     setStatusSafely(
       i18n.operationFailed(`${errMsg}${retryHint}`.slice(0, 40)),
       "error",
     );
-  } finally {
-    finishPanelRequestUI(body, ui, conversationKey, thisRequestId);
   }
 }
 
@@ -4476,18 +4453,12 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 // "Clear all history" (Settings) deletes every conversation row. Drop the
 // in-memory copies and move each open panel to a fresh conversation, so the
 // next message is not appended under a deleted key.
-// A streaming answer still holds its conversation: its panel cannot switch
-// away, and the finished text would be written to a deleted conversation.
-addChatHistoryClearBlocker(() =>
-  activeStreamingAssistantMessages.size > 0
-    ? "A response is still being generated. Stop it or wait for it to finish, then try again. / 仍有回答正在生成，请先停止或等待完成后再清空。"
-    : null,
-);
-
 onChatHistoryCleared(() => {
   chatHistory.clear();
   loadedConversationKeys.clear();
+  loadingConversationTasks.clear();
   conversationContextPool.clear();
+  clearAllComposeDrafts();
   // Conversation keys are reused, so a cached summary would be attached to
   // whichever new conversation gets the same key.
   zoneBSummaryCache.clear();
@@ -4502,11 +4473,19 @@ onChatHistoryCleared(() => {
     }
   };
   for (const win of getWindows()) {
-    const buttons = win.document?.querySelectorAll?.(
-      "#llm-main #llm-history-new",
-    );
-    for (const button of Array.from(buttons || [])) {
-      (button as HTMLButtonElement).click();
+    try {
+      const buttons = win.document?.querySelectorAll?.(
+        "#llm-main #llm-history-new",
+      );
+      for (const button of Array.from(buttons || [])) {
+        try {
+          (button as HTMLButtonElement).click();
+        } catch (err) {
+          ztoolkit.log("LLM: Could not reset chat panel after clear", err);
+        }
+      }
+    } catch (err) {
+      ztoolkit.log("LLM: Could not access window after history clear", err);
     }
   }
 });

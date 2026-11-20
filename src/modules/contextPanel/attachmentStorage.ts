@@ -373,12 +373,49 @@ export function isManagedBlobPath(storedPath: string | undefined): boolean {
   return Boolean(extractManagedBlobHash(storedPath));
 }
 
+// The row and its canonical file are one resource. Writers can already be in
+// an archive-import transaction: never start a DB transaction under this lock.
+const blobLocks = new Map<string, Promise<void>>();
+
+export function tryLockAttachmentBlob(hash: string): (() => void) | undefined {
+  if (blobLocks.has(hash)) return undefined;
+  let unlock!: () => void;
+  blobLocks.set(hash, new Promise<void>((resolve) => (unlock = resolve)));
+  return () => {
+    blobLocks.delete(hash);
+    unlock();
+  };
+}
+
+async function withBlobLock<T>(
+  hash: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  let release;
+  while (!(release = tryLockAttachmentBlob(hash))) await blobLocks.get(hash);
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
+
 export async function persistAttachmentBlob(
   fileName: string,
   bytes: Uint8Array,
 ): Promise<{ storedPath: string; contentHash: string; sizeBytes: number }> {
   await ensureBlobTable();
   const contentHash = await computeSHA256Hex(bytes);
+  return withBlobLock(contentHash, () =>
+    persistBlobBytes(contentHash, fileName, bytes),
+  );
+}
+
+async function persistBlobBytes(
+  contentHash: string,
+  fileName: string,
+  bytes: Uint8Array,
+) {
   const rows = (await Zotero.DB.queryAsync(
     `SELECT path
      FROM ${ATTACHMENT_BLOBS_TABLE}
@@ -432,22 +469,22 @@ export async function ensureAttachmentBlobFromPath(
   if (!normalizedSource) {
     throw new Error("Cannot import attachment from empty source path");
   }
-  if (isManagedBlobPath(normalizedSource)) {
-    const contentHash = extractManagedBlobHash(normalizedSource);
-    if (contentHash) {
-      await ensureBlobTable();
+  const contentHash = extractManagedBlobHash(normalizedSource);
+  if (contentHash) {
+    await ensureBlobTable();
+    return withBlobLock(contentHash, async () => {
+      // Unlike the byte writer, path adoption cannot recreate a collected file.
+      if (!(await pathExists(normalizedSource))) {
+        throw new Error("Managed attachment file is missing");
+      }
       await Zotero.DB.queryAsync(
-        `INSERT OR REPLACE INTO ${ATTACHMENT_BLOBS_TABLE} (hash, path, size_bytes, created_at)
-         VALUES (
-           ?,
-           ?,
-           COALESCE((SELECT size_bytes FROM ${ATTACHMENT_BLOBS_TABLE} WHERE hash = ?), 0),
-           COALESCE((SELECT created_at FROM ${ATTACHMENT_BLOBS_TABLE} WHERE hash = ?), ?)
-         )`,
-        [contentHash, normalizedSource, contentHash, contentHash, Date.now()],
+        `INSERT INTO ${ATTACHMENT_BLOBS_TABLE} (hash, path, size_bytes, created_at)
+         VALUES (?, ?, 0, ?)
+         ON CONFLICT(hash) DO UPDATE SET path = excluded.path, created_at = excluded.created_at`,
+        [contentHash, normalizedSource, Date.now()],
       );
       return { storedPath: normalizedSource, contentHash };
-    }
+    });
   }
   const bytes = await readBytes(normalizedSource);
   const persisted = await persistAttachmentBlob(fileName, bytes);
