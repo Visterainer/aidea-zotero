@@ -5004,7 +5004,10 @@ export function refreshTranslateTabI18n(doc: Document): void {
   const swapButton = doc.getElementById(
     "llm-tr-lang-swap",
   ) as HTMLElement | null;
-  if (swapButton) swapButton.title = i18n.swapLanguages;
+  if (swapButton) {
+    swapButton.title = i18n.swapLanguages;
+    swapButton.setAttribute("aria-label", i18n.swapLanguages);
+  }
   const consoleCopy = doc.getElementById(
     "llm-tr-console-copy",
   ) as HTMLElement | null;

@@ -1,4 +1,5 @@
 import { confirmPdfLayout } from "./persianLayout";
+import { bindTranslationChoices } from "./translationFields";
 /* ---------------------------------------------------------------------------
  * pdfTranslator/translateTabController.ts
  *
@@ -142,60 +143,6 @@ function bindCheckboxPref(
   return el;
 }
 
-function setDropdownValue(
-  dropdown: HTMLElement | null,
-  value: string,
-  fallbackValue: string,
-): void {
-  if (!dropdown) return;
-  const items = Array.from(
-    dropdown.querySelectorAll(".llm-tr-dropdown-item"),
-  ) as HTMLElement[];
-  const selected =
-    items.find((item) => item.dataset.value === value) ||
-    items.find((item) => item.dataset.value === fallbackValue) ||
-    items[0];
-  if (!selected) return;
-  const selectedValue = selected.dataset.value || fallbackValue;
-  const trigger = dropdown.querySelector(
-    ".llm-tr-dropdown-trigger",
-  ) as HTMLElement | null;
-  const menu = dropdown.querySelector(
-    ".llm-tr-dropdown-menu",
-  ) as HTMLElement | null;
-  dropdown.dataset.value = selectedValue;
-  if (trigger) {
-    const arrow = trigger.querySelector(".llm-tr-dropdown-arrow");
-    trigger.textContent = selected.textContent || selectedValue;
-    if (arrow) trigger.appendChild(arrow);
-  }
-  for (const item of items) {
-    item.classList.toggle("selected", item === selected);
-  }
-  if (menu) menu.style.display = "none";
-  dropdown.classList.remove("open");
-}
-
-function bindDropdownPref(
-  body: Element,
-  id: string,
-  key: string,
-  fallbackValue: string,
-): HTMLElement | null {
-  const dropdown = body.querySelector(`#${id}`) as HTMLElement | null;
-  if (!dropdown) return null;
-  setDropdownValue(dropdown, getStringPref(key, fallbackValue), fallbackValue);
-  dropdown.addEventListener("click", (event: Event) => {
-    const target = event.target as Element | null;
-    const item = target?.closest?.(
-      ".llm-tr-dropdown-item",
-    ) as HTMLElement | null;
-    if (!item || !dropdown.contains(item)) return;
-    setStringPref(key, item.dataset.value || fallbackValue);
-  });
-  return dropdown;
-}
-
 function bindStepperPref(
   body: Element,
   id: string,
@@ -249,7 +196,9 @@ function bindCollapsiblePref(
   if (!toggle || !content) return;
   setTranslateCollapsible(toggle, content, getBoolPref(key, defaultCollapsed));
   toggle.addEventListener("click", () => {
-    setBoolPref(key, toggle.dataset.collapsed === "true");
+    const collapsed = toggle.dataset.collapsed !== "true";
+    setTranslateCollapsible(toggle, content, collapsed);
+    setBoolPref(key, collapsed);
   });
 }
 
@@ -317,8 +266,8 @@ function persistCurrentTranslateOptions(body: Element): void {
     ["llm-tr-font-family", TRANSLATE_PREFS.fontFamily, "auto"],
   ];
   for (const [id, key, fallback] of dropdownPrefs) {
-    const el = body.querySelector(`#${id}`) as HTMLElement | null;
-    setStringPref(key, el?.dataset.value || fallback);
+    const el = body.querySelector<HTMLSelectElement>(`#${id}`);
+    setStringPref(key, el?.value || fallback);
   }
 
   setNumberPref(
@@ -547,24 +496,7 @@ export function initTranslateTab(body: Element, engine = tabEngine): void {
   populateTranslateModelSelector(modelSelect);
 
   // Restore persisted translate options
-  bindDropdownPref(
-    body,
-    "llm-tr-source-lang",
-    TRANSLATE_PREFS.sourceLang,
-    "en",
-  );
-  bindDropdownPref(
-    body,
-    "llm-tr-target-lang",
-    TRANSLATE_PREFS.targetLang,
-    "zh-CN",
-  );
-  bindDropdownPref(
-    body,
-    "llm-tr-font-family",
-    TRANSLATE_PREFS.fontFamily,
-    "auto",
-  );
+  bindTranslationChoices(body);
   bindCheckboxPref(body, "llm-tr-mono", TRANSLATE_PREFS.outputMono, true);
   bindCheckboxPref(body, "llm-tr-dual", TRANSLATE_PREFS.outputDual, true);
   bindCheckboxPref(
@@ -677,34 +609,6 @@ export function initTranslateTab(body: Element, engine = tabEngine): void {
   const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
   if (panelRoot?.dataset.activeTab === "translate") {
     void updatePdfSourceFromItem(body);
-  }
-
-  // ── Language swap button ──
-  const langSwapBtn = body.querySelector(
-    "#llm-tr-lang-swap",
-  ) as HTMLButtonElement | null;
-  if (langSwapBtn) {
-    langSwapBtn.addEventListener("click", () => {
-      const srcDD = body.querySelector(
-        "#llm-tr-source-lang",
-      ) as HTMLElement | null;
-      const tgtDD = body.querySelector(
-        "#llm-tr-target-lang",
-      ) as HTMLElement | null;
-      if (srcDD && tgtDD) {
-        const srcVal = srcDD.dataset.value || "";
-        const tgtVal = tgtDD.dataset.value || "";
-        // Swap by clicking the matching items
-        const srcItem = tgtDD.querySelector(
-          `.llm-tr-dropdown-item[data-value="${srcVal}"]`,
-        ) as HTMLElement | null;
-        const tgtItem = srcDD.querySelector(
-          `.llm-tr-dropdown-item[data-value="${tgtVal}"]`,
-        ) as HTMLElement | null;
-        if (srcItem) srcItem.click();
-        if (tgtItem) tgtItem.click();
-      }
-    });
   }
 
   // ── File picker button ──

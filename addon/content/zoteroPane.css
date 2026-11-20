@@ -29,7 +29,10 @@
   cursor: pointer;
   text-align: center;
   white-space: nowrap;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,7 +76,8 @@
   transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.llm-tab-nav--auto-hide:hover {
+.llm-tab-nav--auto-hide:hover,
+.llm-tab-nav--auto-hide:focus-within {
   opacity: 1;
 }
 
@@ -1018,7 +1022,10 @@
   cursor: pointer;
   text-align: center;
   white-space: nowrap;
-  transition: all 0.18s ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
   font-family: inherit;
 }
 
@@ -5008,10 +5015,6 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
   outline-offset: 1px;
 }
 
-.llm-paper-picker-item:-moz-focusring {
-  outline: none;
-}
-
 .llm-paper-picker-item::-moz-focus-inner {
   border: 0;
 }
@@ -7507,36 +7510,90 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
   padding: 2px 0;
 }
 
-.llm-tr-lang-swap {
+/* Only this row has a middle action. Settings reuses the two-field row. */
+.llm-tr-language-pair {
+  --llm-tr-language-height: max(28px, calc(var(--llm-fs-12, 12px) * 2.1));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--llm-tr-language-height) minmax(
+      0,
+      1fr
+    );
+  grid-template-rows: auto var(--llm-tr-language-height);
+  gap: 3px 6px;
+  align-items: stretch;
+}
+
+.llm-tr-language-pair > label {
+  grid-row: 1 / 3;
+  display: grid;
+  grid-template-rows: subgrid;
+  row-gap: inherit;
+}
+
+.llm-tr-language-pair > label:last-child {
+  grid-column: 3;
+}
+.llm-tr-language-pair .llm-tr-field-label {
+  align-self: end;
+}
+.llm-tr-choice {
+  display: block;
+  min-inline-size: 0;
+}
+.llm-tr-choice-select {
+  display: block;
   appearance: none;
-  -moz-appearance: none;
+  margin: 0;
+  min-inline-size: 0;
+  block-size: var(--llm-tr-language-height, max(28px, 2.1em));
+  padding-block: 0;
+  padding-inline: 8px 24px;
+  line-height: 1.3;
+  text-align: start;
+  text-overflow: ellipsis;
+}
+
+.llm-tr-choice::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 10px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+  color: var(--llm-ui-muted);
+}
+
+.llm-tr-lang-swap {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  appearance: none;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
   background: transparent;
-  border: 1px solid
-    color-mix(in srgb, var(--fill-primary, #333) 18%, transparent);
-  color: var(--fill-secondary, #888);
   cursor: pointer;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 13px;
-  transition: all 0.15s ease;
-  align-self: flex-end;
-  margin-bottom: 1px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
-.llm-tr-lang-swap:hover {
-  background: color-mix(in srgb, #0d9488 15%, transparent);
-  border-color: #0d9488;
-  color: #0d9488;
-  transform: rotate(180deg);
-}
-
-.llm-tr-lang-swap:active {
-  transform: rotate(180deg) scale(0.9);
+.llm-tr-lang-swap::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: url("icons/action-swap-languages.svg") center / contain no-repeat;
 }
 
 /* ── Output Format Row ── */
@@ -7809,6 +7866,13 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 
 /* ── Collapsible Toggle — matches settings tab pattern ── */
 .llm-tr-collapsible-toggle {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: start;
+  min-block-size: 24px;
   cursor: pointer;
   user-select: none;
   -moz-user-select: none;
@@ -8166,6 +8230,8 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 }
 
 .llm-tr-console-icon-btn {
+  min-inline-size: 24px;
+  min-block-size: 24px;
   appearance: none;
   -moz-appearance: none;
   background: none;
@@ -8177,7 +8243,9 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.12s ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .llm-tr-console-icon-btn svg {
@@ -9161,10 +9229,9 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 
 .llm-panel .llm-tr-lang-swap {
   color: var(--llm-ui-muted);
-  border-color: var(--llm-ui-border);
 }
 
-.llm-panel .llm-tr-lang-swap:hover {
+.llm-panel .llm-tr-lang-swap:is(:hover, :active) {
   color: var(--llm-ui-accent-text);
   background: color-mix(in srgb, var(--llm-ui-accent) 10%, transparent);
   border-color: var(--llm-ui-accent);
@@ -9178,6 +9245,46 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
 
 .llm-panel .llm-tr-dropdown-group {
   color: var(--llm-ui-accent-text);
+}
+
+/* Keep keyboard focus visible without changing the size of compact controls. */
+.llm-panel
+  :is(
+    .llm-tab-btn,
+    .llm-set-tab-btn,
+    .llm-tr-choice-select,
+    .llm-tr-lang-swap,
+    .llm-tr-collapsible-toggle,
+    .llm-tr-console-icon-btn,
+    .llm-set-btn,
+    .llm-tr-btn
+  ):focus-visible {
+  outline: 2px solid var(--llm-ui-accent);
+  outline-offset: -2px;
+}
+
+.llm-translate-scroll,
+.llm-setting-scroll {
+  scrollbar-gutter: stable;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .llm-panel
+    :is(
+      .llm-tab-nav,
+      .llm-tab-btn,
+      .llm-set-tab-btn,
+      .llm-tr-dropdown-arrow,
+      .llm-set-dropdown-arrow,
+      .llm-tr-lang-swap,
+      .llm-tr-console-icon-btn,
+      .llm-action-btn
+    ) {
+    transition: none;
+  }
+  .llm-panel .llm-action-btn-primary:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .llm-selection-translate-result[dir="rtl"] {

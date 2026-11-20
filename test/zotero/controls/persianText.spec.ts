@@ -1,5 +1,9 @@
 import { assert } from "chai";
 import {
+  createLanguagePair,
+  bindTranslationChoices,
+} from "../../../src/modules/pdfTranslator/translationFields";
+import {
   getPanelI18n,
   getPanelLang,
 } from "../../../src/modules/contextPanel/i18n";
@@ -26,8 +30,13 @@ describe("Persian text in Zotero", function () {
         parent.lang = loc.htmlLang;
         const labels = getPanelI18n();
         if (lang === "fa-IR") assert.match(labels.tabTranslate, /ترجمه/);
-        parent.replaceChildren();
-        assert.equal(Zotero.Prefs.get(target, true), "fa");
+        parent.replaceChildren(createLanguagePair(document, labels));
+        bindTranslationChoices(parent);
+        const select = parent.querySelector<HTMLSelectElement>(
+          "#llm-tr-target-lang",
+        )!;
+        assert.equal(select.value, "fa");
+        assert.equal(select.selectedOptions[0].textContent, "فارسی");
         const result = document.createElement("div");
         parent.append(result);
         setTranslationContentLanguage(result, "fa");
