@@ -1,4 +1,5 @@
 import { fetchWithTokenPolicy } from "./tokenParameterPolicy";
+import { API_ENDPOINT, resolveEndpoint } from "./apiHelpers";
 import {
   runShellCommand,
   currentPlatform,
@@ -443,6 +444,7 @@ const PROXY_ENV_KEYS = [
 ];
 // What this plugin last exported, so it can be withdrawn again.
 let managedProxyEnvUrl = "";
+let managedProxyNoProxy = "";
 
 function setProxyEnv(proxyUrl: string, noProxy?: string): void {
   // On Linux the "system proxy" is read from these very variables; copying
@@ -456,6 +458,7 @@ function setProxyEnv(proxyUrl: string, noProxy?: string): void {
   if (bypass) {
     setProcessEnv("NO_PROXY", bypass);
     setProcessEnv("no_proxy", bypass);
+    managedProxyNoProxy = bypass;
   }
 }
 
@@ -465,11 +468,19 @@ function setProxyEnv(proxyUrl: string, noProxy?: string): void {
  * port until Zotero restarts. Variables someone else changed are left alone.
  */
 function clearManagedProxyEnv(): void {
-  if (!managedProxyEnvUrl) return;
-  for (const key of PROXY_ENV_KEYS) {
-    if (getEnv(key) === managedProxyEnvUrl) setProcessEnv(key, "");
+  if (!managedProxyEnvUrl && !managedProxyNoProxy) return;
+  if (managedProxyEnvUrl) {
+    for (const key of PROXY_ENV_KEYS) {
+      if (getEnv(key) === managedProxyEnvUrl) setProcessEnv(key, "");
+    }
+    managedProxyEnvUrl = "";
   }
-  managedProxyEnvUrl = "";
+  if (managedProxyNoProxy) {
+    for (const key of ["NO_PROXY", "no_proxy"]) {
+      if (getEnv(key) === managedProxyNoProxy) setProcessEnv(key, "");
+    }
+    managedProxyNoProxy = "";
+  }
 }
 
 export type SystemProxyConfig = {
@@ -777,7 +788,24 @@ function applySystemProxyToZotero(
     );
     if (!prefSvc) return false;
 
-    const systemSignature = getSystemProxySignature(proxy);
+    const httpHost = proxy.httpHost || proxy.httpsHost || "";
+    const httpPort = proxy.httpPort || proxy.httpsPort || 0;
+    const httpsHost = proxy.httpsHost || proxy.httpHost || "";
+    const httpsPort = proxy.httpsPort || proxy.httpPort || 0;
+    const noProxy = proxy.noProxy || "localhost, 127.0.0.1, ::1";
+    const appliedProxy: SystemProxyConfig = {
+      httpHost: httpHost || undefined,
+      httpPort: httpPort || undefined,
+      httpsHost: httpsHost || undefined,
+      httpsPort: httpsPort || undefined,
+      socksHost:
+        proxy.socksHost && proxy.socksPort ? proxy.socksHost : undefined,
+      socksPort:
+        proxy.socksHost && proxy.socksPort ? proxy.socksPort : undefined,
+      socksVersion: proxy.socksVersion || 5,
+      noProxy,
+    };
+    const systemSignature = getSystemProxySignature(appliedProxy);
     const current = getZoteroProxySnapshot(prefSvc);
     const currentSignature = getSystemProxySignature(current);
     const decision = decideSystemProxySync({
@@ -787,12 +815,9 @@ function applySystemProxyToZotero(
       autoApplied: getPluginBooleanPref(PROXY_AUTO_APPLIED_PREF),
       lastSignature: getPluginStringPref(PROXY_LAST_SIGNATURE_PREF),
       currentLoopback: hasLoopbackProxyEndpoint(current),
-      systemLoopback: hasLoopbackProxyEndpoint(proxy),
+      systemLoopback: hasLoopbackProxyEndpoint(appliedProxy),
       forceRefresh: options?.forceRefresh,
     });
-
-    const proxyEnvUrl = getProxyEnvUrl(proxy);
-    if (proxyEnvUrl) setProxyEnv(proxyEnvUrl, proxy.noProxy);
 
     if (decision === "skip-user-managed" || decision === "skip-non-manual") {
       ztoolkit?.log?.(
@@ -801,16 +826,12 @@ function applySystemProxyToZotero(
       return false;
     }
 
-    prefSvc.setIntPref("network.proxy.type", 1);
-    prefSvc.setCharPref(
-      "network.proxy.no_proxies_on",
-      proxy.noProxy || "localhost, 127.0.0.1, ::1",
-    );
+    const proxyEnvUrl = getProxyEnvUrl(proxy);
+    if (proxyEnvUrl) setProxyEnv(proxyEnvUrl, proxy.noProxy);
 
-    const httpHost = proxy.httpHost || proxy.httpsHost || "";
-    const httpPort = proxy.httpPort || proxy.httpsPort || 0;
-    const httpsHost = proxy.httpsHost || proxy.httpHost || "";
-    const httpsPort = proxy.httpsPort || proxy.httpPort || 0;
+    prefSvc.setIntPref("network.proxy.type", 1);
+    prefSvc.setCharPref("network.proxy.no_proxies_on", noProxy);
+
     prefSvc.setCharPref("network.proxy.http", httpHost);
     prefSvc.setIntPref("network.proxy.http_port", httpPort);
     prefSvc.setCharPref("network.proxy.ssl", httpsHost);
@@ -1544,28 +1565,39 @@ export async function readCodexOAuthCredential(): Promise<OAuthCredential | null
   return cred;
 }
 
+let codexRefreshInFlight: Promise<OAuthCredential | null> | null = null;
+
 async function refreshCodexOAuthCredentialViaCli(): Promise<OAuthCredential | null> {
-  const spec = getProviderCliSpec("openai-codex");
-  if (!spec) return null;
-  const cliPath = await resolveProviderCliExecutablePath("openai-codex", spec);
-  if (!cliPath) return null;
-  try {
-    const result = await runShellCommand(
-      buildExecutableCommand(cliPath, ["login", "status"]),
-      { hidden: true, timeoutMs: PROBE_TIMEOUT_MS },
+  if (codexRefreshInFlight) return codexRefreshInFlight;
+  codexRefreshInFlight = (async () => {
+    const spec = getProviderCliSpec("openai-codex");
+    if (!spec) return null;
+    const cliPath = await resolveProviderCliExecutablePath(
+      "openai-codex",
+      spec,
     );
-    if (result.code !== 0) {
-      ztoolkit?.log?.(
-        "AIdea: Codex login status failed while refreshing OAuth credential",
-        [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
+    if (!cliPath) return null;
+    try {
+      const result = await runShellCommand(
+        buildExecutableCommand(cliPath, ["login", "status"]),
+        { hidden: true, timeoutMs: PROBE_TIMEOUT_MS },
       );
+      if (result.code !== 0) {
+        ztoolkit?.log?.(
+          "AIdea: Codex login status failed while refreshing OAuth credential",
+          [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
+        );
+        return null;
+      }
+      return readCodexOAuthCredential();
+    } catch (err) {
+      ztoolkit?.log?.("AIdea: Codex credential refresh via CLI failed", err);
       return null;
     }
-    return readCodexOAuthCredential();
-  } catch (err) {
-    ztoolkit?.log?.("AIdea: Codex credential refresh via CLI failed", err);
-    return null;
-  }
+  })().finally(() => {
+    codexRefreshInFlight = null;
+  });
+  return codexRefreshInFlight;
 }
 
 // ---------- Zotero Prefs helpers for plugin-native OAuth ----------
@@ -1713,35 +1745,68 @@ async function postCopilotRequest(params: {
   payload: Record<string, unknown>;
   signal?: AbortSignal;
 }): Promise<Response> {
-  const res = await fetchWithTokenPolicy(
-    {
-      provider: "github-copilot",
-      url: params.url,
-      model: String(params.payload.model || ""),
-    },
-    params.payload,
-    (payload) =>
-      fetchWithTransientRetry(
-        getFetch(),
-        params.url,
-        {
-          method: "POST",
-          headers: params.headers,
-          body: JSON.stringify(payload),
-          signal: params.signal,
-        },
-        {
-          signal: params.signal,
-          onRetry: ({ attempt, maxAttempts, error }) => {
-            ztoolkit?.log?.(
-              `AIdea: Copilot transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
-              error,
-            );
+  const send = (url: string, headers: Record<string, string>) =>
+    fetchWithTokenPolicy(
+      {
+        provider: "github-copilot",
+        url,
+        model: String(params.payload.model || ""),
+      },
+      params.payload,
+      (payload) =>
+        fetchWithTransientRetry(
+          getFetch(),
+          url,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+            signal: params.signal,
           },
-        },
-      ),
-    params.signal,
-  );
+          {
+            signal: params.signal,
+            onRetry: ({ attempt, maxAttempts, error }) => {
+              ztoolkit?.log?.(
+                `AIdea: Copilot transient upstream error, retry ${attempt}/${maxAttempts - 1}`,
+                error,
+              );
+            },
+          },
+        ),
+      params.signal,
+    );
+
+  let res = await send(params.url, params.headers);
+  if (res.status === 401 && !params.signal?.aborted) {
+    const githubToken = getCopilotGithubToken();
+    if (githubToken) {
+      setOAuthPref("oauthCopilotApiToken", "");
+      try {
+        const refreshed = await exchangeCopilotToken(githubToken);
+        if (
+          refreshed.token &&
+          `Bearer ${refreshed.token}` !== params.headers.Authorization &&
+          !params.signal?.aborted
+        ) {
+          try {
+            await res.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+          const retryUrl = params.url.replace(
+            /^https?:\/\/[^/]+/,
+            refreshed.baseUrl.replace(/\/+$/, ""),
+          );
+          res = await send(retryUrl, {
+            ...params.headers,
+            Authorization: `Bearer ${refreshed.token}`,
+          });
+        }
+      } catch {
+        /* keep original 401 response */
+      }
+    }
+  }
   if (res.ok) return res;
   const errText = await res.text();
   throw new Error(`Copilot OAuth HTTP ${res.status}: ${errText}`);
@@ -1755,54 +1820,81 @@ function deriveCopilotApiBaseUrl(token: string): string {
   return host ? `https://${host}` : DEFAULT_COPILOT_API_BASE;
 }
 
+let copilotExchangeInFlight: {
+  githubToken: string;
+  promise: Promise<{ token: string; expiresAt: number; baseUrl: string }>;
+} | null = null;
+
 async function exchangeCopilotToken(githubToken: string): Promise<{
   token: string;
   expiresAt: number;
   baseUrl: string;
 }> {
-  const res = await fetchWithTransientRetry(
-    getFetch(),
-    COPILOT_TOKEN_URL,
-    {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${githubToken}`,
-        ...buildCopilotIdeHeaders({ includeApiVersion: true }),
+  if (
+    copilotExchangeInFlight &&
+    copilotExchangeInFlight.githubToken === githubToken
+  ) {
+    return copilotExchangeInFlight.promise;
+  }
+  const promise = (async () => {
+    const res = await fetchWithTransientRetry(
+      getFetch(),
+      COPILOT_TOKEN_URL,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${githubToken}`,
+          ...buildCopilotIdeHeaders({ includeApiVersion: true }),
+        },
       },
-    },
-    {
-      onRetry: ({ attempt, maxAttempts, error }) => {
-        ztoolkit?.log?.(
-          `AIdea: Copilot token exchange transient error, retry ${attempt}/${maxAttempts - 1}`,
-          error,
-        );
+      {
+        onRetry: ({ attempt, maxAttempts, error }) => {
+          ztoolkit?.log?.(
+            `AIdea: Copilot token exchange transient error, retry ${attempt}/${maxAttempts - 1}`,
+            error,
+          );
+        },
       },
-    },
-  );
-  if (!res.ok) {
-    throw new Error(`Copilot token exchange failed: HTTP ${res.status}`);
-  }
-  const json = (await res.json()) as unknown as Record<string, unknown>;
-  const token = typeof json.token === "string" ? json.token : "";
-  if (!token) throw new Error("Copilot token response missing token");
-  const expiresAtRaw = json.expires_at;
-  let expiresAt: number;
-  if (typeof expiresAtRaw === "number" && Number.isFinite(expiresAtRaw)) {
-    expiresAt =
-      expiresAtRaw > 10_000_000_000 ? expiresAtRaw : expiresAtRaw * 1000;
-  } else if (typeof expiresAtRaw === "string") {
-    const parsed = parseInt(expiresAtRaw, 10);
-    expiresAt = parsed > 10_000_000_000 ? parsed : parsed * 1000;
-  } else {
-    // Default: 30 minutes from now
-    expiresAt = Date.now() + 30 * 60 * 1000;
-  }
-  if (githubToken !== getCopilotGithubToken()) {
-    throw new Error("GitHub account changed during Copilot token exchange");
-  }
-  saveCopilotApiToken({ token, expiresAt });
-  return { token, expiresAt, baseUrl: deriveCopilotApiBaseUrl(token) };
+    );
+    if (!res.ok) {
+      throw new Error(`Copilot token exchange failed: HTTP ${res.status}`);
+    }
+    const json = (await res.json()) as unknown as Record<string, unknown>;
+    const token = typeof json.token === "string" ? json.token : "";
+    if (!token) throw new Error("Copilot token response missing token");
+    const expiresAtRaw = json.expires_at;
+    let expiresAt: number;
+    if (typeof expiresAtRaw === "number" && Number.isFinite(expiresAtRaw)) {
+      expiresAt =
+        expiresAtRaw > 10_000_000_000 ? expiresAtRaw : expiresAtRaw * 1000;
+    } else if (typeof expiresAtRaw === "string") {
+      const trimmed = expiresAtRaw.trim();
+      if (/^\d+$/.test(trimmed)) {
+        const parsed = Number(trimmed);
+        expiresAt = parsed > 10_000_000_000 ? parsed : parsed * 1000;
+      } else {
+        const parsedDate = Date.parse(trimmed);
+        expiresAt = Number.isFinite(parsedDate)
+          ? parsedDate
+          : Date.now() + 30 * 60 * 1000;
+      }
+    } else {
+      // Default: 30 minutes from now
+      expiresAt = Date.now() + 30 * 60 * 1000;
+    }
+    if (githubToken !== getCopilotGithubToken()) {
+      throw new Error("GitHub account changed during Copilot token exchange");
+    }
+    saveCopilotApiToken({ token, expiresAt });
+    return { token, expiresAt, baseUrl: deriveCopilotApiBaseUrl(token) };
+  })().finally(() => {
+    if (copilotExchangeInFlight?.promise === promise) {
+      copilotExchangeInFlight = null;
+    }
+  });
+  copilotExchangeInFlight = { githubToken, promise };
+  return promise;
 }
 
 async function ensureCopilotApiToken(
@@ -3190,6 +3282,97 @@ async function parseCodexSSEStream(
     onDelta?.(delta);
   };
 
+  const extractSseError = (event: any): string => {
+    if (!event || typeof event !== "object") return "";
+    if (event.type === "error") {
+      return String(
+        event.error?.message || event.message || "OAuth stream error",
+      );
+    }
+    if (event.type === "response.failed") {
+      return String(
+        event.response?.error?.message ||
+          event.error?.message ||
+          "OAuth response failed",
+      );
+    }
+    if (event.error) {
+      return typeof event.error === "string"
+        ? event.error
+        : String(event.error.message || "OAuth stream error");
+    }
+    return "";
+  };
+
+  const handleLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+
+    let event: any;
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return;
+    }
+    const errMsg = extractSseError(event);
+    if (errMsg) {
+      if (!fullText) throw new Error(errMsg);
+      return;
+    }
+    if (
+      event.type === "response.output_text.delta" &&
+      typeof event.delta === "string"
+    ) {
+      fullText += event.delta;
+      onDelta?.(event.delta);
+    }
+    // Fallback: if we get a completed response with output_text and no
+    // streaming deltas were received, use the full text.
+    if (event.type === "response.completed" && !fullText) {
+      const completedText = extractOAuthOutputText(event.response);
+      if (completedText) {
+        fullText = completedText;
+        onDelta?.(fullText);
+      }
+    }
+    if (event.type === "response.output_item.done" && !fullText) {
+      const itemText = extractOAuthOutputText(event.item);
+      if (itemText) {
+        fullText = itemText;
+        onDelta?.(fullText);
+      }
+    }
+    if (
+      event.type === "response.output_item.done" ||
+      event.type === "response.completed"
+    ) {
+      if (event.item) {
+        emitImageMarkdown(event.item);
+        const itemContent = Array.isArray(event.item.content)
+          ? event.item.content
+          : [];
+        for (const content of itemContent) {
+          emitImageMarkdown(content);
+        }
+      }
+      const responseOutput = Array.isArray(event.response?.output)
+        ? event.response.output
+        : [];
+      for (const output of responseOutput) {
+        emitImageMarkdown(output);
+        const outputContent = Array.isArray(output.content)
+          ? output.content
+          : [];
+        for (const content of outputContent) {
+          emitImageMarkdown(content);
+        }
+      }
+    }
+  };
+
+  let failed = false;
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -3199,69 +3382,15 @@ async function parseCodexSSEStream(
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const event = JSON.parse(data);
-          if (
-            event.type === "response.output_text.delta" &&
-            typeof event.delta === "string"
-          ) {
-            fullText += event.delta;
-            onDelta?.(event.delta);
-          }
-          // Fallback: if we get a completed response with output_text and no
-          // streaming deltas were received, use the full text.
-          if (event.type === "response.completed" && !fullText) {
-            const completedText = extractOAuthOutputText(event.response);
-            if (completedText) {
-              fullText = completedText;
-              onDelta?.(fullText);
-            }
-          }
-          if (event.type === "response.output_item.done" && !fullText) {
-            const itemText = extractOAuthOutputText(event.item);
-            if (itemText) {
-              fullText = itemText;
-              onDelta?.(fullText);
-            }
-          }
-          if (
-            event.type === "response.output_item.done" ||
-            event.type === "response.completed"
-          ) {
-            if (event.item) {
-              emitImageMarkdown(event.item);
-              const itemContent = Array.isArray(event.item.content)
-                ? event.item.content
-                : [];
-              for (const content of itemContent) {
-                emitImageMarkdown(content);
-              }
-            }
-            const responseOutput = Array.isArray(event.response?.output)
-              ? event.response.output
-              : [];
-            for (const output of responseOutput) {
-              emitImageMarkdown(output);
-              const outputContent = Array.isArray(output.content)
-                ? output.content
-                : [];
-              for (const content of outputContent) {
-                emitImageMarkdown(content);
-              }
-            }
-          }
-        } catch {
-          // skip non-JSON data lines
-        }
-      }
+      for (const line of lines) handleLine(line);
     }
+    buffer += decoder.decode();
+    if (buffer.trim()) handleLine(buffer);
+  } catch (err) {
+    failed = true;
+    throw err;
   } finally {
+    if (failed) await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 
@@ -3351,13 +3480,68 @@ function parseCodexSSERaw(
  * Used by Qwen and GitHub Copilot.
  */
 async function parseOpenAICompatSSEStream(
-  body: ReadableStream<Uint8Array>,
+  body: ReadableStream<Uint8Array> | string,
   onDelta?: (delta: string) => void,
 ): Promise<string> {
+  let fullText = "";
+
+  const handleLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (parsed?.error) {
+      const msg =
+        typeof parsed.error === "string"
+          ? parsed.error
+          : String(parsed.error.message || "OAuth stream error");
+      if (!fullText) throw new Error(msg);
+      return;
+    }
+    const delta = parsed?.choices?.[0]?.delta?.content;
+    if (typeof delta === "string" && delta) {
+      fullText += delta;
+      onDelta?.(delta);
+    }
+  };
+
+  if (typeof body === "string") {
+    const trimmed = body.trim();
+    if (trimmed.startsWith("{")) {
+      try {
+        const data = JSON.parse(trimmed) as any;
+        if (data?.error) {
+          throw new Error(
+            typeof data.error === "string"
+              ? data.error
+              : String(data.error.message || "OAuth error"),
+          );
+        }
+        const text =
+          typeof data?.choices?.[0]?.message?.content === "string"
+            ? data.choices[0].message.content
+            : "";
+        if (text) onDelta?.(text);
+        return text;
+      } catch (err) {
+        if (!(err instanceof SyntaxError)) throw err;
+      }
+    }
+    for (const line of body.split("\n")) handleLine(line);
+    return fullText;
+  }
+
   const reader = body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
-  let fullText = "";
+  let failed = false;
 
   try {
     while (true) {
@@ -3368,25 +3552,15 @@ async function parseOpenAICompatSSEStream(
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data) as any;
-          const delta = parsed?.choices?.[0]?.delta?.content;
-          if (typeof delta === "string" && delta) {
-            fullText += delta;
-            onDelta?.(delta);
-          }
-        } catch {
-          // skip non-JSON data lines
-        }
-      }
+      for (const line of lines) handleLine(line);
     }
+    buffer += decoder.decode();
+    if (buffer.trim()) handleLine(buffer);
+  } catch (err) {
+    failed = true;
+    throw err;
   } finally {
+    if (failed) await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 
@@ -3462,13 +3636,75 @@ function buildAnthropicMessagesInput(params: {
  * Handles content_block_delta events with text_delta type.
  */
 async function parseAnthropicSSEStream(
-  body: ReadableStream<Uint8Array>,
+  body: ReadableStream<Uint8Array> | string,
   onDelta?: (delta: string) => void,
 ): Promise<string> {
+  let fullText = "";
+
+  const handleLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+
+    let event: any;
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (event?.type === "error" || event?.error) {
+      const msg =
+        typeof event.error === "string"
+          ? event.error
+          : String(
+              event.error?.message || event.message || "Anthropic stream error",
+            );
+      if (!fullText) throw new Error(msg);
+      return;
+    }
+    if (
+      event.type === "content_block_delta" &&
+      event.delta?.type === "text_delta"
+    ) {
+      const text = event.delta.text;
+      if (typeof text === "string" && text) {
+        fullText += text;
+        onDelta?.(text);
+      }
+    }
+  };
+
+  if (typeof body === "string") {
+    const trimmed = body.trim();
+    if (trimmed.startsWith("{")) {
+      try {
+        const data = JSON.parse(trimmed) as any;
+        if (data?.type === "error" || data?.error) {
+          throw new Error(
+            typeof data.error === "string"
+              ? data.error
+              : String(data.error?.message || "Anthropic error"),
+          );
+        }
+        const text =
+          typeof data?.content?.[0]?.text === "string"
+            ? data.content[0].text
+            : "";
+        if (text) onDelta?.(text);
+        return text;
+      } catch (err) {
+        if (!(err instanceof SyntaxError)) throw err;
+      }
+    }
+    for (const line of body.split("\n")) handleLine(line);
+    return fullText;
+  }
+
   const reader = body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
-  let fullText = "";
+  let failed = false;
 
   try {
     while (true) {
@@ -3479,37 +3715,15 @@ async function parseAnthropicSSEStream(
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const event = JSON.parse(data) as any;
-
-          // Anthropic uses content_block_delta with text_delta
-          if (
-            event.type === "content_block_delta" &&
-            event.delta?.type === "text_delta"
-          ) {
-            const text = event.delta.text;
-            if (typeof text === "string" && text) {
-              fullText += text;
-              onDelta?.(text);
-            }
-          }
-
-          // message_stop contains no text, but message_delta may have stop_reason
-          if (event.type === "message_delta") {
-            // We could check event.delta?.stop_reason here if needed
-          }
-        } catch {
-          // skip non-JSON data lines
-        }
-      }
+      for (const line of lines) handleLine(line);
     }
+    buffer += decoder.decode();
+    if (buffer.trim()) handleLine(buffer);
+  } catch (err) {
+    failed = true;
+    throw err;
   } finally {
+    if (failed) await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 
@@ -3703,14 +3917,7 @@ export async function chatWithProviderOAuth(params: {
       if (res.body) {
         return parseAnthropicSSEStream(res.body, params.onDelta);
       }
-      // Fallback: non-streaming
-      const data = (await res.json()) as any;
-      const text =
-        typeof data?.content?.[0]?.text === "string"
-          ? data.content[0].text
-          : "";
-      params.onDelta?.(text);
-      return text;
+      return parseAnthropicSSEStream(await res.text(), params.onDelta);
     }
 
     // ---- GPT / o-series / Gemini / Grok / other models → OpenAI Responses API ----
@@ -3758,13 +3965,7 @@ export async function chatWithProviderOAuth(params: {
       if (res.body) {
         return parseOpenAICompatSSEStream(res.body, params.onDelta);
       }
-      const data = (await res.json()) as any;
-      const text =
-        typeof data?.choices?.[0]?.message?.content === "string"
-          ? data.choices[0].message.content
-          : "";
-      params.onDelta?.(text);
-      return text;
+      return parseOpenAICompatSSEStream(await res.text(), params.onDelta);
     }
 
     const responsesInput = buildCopilotResponsesInput(params);
@@ -3883,8 +4084,8 @@ export async function pingModel(
   modelId: string,
   extraHeaders?: Record<string, string>,
 ): Promise<"ok" | "fail"> {
-  const base = apiBase.replace(/\/+$/, "");
-  const url = `${base}/chat/completions`;
+  const url = resolveEndpoint(apiBase, API_ENDPOINT);
+  if (!url) return "fail";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -3943,6 +4144,78 @@ export async function pingModel(
 }
 
 /**
+ * Ping a GitHub Copilot model using the transport endpoint that model family
+ * actually speaks (`/v1/messages`, `/responses`, or `/chat/completions`).
+ */
+export async function pingCopilotModel(
+  baseUrl: string,
+  headers: Record<string, string>,
+  modelId: string,
+): Promise<"ok" | "fail"> {
+  const base = baseUrl.replace(/\/+$/, "");
+  const transport = resolveCopilotTransportKind(modelId);
+  const url =
+    transport === "anthropic-messages"
+      ? `${base}/v1/messages`
+      : transport === "responses"
+        ? `${base}/responses`
+        : `${base}/chat/completions`;
+  const payload =
+    transport === "responses"
+      ? {
+          model: modelId,
+          input: [{ role: "user", content: "hi" }],
+          max_output_tokens: 1,
+          stream: false,
+        }
+      : {
+          model: modelId,
+          messages: [{ role: "user", content: "hi" }],
+          max_tokens: 1,
+          stream: false,
+        };
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const fetchPromise = getFetch()(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const timeoutPromise = new Promise<Response>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("ping timeout"));
+      }, 15_000);
+    });
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if ([401, 403, 404, 429].includes(res.status) || res.status >= 500) {
+      return "fail";
+    }
+    if (res.status >= 400) {
+      try {
+        const text = await res.text();
+        if (
+          /model.*not.*(found|supported)|does not exist|invalid.*model/i.test(
+            text,
+          )
+        ) {
+          return "fail";
+        }
+      } catch {
+        /* ignore body parse errors */
+      }
+    }
+    return "ok";
+  } catch {
+    return "fail";
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/**
  * Ping a Codex model by hitting the usage endpoint (since Codex
  * doesn't support standard /chat/completions).
  * Returns "ok" if the token is valid, "fail" otherwise.
@@ -3951,17 +4224,27 @@ export async function pingCodexModel(
   headers: Record<string, string>,
 ): Promise<"ok" | "fail"> {
   const runPing = async (requestHeaders: Record<string, string>) => {
-    const fetchPromise = getFetch()(
-      "https://chatgpt.com/backend-api/wham/usage",
-      {
-        method: "GET",
-        headers: requestHeaders,
-      },
-    );
-    const timeoutPromise = new Promise<Response>((_resolve, reject) =>
-      setTimeout(() => reject(new Error("ping timeout")), 15_000),
-    );
-    return Promise.race([fetchPromise, timeoutPromise]);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const fetchPromise = getFetch()(
+        "https://chatgpt.com/backend-api/wham/usage",
+        {
+          method: "GET",
+          headers: requestHeaders,
+          signal: controller.signal,
+        },
+      );
+      const timeoutPromise = new Promise<Response>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error("ping timeout"));
+        }, 15_000);
+      });
+      return await Promise.race([fetchPromise, timeoutPromise]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   };
 
   try {

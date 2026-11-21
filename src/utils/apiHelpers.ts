@@ -23,8 +23,16 @@ export const IMAGE_GENERATIONS_ENDPOINT = "/v1/images/generations";
  * and the desired path (e.g. `/v1/chat/completions`).
  */
 export function resolveEndpoint(baseOrUrl: string, path: string): string {
-  const cleaned = baseOrUrl.trim().replace(/\/$/, "");
+  const trimmed = baseOrUrl.trim();
+  if (!trimmed) return "";
+  // Preserve query strings (e.g. Azure `?api-version=...`) while resolving the path.
+  const queryIdx = trimmed.indexOf("?");
+  const query = queryIdx >= 0 ? trimmed.slice(queryIdx) : "";
+  const cleaned = (
+    queryIdx >= 0 ? trimmed.slice(0, queryIdx) : trimmed
+  ).replace(/\/+$/, "");
   if (!cleaned) return "";
+  const withQuery = (url: string) => `${url}${query}`;
   const chatSuffix = "/chat/completions";
   const responsesSuffix = "/responses";
   const embeddingSuffix = "/embeddings";
@@ -38,79 +46,94 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
 
   if (hasChat) {
     if (path === EMBEDDINGS_ENDPOINT) {
-      return cleaned.replace(/\/chat\/completions$/, embeddingSuffix);
+      return withQuery(
+        cleaned.replace(/\/chat\/completions$/, embeddingSuffix),
+      );
     }
     if (path === RESPONSES_ENDPOINT) {
-      return cleaned.replace(/\/chat\/completions$/, responsesSuffix);
+      return withQuery(
+        cleaned.replace(/\/chat\/completions$/, responsesSuffix),
+      );
     }
     if (path === FILES_ENDPOINT) {
-      return cleaned.replace(/\/chat\/completions$/, filesSuffix);
+      return withQuery(cleaned.replace(/\/chat\/completions$/, filesSuffix));
     }
     if (path === IMAGE_GENERATIONS_ENDPOINT) {
-      return cleaned.replace(/\/chat\/completions$/, imageGenerationsSuffix);
+      return withQuery(
+        cleaned.replace(/\/chat\/completions$/, imageGenerationsSuffix),
+      );
     }
-    return cleaned;
+    return withQuery(cleaned);
   }
 
   if (hasResponses) {
     if (path === EMBEDDINGS_ENDPOINT) {
-      return cleaned.replace(/\/responses$/, embeddingSuffix);
+      return withQuery(cleaned.replace(/\/responses$/, embeddingSuffix));
     }
     if (path === API_ENDPOINT) {
-      return cleaned.replace(/\/responses$/, chatSuffix);
+      return withQuery(cleaned.replace(/\/responses$/, chatSuffix));
     }
     if (path === FILES_ENDPOINT) {
-      return cleaned.replace(/\/responses$/, filesSuffix);
+      return withQuery(cleaned.replace(/\/responses$/, filesSuffix));
     }
     if (path === IMAGE_GENERATIONS_ENDPOINT) {
-      return cleaned.replace(/\/responses$/, imageGenerationsSuffix);
+      return withQuery(cleaned.replace(/\/responses$/, imageGenerationsSuffix));
     }
-    return cleaned;
+    return withQuery(cleaned);
   }
 
   if (hasEmbeddings) {
     if (path === API_ENDPOINT) {
-      return cleaned.replace(/\/embeddings$/, chatSuffix);
+      return withQuery(cleaned.replace(/\/embeddings$/, chatSuffix));
+    }
+    if (path === RESPONSES_ENDPOINT) {
+      return withQuery(cleaned.replace(/\/embeddings$/, responsesSuffix));
     }
     if (path === FILES_ENDPOINT) {
-      return cleaned.replace(/\/embeddings$/, filesSuffix);
+      return withQuery(cleaned.replace(/\/embeddings$/, filesSuffix));
     }
     if (path === IMAGE_GENERATIONS_ENDPOINT) {
-      return cleaned.replace(/\/embeddings$/, imageGenerationsSuffix);
+      return withQuery(
+        cleaned.replace(/\/embeddings$/, imageGenerationsSuffix),
+      );
     }
-    return cleaned;
+    return withQuery(cleaned);
   }
 
   if (hasFiles) {
     if (path === API_ENDPOINT) {
-      return cleaned.replace(/\/files$/, chatSuffix);
+      return withQuery(cleaned.replace(/\/files$/, chatSuffix));
     }
     if (path === RESPONSES_ENDPOINT) {
-      return cleaned.replace(/\/files$/, responsesSuffix);
+      return withQuery(cleaned.replace(/\/files$/, responsesSuffix));
     }
     if (path === EMBEDDINGS_ENDPOINT) {
-      return cleaned.replace(/\/files$/, embeddingSuffix);
+      return withQuery(cleaned.replace(/\/files$/, embeddingSuffix));
     }
     if (path === IMAGE_GENERATIONS_ENDPOINT) {
-      return cleaned.replace(/\/files$/, imageGenerationsSuffix);
+      return withQuery(cleaned.replace(/\/files$/, imageGenerationsSuffix));
     }
-    return cleaned;
+    return withQuery(cleaned);
   }
 
   if (hasImageGenerations) {
     if (path === API_ENDPOINT) {
-      return cleaned.replace(/\/images\/generations$/, chatSuffix);
+      return withQuery(cleaned.replace(/\/images\/generations$/, chatSuffix));
     }
     if (path === RESPONSES_ENDPOINT) {
-      return cleaned.replace(/\/images\/generations$/, responsesSuffix);
+      return withQuery(
+        cleaned.replace(/\/images\/generations$/, responsesSuffix),
+      );
     }
     if (path === EMBEDDINGS_ENDPOINT) {
-      return cleaned.replace(/\/images\/generations$/, embeddingSuffix);
+      return withQuery(
+        cleaned.replace(/\/images\/generations$/, embeddingSuffix),
+      );
     }
     if (path === FILES_ENDPOINT) {
-      return cleaned.replace(/\/images\/generations$/, filesSuffix);
+      return withQuery(cleaned.replace(/\/images\/generations$/, filesSuffix));
     }
-    return cleaned;
+    return withQuery(cleaned);
   }
 
   // If a version segment is already present (e.g., /v1 or /v1beta),
@@ -119,7 +142,7 @@ export function resolveEndpoint(baseOrUrl: string, path: string): string {
   const normalizedPath =
     hasVersion && path.startsWith("/v1/") ? path.replace(/^\/v1\//, "/") : path;
 
-  return `${cleaned}${normalizedPath}`;
+  return withQuery(`${cleaned}${normalizedPath}`);
 }
 
 /** Build standard request headers for LLM API calls. */

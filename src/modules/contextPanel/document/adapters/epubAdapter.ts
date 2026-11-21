@@ -277,8 +277,9 @@ export const epubDocumentAdapter: DocumentAdapter = {
       else if (locator.href) {
         const path = await item.getFilePathAsync();
         if (path) {
-          const reader = new EpubPackageReader(path);
+          let reader: EpubPackageReader | null = null;
           try {
+            reader = new EpubPackageReader(path);
             const publication = await reader.readPackage();
             location = {
               href: epubReaderHref(locator.href, publication.contentPath),
@@ -288,7 +289,7 @@ export const epubDocumentAdapter: DocumentAdapter = {
               "LLM: EPUB navigation package unavailable; opening source",
             );
           } finally {
-            reader.close();
+            reader?.close();
           }
         }
       }

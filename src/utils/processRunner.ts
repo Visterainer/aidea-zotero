@@ -15,7 +15,7 @@ declare const Cc: any;
 
 function readFileTextSync(path: string): string {
   try {
-    return String(Zotero.File.getContents(path) || "");
+    return String(Zotero.File.getContents(path) || "").replace(/^\uFEFF/, "");
   } catch {
     return "";
   }
@@ -92,9 +92,20 @@ function shellWrap(
 ): { exe: string; args: string[] } {
   const platform = getPlatform();
   if (platform === "windows") {
+    const safeOut = stdoutPath.replace(/'/g, "''");
+    const safeErr = stderrPath.replace(/'/g, "''");
+    // PowerShell 5.1 redirects (`1>`/`2>`) default to UTF-16LE via Out-File,
+    // which corrupts UTF-8 reads. Force UTF-8 for both console and Out-File,
+    // single-quote paths to prevent `$`/backtick expansion, and check `$?`
+    // before `$LASTEXITCODE` so a failing PS cmdlet after a passing native exe
+    // is not masked as exit 0.
     const script =
-      `& { ${command} } 1> "${stdoutPath}" 2> "${stderrPath}"; ` +
-      "$exitCode = if ($null -ne $global:LASTEXITCODE) { $global:LASTEXITCODE } elseif ($?) { 0 } else { 1 }; " +
+      "$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); " +
+      "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'; " +
+      "$global:LASTEXITCODE = $null; " +
+      `& { ${command} } 1> '${safeOut}' 2> '${safeErr}'; ` +
+      "$ok = $?; " +
+      "$exitCode = if (-not $ok) { if ($null -ne $global:LASTEXITCODE -and $global:LASTEXITCODE -ne 0) { $global:LASTEXITCODE } else { 1 } } elseif ($null -ne $global:LASTEXITCODE) { $global:LASTEXITCODE } else { 0 }; " +
       "exit $exitCode";
     return {
       exe: `${getWindowsSystemRoot()}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
@@ -140,6 +151,20 @@ function killChildProcesses(pid: number): void {
 /** Exit code reported when a subprocess is killed for exceeding its timeout. */
 export const PROCESS_TIMEOUT_EXIT_CODE = 124;
 
+const activeShellProcesses = new Set<{ kill: () => void }>();
+
+/** Stop any still-running shell subprocesses on plugin shutdown. */
+export function killActiveShellProcesses(): void {
+  for (const entry of Array.from(activeShellProcesses)) {
+    try {
+      entry.kill();
+    } catch {
+      /* ignore */
+    }
+  }
+  activeShellProcesses.clear();
+}
+
 function runProcessAsync(
   exe: string,
   args: string[],
@@ -149,10 +174,12 @@ function runProcessAsync(
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
+    let handle: { kill: () => void } | null = null;
     const settle = (code: number) => {
       if (settled) return;
       settled = true;
       if (timer !== undefined) clearTimeout(timer);
+      if (handle) activeShellProcesses.delete(handle);
       resolve(code);
     };
     try {
@@ -170,6 +197,21 @@ function runProcessAsync(
           // older Gecko versions may not support these flags — ignore
         }
       }
+      const killTree = () => {
+        killChildProcesses(Number(proc.pid || 0));
+        try {
+          proc.kill();
+        } catch {
+          // already exited
+        }
+      };
+      handle = {
+        kill: () => {
+          killTree();
+          settle(PROCESS_TIMEOUT_EXIT_CODE);
+        },
+      };
+      activeShellProcesses.add(handle);
       const observer = {
         observe(_subject: unknown, topic: string) {
           if (topic !== "process-finished" && topic !== "process-failed")
@@ -189,17 +231,13 @@ function runProcessAsync(
           // The command runs as a child of the wrapper shell; killing only
           // the shell would leave e.g. the installer running in the
           // background while the caller starts a second one.
-          killChildProcesses(Number(proc.pid || 0));
-          try {
-            proc.kill();
-          } catch {
-            // already exited
-          }
+          killTree();
           settle(PROCESS_TIMEOUT_EXIT_CODE);
         }, timeoutMs);
       }
     } catch (err) {
       if (timer !== undefined) clearTimeout(timer);
+      if (handle) activeShellProcesses.delete(handle);
       reject(err);
     }
   });

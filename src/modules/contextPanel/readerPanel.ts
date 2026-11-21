@@ -32,6 +32,7 @@ import {
   createPaperConversation,
   getLatestPaperConversation,
   initChatStore,
+  onChatHistoryCleared,
 } from "../../utils/chatStore";
 import { getPanelI18n } from "./i18n";
 
@@ -95,6 +96,42 @@ function pruneClosedReaderPanels(
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+/**
+ * Reset all cached reader panels (including detached background tabs) after
+ * "Clear all history" so deleted messages never stay visible on tab switch.
+ */
+export function resetAllCachedReaderPanels(windows: Window[]): void {
+  for (const win of windows) {
+    const map = panelStateByWindow.get(win);
+    if (!map) continue;
+    for (const state of map.values()) {
+      // Connected panels are already clicked by document.querySelectorAll.
+      if (state.host.isConnected) continue;
+      const newBtn = state.host.querySelector(
+        "#llm-main #llm-history-new",
+      ) as HTMLButtonElement | null;
+      if (!newBtn) continue;
+      try {
+        newBtn.click();
+      } catch (err) {
+        ztoolkit.log(
+          "LLM: Could not reset cached reader panel after clear",
+          err,
+        );
+      }
+    }
+  }
+}
+
+onChatHistoryCleared(() => {
+  try {
+    const windows = (Zotero.getMainWindows?.() || []) as unknown as Window[];
+    resetAllCachedReaderPanels(windows);
+  } catch {
+    /* ignore */
+  }
+});
 
 export function getSharedReaderPanelHostForItem(
   win: Window,

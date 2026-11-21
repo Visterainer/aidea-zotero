@@ -10,7 +10,12 @@ import {
   readChatBundle,
 } from "../../utils/chatTransferAssets";
 import { getPanelLang } from "./i18n";
-import { chatHistory, loadedConversationKeys } from "./state";
+import {
+  chatHistory,
+  conversationContextPool,
+  loadedConversationKeys,
+} from "./state";
+import { zoneBSummaryCache } from "./chat";
 
 export function bindChatTransferMenu(options: {
   menu: HTMLElement;
@@ -23,8 +28,8 @@ export function bindChatTransferMenu(options: {
   const doc = options.menu.ownerDocument;
   if (!doc?.defaultView) return;
   const win = doc.defaultView;
-  const zh = getPanelLang().startsWith("zh");
-  const label = (cn: string, en: string) => (zh ? cn : en);
+  const label = (cn: string, en: string) =>
+    getPanelLang().startsWith("zh") ? cn : en;
   const busy = () =>
     [...chatHistory.values()].some((messages) =>
       messages.some((m) => m.streaming),
@@ -201,6 +206,8 @@ export function bindChatTransferMenu(options: {
     for (const key of result.conversationKeys) {
       loadedConversationKeys.delete(key);
       chatHistory.delete(key);
+      conversationContextPool.delete(key);
+      zoneBSummaryCache.delete(key);
     }
     await options.refreshed();
     win.alert(

@@ -202,8 +202,12 @@ def prepare_selectable_page(shaped_page, logical_text):
         data = svg.convert_to_pdf()
     # SVG roundtrip can round fractional page dimensions; preserve original media box.
     d = pdf.open()
-    p = d.new_page(width=shaped_page.rect.width, height=shaped_page.rect.height)
-    with pdf.open("pdf", data) as art:
-        p.show_pdf_page(p.rect, art, 0, keep_proportion=False)
-    add_copy_runs(p, runs)
-    return d
+    try:
+        p = d.new_page(width=shaped_page.rect.width, height=shaped_page.rect.height)
+        with pdf.open("pdf", data) as art:
+            p.show_pdf_page(p.rect, art, 0, keep_proportion=False)
+        add_copy_runs(p, runs)
+        return d
+    except Exception:
+        d.close()
+        raise

@@ -7,6 +7,9 @@ export function fileUrlToPath(url: string | undefined): string | undefined {
     if (parsed.protocol !== "file:") return undefined;
     let pathname = decodeURIComponent(parsed.pathname || "");
     if (!pathname) return undefined;
+    if (parsed.hostname) {
+      return `//${parsed.hostname}${pathname}`;
+    }
     if (/^\/[A-Za-z]:\//.test(pathname)) {
       pathname = pathname.slice(1);
     }
@@ -26,6 +29,9 @@ export function toFileUrl(path: string | undefined): string | undefined {
   const encoded = encodeURI(normalized)
     .replace(/#/g, "%23")
     .replace(/\?/g, "%3F");
+  if (normalized.startsWith("//")) {
+    return `file:${encoded}`;
+  }
   if (/^[A-Za-z]:\//.test(normalized)) {
     return `file:///${encoded}`;
   }

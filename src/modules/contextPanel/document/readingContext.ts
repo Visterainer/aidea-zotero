@@ -63,14 +63,17 @@ function readingHeader(
   extraction: DocumentContextResult["coverage"]["extraction"],
   tokens: number,
 ): string {
-  // Preserve room for the status, citation marker and some source text even
-  // when a malformed/imported title is longer than this paper's entire share.
-  const titleBudget =
+  // Preserve room for the status, citation marker and source text even when a
+  // malformed/imported title is longer than this paper's entire share.
+  const maxTitleShare = Math.min(200, Math.max(24, Math.floor(tokens * 0.25)));
+  const titleBudget = Math.min(
+    maxTitleShare,
     tokens -
-    evidenceTokens(
-      `Title: \nExtraction: ${extraction}; supplied: unavailable\n\n`,
-    ) -
-    70;
+      evidenceTokens(
+        `Title: \nExtraction: ${extraction}; supplied: unavailable\n\n`,
+      ) -
+      70,
+  );
   return `Title: ${sliceEvidence(title, titleBudget)}\nExtraction: ${extraction}; supplied: `;
 }
 
@@ -184,7 +187,7 @@ export async function buildReadingContext(
     };
   };
   const fullCost = context.chunks.reduce(
-    (sum, text) => sum + evidenceTokens(text) + 20,
+    (sum, text) => sum + evidenceTokens(text) + 25,
     evidenceTokens(header) + 30,
   );
   if (document.kind === "pdf" && fullCost <= tokens)

@@ -230,19 +230,48 @@ export function isGlobalChatKey(key: number): boolean {
   return key >= 2_000_000_000 && !reboundPaperKeys.has(key);
 }
 
+export function forgetReboundPaperKey(key: number): void {
+  reboundPaperKeys.delete(key);
+}
+
+export function clearReboundPaperKeys(): void {
+  reboundPaperKeys.clear();
+}
+
+async function syncReboundPaperKeys(): Promise<void> {
+  try {
+    const bound = await rows(
+      `SELECT conversation_key FROM ${P} WHERE conversation_key>=2000000000`,
+    );
+    reboundPaperKeys.clear();
+    for (const c of bound) {
+      const k = Number(c?.conversation_key);
+      if (Number.isFinite(k) && k >= 2_000_000_000) reboundPaperKeys.add(k);
+    }
+  } catch {
+    /* paper table may not exist in isolated stubs */
+  }
+}
+
 /** Identity-only association; never match titles or invent a new conversation. */
 export async function reconcileTransferredConversations(): Promise<void> {
   const exists = await Zotero.DB.valueQueryAsync(
     `SELECT name FROM sqlite_master WHERE type='table' AND name='${S}'`,
   );
-  if (!exists) return;
+  if (!exists) {
+    await syncReboundPaperKeys();
+    return;
+  }
   // This runs on every history listing. Nearly always nothing is pending, so
   // check with a plain read first instead of queueing behind (and timing out
   // on) whatever transaction Zotero currently holds, e.g. a long sync.
   const hasPending = await Zotero.DB.valueQueryAsync(
     `SELECT 1 FROM ${G} g JOIN ${S} s ON s.conversation_key=g.conversation_key LIMIT 1`,
   );
-  if (!hasPending) return;
+  if (!hasPending) {
+    await syncReboundPaperKeys();
+    return;
+  }
   const bound = await Zotero.DB.executeTransaction(async () => {
     const pending = await rows(`SELECT g.*, s.source_json FROM ${G} g
       JOIN ${S} s ON s.conversation_key=g.conversation_key`);

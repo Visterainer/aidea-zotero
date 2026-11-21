@@ -135,9 +135,17 @@ export function resolveEpubReference(
   referencedHref: string,
 ): { href: string; fragment?: string } | null {
   const raw = String(referencedHref || "").trim();
-  if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return null;
+  if (!raw || raw.startsWith("//") || /^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+    return null;
+  }
   try {
-    const resolved = new URL(raw, `zip:/${baseHref}`);
+    // baseHref is already archive-decoded; percent-encode its path segments so
+    // literal `#`, `?`, or `%` in directory/file names are not misinterpreted.
+    const encodedBase = baseHref
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+    const resolved = new URL(raw, `zip:/${encodedBase}`);
     const fragment = normalizeFragment(resolved.hash);
     return {
       // URL resolves relative EPUB references correctly but percent-encodes
@@ -323,13 +331,31 @@ export class EpubPackageReader {
         `EPUB text extraction exceeds ${MAX_EPUB_TOTAL_TEXT_BYTES} bytes`,
       );
     }
-    this.totalTextBytesRead += declaredSize;
     const stream = this.zipReader.getInputStream(entry);
     try {
-      const contents = await Zotero.File.getContentsAsync(stream);
+      // Pass a hard byte limit so a spoofed ZIP realSize header cannot exhaust memory.
+      const contents = await Zotero.File.getContentsAsync(
+        stream,
+        "UTF-8",
+        MAX_EPUB_TEXT_ENTRY_BYTES + 1,
+      );
+      const rawText = String(contents || "");
+      const actualBytes = new TextEncoder().encode(rawText).byteLength;
+      if (actualBytes > MAX_EPUB_TEXT_ENTRY_BYTES) {
+        throw new Error(
+          `EPUB text entry exceeds ${MAX_EPUB_TEXT_ENTRY_BYTES} bytes: ${entry}`,
+        );
+      }
+      const countedBytes = Math.max(declaredSize, actualBytes);
+      if (this.totalTextBytesRead + countedBytes > MAX_EPUB_TOTAL_TEXT_BYTES) {
+        throw new Error(
+          `EPUB text extraction exceeds ${MAX_EPUB_TOTAL_TEXT_BYTES} bytes`,
+        );
+      }
+      this.totalTextBytesRead += countedBytes;
       const doc = new DOMParser().parseFromString(
-        String(contents || ""),
-        mediaType === "application/xhtml+xml"
+        rawText,
+        mediaType.split(";")[0].trim().toLowerCase() === "application/xhtml+xml"
           ? "application/xhtml+xml"
           : "text/xml",
       );
@@ -410,10 +436,14 @@ export class EpubPackageReader {
     let structure = emptyStructure();
     const navItem = manifest.find((item) => item.properties.includes("nav"));
     if (navItem && this.hasEntry(navItem.href)) {
-      const navDoc = await this.readDocument(navItem.href, navItem.mediaType);
-      const roots = parseEpub3Navigation(navDoc, navItem.href);
-      if (roots.length) {
-        structure = buildEpubNavigationStructure(roots, "epub3-nav");
+      try {
+        const navDoc = await this.readDocument(navItem.href, navItem.mediaType);
+        const roots = parseEpub3Navigation(navDoc, navItem.href);
+        if (roots.length) {
+          structure = buildEpubNavigationStructure(roots, "epub3-nav");
+        }
+      } catch {
+        /* fall back to EPUB2 NCX or spine/heading extraction */
       }
     }
 
@@ -423,10 +453,17 @@ export class EpubPackageReader {
         manifestById.get(ncxId) ||
         manifest.find((item) => item.mediaType === "application/x-dtbncx+xml");
       if (ncxItem && this.hasEntry(ncxItem.href)) {
-        const ncxDoc = await this.readDocument(ncxItem.href, ncxItem.mediaType);
-        const roots = parseNcxNavigation(ncxDoc, ncxItem.href);
-        if (roots.length) {
-          structure = buildEpubNavigationStructure(roots, "epub2-ncx");
+        try {
+          const ncxDoc = await this.readDocument(
+            ncxItem.href,
+            ncxItem.mediaType,
+          );
+          const roots = parseNcxNavigation(ncxDoc, ncxItem.href);
+          if (roots.length) {
+            structure = buildEpubNavigationStructure(roots, "epub2-ncx");
+          }
+        } catch {
+          /* fall back to spine/heading extraction */
         }
       }
     }

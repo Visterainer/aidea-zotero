@@ -239,7 +239,8 @@ export class TranslateController {
     }
 
     /* 8. Start progress poller */
-    this.poller = new ProgressPoller(progressPath, (data) => {
+    const poller = new ProgressPoller(progressPath, (data) => {
+      if (generation !== this.runGeneration) return;
       this.callback({ type: "progress", data });
       if (data.status === "done") this.setState("done");
       if (data.status === "error") {
@@ -252,21 +253,25 @@ export class TranslateController {
         this.callback({ type: "error", message });
       }
     });
-    this.poller.start();
+    this.poller = poller;
+    poller.start();
 
     /* 9. Handle process completion */
+    const proc = this.process;
     try {
-      const exitCode = await this.process.done;
+      const exitCode = await proc.done;
+      if (generation !== this.runGeneration) return;
       // Give poller one final tick to read the "done" status from progress.json.
       // After pause/abort the killed bridge may have written an "error"
       // status; reading it would flip a paused job to "error".
-      if (this.poller && this.state === "running") {
+      if (this.poller === poller && this.state === "running") {
         try {
-          await this.poller.tick();
+          await poller.tick();
         } catch {
           /* ok */
         }
       }
+      if (generation !== this.runGeneration) return;
       if (exitCode === 0 && this.state === "running") {
         // Poller didn't catch it — force done
         this.setState("done");
@@ -278,7 +283,7 @@ export class TranslateController {
         });
       }
     } catch (err) {
-      if (this.state === "running") {
+      if (generation === this.runGeneration && this.state === "running") {
         this.setState("error");
         this.callback({
           type: "error",
@@ -286,9 +291,12 @@ export class TranslateController {
         });
       }
     } finally {
-      this.poller?.stop();
-      this.process = null;
-      this.clearActiveLock();
+      poller.stop();
+      if (generation === this.runGeneration) {
+        this.poller = null;
+        this.process = null;
+        this.clearActiveLock();
+      }
       // task.json holds credentials. The bridge deletes it after reading;
       // this covers a bridge that never started.
       void IOUtils.remove(taskPath, { ignoreAbsent: true }).catch(

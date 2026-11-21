@@ -233,7 +233,7 @@ import {
 } from "../../utils/reasoningEffort";
 import { bootstrapSettingTab } from "../preferenceScript";
 import { initTranslateTab } from "../pdfTranslator/translateTabController";
-import { createHeightSync } from "./heightSync";
+import { createHeightSync, getPanelDisposeSignal } from "./heightSync";
 
 const SETTING_TAB_RENDER_VERSION = "2026-06-01-font-theme-layout";
 
@@ -248,6 +248,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   let refreshChatPlaceholderForLanguage = () => {
     /* assigned after placeholder helpers are initialized */
   };
+  const panelDisposeSignal = getPanelDisposeSignal(body);
   body.ownerDocument?.addEventListener(
     `${config.addonRef}-ui-language-change`,
     () => {
@@ -256,6 +257,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       refreshChatReadinessForLanguage();
       refreshChatPlaceholderForLanguage();
     },
+    panelDisposeSignal ? { signal: panelDisposeSignal } : undefined,
   );
   let item = initialItem || null;
   const tabType = (body as HTMLElement).dataset?.tabType || "";
@@ -3832,7 +3834,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       maxLength: 64,
     }) as HTMLInputElement;
 
+    let renameSettled = false;
     const confirmRename = async () => {
+      if (renameSettled) return;
+      renameSettled = true;
       const newTitle = input.value.trim();
       if (newTitle && newTitle !== entry.title) {
         try {
@@ -3850,12 +3855,16 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       await refreshGlobalHistoryHeader();
     };
 
+    for (const eventName of ["keydown", "keypress", "keyup"] as const) {
+      input.addEventListener(eventName, shieldInputEventFromZoteroShortcuts);
+    }
     input.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         e.preventDefault();
         void confirmRename();
       } else if (e.key === "Escape") {
         e.preventDefault();
+        renameSettled = true;
         renameWrapper.remove();
         rowMain.style.display = "";
       }
@@ -3863,7 +3872,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     input.addEventListener("blur", () => {
       // Small delay to allow click on confirm button
       getWindowTimeout(() => {
-        if (renameWrapper.isConnected) {
+        if (!renameSettled && renameWrapper.isConnected) {
           void confirmRename();
         }
       }, 150);
@@ -4138,6 +4147,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     historyUndoBtn.addEventListener("click", (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
+      if (isPanelGenerating(body)) cancelPanelRequest(body);
       void undoPendingHistoryDeletion();
     });
   }
@@ -5071,13 +5081,18 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         e.preventDefault();
         e.stopPropagation();
         if (!item) return;
-        // Store the model name and provider ID for the current item
+        // Store the model name and provider ID for the current item; clear
+        // provider when switching to a custom endpoint so a stale OAuth
+        // provider cannot hijack identically named models.
         selectedModelCache.set(item.id, entry.model);
-        if (entry.providerId)
+        if (entry.providerId) {
           selectedModelProviderCache.set(item.id, entry.providerId);
+        } else {
+          selectedModelProviderCache.delete(item.id);
+        }
         // Persist model name and provider ID so new conversations remember it
         persistModelName(entry.model);
-        if (entry.providerId) persistModelProvider(entry.providerId);
+        persistModelProvider(entry.providerId || "");
         // Clear the persisted profile key so it doesn't shadow the in-session choice
         try {
           Zotero.Prefs.set(
@@ -5196,10 +5211,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         closeRetryModelMenu();
         // Sync model selection with the bottom model selector
         selectedModelCache.set(item.id, entry.model);
-        if (entry.providerId)
+        if (entry.providerId) {
           selectedModelProviderCache.set(item.id, entry.providerId);
+        } else {
+          selectedModelProviderCache.delete(item.id);
+        }
         persistModelName(entry.model);
-        if (entry.providerId) persistModelProvider(entry.providerId);
+        persistModelProvider(entry.providerId || "");
         try {
           Zotero.Prefs.set(
             `${addon.data.config.prefsPrefix}.lastUsedModelProfile`,
@@ -6270,19 +6288,16 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
           setStatus(status, message, level);
         }
       : undefined,
+    onSendAccepted: (hasPinnedContext) => {
+      clearDraftInput();
+      if (!hasPinnedContext) clearComposeState();
+      refreshInputPlaceholder();
+    },
     editStaleStatusText: EDIT_STALE_STATUS_TEXT,
   });
 
   const sendFromComposer = () => {
-    // While a response is streaming, doSend only shows a "please wait"
-    // status and keeps the text in the box. Its saved draft and attachment
-    // snapshot must survive too, or a restart loses them.
-    const blocked = isPanelGenerating(body) || isChatHistoryClearing();
     void doSend().catch((err) => ztoolkit.log("LLM: Send failed", err));
-    if (blocked) return;
-    clearDraftInput();
-    clearComposeState();
-    refreshInputPlaceholder();
   };
 
   // Send button - use addEventListener
@@ -6854,7 +6869,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   panelDoc.addEventListener(
     "pointerdown",
     dismissRetryMenuOnOutsidePointerDown,
-    true,
+    panelDisposeSignal
+      ? { capture: true, signal: panelDisposeSignal }
+      : { capture: true },
   );
   bodyWithRetryMenuDismiss.__llmRetryMenuDismissHandler =
     dismissRetryMenuOnOutsidePointerDown;
@@ -6878,7 +6895,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   panelDoc.addEventListener(
     "pointerdown",
     dismissPromptMenuOnOutsidePointerDown,
-    true,
+    panelDisposeSignal
+      ? { capture: true, signal: panelDisposeSignal }
+      : { capture: true },
   );
   bodyWithPromptMenuDismiss.__llmPromptMenuDismissHandler =
     dismissPromptMenuOnOutsidePointerDown;
@@ -6903,7 +6922,9 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   panelDoc.addEventListener(
     "pointerdown",
     dismissPaperPickerOnOutsidePointerDown,
-    true,
+    panelDisposeSignal
+      ? { capture: true, signal: panelDisposeSignal }
+      : { capture: true },
   );
   bodyWithPaperPickerDismiss.__llmPaperPickerDismissHandler =
     dismissPaperPickerOnOutsidePointerDown;
@@ -6921,21 +6942,43 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     if (!Number.isFinite(messageId)) return;
     const message = getActiveMessageById(messageId);
     if (!message || message.role !== "user") return;
-    const wrapper = editTarget.closest(
-      ".llm-message-wrapper.user",
-    ) as HTMLDivElement | null;
-    const bubble = wrapper?.querySelector(
-      ".llm-bubble.user",
-    ) as HTMLDivElement | null;
-    if (!wrapper || !bubble) return;
 
     closePromptMenu();
     closeResponseMenu();
     closeRetryModelMenu();
     closeExportMenu();
-    chatBox
-      ?.querySelectorAll(".llm-bubble.user.llm-inline-editing")
-      .forEach(() => refreshChatPreservingScroll());
+    if (chatBox?.querySelector(".llm-bubble.user.llm-inline-editing")) {
+      refreshChatPreservingScroll();
+    }
+
+    // Re-query the target wrapper/bubble AFTER any refreshChatPreservingScroll
+    // rebuild so we never attach the inline editor onto a detached node.
+    const findTargetWrapper = (): HTMLDivElement | null => {
+      if (editTarget.isConnected) {
+        const direct = editTarget.closest(
+          ".llm-message-wrapper.user",
+        ) as HTMLDivElement | null;
+        if (direct) return direct;
+      }
+      if (!chatBox) return null;
+      const wrappers = Array.from(
+        chatBox.querySelectorAll(".llm-message-wrapper.user"),
+      ) as HTMLDivElement[];
+      return (
+        wrappers.find(
+          (el) =>
+            el.dataset.messageId === String(messageId) ||
+            el.querySelector(
+              `button[data-message-id="${String(messageId)}"]`,
+            ) !== null,
+        ) || null
+      );
+    };
+    const wrapper = findTargetWrapper();
+    const bubble = wrapper?.querySelector(
+      ".llm-bubble.user",
+    ) as HTMLDivElement | null;
+    if (!wrapper || !bubble) return;
 
     bubble.classList.add("llm-inline-editing");
     bubble.textContent = "";
@@ -6993,15 +7036,19 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       event.stopPropagation();
       refreshChatPreservingScroll();
     });
+    let editSubmitting = false;
     sendEdit.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (editSubmitting) return;
       const nextText = sanitizeText(textarea.value || "");
       if (!nextText.trim()) {
         if (status)
           setStatus(status, getPanelI18n().emptyPromptStatus, "error");
         return;
       }
+      editSubmitting = true;
+      sendEdit.disabled = true;
       const resolvedProfile = getSelectedProfileForItem(item!.id);
       void editUserMessageAndRetry(
         body,
@@ -7012,11 +7059,16 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         resolvedProfile.apiBase,
         resolvedProfile.apiKey,
         undefined,
-      ).then((result) => {
-        if (result !== "ok" && status) {
-          setStatus(status, getPanelI18n().failedToSaveEditedPrompt, "error");
-        }
-      });
+      )
+        .then((result) => {
+          if (result !== "ok" && status) {
+            setStatus(status, getPanelI18n().failedToSaveEditedPrompt, "error");
+          }
+        })
+        .finally(() => {
+          editSubmitting = false;
+          sendEdit.disabled = false;
+        });
     });
   };
 
@@ -7789,6 +7841,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       closeHistoryMenu();
       activeEditSession = null;
       if (!item) return;
+      if (isPanelGenerating(body)) cancelPanelRequest(body);
       const conversationToClear = getConversationKey(item);
       const currentItemId = item.id;
       const libraryID = getCurrentLibraryID();
@@ -7874,9 +7927,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   // Listen for model config changes from the Setting tab
   // so the Discussion tab model menu refreshes immediately.
   if (panelDoc) {
-    panelDoc.addEventListener("llm-models-changed", (event: Event) => {
-      updateLiveSettingsReadinessState(event);
-      updateModelButton();
-    });
+    panelDoc.addEventListener(
+      "llm-models-changed",
+      (event: Event) => {
+        updateLiveSettingsReadinessState(event);
+        updateModelButton();
+      },
+      panelDisposeSignal ? { signal: panelDisposeSignal } : undefined,
+    );
   }
 }

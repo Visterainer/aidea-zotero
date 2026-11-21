@@ -189,14 +189,26 @@ function buildStructuredChunks(segments: DocumentSegment[]): {
   return chunks.length ? { chunks, metadata } : null;
 }
 
+const CJK_TOKEN_RE =
+  /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]|[\u3040-\u309f]+|[\u30a0-\u30ff]+|[\uac00-\ud7af]/g;
+const EMBEDDING_RETRY_COOLDOWN_MS = 60_000;
+
 export function tokenizeText(text: string): string[] {
-  const englishTokens = text.toLowerCase().match(/[a-z0-9]+/g) || [];
-  const cjkTokens =
-    text.match(
-      /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]|[\u3040-\u309f]+|[\u30a0-\u30ff]+|[\uac00-\ud7af]/g,
-    ) || [];
+  const cjkTokens = text.match(CJK_TOKEN_RE) || [];
+  // Strip CJK so mixed tokens (e.g. "BERT模型") split cleanly, normalize Latin
+  // diacritics and Arabic/Persian harakat, and preserve Indic vowel marks.
+  const nonCjkText = text
+    .replace(CJK_TOKEN_RE, " ")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f\u064b-\u065f\u0670]+/g, "")
+    .normalize("NFC")
+    .toLowerCase();
+  const wordTokens = nonCjkText.match(/[\p{L}\p{N}\p{M}]+/gu) || [];
   return [
-    ...englishTokens.filter((t) => t.length >= 3 && !STOPWORDS.has(t)),
+    ...wordTokens.filter((t) => {
+      const minLen = /^[a-z0-9]+$/.test(t) ? 3 : 2;
+      return t.length >= minLen && !STOPWORDS.has(t);
+    }),
     ...cjkTokens.filter((t) => !STOPWORDS.has(t)),
   ];
 }
@@ -209,7 +221,7 @@ function buildChunkIndex(
   docFreq: Record<string, number>;
   avgChunkLength: number;
 } {
-  const docFreq: Record<string, number> = {};
+  const docFreq: Record<string, number> = Object.create(null);
   const chunkStats: ChunkStat[] = [];
   let totalLength = 0;
 
@@ -225,7 +237,7 @@ function buildChunkIndex(
     const tokens = tokenizeText(
       headingText ? `${headingText}\n${chunk}` : chunk,
     );
-    const tf: Record<string, number> = {};
+    const tf: Record<string, number> = Object.create(null);
     for (const term of tokens) {
       tf[term] = (tf[term] || 0) + 1;
     }
@@ -354,9 +366,13 @@ function scoreChunkBM25(
   let score = 0;
 
   for (const term of terms) {
-    const tf = chunk.tf[term] || 0;
+    const tf = Object.prototype.hasOwnProperty.call(chunk.tf, term)
+      ? chunk.tf[term]
+      : 0;
     if (!tf) continue;
-    const df = docFreq[term] || 0;
+    const df = Object.prototype.hasOwnProperty.call(docFreq, term)
+      ? docFreq[term]
+      : 0;
     const idf = Math.log(1 + (totalChunks - df + 0.5) / (df + 0.5));
     const norm =
       (tf * (k1 + 1)) /
@@ -443,9 +459,20 @@ async function ensureEmbeddings(
     // earlier failure) belong to the old one.
     context.embeddings = undefined;
     context.embeddingFailed = false;
+    context.embeddingFailedUntil = undefined;
   }
   if (!context.embeddingPromise) context.embeddingKey = embeddingKey;
-  if (context.embeddingFailed) return false;
+  if (context.embeddingFailed) {
+    if (
+      context.embeddingFailedUntil !== undefined &&
+      Date.now() >= context.embeddingFailedUntil
+    ) {
+      context.embeddingFailed = false;
+      context.embeddingFailedUntil = undefined;
+    } else {
+      return false;
+    }
+  }
   if (context.embeddings?.length) {
     return context.embeddings.length === context.chunks.length;
   }
@@ -480,11 +507,17 @@ async function ensureEmbeddings(
   context.embeddingPromise = undefined;
   if (result) {
     context.embeddings = result;
+    context.embeddingFailed = false;
+    context.embeddingFailedUntil = undefined;
     return result.length === context.chunks.length;
   }
-  // A cancelled warm-up is not a failed one; the next request may retry.
+  // A cancelled warm-up is not a failed one; transient failures cool down
+  // instead of disabling embeddings for the entire Zotero session.
   if (aborted) throwIfAborted(signal);
-  else context.embeddingFailed = true;
+  else {
+    context.embeddingFailed = true;
+    context.embeddingFailedUntil = Date.now() + EMBEDDING_RETRY_COOLDOWN_MS;
+  }
   return false;
 }
 
@@ -635,7 +668,12 @@ export async function buildDocumentContext(
   const embeddingsReady =
     useEmbeddings &&
     (await ensureEmbeddings(context, apiOverrides, options?.signal));
-  if (embeddingsReady && context.embeddings) {
+  // Snapshot chunk vectors before awaiting the query embedding so a concurrent
+  // embedding-model switch cannot mix vectors from different models or clear
+  // context.embeddings mid-flight.
+  const chunkEmbeddings = embeddingsReady ? context.embeddings : undefined;
+  const chunkEmbeddingKey = embeddingsReady ? context.embeddingKey : undefined;
+  if (chunkEmbeddings?.length === chunks.length) {
     try {
       const queryEmbedding =
         (
@@ -644,8 +682,11 @@ export async function buildDocumentContext(
             signal: options?.signal,
           })
         )[0] || [];
-      if (queryEmbedding.length) {
-        embeddingScores = context.embeddings.map((vector) =>
+      if (
+        queryEmbedding.length &&
+        chunkEmbeddingKey === resolveEmbeddingKey(apiOverrides)
+      ) {
+        embeddingScores = chunkEmbeddings.map((vector) =>
           cosineSimilarity(queryEmbedding, vector),
         );
       }

@@ -55,7 +55,17 @@ export function findAssistantBubbleByMessageId(
   chatBox: HTMLDivElement | null,
   messageId: number | undefined,
 ): HTMLDivElement | null {
-  if (!chatBox || !Number.isFinite(messageId)) return null;
+  if (!chatBox) return null;
+  if (!Number.isFinite(messageId)) {
+    // When SQLite persistence failed, messageId is undefined; fall back to the
+    // currently streaming assistant bubble so it does not stay stuck on skeleton.
+    const last = findLastAssistantBubble(chatBox);
+    return last &&
+      (last.classList.contains("streaming") ||
+        last.querySelector(".llm-streaming-skeleton"))
+      ? last
+      : null;
+  }
   const wrappers = Array.from(
     chatBox.querySelectorAll(".llm-message-wrapper.assistant"),
   ) as Element[];
@@ -165,19 +175,27 @@ export function finalizeStreamingBubble(bubble: HTMLDivElement | null): void {
  * @param patchFn  The function that performs the actual DOM patch.
  * @param intervalMs  Minimum interval between consecutive patches (default 30ms).
  */
+export type QueuedStreamingPatch = (() => void) & { cancel: () => void };
+
 export function createQueuedStreamingPatch(
   patchFn: () => void,
   intervalMs: number = DEFAULT_PATCH_INTERVAL_MS,
-): () => void {
-  let queued = false;
-  return () => {
-    if (queued) return;
-    queued = true;
-    setTimeout(() => {
-      queued = false;
+): QueuedStreamingPatch {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const trigger = (() => {
+    if (timer !== null) return;
+    timer = setTimeout(() => {
+      timer = null;
       patchFn();
     }, intervalMs);
+  }) as QueuedStreamingPatch;
+  trigger.cancel = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
   };
+  return trigger;
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +318,12 @@ export function createStreamingAutoScroller(
         }
         // Resume asynchronously so the scroll event triggered by our
         // programmatic scrollTop write is also suppressed.
-        Promise.resolve().then(resumeScrollUpdates);
+        const win = chatBox.ownerDocument?.defaultView;
+        if (typeof win?.requestAnimationFrame === "function") {
+          win.requestAnimationFrame(() => resumeScrollUpdates());
+        } else {
+          Promise.resolve().then(resumeScrollUpdates);
+        }
       }
     },
 

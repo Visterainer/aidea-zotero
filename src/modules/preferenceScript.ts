@@ -1,4 +1,5 @@
 import { createModelBudgetSettings } from "./contextPanel/modelBudgetSettings";
+import { getPanelDisposeSignal } from "./contextPanel/heightSync";
 import { config } from "../../package.json";
 import { HTML_NS } from "../utils/domHelpers";
 import {
@@ -9,6 +10,7 @@ import {
   getProviderAccountSummary,
   getProviderLabel,
   pingCodexModel,
+  pingCopilotModel,
   pingModel,
   providerToMarker,
   removeProviderOAuthCredential,
@@ -3181,6 +3183,7 @@ export async function bootstrapSettingTab(
 ) {
   const win = doc.defaultView;
   if (!win) return;
+  const settingsDisposeSignal = getPanelDisposeSignal(scrollContainer);
   await new Promise((r) => setTimeout(r, 80));
 
   let lang = getLang();
@@ -3419,12 +3422,16 @@ export async function bootstrapSettingTab(
     langMenu.style.display = open ? "none" : "block";
     langDropdown.classList.toggle("open", !open);
   });
-  doc.addEventListener("click", (e: Event) => {
-    if (!langDropdown.contains(e.target as Node)) {
-      langMenu.style.display = "none";
-      langDropdown.classList.remove("open");
-    }
-  });
+  doc.addEventListener(
+    "click",
+    (e: Event) => {
+      if (!langDropdown.contains(e.target as Node)) {
+        langMenu.style.display = "none";
+        langDropdown.classList.remove("open");
+      }
+    },
+    settingsDisposeSignal ? { signal: settingsDisposeSignal } : undefined,
+  );
   updateLanguageDropdown(lang);
   langLeft.append(langLabel, langDropdown);
 
@@ -3994,11 +4001,15 @@ export async function bootstrapSettingTab(
     composerThemeMenu.style.display = "block";
     composerThemeDropdown.classList.add("open");
   });
-  doc.addEventListener("click", (event: Event) => {
-    if (!composerThemeDropdown.contains(event.target as Node)) {
-      closeComposerThemeDropdown();
-    }
-  });
+  doc.addEventListener(
+    "click",
+    (event: Event) => {
+      if (!composerThemeDropdown.contains(event.target as Node)) {
+        closeComposerThemeDropdown();
+      }
+    },
+    settingsDisposeSignal ? { signal: settingsDisposeSignal } : undefined,
+  );
   renderComposerThemeItems();
   const fontGroup = createEl(
     doc,
@@ -5348,16 +5359,11 @@ export async function bootstrapSettingTab(
       );
     }
   };
-  const previousOauthEnvLogHandler = (win as any).__aideaOauthEnvLogHandler as
-    EventListener | undefined;
-  if (previousOauthEnvLogHandler) {
-    win.removeEventListener(
-      OAUTH_ENV_UPDATE_LOG_EVENT,
-      previousOauthEnvLogHandler,
-    );
-  }
-  (win as any).__aideaOauthEnvLogHandler = oauthEnvLogHandler;
-  win.addEventListener(OAUTH_ENV_UPDATE_LOG_EVENT, oauthEnvLogHandler);
+  win.addEventListener(
+    OAUTH_ENV_UPDATE_LOG_EVENT,
+    oauthEnvLogHandler,
+    settingsDisposeSignal ? { signal: settingsDisposeSignal } : undefined,
+  );
 
   const flushUi = () =>
     new Promise<void>((resolve) => win.setTimeout(resolve, 0));
@@ -5397,7 +5403,13 @@ export async function bootstrapSettingTab(
     renderModels();
   };
 
+  let renderAccountsGen = 0;
   const renderAccounts = async () => {
+    const gen = ++renderAccountsGen;
+    const summaries = await Promise.all(
+      PROVIDERS.map((provider) => getProviderAccountSummary(provider)),
+    );
+    if (gen !== renderAccountsGen) return;
     accountsTable.innerHTML = "";
     const header = createEl(doc, "div", "llm-set-table-header");
     header.append(
@@ -5406,8 +5418,7 @@ export async function bootstrapSettingTab(
       createEl(doc, "div", "", L.status),
     );
     accountsTable.appendChild(header);
-    for (const provider of PROVIDERS) {
-      const s = await getProviderAccountSummary(provider);
+    for (const s of summaries) {
       const row = createEl(doc, "div", "llm-set-table-row");
       row.append(
         createEl(doc, "div", "", s.label),
@@ -5487,12 +5498,16 @@ export async function bootstrapSettingTab(
       dropdown.classList.add("open");
       positionMenu();
     });
-    doc.addEventListener("click", (event: Event) => {
-      if (!dropdown.contains(event.target as Node)) {
-        menu.style.display = "none";
-        dropdown.classList.remove("open");
-      }
-    });
+    doc.addEventListener(
+      "click",
+      (event: Event) => {
+        if (!dropdown.contains(event.target as Node)) {
+          menu.style.display = "none";
+          dropdown.classList.remove("open");
+        }
+      },
+      settingsDisposeSignal ? { signal: settingsDisposeSignal } : undefined,
+    );
     return dropdown;
   };
 
@@ -6330,14 +6345,15 @@ export async function bootstrapSettingTab(
           }
           renderModels();
         } else if (pingInfo) {
-          // Qwen / Copilot: standard /chat/completions ping per model
           for (const m of models) {
-            m.status = await pingModel(
-              pingInfo.apiBase,
-              "",
-              m.id,
-              pingInfo.headers,
-            );
+            m.status =
+              provider === "github-copilot"
+                ? await pingCopilotModel(
+                    pingInfo.apiBase,
+                    pingInfo.headers,
+                    m.id,
+                  )
+                : await pingModel(pingInfo.apiBase, "", m.id, pingInfo.headers);
             if (m.status === "ok") okCount++;
             else failCount++;
             renderModels();

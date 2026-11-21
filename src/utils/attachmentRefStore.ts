@@ -55,7 +55,10 @@ async function ensureAttachmentRefTables(): Promise<void> {
         `CREATE INDEX IF NOT EXISTS ${ATTACHMENT_REFS_BLOB_INDEX}
          ON ${ATTACHMENT_REFS_TABLE} (blob_hash)`,
       );
-    })();
+    })().catch((err) => {
+      refStoreInitTask = null;
+      throw err;
+    });
   }
   await refStoreInitTask;
 }

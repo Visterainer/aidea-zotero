@@ -412,20 +412,39 @@ function applyContactEmails(authors: PaperAuthor[], contacts: AuthorContact[]) {
   }
 }
 
+function hasWholeWord(normalizedText: string, needle: string): boolean {
+  return Boolean(needle) && ` ${normalizedText} `.includes(` ${needle} `);
+}
+
 function applyLocalSnippetEvidence(authors: PaperAuthor[], snippets: string[]) {
-  const emails = extractEmails(snippets.join("\n"));
   const explicitFragments = extractExplicitCorrespondingNameFragments(snippets);
   const explicitAuthors = matchAuthorsByNameFragments(
     authors,
     explicitFragments,
   );
   if (explicitAuthors.length) {
+    const allEmails = extractEmails(snippets.join("\n"));
     for (const author of explicitAuthors) {
+      const authorSnippets = snippets.filter((snippet) => {
+        const norm = normalizeName(snippet);
+        const full = normalizeName(author.name);
+        const family = lastNameKey(author.name);
+        return (
+          hasWholeWord(norm, full) ||
+          (family.length >= 3 && hasWholeWord(norm, family))
+        );
+      });
+      const localEmails = extractEmails(authorSnippets.join("\n"));
+      const assignedEmails = localEmails.length
+        ? localEmails
+        : explicitAuthors.length === 1
+          ? allEmails
+          : [];
       mergeIntoAuthor(author, {
         isCorresponding: true,
         correspondenceSources: ["PDF"],
-        emails,
-        evidence: snippets
+        emails: assignedEmails,
+        evidence: (authorSnippets.length ? authorSnippets : snippets)
           .slice(0, 2)
           .map(
             (snippet) =>
@@ -442,15 +461,15 @@ function applyLocalSnippetEvidence(authors: PaperAuthor[], snippets: string[]) {
       const fullName = normalizeName(author.name);
       const family = lastNameKey(author.name);
       return (
-        (fullName && snippetText.includes(fullName)) ||
-        (family && snippetText.includes(family))
+        hasWholeWord(snippetText, fullName) ||
+        (family.length >= 3 && hasWholeWord(snippetText, family))
       );
     });
     if (matches.length !== 1) continue;
     mergeIntoAuthor(matches[0], {
       isCorresponding: true,
       correspondenceSources: ["PDF"],
-      emails,
+      emails: extractEmails(snippet),
       evidence: [`PDF correspondence clue: ${truncateText(snippet, 220)}`],
     });
   }
@@ -549,11 +568,19 @@ function chooseCorrespondingAuthors(
   };
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  const err = new Error("Aborted");
+  err.name = "AbortError";
+  throw err;
+}
+
 async function enrichSelectedAuthors(
   authors: PaperAuthor[],
   signal?: AbortSignal,
 ): Promise<void> {
   for (const author of authors) {
+    throwIfAborted(signal);
     await Promise.all([
       fetchOpenAlexAuthorMetrics(author, signal),
       fetchSemanticAuthorMetrics(author, signal),
@@ -627,12 +654,14 @@ export async function resolveAuthorProfileInput(
     message: copy.stageSources,
     fraction: 0.36,
   });
+  throwIfAborted(signal);
   const sourceFetches = await Promise.all([
     fetchCrossrefAuthors(metadata, signal),
     fetchOpenAlexAuthors(metadata, signal),
     fetchSemanticScholarAuthors(metadata, signal),
     fetchPubMedCentralAuthors(metadata, signal),
   ]);
+  throwIfAborted(signal);
   for (const source of sourceFetches) {
     allFetchedAuthors.push(...source.authors);
     localSnippets.push(...source.snippets);

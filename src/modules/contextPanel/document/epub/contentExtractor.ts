@@ -128,11 +128,13 @@ const BLOCK_ELEMENTS = new Set([
 ]);
 
 const NON_CONTENT_ELEMENTS = new Set([
+  "head",
   "nav",
   "noscript",
   "script",
   "style",
   "template",
+  "title",
 ]);
 
 // Zotero add-ons run in a privileged sandbox where DOMParser and Range are
@@ -223,8 +225,10 @@ function getFragmentTarget(
   return (
     (Array.from(doc.getElementsByTagName("*")) as Element[]).find(
       (element) =>
+        normalizeFragment(element.getAttribute("id") || undefined) ===
+          normalized ||
         normalizeFragment(element.getAttribute("name") || undefined) ===
-        normalized,
+          normalized,
     ) || null
   );
 }
@@ -454,16 +458,18 @@ function extractNavigationUnits(
   if (!root) return { units: [], activeNodeId };
   const boundaries = groupNavigationBoundaries(doc, nodes);
   if (!boundaries.length) {
-    const activeNode = getNodeById(structure, activeNodeId);
-    if (!activeNode) return { units: [], activeNodeId };
+    // If this spine item owns TOC nodes whose fragment failed to resolve,
+    // attribute it to the first matching node rather than the previous chapter.
+    const fallbackNode = nodes[0] || getNodeById(structure, activeNodeId);
+    if (!fallbackNode) return { units: [], activeNodeId };
     const unit = createUnit(spineItem, getRangeText(doc, root), 0, {
-      node: activeNode,
+      node: fallbackNode,
       fragment: getElementFragment(root),
-      source: activeNode.source as EpubStructureSource,
-      confidence: activeNode.confidence,
+      source: fallbackNode.source as EpubStructureSource,
+      confidence: fallbackNode.confidence,
       semanticRoles: getSemanticRoles(root),
     });
-    return { units: unit ? [unit] : [], activeNodeId };
+    return { units: unit ? [unit] : [], activeNodeId: fallbackNode.id };
   }
 
   const units: EpubContentUnit[] = [];
@@ -718,9 +724,13 @@ export async function extractEpubContent(
       warnings.push(`Missing EPUB spine resource: ${spineItem.href}`);
       continue;
     }
+    const normalizedMediaType = spineItem.mediaType
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
     if (
-      spineItem.mediaType !== "application/xhtml+xml" &&
-      spineItem.mediaType !== "image/svg+xml"
+      normalizedMediaType !== "application/xhtml+xml" &&
+      normalizedMediaType !== "image/svg+xml"
     ) {
       if (spineItem.linear) incompleteLinearItems += 1;
       warnings.push(

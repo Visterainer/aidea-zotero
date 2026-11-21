@@ -41,26 +41,31 @@ async function optimizeImageDataUrl(
     const canvas = win.document.createElement("canvas") as HTMLCanvasElement;
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | null;
-    if (!ctx) return dataUrl;
+    try {
+      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | null;
+      if (!ctx) return dataUrl;
 
-    ctx.imageSmoothingEnabled = true;
-    (
-      ctx as CanvasRenderingContext2D & {
-        imageSmoothingQuality?: "low" | "medium" | "high";
+      ctx.imageSmoothingEnabled = true;
+      (
+        ctx as CanvasRenderingContext2D & {
+          imageSmoothingQuality?: "low" | "medium" | "high";
+        }
+      ).imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      // Prefer lossless encoding for charts/figures when the payload is manageable.
+      const pngDataUrl = canvas.toDataURL("image/png");
+      if (estimateDataUrlByteLength(pngDataUrl) <= maxLosslessBytes) {
+        return pngDataUrl;
       }
-    ).imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-
-    // Prefer lossless encoding for charts/figures when the payload is manageable.
-    const pngDataUrl = canvas.toDataURL("image/png");
-    if (estimateDataUrlByteLength(pngDataUrl) <= maxLosslessBytes) {
-      return pngDataUrl;
+      if (!needsResize && sourceBytes <= maxPassthroughBytes) {
+        return dataUrl;
+      }
+      return canvas.toDataURL("image/jpeg", jpegQuality);
+    } finally {
+      canvas.width = 0;
+      canvas.height = 0;
     }
-    if (!needsResize && sourceBytes <= maxPassthroughBytes) {
-      return dataUrl;
-    }
-    return canvas.toDataURL("image/jpeg", jpegQuality);
   } catch (err) {
     ztoolkit.log("Screenshot optimize failed:", err);
     return dataUrl;
@@ -83,8 +88,18 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       return;
     }
 
+    // Cancel any pre-existing capture overlay before mounting a new one.
+    const existingOverlay = doc.getElementById("llm-screenshot-overlay") as
+      (HTMLElement & { __llmCancelScreenshot?: () => void }) | null;
+    if (existingOverlay) {
+      existingOverlay.__llmCancelScreenshot?.();
+      existingOverlay.remove();
+    }
+
     // Create overlay with inline styles using HTML namespace
-    const overlay = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+    const overlay = doc.createElementNS(HTML_NS, "div") as HTMLDivElement & {
+      __llmCancelScreenshot?: () => void;
+    };
     overlay.id = "llm-screenshot-overlay";
     Object.assign(overlay.style, {
       position: "fixed",
@@ -171,12 +186,19 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
     let isSelecting = false;
     let isReady = false;
     let resolved = false;
+    let readyTimer: ReturnType<typeof setTimeout> | null = null;
 
     const cleanup = () => {
+      if (readyTimer !== null) {
+        clearTimeout(readyTimer);
+        readyTimer = null;
+      }
       if (overlay.parentNode) {
         overlay.remove();
       }
       doc.removeEventListener("keydown", onKeyDown);
+      win.removeEventListener("mousemove", onMouseMove);
+      win.removeEventListener("mouseup", onMouseUp);
     };
 
     const safeResolve = (value: string | null, reason: string) => {
@@ -191,6 +213,8 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       cleanup();
       resolve(value);
     };
+    overlay.__llmCancelScreenshot = () =>
+      safeResolve(null, "Replaced by new capture");
 
     const onKeyDown = (e: KeyboardEvent) => {
       ztoolkit.log("Screenshot: Key pressed:", e.key);
@@ -199,47 +223,7 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       }
     };
 
-    doc.addEventListener("keydown", onKeyDown);
-
-    cancelBtn.addEventListener("click", (e: MouseEvent) => {
-      ztoolkit.log("Screenshot: Cancel button clicked");
-      e.preventDefault();
-      e.stopPropagation();
-      safeResolve(null, "Cancel clicked");
-    });
-
-    // Wait before accepting mouse events to prevent button click from triggering
-    setTimeout(() => {
-      isReady = true;
-      ztoolkit.log("Screenshot: Now ready for selection");
-    }, 200);
-
-    overlay.addEventListener("mousedown", (e: MouseEvent) => {
-      ztoolkit.log(
-        "Screenshot: mousedown, isReady:",
-        isReady,
-        "target:",
-        (e.target as Element)?.tagName,
-      );
-      if (!isReady) {
-        ztoolkit.log("Screenshot: Ignoring mousedown - not ready yet");
-        return;
-      }
-      if (e.target === cancelBtn) return;
-      e.preventDefault();
-      e.stopPropagation();
-      isSelecting = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      selection.style.left = `${startX}px`;
-      selection.style.top = `${startY}px`;
-      selection.style.width = "0px";
-      selection.style.height = "0px";
-      selection.style.display = "block";
-      ztoolkit.log("Screenshot: Selection started at", startX, startY);
-    });
-
-    overlay.addEventListener("mousemove", (e: MouseEvent) => {
+    const onMouseMove = (e: MouseEvent) => {
       if (!isSelecting) return;
       e.preventDefault();
       const currentX = e.clientX;
@@ -254,9 +238,9 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       selection.style.top = `${top}px`;
       selection.style.width = `${width}px`;
       selection.style.height = `${height}px`;
-    });
+    };
 
-    overlay.addEventListener("mouseup", async (e: MouseEvent) => {
+    const onMouseUp = async (e: MouseEvent) => {
       ztoolkit.log(
         "Screenshot: mouseup, isReady:",
         isReady,
@@ -302,8 +286,110 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
         ztoolkit.log("Screenshot capture failed:", err);
         safeResolve(null, "Capture error");
       }
+    };
+
+    doc.addEventListener("keydown", onKeyDown);
+    win.addEventListener("mousemove", onMouseMove);
+    win.addEventListener("mouseup", onMouseUp);
+
+    cancelBtn.addEventListener("click", (e: MouseEvent) => {
+      ztoolkit.log("Screenshot: Cancel button clicked");
+      e.preventDefault();
+      e.stopPropagation();
+      safeResolve(null, "Cancel clicked");
+    });
+
+    // Wait before accepting mouse events to prevent button click from triggering
+    readyTimer = setTimeout(() => {
+      readyTimer = null;
+      isReady = true;
+      ztoolkit.log("Screenshot: Now ready for selection");
+    }, 200);
+
+    overlay.addEventListener("mousedown", (e: MouseEvent) => {
+      ztoolkit.log(
+        "Screenshot: mousedown, isReady:",
+        isReady,
+        "target:",
+        (e.target as Element)?.tagName,
+      );
+      if (!isReady) {
+        ztoolkit.log("Screenshot: Ignoring mousedown - not ready yet");
+        return;
+      }
+      if (e.target === cancelBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isSelecting = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      selection.style.left = `${startX}px`;
+      selection.style.top = `${startY}px`;
+      selection.style.width = "0px";
+      selection.style.height = "0px";
+      selection.style.display = "block";
+      ztoolkit.log("Screenshot: Selection started at", startX, startY);
     });
   });
+}
+
+function findActiveReaderFrame(
+  win: Window,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): HTMLIFrameElement | null {
+  try {
+    const selectedTabId = (
+      win as unknown as { Zotero_Tabs?: { selectedID?: string } }
+    ).Zotero_Tabs?.selectedID;
+    const activeReader = selectedTabId
+      ? (
+          Zotero as unknown as {
+            Reader?: {
+              getByTabID?: (tabId: string) => {
+                _iframeWindow?: { frameElement?: HTMLIFrameElement };
+              } | null;
+            };
+          }
+        ).Reader?.getByTabID?.(selectedTabId)
+      : null;
+    const activeFrame = activeReader?._iframeWindow?.frameElement;
+    if (activeFrame?.contentDocument) {
+      const rect = activeFrame.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return activeFrame;
+    }
+  } catch {
+    /* fall back to visible frame matching selection bounds */
+  }
+
+  const frames = Array.from(
+    win.document.querySelectorAll('iframe[src*="reader"]'),
+  ) as HTMLIFrameElement[];
+  const selRight = x + width;
+  const selBottom = y + height;
+  let bestFrame: HTMLIFrameElement | null = null;
+  let bestOverlap = 0;
+  for (const frame of frames) {
+    if (!frame.contentDocument) continue;
+    const rect = frame.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    const overlapW = Math.max(
+      0,
+      Math.min(selRight, rect.right) - Math.max(x, rect.left),
+    );
+    const overlapH = Math.max(
+      0,
+      Math.min(selBottom, rect.bottom) - Math.max(y, rect.top),
+    );
+    const overlap = overlapW * overlapH;
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      bestFrame = frame;
+    }
+  }
+  return bestFrame;
 }
 
 /**
@@ -317,58 +403,104 @@ async function captureRegion(
   height: number,
 ): Promise<string | null> {
   try {
-    // Try to find the PDF canvas in the reader
-    const readerFrame = win.document.querySelector(
-      'iframe[src*="reader"]',
-    ) as HTMLIFrameElement | null;
+    const readerFrame = findActiveReaderFrame(win, x, y, width, height);
+    const targetDoc = readerFrame?.contentDocument || win.document;
+    const frameRect = readerFrame
+      ? readerFrame.getBoundingClientRect()
+      : { left: 0, top: 0 };
+    const selLeft = x - frameRect.left;
+    const selTop = y - frameRect.top;
+    const selRight = selLeft + width;
+    const selBottom = selTop + height;
 
-    let targetDoc = win.document;
-    if (readerFrame?.contentDocument) {
-      targetDoc = readerFrame.contentDocument;
+    const canvases = Array.from(
+      targetDoc.querySelectorAll(
+        ".pdfViewer canvas, .canvasWrapper canvas, canvas.pdfViewer",
+      ),
+    ) as HTMLCanvasElement[];
+
+    type CanvasOverlap = {
+      canvas: HTMLCanvasElement;
+      rect: DOMRect;
+      ix0: number;
+      iy0: number;
+      ix1: number;
+      iy1: number;
+      scaleX: number;
+      scaleY: number;
+    };
+    const overlaps: CanvasOverlap[] = [];
+    for (const pdfCanvas of canvases) {
+      if (pdfCanvas.width <= 0 || pdfCanvas.height <= 0) continue;
+      const rect = pdfCanvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const ix0 = Math.max(selLeft, rect.left);
+      const iy0 = Math.max(selTop, rect.top);
+      const ix1 = Math.min(selRight, rect.right);
+      const iy1 = Math.min(selBottom, rect.bottom);
+      if (ix1 <= ix0 || iy1 <= iy0) continue;
+      overlaps.push({
+        canvas: pdfCanvas,
+        rect,
+        ix0,
+        iy0,
+        ix1,
+        iy1,
+        scaleX: pdfCanvas.width / rect.width,
+        scaleY: pdfCanvas.height / rect.height,
+      });
     }
 
-    // Look for the PDF viewer canvas
-    const pdfCanvas = targetDoc.querySelector(
-      ".pdfViewer canvas, .canvasWrapper canvas, canvas.pdfViewer",
-    ) as HTMLCanvasElement | null;
-
-    if (pdfCanvas) {
-      const canvasRect = pdfCanvas.getBoundingClientRect();
-      const relX = x - canvasRect.left;
-      const relY = y - canvasRect.top;
-
-      const scaleX = pdfCanvas.width / canvasRect.width;
-      const scaleY = pdfCanvas.height / canvasRect.height;
-
-      const srcX = Math.max(0, relX * scaleX);
-      const srcY = Math.max(0, relY * scaleY);
-      const srcWidth = Math.min(width * scaleX, pdfCanvas.width - srcX);
-      const srcHeight = Math.min(height * scaleY, pdfCanvas.height - srcY);
-
-      if (srcWidth > 0 && srcHeight > 0) {
-        const tempCanvas = win.document.createElement(
-          "canvas",
-        ) as HTMLCanvasElement;
-        tempCanvas.width = srcWidth;
-        tempCanvas.height = srcHeight;
+    if (overlaps.length) {
+      const outScaleX = overlaps[0].scaleX;
+      const outScaleY = overlaps[0].scaleY;
+      const outWidth = Math.max(1, Math.round(width * outScaleX));
+      const outHeight = Math.max(1, Math.round(height * outScaleY));
+      const tempCanvas = win.document.createElement(
+        "canvas",
+      ) as HTMLCanvasElement;
+      tempCanvas.width = outWidth;
+      tempCanvas.height = outHeight;
+      try {
         const ctx = tempCanvas.getContext(
           "2d",
         ) as CanvasRenderingContext2D | null;
-
         if (ctx) {
-          ctx.drawImage(
-            pdfCanvas,
-            srcX,
-            srcY,
-            srcWidth,
-            srcHeight,
-            0,
-            0,
-            srcWidth,
-            srcHeight,
-          );
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, outWidth, outHeight);
+          for (const hit of overlaps) {
+            const srcX = Math.max(0, (hit.ix0 - hit.rect.left) * hit.scaleX);
+            const srcY = Math.max(0, (hit.iy0 - hit.rect.top) * hit.scaleY);
+            const srcW = Math.min(
+              (hit.ix1 - hit.ix0) * hit.scaleX,
+              hit.canvas.width - srcX,
+            );
+            const srcH = Math.min(
+              (hit.iy1 - hit.iy0) * hit.scaleY,
+              hit.canvas.height - srcY,
+            );
+            if (srcW <= 0 || srcH <= 0) continue;
+            const dstX = (hit.ix0 - selLeft) * outScaleX;
+            const dstY = (hit.iy0 - selTop) * outScaleY;
+            const dstW = (hit.ix1 - hit.ix0) * outScaleX;
+            const dstH = (hit.iy1 - hit.iy0) * outScaleY;
+            ctx.drawImage(
+              hit.canvas,
+              srcX,
+              srcY,
+              srcW,
+              srcH,
+              dstX,
+              dstY,
+              dstW,
+              dstH,
+            );
+          }
           return tempCanvas.toDataURL("image/png");
         }
+      } finally {
+        tempCanvas.width = 0;
+        tempCanvas.height = 0;
       }
     }
 
@@ -378,33 +510,35 @@ async function captureRegion(
     const canvas = win.document.createElement("canvas") as HTMLCanvasElement;
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | null;
+    try {
+      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | null;
+      if (!ctx) return null;
 
-    if (!ctx) {
-      return null;
-    }
-
-    if ("drawWindow" in ctx) {
-      try {
-        (
-          ctx as CanvasRenderingContext2D & {
-            drawWindow: (
-              win: Window,
-              x: number,
-              y: number,
-              w: number,
-              h: number,
-              bg: string,
-            ) => void;
-          }
-        ).drawWindow(win, x, y, width, height, "white");
-        return canvas.toDataURL("image/png");
-      } catch (err) {
-        ztoolkit.log("drawWindow failed:", err);
+      if ("drawWindow" in ctx) {
+        try {
+          (
+            ctx as CanvasRenderingContext2D & {
+              drawWindow: (
+                win: Window,
+                x: number,
+                y: number,
+                w: number,
+                h: number,
+                bg: string,
+              ) => void;
+            }
+          ).drawWindow(win, x, y, width, height, "white");
+          return canvas.toDataURL("image/png");
+        } catch (err) {
+          ztoolkit.log("drawWindow failed:", err);
+        }
       }
-    }
 
-    return null;
+      return null;
+    } finally {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
   } catch (err) {
     ztoolkit.log("Capture region error:", err);
     return null;

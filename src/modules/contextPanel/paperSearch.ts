@@ -212,8 +212,10 @@ function scoreSearchFields(params: {
   tokenScore: number;
 }): number {
   const searchText = buildSearchText(params.fields);
-  const compactSearchText = buildCompactSearchText(params.fields);
   if (!searchText) return 0;
+  const compactSearchText = params.compactQuery
+    ? normalizeSearchCompact(searchText)
+    : "";
   let score = 0;
   if (searchText.startsWith(params.normalizedQuery)) {
     score += params.exactPrefixScore;
@@ -232,17 +234,32 @@ function scoreSearchFields(params: {
   return score;
 }
 
+type PreparedSearchQuery = {
+  normalizedQuery: string;
+  compactQuery: string;
+  queryTokens: string[];
+};
+
+function prepareSearchQuery(query: string): PreparedSearchQuery {
+  const normalizedQuery = normalizeSearchToken(query);
+  return {
+    normalizedQuery,
+    compactQuery: normalizedQuery
+      ? normalizeSearchCompact(normalizedQuery)
+      : "",
+    queryTokens: normalizedQuery ? splitSearchTokens(normalizedQuery) : [],
+  };
+}
+
 function scorePaperMetadata(
   candidate: Pick<
     PaperContextRef,
     "citationKey" | "title" | "firstCreator" | "year"
   >,
-  query: string,
+  prepared: PreparedSearchQuery,
 ): number {
-  const normalizedQuery = normalizeSearchToken(query);
+  const { normalizedQuery, compactQuery, queryTokens } = prepared;
   if (!normalizedQuery) return 0;
-  const compactQuery = normalizeSearchCompact(normalizedQuery);
-  const queryTokens = splitSearchTokens(normalizedQuery);
   const citationKey = normalizeSearchToken(candidate.citationKey || "");
   const year = normalizeSearchToken(candidate.year || "");
 
@@ -268,13 +285,16 @@ function scorePaperMetadata(
   return score;
 }
 
-function scoreAttachmentTitle(title: string, query: string): number {
-  const normalizedQuery = normalizeSearchToken(query);
+function scoreAttachmentTitle(
+  title: string,
+  prepared: PreparedSearchQuery,
+): number {
+  const { normalizedQuery, compactQuery, queryTokens } = prepared;
   if (!normalizedQuery) return 0;
   return scoreSearchFields({
     normalizedQuery,
-    compactQuery: normalizeSearchCompact(normalizedQuery),
-    queryTokens: splitSearchTokens(normalizedQuery),
+    compactQuery,
+    queryTokens,
     fields: [title],
     exactPrefixScore: 640,
     containsScore: 560,
@@ -284,14 +304,14 @@ function scoreAttachmentTitle(title: string, query: string): number {
 
 function updateCandidateScore(
   candidate: PaperSearchGroupCandidate,
-  normalizedQuery: string,
+  prepared: PreparedSearchQuery,
 ): void {
-  const paperScore = normalizedQuery
-    ? scorePaperMetadata(candidate, normalizedQuery)
+  const paperScore = prepared.normalizedQuery
+    ? scorePaperMetadata(candidate, prepared)
     : 0;
   for (const attachment of candidate.attachments) {
-    attachment.score = normalizedQuery
-      ? scoreAttachmentTitle(attachment.title, normalizedQuery)
+    attachment.score = prepared.normalizedQuery
+      ? scoreAttachmentTitle(attachment.title, prepared)
       : 0;
   }
   const bestAttachmentScore = candidate.attachments.reduce(
@@ -329,7 +349,8 @@ export async function searchPaperCandidates(
     excludeContextItemId > 0
       ? Math.floor(excludeContextItemId)
       : null;
-  const normalizedQuery = normalizeSearchToken(query);
+  const preparedQuery = prepareSearchQuery(query);
+  const normalizedQuery = preparedQuery.normalizedQuery;
   const candidates: PaperSearchGroupCandidate[] = [];
 
   for (const item of items) {
@@ -339,7 +360,7 @@ export async function searchPaperCandidates(
       }
       const standalone = buildStandaloneAttachmentCandidate(item);
       if (!standalone) continue;
-      updateCandidateScore(standalone, normalizedQuery);
+      updateCandidateScore(standalone, preparedQuery);
       if (normalizedQuery && standalone.score <= 0) continue;
       candidates.push(standalone);
       continue;
@@ -352,7 +373,7 @@ export async function searchPaperCandidates(
     if (!contextAttachments.length) continue;
     const candidate = buildGroupCandidate(item, contextAttachments);
     if (!candidate) continue;
-    updateCandidateScore(candidate, normalizedQuery);
+    updateCandidateScore(candidate, preparedQuery);
     if (normalizedQuery && candidate.score <= 0) continue;
     candidates.push(candidate);
   }

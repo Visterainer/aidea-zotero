@@ -385,7 +385,11 @@ function chatMessageContentToPlainText(content: MessageContent): string {
     }
     if (part.type === "image_url") {
       const url = part.image_url?.url?.trim();
-      parts.push(url ? `[Image input: ${url}]` : "[Image input]");
+      if (!url || /^data:image\//i.test(url)) {
+        parts.push("[Image input]");
+      } else {
+        parts.push(`[Image input: ${url}]`);
+      }
     }
   }
   return parts.join("\n").trim();
@@ -437,11 +441,13 @@ function buildImagePromptWithChatInputs(
   }
   const imageLines = Array.isArray(params.images)
     ? params.images
-        .map((image, index) =>
-          typeof image === "string" && image.trim()
-            ? `- Image ${index + 1}: ${image.trim()}`
-            : "",
-        )
+        .map((image, index) => {
+          if (typeof image !== "string" || !image.trim()) return "";
+          const trimmed = image.trim();
+          return /^data:image\//i.test(trimmed)
+            ? `- Image ${index + 1}: [attached image]`
+            : `- Image ${index + 1}: ${trimmed}`;
+        })
         .filter(Boolean)
     : [];
   if (imageLines.length) {
@@ -471,7 +477,18 @@ type ZoteroFileLike = {
   ) => Promise<string> | string;
 };
 
+const MAX_UPLOADED_FILE_CACHE_ENTRIES = 128;
 const uploadedResponseFileIdCache = new Map<string, string>();
+
+function rememberUploadedResponseFileId(key: string, fileId: string): void {
+  uploadedResponseFileIdCache.delete(key);
+  uploadedResponseFileIdCache.set(key, fileId);
+  while (uploadedResponseFileIdCache.size > MAX_UPLOADED_FILE_CACHE_ENTRIES) {
+    const oldest = uploadedResponseFileIdCache.keys().next().value;
+    if (oldest === undefined) break;
+    uploadedResponseFileIdCache.delete(oldest);
+  }
+}
 
 function getIOUtils(): IOUtilsLike | undefined {
   const fromGlobal = (globalThis as unknown as { IOUtils?: IOUtilsLike })
@@ -550,16 +567,6 @@ async function readLocalFileBytes(path: string): Promise<Uint8Array> {
   }
 
   const zoteroFile = getZoteroFile();
-  if (zoteroFile?.getContentsAsync) {
-    attempted.push("Zotero.File.getContentsAsync");
-    try {
-      const data = await zoteroFile.getContentsAsync(normalizedPath);
-      const bytes = coerceToBytes(data);
-      if (bytes) return bytes;
-    } catch (err) {
-      ztoolkit.log("LLM: Zotero.File.getContentsAsync failed", err);
-    }
-  }
   if (zoteroFile?.getBinaryContentsAsync) {
     attempted.push("Zotero.File.getBinaryContentsAsync");
     try {
@@ -568,6 +575,16 @@ async function readLocalFileBytes(path: string): Promise<Uint8Array> {
       if (bytes) return bytes;
     } catch (err) {
       ztoolkit.log("LLM: Zotero.File.getBinaryContentsAsync failed", err);
+    }
+  }
+  if (zoteroFile?.getContentsAsync) {
+    attempted.push("Zotero.File.getContentsAsync");
+    try {
+      const data = await zoteroFile.getContentsAsync(normalizedPath);
+      const bytes = coerceToBytes(data);
+      if (bytes) return bytes;
+    } catch (err) {
+      ztoolkit.log("LLM: Zotero.File.getContentsAsync failed", err);
     }
   }
 
@@ -812,7 +829,7 @@ async function uploadAttachmentForResponses(params: {
       if (!fileId) {
         throw new Error("File upload succeeded but no file ID was returned");
       }
-      uploadedResponseFileIdCache.set(cacheKey, fileId);
+      rememberUploadedResponseFileId(cacheKey, fileId);
       return fileId;
     }
 
@@ -852,6 +869,8 @@ async function uploadFilesForResponses(params: {
       seen.add(fileId);
       fileIds.push(fileId);
     } catch (err) {
+      throwIfAborted(params.signal);
+      if ((err as { name?: string })?.name === "AbortError") throw err;
       ztoolkit.log(
         "LLM: Failed to upload attachment to Responses API",
         attachment.name,
@@ -1232,7 +1251,7 @@ function buildResponsesInput(
     content:
       | string
       | Array<
-          | { type: "input_text"; text: string }
+          | { type: "input_text" | "output_text"; text: string }
           | { type: "input_image"; image_url: string; detail?: string }
           | { type: "input_file"; file_id: string }
         >;
@@ -1283,13 +1302,15 @@ function buildResponsesInput(
       continue;
     }
 
+    const textPartType =
+      message.role === "assistant" ? "output_text" : "input_text";
     const contentParts: Array<
-      | { type: "input_text"; text: string }
+      | { type: "input_text" | "output_text"; text: string }
       | { type: "input_image"; image_url: string; detail?: string }
       | { type: "input_file"; file_id: string }
     > = message.content.map((part) => {
       if (part.type === "text") {
-        return { type: "input_text" as const, text: part.text };
+        return { type: textPartType, text: part.text };
       }
       return {
         type: "input_image" as const,
@@ -2550,6 +2571,7 @@ export async function callLLMStream(
     const maxRetries = 3;
     let retries = 0;
     let retriedWithoutMiniMaxReasoningSplit = false;
+    let pendingTemperaturePolicy: TemperaturePolicy | null = null;
     const attemptedReasoningKeys = new Set<string>([
       currentReasoning
         ? `${currentReasoning.provider}:${currentReasoning.level}`
@@ -2596,6 +2618,9 @@ export async function callLLMStream(
           },
         );
         tokenPolicy.accept();
+        if (pendingTemperaturePolicy) {
+          temperaturePolicyCache.set(policyKey, pendingTemperaturePolicy);
+        }
         return finishNormalizedOutput(rawText);
       } catch (err) {
         lastError = err;
@@ -2667,13 +2692,16 @@ export async function callLLMStream(
           Object.prototype.hasOwnProperty.call(payload, "temperature")
         ) {
           const recoveryPolicy = getTemperatureRecoveryPolicy(status, message);
-          if (recoveryPolicy) {
+          if (
+            recoveryPolicy &&
+            JSON.stringify(recoveryPolicy) !== JSON.stringify(cachedPolicy)
+          ) {
             payload = applyTemperaturePolicy(
               buildEffectivePayload(currentReasoning),
               recoveryPolicy,
             );
             cachedPolicy = recoveryPolicy;
-            temperaturePolicyCache.set(policyKey, recoveryPolicy);
+            pendingTemperaturePolicy = recoveryPolicy;
             retries += 1;
             continue;
           }
@@ -2707,7 +2735,34 @@ export async function callLLMStream(
   });
 
   if (!res.body) {
-    return finishNormalizedOutput(await callLLM({ ...params, systemPrompt }));
+    const rawBody = await res.text();
+    const trimmed = rawBody.trim();
+    if (!trimmed) {
+      return finishNormalizedOutput(await callLLM({ ...params, systemPrompt }));
+    }
+    if (useResponses) {
+      return finishNormalizedOutput(
+        await parseResponsesStream(rawBody, rawOnDelta, rawOnReasoning),
+      );
+    }
+    if (trimmed.startsWith("{")) {
+      try {
+        const data = JSON.parse(trimmed) as CompletionResponse;
+        const msg = data?.choices?.[0]?.message?.content;
+        const text = typeof msg === "string" ? msg : "";
+        if (text) rawOnDelta(text);
+        return finishNormalizedOutput(text);
+      } catch {
+        /* fall through to SSE lines */
+      }
+    }
+    const sse = createChatSseLineHandler(
+      rawOnDelta,
+      rawOnReasoning,
+      "LLM stream",
+    );
+    for (const line of rawBody.split("\n")) sse.handleLine(line);
+    return finishNormalizedOutput(sse.finish());
   }
 
   const rawText = useResponses
@@ -2766,6 +2821,7 @@ async function parseStreamResponse(
   const sse = createChatSseLineHandler(onDelta, onReasoning, "LLM stream");
   let buffer = "";
 
+  let streamFailed = false;
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -2780,19 +2836,22 @@ async function parseStreamResponse(
     buffer += decoder.decode();
     if (buffer.trim()) sse.handleLine(buffer);
     return sse.finish();
+  } catch (err) {
+    streamFailed = true;
+    throw err;
   } finally {
+    if (streamFailed) {
+      await reader.cancel().catch(() => undefined);
+    }
     reader.releaseLock();
   }
 }
 
 async function parseResponsesStream(
-  body: ReadableStream<Uint8Array>,
+  body: ReadableStream<Uint8Array> | string,
   onDelta: (delta: string) => void,
   onReasoning?: (event: ReasoningEvent) => void,
 ): Promise<string> {
-  const reader = body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
   let fullText = "";
   let sawOutputTextDelta = false;
   let sawSummaryDelta = false;
@@ -3084,6 +3143,15 @@ async function parseResponsesStream(
     }
   };
 
+  if (typeof body === "string") {
+    for (const line of body.split("\n")) handleLine(line);
+    return fullText;
+  }
+
+  const reader = body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let streamFailed = false;
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -3097,7 +3165,13 @@ async function parseResponsesStream(
     // A stream may end without a trailing newline; do not drop that line.
     buffer += decoder.decode();
     if (buffer.trim()) handleLine(buffer);
+  } catch (err) {
+    streamFailed = true;
+    throw err;
   } finally {
+    if (streamFailed) {
+      await reader.cancel().catch(() => undefined);
+    }
     reader.releaseLock();
   }
 

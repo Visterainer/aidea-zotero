@@ -31,12 +31,17 @@ export class ProgressPoller {
 
   start(): void {
     if (this.timer) return; // already running
+    this.stopped = false;
     this.lastKey = ""; // reset dedup on fresh start
     void this.tick();
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
 
+  private inFlight = false;
+  private stopped = false;
+
   stop(): void {
+    this.stopped = true;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -49,12 +54,15 @@ export class ProgressPoller {
 
   /** Single poll cycle — public so tests can invoke it directly */
   async tick(): Promise<void> {
+    if (this.inFlight) return;
+    this.inFlight = true;
+    const wasStopped = this.stopped;
     try {
       const exists = await IOUtils.exists(this.filePath);
-      if (!exists) return; // file not created yet
+      if (!exists || (!wasStopped && this.stopped)) return; // file not created yet or stopped mid-read
 
       const text = await IOUtils.readUTF8(this.filePath);
-      if (!text.trim()) return; // empty / being written
+      if ((!wasStopped && this.stopped) || !text.trim()) return; // stopped or empty / being written
 
       const data = JSON.parse(text) as ProgressData;
 
@@ -81,6 +89,8 @@ export class ProgressPoller {
     } catch {
       // File may be mid-write (atomic replace not yet visible).
       // Silently retry on next tick.
+    } finally {
+      this.inFlight = false;
     }
   }
 }

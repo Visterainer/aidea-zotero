@@ -354,9 +354,11 @@ async function findSelectionTranslationNote(
   parentItem: Zotero.Item,
 ): Promise<Zotero.Item | null> {
   const noteIds = new Set<number>();
+  let gotNotesViaApi = false;
   try {
     const rawIds = await (parentItem as any).getNotes?.();
     if (Array.isArray(rawIds)) {
+      gotNotesViaApi = true;
       for (const rawId of rawIds) {
         const id = Number(rawId);
         if (Number.isFinite(id) && id > 0) noteIds.add(Math.floor(id));
@@ -370,6 +372,7 @@ async function findSelectionTranslationNote(
     const note = getZoteroItem(noteId);
     if (isSelectionTranslationNote(note)) return note;
   }
+  if (gotNotesViaApi) return null;
 
   try {
     const items = await Zotero.Items.getAll(

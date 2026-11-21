@@ -627,11 +627,17 @@ function showOAuthEnvUpdatePrompt(providers: OAuthProviderId[]): void {
   if (!win || !doc?.documentElement) return;
 
   if (promptState) {
-    promptState.providers = [...providers];
-    promptState.dismissSnoozes = true;
-    setPromptMinimized(promptState, false);
-    renderPromptMode(updateMode);
-    return;
+    // A finished update toast replaced nowButton/laterButton with a single OK
+    // button; rebuild the prompt cleanly instead of mutating that finished DOM.
+    if (!promptState.nowButton.isConnected) {
+      closePrompt();
+    } else {
+      promptState.providers = [...providers];
+      promptState.dismissSnoozes = true;
+      setPromptMinimized(promptState, false);
+      renderPromptMode(updateMode);
+      return;
+    }
   }
 
   const existing = doc.getElementById(TOAST_ID);
@@ -766,6 +772,10 @@ async function runOAuthEnvUpdate(providers: OAuthProviderId[]): Promise<void> {
     ztoolkit?.log?.("AIdea: OAuth env update failed", err);
     // Never leave the prompt stuck in "updating" with its buttons disabled.
     if (promptState) {
+      const copy = getCopy();
+      promptState.body.textContent = copy.failed;
+      promptState.status.textContent =
+        err instanceof Error ? err.message : String(err);
       setButtonDisabled(promptState.closeButton, false);
       setButtonDisabled(promptState.minimizeButton, false);
     }
@@ -930,7 +940,7 @@ export function refreshOAuthEnvUpdateSchedulerMode(): void {
     closePrompt();
     return;
   }
-  if (promptState) {
+  if (promptState && promptState.nowButton.isConnected) {
     setPromptMinimized(promptState, false);
     renderPromptMode(updateMode);
   }
@@ -942,7 +952,12 @@ export function unregisterOAuthEnvUpdateSchedulerWindow(win: Window): void {
   if (!state) return;
   state.cleanup();
   windowStates.delete(win);
-  if (!windowStates.size) closePrompt();
+  if (
+    !windowStates.size ||
+    promptState?.root.ownerDocument?.defaultView === win
+  ) {
+    closePrompt();
+  }
 }
 
 export function shutdownOAuthEnvUpdateScheduler(): void {

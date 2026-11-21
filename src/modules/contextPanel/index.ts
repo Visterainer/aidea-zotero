@@ -969,6 +969,12 @@ export function registerReaderSelectionTracking() {
             panelItemId: number | null,
           ): number | null => {
             if (!panelItemId) return null;
+            // A Reader panel owns its own conversation key (paper or explicit
+            // global). Visiting the Library tab sets activeConversationModeByLibrary
+            // to "global" and must not hijack Reader "Add Text" into Library's chat.
+            if (root.closest?.("#llm-reader-panel-host")) {
+              return panelItemId;
+            }
             const libraryID = getPanelLibraryId(root);
             if (libraryID) {
               const mode = activeConversationModeByLibrary.get(libraryID);
@@ -1176,6 +1182,7 @@ export function registerReaderSelectionTracking() {
         if (isSeparator(next)) next.style.display = "none";
       };
 
+      const popupCleanups: Array<() => void> = [];
       if (selectedText && isSelectionTranslateEnabled()) {
         try {
           const i18n = getPanelI18n();
@@ -1728,9 +1735,13 @@ export function registerReaderSelectionTracking() {
           const isInSelectionResizeGrip = (e: MouseEvent): boolean => {
             const rect = resultBox.getBoundingClientRect();
             const gripSize = 18;
+            const isRtl = resultBox.dir === "rtl";
+            const horizDist = isRtl
+              ? e.clientX - rect.left
+              : rect.right - e.clientX;
             return (
-              rect.right - e.clientX >= 0 &&
-              rect.right - e.clientX <= gripSize &&
+              horizDist >= 0 &&
+              horizDist <= gripSize &&
               rect.bottom - e.clientY >= 0 &&
               rect.bottom - e.clientY <= gripSize
             );
@@ -1738,7 +1749,9 @@ export function registerReaderSelectionTracking() {
           resultBox.addEventListener("mousemove", (e: MouseEvent) => {
             if (resizeActive) return;
             resultBox.style.cursor = isInSelectionResizeGrip(e)
-              ? "nwse-resize"
+              ? resultBox.dir === "rtl"
+                ? "nesw-resize"
+                : "nwse-resize"
               : "text";
           });
           resultBox.addEventListener("mouseleave", () => {
@@ -1941,8 +1954,28 @@ export function registerReaderSelectionTracking() {
               setAddToNoteButtonLabel(noteText.addToNoteFailed);
             }
           });
+          const selectionTranslateAbortController =
+            typeof AbortController !== "undefined"
+              ? new AbortController()
+              : null;
+          const cleanupSelectionPopup = () => {
+            selectionTranslateAbortController?.abort();
+            for (const target of selectionTypographyRefreshTargets) {
+              try {
+                target.removeEventListener(
+                  PANEL_TYPOGRAPHY_REFRESH_EVENT,
+                  refreshSelectionTypography,
+                );
+              } catch {
+                /* ignore */
+              }
+            }
+            selectionTypographyRefreshTargets.length = 0;
+          };
+          popupCleanups.push(cleanupSelectionPopup);
+
           const runSelectionTranslate = async () => {
-            if (translateRunning) return;
+            if (translateRunning || !wrap.isConnected) return;
             translateRunning = true;
             let popupStream: ReturnType<
               typeof createSelectionTranslatePopupStream
@@ -1973,8 +2006,10 @@ export function registerReaderSelectionTracking() {
               const result = await translateSelectedTextForReader({
                 item,
                 selectedText: effectiveSelectedText,
+                signal: selectionTranslateAbortController?.signal,
                 callbacks: {
                   onStage(stage) {
+                    if (!wrap.isConnected) return;
                     resultBox.dir = uiLanguage.dir;
                     resultBox.lang = uiLanguage.htmlLang;
                     resultBox.textContent =
@@ -1986,7 +2021,7 @@ export function registerReaderSelectionTracking() {
                     selectionTranslateContentChanged?.();
                   },
                   onDelta(delta, targetLang) {
-                    if (!delta) return;
+                    if (!delta || !wrap.isConnected) return;
                     setTranslationContentLanguage(resultBox, targetLang);
                     receivedStreamingContent = true;
                     popupStream?.push(delta);
@@ -2020,6 +2055,13 @@ export function registerReaderSelectionTracking() {
             } catch (err) {
               popupStream?.invalidate();
               popupStream = null;
+              if (
+                selectionTranslateAbortController?.signal.aborted ||
+                (err as { name?: string })?.name === "AbortError" ||
+                !wrap.isConnected
+              ) {
+                return;
+              }
               ztoolkit.log("LLM: selection translation failed", err);
               resultBox.lang = uiLanguage.htmlLang;
               resultBox.dir = uiLanguage.dir;
@@ -2032,7 +2074,13 @@ export function registerReaderSelectionTracking() {
               translateRunning = false;
             }
           };
-          setTimeout(() => void runSelectionTranslate(), 0);
+          setTimeout(() => {
+            if (!wrap.isConnected) {
+              cleanupSelectionPopup();
+              return;
+            }
+            void runSelectionTranslate();
+          }, 0);
         } catch (err) {
           ztoolkit.log("LLM: failed to append selection translate popup", err);
         }
@@ -2130,7 +2178,10 @@ export function registerReaderSelectionTracking() {
           const maxChecks = 600;
 
           const watchSentinel = () => {
-            if (++checks > maxChecks) return;
+            if (++checks > maxChecks) {
+              for (const fn of popupCleanups) fn();
+              return;
+            }
             if (sentinel.isConnected) {
               wasConnected = true;
               setTimeout(watchSentinel, 500);
@@ -2140,6 +2191,7 @@ export function registerReaderSelectionTracking() {
               setTimeout(watchSentinel, 200);
               return;
             }
+            for (const fn of popupCleanups) fn();
             if (wasConnected) {
               for (const key of keys) {
                 if (recentReaderSelectionCache.get(key) === selectedText) {

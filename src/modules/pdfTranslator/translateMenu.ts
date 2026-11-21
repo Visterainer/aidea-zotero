@@ -174,9 +174,13 @@ function onQueueDrained(result: QueueBatchResult): void {
   }
 }
 
+let restoredQueueTimer: ReturnType<typeof setTimeout> | null = null;
+
 /** Say once, after startup, that a queue from the last session is waiting. */
 function announceRestoredQueue(): void {
-  setTimeout(() => {
+  if (restoredQueueTimer !== null) clearTimeout(restoredQueueTimer);
+  restoredQueueTimer = setTimeout(() => {
+    restoredQueueTimer = null;
     try {
       const queue = getTranslationQueue();
       const state = queue.getState();
@@ -292,6 +296,10 @@ export function registerTranslateMenu(): void {
 }
 
 export function unregisterTranslateMenu(): void {
+  if (restoredQueueTimer !== null) {
+    clearTimeout(restoredQueueTimer);
+    restoredQueueTimer = null;
+  }
   unsubscribeQueue?.();
   unsubscribeDrained?.();
   unsubscribeQueue = null;

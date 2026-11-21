@@ -125,6 +125,7 @@ type SendFlowControllerDeps = {
   scheduleAttachmentGc: () => void;
   refreshGlobalHistoryHeader: () => void;
   setStatusMessage?: (message: string, level: StatusLevel) => void;
+  onSendAccepted?: (hasPinnedContext: boolean) => void;
   editStaleStatusText: string;
 };
 
@@ -158,6 +159,11 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
     const primarySelectedText = selectedTexts[0] || "";
     const selectedPaperContexts = deps.getSelectedPaperContexts(item.id);
     const selectedFiles = deps.getSelectedFiles(item.id);
+
+    if (selectedFiles.some((file) => file.processing)) {
+      deps.setStatusMessage?.(labels.waitForCurrentResponse, "warning");
+      return;
+    }
 
     if (
       !text &&
@@ -296,6 +302,9 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         deps.clearSelectedTextState(textContextConversationKey);
         deps.updateSelectedTextPreviewPreservingScroll();
       }
+      deps.onSendAccepted?.(
+        selectedPaperContexts.length > 0 || selectedFiles.length > 0,
+      );
       deps.setActiveEditSession(null);
       deps.scheduleAttachmentGc();
       deps.refreshGlobalHistoryHeader();
@@ -311,6 +320,9 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       deps.clearSelectedTextState(textContextConversationKey);
       deps.updateSelectedTextPreviewPreservingScroll();
     }
+    deps.onSendAccepted?.(
+      selectedPaperContexts.length > 0 || selectedFiles.length > 0,
+    );
 
     const sendTask = deps.sendQuestion(
       deps.body,

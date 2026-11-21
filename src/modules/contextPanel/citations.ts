@@ -93,7 +93,11 @@ export function citationSourceUrl(ref: EvidenceRef): string | undefined {
   if (ref.locator?.kind === "pdf-page")
     return `zotero://open-pdf/${scope}/items/${encodeURIComponent(ref.itemKey)}?page=${ref.locator.pageIndex + 1}`;
   if (ref.locator?.kind === "epub-location" && ref.locator.cfi)
-    return `zotero://open/${scope}/items/${encodeURIComponent(ref.itemKey)}?cfi=${encodeURIComponent(ref.locator.cfi)}`;
+    return `zotero://open/${scope}/items/${encodeURIComponent(ref.itemKey)}?cfi=${encodeURIComponent(
+      ref.locator.cfi,
+    )
+      .replace(/\(/g, "%28")
+      .replace(/\)/g, "%29")}`;
   return base;
 }
 

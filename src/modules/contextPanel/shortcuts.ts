@@ -66,10 +66,14 @@ export async function loadShortcutText(file: string): Promise<string> {
   return text;
 }
 
+const shortcutRenderGeneration = new WeakMap<Element, number>();
+
 export async function renderShortcuts(
   body: Element,
   item?: Zotero.Item | null,
 ) {
+  const renderGen = (shortcutRenderGeneration.get(body) || 0) + 1;
+  shortcutRenderGeneration.set(body, renderGen);
   shortcutRenderItemState.set(body, item);
   const container = body.querySelector(
     "#llm-shortcuts",
@@ -95,7 +99,6 @@ export async function renderShortcuts(
   if (!container) return;
 
   const moveMode = shortcutMoveModeState.get(body) === true;
-  container.innerHTML = "";
   const overrides = getShortcutOverrides();
   const labelOverrides = getShortcutLabelOverrides();
   const deletedIds = new Set(getDeletedShortcutIds());
@@ -155,6 +158,8 @@ export async function renderShortcuts(
       defaultLabel: label,
     });
   }
+  if (shortcutRenderGeneration.get(body) !== renderGen) return;
+  container.innerHTML = "";
   const currentVisibleIds = editableShortcutsRaw.map((shortcut) => shortcut.id);
   const currentVisibleSet = new Set(currentVisibleIds);
   const savedOrder = getShortcutOrder();
@@ -583,9 +588,10 @@ export async function renderShortcuts(
       const shortcutId = menu.dataset.shortcutId || "";
       const shortcutKind = menu.dataset.shortcutKind || "";
       if (!shortcutId || !shortcutKind) return;
-      const target = container.querySelector(
-        `.llm-shortcut-btn[data-shortcut-id="${shortcutId}"]`,
-      ) as HTMLButtonElement | null;
+      const target =
+        (Array.from(container.querySelectorAll(".llm-shortcut-btn")).find(
+          (el) => (el as HTMLElement).dataset.shortcutId === shortcutId,
+        ) as HTMLButtonElement | undefined) || null;
       const currentPrompt = target?.dataset.prompt || "";
       const currentLabel = target?.dataset.label || "";
       const updated = await openShortcutEditDialog(currentLabel, currentPrompt);
@@ -683,10 +689,15 @@ export async function renderShortcuts(
       if (menu.dataset.menuKind !== "panel") return;
       const shouldReset = await openResetShortcutsDialog();
       if (!shouldReset) {
-        menu.style.display = "none";
-        menu.dataset.menuKind = "";
-        menu.dataset.shortcutId = "";
-        menu.dataset.shortcutKind = "";
+        const liveMenu = body.querySelector(
+          "#llm-shortcut-menu",
+        ) as HTMLElement | null;
+        if (liveMenu) {
+          liveMenu.style.display = "none";
+          liveMenu.dataset.menuKind = "";
+          liveMenu.dataset.shortcutId = "";
+          liveMenu.dataset.shortcutKind = "";
+        }
         return;
       }
       resetShortcutsToDefault();
@@ -707,10 +718,15 @@ export async function renderShortcuts(
         const clickedShortcutButton = Boolean(
           targetEl?.closest(".llm-shortcut-btn"),
         );
-        menu.style.display = "none";
-        menu.dataset.menuKind = "";
-        menu.dataset.shortcutId = "";
-        menu.dataset.shortcutKind = "";
+        const liveMenu = body.querySelector(
+          "#llm-shortcut-menu",
+        ) as HTMLElement | null;
+        if (liveMenu) {
+          liveMenu.style.display = "none";
+          liveMenu.dataset.menuKind = "";
+          liveMenu.dataset.shortcutId = "";
+          liveMenu.dataset.shortcutKind = "";
+        }
         if (
           shortcutMoveModeState.get(body) === true &&
           !clickedShortcutButton

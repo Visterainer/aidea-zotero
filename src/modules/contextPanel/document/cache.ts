@@ -26,6 +26,23 @@ export type CacheExtractedDocumentTextOptions = {
   structure?: DocumentStructure;
 };
 
+const MAX_CACHED_DOCUMENTS = 30;
+
+function setCachedDocumentContext(
+  itemId: number,
+  context: DocumentTextContext,
+): void {
+  // Refresh LRU order on re-insert and cap resident full-text/embedding caches.
+  documentTextCache.delete(itemId);
+  documentTextCache.set(itemId, context);
+  while (documentTextCache.size > MAX_CACHED_DOCUMENTS) {
+    const oldest = documentTextCache.keys().next().value;
+    if (oldest === undefined) break;
+    documentTextCache.delete(oldest);
+    documentTextRetryAfterByItem.delete(oldest);
+  }
+}
+
 /**
  * Compatibility cache entry point used by the existing selection-translation
  * tests and callers. New adapter code should use ensureCachedDocumentContext.
@@ -43,7 +60,8 @@ export function cacheExtractedDocumentText(
     kind: options.kind,
     capabilities: adapter?.capabilities,
     completeness:
-      options.completeness || (documentText ? "complete" : "unavailable"),
+      options.completeness ||
+      (documentText.trim() ? "complete" : "unavailable"),
     warnings: options.warnings,
     fingerprint: options.fingerprint,
     sourceRevision: options.sourceRevision,
@@ -51,7 +69,7 @@ export function cacheExtractedDocumentText(
     sourceSegments: options.sourceSegments,
     structure: options.structure,
   });
-  documentTextCache.set(item.id, context);
+  setCachedDocumentContext(item.id, context);
   return context;
 }
 
@@ -112,7 +130,7 @@ export async function ensureCachedDocumentContext(
           structure: extraction.structure,
         },
       );
-      if (extraction.text) {
+      if (extraction.text.trim()) {
         documentTextRetryAfterByItem.delete(document.item.id);
       } else if (adapter.emptyCacheRetryDelayMs) {
         documentTextRetryAfterByItem.set(

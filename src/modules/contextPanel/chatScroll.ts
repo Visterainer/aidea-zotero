@@ -47,18 +47,29 @@ const followBottomStabilizers = new Map<
  * mutations that resize the chat flex container) from corrupting the
  * saved scroll position.
  */
-let _scrollUpdatesSuspended = false;
+let _scrollSuspendDepth = 0;
 
 export function isScrollUpdateSuspended(): boolean {
-  return _scrollUpdatesSuspended;
+  return _scrollSuspendDepth > 0;
 }
 
 export function suspendScrollUpdates(): void {
-  _scrollUpdatesSuspended = true;
+  _scrollSuspendDepth += 1;
 }
 
 export function resumeScrollUpdates(): void {
-  _scrollUpdatesSuspended = false;
+  _scrollSuspendDepth = Math.max(0, _scrollSuspendDepth - 1);
+}
+
+function scheduleScrollResume(chatBox?: Element | null): void {
+  // Programmatic scroll events fire on the next animation frame in Gecko,
+  // strictly after microtasks drain. Fall back to microtask in headless tests.
+  const win = chatBox?.ownerDocument?.defaultView;
+  if (typeof win?.requestAnimationFrame === "function") {
+    win.requestAnimationFrame(() => resumeScrollUpdates());
+  } else {
+    Promise.resolve().then(resumeScrollUpdates);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -122,15 +133,13 @@ export function applyChatScrollSnapshot(
   chatBox: HTMLDivElement,
   snapshot: ChatScrollSnapshot,
 ): void {
-  _scrollUpdatesSuspended = true;
+  suspendScrollUpdates();
   if (snapshot.mode === "followBottom") {
     chatBox.scrollTop = chatBox.scrollHeight;
   } else {
     chatBox.scrollTop = clampScrollTop(chatBox, snapshot.scrollTop);
   }
-  Promise.resolve().then(() => {
-    _scrollUpdatesSuspended = false;
-  });
+  scheduleScrollResume(chatBox);
 }
 
 export function getChatScrollSnapshot(
@@ -165,7 +174,7 @@ export function withScrollGuard(
   const savedScrollTop = chatBox.scrollTop;
   const savedMaxScrollTop = getMaxScrollTop(chatBox);
 
-  _scrollUpdatesSuspended = true;
+  suspendScrollUpdates();
   try {
     fn();
   } finally {
@@ -184,9 +193,7 @@ export function withScrollGuard(
     if (isChatViewportVisible(chatBox)) {
       persistChatScrollSnapshotByKey(conversationKey, chatBox);
     }
-    Promise.resolve().then(() => {
-      _scrollUpdatesSuspended = false;
-    });
+    scheduleScrollResume(chatBox);
   }
 }
 
@@ -243,12 +250,10 @@ export function scheduleFollowBottomStabilization(
     const snapshot = chatScrollSnapshots.get(conversationKey);
     if (!snapshot || snapshot.mode !== "followBottom") return;
     if (!isChatViewportVisible(chatBox)) return;
-    _scrollUpdatesSuspended = true;
+    suspendScrollUpdates();
     chatBox.scrollTop = chatBox.scrollHeight;
     persistChatScrollSnapshotByKey(conversationKey, chatBox);
-    Promise.resolve().then(() => {
-      _scrollUpdatesSuspended = false;
-    });
+    scheduleScrollResume(chatBox);
   };
 
   clearFollowBottomStabilization();

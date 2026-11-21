@@ -225,11 +225,27 @@ export function createHeightSync(
 
       frozenH2 = h2;
       settingMode = true;
+      // If the panel has not been laid out yet, hide bottomWrapper without
+      // writing bogus tiny inline heights (e.g. "3px") that ResizeObserver
+      // would later mistake for a user drag and broadcast to every panel.
+      if (!h1 && !h2) {
+        bottomWrapper.style.display = "none";
+        return;
+      }
       applyCurrentModeHeights();
     },
 
     switchToDiscussion() {
+      const wasSetting = settingMode;
       settingMode = false;
+      if (
+        !wasSetting &&
+        !hasExplicitHeight(contentWrapper) &&
+        !hasExplicitHeight(bottomWrapper)
+      ) {
+        bottomWrapper.style.display = "";
+        return;
+      }
       h1 = Math.max(200, Math.round(h1));
       applyCurrentModeHeights();
     },
@@ -244,6 +260,31 @@ export function createHeightSync(
   };
 }
 
+type DisposablePanelElement = Element & {
+  __llmDisposeController?: AbortController;
+};
+
+/**
+ * Shared AbortSignal tied to a panel host's lifetime. Pass it to document or
+ * window listeners so closing a reader tab or unloading the plugin detaches
+ * them automatically.
+ */
+export function getPanelDisposeSignal(
+  el: Element | null | undefined,
+): AbortSignal | undefined {
+  if (!el || typeof AbortController === "undefined") return undefined;
+  const host = (el.closest?.(
+    "#llm-reader-panel-host, #llm-library-panel-host",
+  ) || el) as DisposablePanelElement;
+  if (
+    !host.__llmDisposeController ||
+    host.__llmDisposeController.signal.aborted
+  ) {
+    host.__llmDisposeController = new AbortController();
+  }
+  return host.__llmDisposeController.signal;
+}
+
 /**
  * Tear down what setupHandlers attached to a cached panel. The hooks are
  * stored on the #llm-main root (plus one on the host), so looking them up on
@@ -253,16 +294,20 @@ export function disposePanelHostRuntime(host: Element | null | undefined) {
   if (!host) return;
   // Lets document-level listeners owned by this panel detach themselves.
   (host as HTMLElement).dataset.llmDisposed = "1";
-  type Hooks = {
+  type Hooks = DisposablePanelElement & {
     __llmHeightSync?: { dispose?: () => void } | null;
     __llmSelectionPopupCleanup?: () => void;
     __llmResponsiveResizeCleanup?: () => void;
   };
   const targets = [host, host.querySelector?.("#llm-main")].filter(
     Boolean,
-  ) as Array<Element & Hooks>;
+  ) as Array<Hooks>;
   for (const target of targets) {
     for (const run of [
+      () => {
+        target.__llmDisposeController?.abort();
+        delete target.__llmDisposeController;
+      },
       () => target.__llmHeightSync?.dispose?.(),
       () => target.__llmSelectionPopupCleanup?.(),
       () => target.__llmResponsiveResizeCleanup?.(),

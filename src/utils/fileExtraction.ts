@@ -113,6 +113,7 @@ export async function extractTextFromPdfPath(
           collections: [],
         });
         if (importedItem) {
+          let erased = false;
           try {
             const result = await PDFWorker.getFullText(importedItem.id);
             const text = typeof result === "string" ? result : result?.text;
@@ -122,16 +123,17 @@ export async function extractTextFromPdfPath(
               );
               // Clean up the temporary item
               await importedItem.eraseTx();
+              erased = true;
               return text.slice(0, PDF_TEXT_MAX_CHARS);
             }
           } finally {
-            // Always clean up even if extraction failed
-            try {
-              if (!importedItem.deleted) {
+            // Always clean up once even if extraction failed
+            if (!erased) {
+              try {
                 await importedItem.eraseTx();
+              } catch {
+                /* ignore cleanup errors */
               }
-            } catch {
-              /* ignore cleanup errors */
             }
           }
         }
@@ -221,25 +223,47 @@ export async function extractTextFromPdfBuffer_fallback(
       data: new Uint8Array(buffer),
       useSystemFonts: true,
     });
-    const pdfDoc = await loadingTask.promise;
-    const pageTexts: string[] = [];
-    let totalChars = 0;
+    let pdfDoc: any = null;
+    try {
+      pdfDoc = await loadingTask.promise;
+      const pageTexts: string[] = [];
+      let totalChars = 0;
 
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-      if (totalChars >= PDF_TEXT_MAX_CHARS) break;
-      const page = await pdfDoc.getPage(pageNum);
-      const content = await page.getTextContent();
-      const pageText = content.items
-        .map((item: any) => item.str || "")
-        .join(" ")
-        .trim();
-      if (pageText) {
-        pageTexts.push(pageText);
-        totalChars += pageText.length;
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        if (totalChars >= PDF_TEXT_MAX_CHARS) break;
+        const page = await pdfDoc.getPage(pageNum);
+        try {
+          const content = await page.getTextContent();
+          const pageText = content.items
+            .map((item: any) => item.str || "")
+            .join(" ")
+            .trim();
+          if (pageText) {
+            pageTexts.push(pageText);
+            totalChars += pageText.length;
+          }
+        } finally {
+          try {
+            page.cleanup?.();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const result = pageTexts.join("\n\n").slice(0, PDF_TEXT_MAX_CHARS);
+      return result || undefined;
+    } finally {
+      try {
+        await pdfDoc?.destroy?.();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await loadingTask?.destroy?.();
+      } catch {
+        /* ignore */
       }
     }
-    const result = pageTexts.join("\n\n").slice(0, PDF_TEXT_MAX_CHARS);
-    return result || undefined;
   } catch (err) {
     ztoolkit.log("LLM: PDF fallback text extraction failed", err);
     return undefined;

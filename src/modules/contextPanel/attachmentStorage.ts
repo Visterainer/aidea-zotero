@@ -89,7 +89,10 @@ function sanitizeFileName(name: string): string {
     return code < 32 || code === 127 ? "_" : ch;
   }).join("");
   const sanitized = withoutControlChars.replace(/\s+/g, " ").trim();
-  return sanitized || "attachment";
+  if (!sanitized || sanitized === "." || sanitized === "..") {
+    return "attachment";
+  }
+  return sanitized;
 }
 
 function splitFileName(name: string): { stem: string; ext: string } {
@@ -295,7 +298,10 @@ async function ensureBlobTable(): Promise<void> {
           created_at INTEGER NOT NULL
         )`,
       );
-    })();
+    })().catch((err) => {
+      blobTableInitTask = null;
+      throw err;
+    });
   }
   await blobTableInitTask;
 }
@@ -358,14 +364,18 @@ export async function writeGeneratedImageFileToDirectory(
 export function extractManagedBlobHash(storedPath: string | undefined): string {
   const raw = (storedPath || "").trim();
   if (!raw) return "";
-  const normalized = raw.replace(/\\/g, "/");
-  const root = getChatAttachmentsRootDir()
-    .replace(/\\/g, "/")
-    .replace(/\/+$/, "");
+  const normalizeDrive = (p: string) =>
+    p.replace(/^([A-Z]):\//, (_, d: string) => `${d.toLowerCase()}:/`);
+  const normalized = normalizeDrive(raw.replace(/\\/g, "/"));
+  const root = normalizeDrive(
+    getChatAttachmentsRootDir().replace(/\\/g, "/").replace(/\/+$/, ""),
+  );
   const prefix = `${root}/blobs/`;
   if (!normalized.startsWith(prefix)) return "";
   const rest = normalized.slice(prefix.length);
-  const hash = rest.split("/")[0] || "";
+  const segments = rest.split("/");
+  if (segments.some((seg) => seg === "..")) return "";
+  const hash = segments[0] || "";
   return normalizeHash(hash) || "";
 }
 

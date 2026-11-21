@@ -900,6 +900,77 @@ print("\n=== loopback proxy access control and SSE framing ===")
 from proxy_security_cases import run_proxy_security_tests
 run_proxy_security_tests(assert_eq)
 
+print("\n=== audit review regressions ===")
+assert_eq(parse_progress("2026/11 date line"), None, "rejects current > total ratios")
+assert_eq(parse_progress("Processing page 12/10"), None, "rejects page overflow ratio")
+
+# _forward_openai_compatible forces stream=False upstream
+captured_stream_payloads = []
+orig_post_retry2 = bridge._http_post_json_with_retry
+try:
+    def capture_stream_post(url, payload, headers, timeout=300, **_kwargs):
+        captured_stream_payloads.append(dict(payload))
+        return json.dumps({"choices": [{"message": {"content": "translated"}}]})
+    bridge._http_post_json_with_retry = capture_stream_post
+    stream_proxy = OAuthCompatProxyServer({
+        "provider": "openai-compatible",
+        "apiBase": "https://example.test/v1",
+    })
+    assert_eq(
+        stream_proxy.handle_chat_completion({
+            "model": "gpt-4.1",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        }),
+        "translated",
+        "openai-compatible proxy returns text when caller sends stream=True",
+    )
+    assert_eq(captured_stream_payloads[-1].get("stream"), False, "forces stream=False upstream")
+finally:
+    bridge._http_post_json_with_retry = orig_post_retry2
+
+# Loopback HTTP proxy propagates upstream 401/403/429 instead of 500
+import urllib.request
+import urllib.error
+for expected_status in (401, 403, 429):
+    orig_post_retry3 = bridge._http_post_json_with_retry
+    err_proxy = OAuthCompatProxyServer({
+        "provider": "openai-compatible",
+        "apiBase": "https://example.test/v1",
+    })
+    err_proxy.start()
+    try:
+        def fail_upstream(_url, _payload, _headers, timeout=300, **_kwargs):
+            raise RuntimeError(f"HTTP {expected_status} from https://example.test: denied")
+        bridge._http_post_json_with_retry = fail_upstream
+        req = urllib.request.Request(
+            f"{err_proxy.base_url}/chat/completions",
+            data=json.dumps({"model": "gpt-4.1", "messages": [{"role": "user", "content": "hi"}]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        got_status = 0
+        try:
+            urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as http_err:
+            got_status = http_err.code
+        assert_eq(got_status, expected_status, f"proxy propagates upstream HTTP {expected_status}")
+    finally:
+        bridge._http_post_json_with_retry = orig_post_retry3
+        err_proxy.stop()
+
+# _translate_overlay_text respects non-Chinese target_lang
+overlay_prompts = []
+class _OverlayStubProxy:
+    def handle_chat_completion(self, payload):
+        overlay_prompts.append(payload["messages"][1]["content"])
+        return "Translated Title"
+
+bridge._translate_overlay_text(_OverlayStubProxy(), "gpt-4.1", "en", "ja", "Sample Title", {}, "title")
+assert_eq("ja" in overlay_prompts[-1] and "Chinese" not in overlay_prompts[-1], True, "title overlay prompt uses target_lang instead of hardcoded Chinese")
+bridge._translate_overlay_text(_OverlayStubProxy(), "gpt-4.1", "en", "fr", "Sample Figure", {}, "figure")
+assert_eq("fr" in overlay_prompts[-1] and "Chinese" not in overlay_prompts[-1], True, "figure overlay prompt uses target_lang instead of hardcoded Chinese")
+
 print(f"\n{'=' * 40}")
 print(f"Results: {passed} passed, {failed} failed")
 if failed > 0:

@@ -23,7 +23,7 @@ async function extractPdfText(item: Zotero.Item): Promise<DocumentExtraction> {
   let incomplete = false;
   try {
     const result = await Zotero.PDFWorker.getFullText(item.id);
-    if (result?.text) {
+    if (result?.text && result.text.trim()) {
       text = result.text;
       segments = extractPdfPageSegments(
         text,
@@ -39,7 +39,11 @@ async function extractPdfText(item: Zotero.Item): Promise<DocumentExtraction> {
   return {
     text,
     segments,
-    completeness: text ? (incomplete ? "partial" : "complete") : "unavailable",
+    completeness: text.trim()
+      ? incomplete
+        ? "partial"
+        : "complete"
+      : "unavailable",
   };
 }
 

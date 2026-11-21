@@ -1,5 +1,7 @@
 import {
+  clearReboundPaperKeys,
   ensureChatTransferSchema,
+  forgetReboundPaperKey,
   reconcileTransferredConversations,
 } from "./chatTransfer";
 import type {
@@ -1824,6 +1826,7 @@ export async function deleteGlobalConversation(
     );
     await deleteTransferSourceRows([normalizedKey]);
   });
+  forgetReboundPaperKey(normalizedKey);
 }
 
 export async function deleteAllGlobalConversationsByLibrary(
@@ -1952,7 +1955,16 @@ async function clearStoredHistoryAndNotify(): Promise<void> {
     if (hasMemories) {
       await Zotero.DB.queryAsync("DELETE FROM zotero_ai_memories");
     }
+    const hasAttachmentRefs = await Zotero.DB.valueQueryAsync(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='zotero_ai_attachment_refs'",
+    );
+    if (hasAttachmentRefs) {
+      await Zotero.DB.queryAsync(
+        "DELETE FROM zotero_ai_attachment_refs WHERE owner_type = 'conversation'",
+      );
+    }
   });
+  clearReboundPaperKeys();
   for (const listener of chatHistoryClearedListeners) {
     try {
       listener();
@@ -2010,17 +2022,23 @@ export async function listPaperConversations(
   const normalizedParent = Math.floor(parentItemId);
   const normalizedLimit = normalizeLimit(limit, 10);
 
-  // Use columnQueryAsync to get conversation keys — avoids Proxy-wrapped row
-  // issues that cause queryAsync to return undefined for this table.
+  // Sort by lastActivityAt (latest message timestamp or created_at) BEFORE
+  // applying LIMIT so an older conversation with recent messages is not cut off.
+  // Keep columnQueryAsync to avoid Proxy-wrapped row issues on this table.
   const keys = (await Zotero.DB.columnQueryAsync(
-    `SELECT conversation_key
-     FROM ${PAPER_CONVERSATIONS_TABLE}
-     WHERE parent_item_id = ?
+    `SELECT p.conversation_key
+     FROM ${PAPER_CONVERSATIONS_TABLE} p
+     LEFT JOIN (
+       SELECT conversation_key, MAX(timestamp) AS last_ts
+       FROM ${CHAT_MESSAGES_TABLE}
+       GROUP BY conversation_key
+     ) m ON m.conversation_key = p.conversation_key
+     WHERE p.parent_item_id = ?
      ORDER BY ${
        // Pinned rows must survive the LIMIT, or pinning an old conversation
        // makes it vanish from the history list instead of floating up.
-       options?.ignorePinned ? "" : "is_pinned DESC, "
-     }created_at DESC, conversation_key DESC
+       options?.ignorePinned ? "" : "p.is_pinned DESC, "
+     }COALESCE(m.last_ts, p.created_at) DESC, p.conversation_key DESC
      LIMIT ?`,
     [normalizedParent, normalizedLimit],
   )) as number[] | false;
@@ -2103,6 +2121,7 @@ export async function deletePaperConversation(
     );
     await deleteTransferSourceRows([normalizedKey]);
   });
+  forgetReboundPaperKey(normalizedKey);
 }
 
 export async function touchPaperConversationTitle(

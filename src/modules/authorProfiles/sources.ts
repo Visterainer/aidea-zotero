@@ -37,10 +37,22 @@ function sourceFail(name: SourceResult["name"], detail: string): SourceResult {
   return { name, ok: false, detail };
 }
 
+function makeAbortError(): Error {
+  const err = new Error("Aborted");
+  err.name = "AbortError";
+  return err;
+}
+
+function hasWholeWordMatch(normalizedHaystack: string, key: string): boolean {
+  if (!key) return false;
+  return ` ${normalizedHaystack} `.includes(` ${key} `);
+}
+
 async function fetchTextWithTimeout(
   url: string,
   signal?: AbortSignal,
 ): Promise<string> {
+  if (signal?.aborted) throw makeAbortError();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   const abort = () => controller.abort();
@@ -148,6 +160,7 @@ export async function fetchCrossrefAuthors(
       ),
     };
   } catch (err) {
+    if (signal?.aborted) throw err;
     return {
       authors: [],
       snippets: [],
@@ -256,6 +269,7 @@ export async function fetchOpenAlexAuthors(
       result: sourceOk("OpenAlex", `${authors.length} authorship records`),
     };
   } catch (err) {
+    if (signal?.aborted) throw err;
     return {
       authors: [],
       snippets: [],
@@ -347,6 +361,7 @@ export async function fetchSemanticScholarAuthors(
       ),
     };
   } catch (err) {
+    if (signal?.aborted) throw err;
     return {
       authors: [],
       snippets: [],
@@ -439,22 +454,30 @@ export async function fetchPubMedCentralAuthors(
     const snippets = extractCorrespondenceNotes(doc);
     for (const snippet of snippets) {
       const normalizedSnippet = normalizeName(snippet);
-      for (const author of authors) {
-        if (!author) continue;
+      const exactMatches = authors.filter((author) => {
         const authorKey = normalizeName(author.name);
-        const familyKey = lastNameKey(author.name);
-        if (
-          (authorKey && normalizedSnippet.includes(authorKey)) ||
-          (familyKey && normalizedSnippet.includes(familyKey))
-        ) {
-          mergeIntoAuthor(author, {
-            isCorresponding: true,
-            correspondenceSources: ["PubMed Central"],
-            evidence: [
-              `PMC correspondence note: ${truncateText(snippet, 220)}`,
-            ],
-          });
-        }
+        return Boolean(
+          authorKey && hasWholeWordMatch(normalizedSnippet, authorKey),
+        );
+      });
+      const matchedAuthors = exactMatches.length
+        ? exactMatches
+        : (() => {
+            const familyMatches = authors.filter((author) => {
+              const familyKey = lastNameKey(author.name);
+              return (
+                familyKey.length >= 3 &&
+                hasWholeWordMatch(normalizedSnippet, familyKey)
+              );
+            });
+            return familyMatches.length === 1 ? familyMatches : [];
+          })();
+      for (const author of matchedAuthors) {
+        mergeIntoAuthor(author, {
+          isCorresponding: true,
+          correspondenceSources: ["PubMed Central"],
+          evidence: [`PMC correspondence note: ${truncateText(snippet, 220)}`],
+        });
       }
     }
     return {
@@ -466,6 +489,7 @@ export async function fetchPubMedCentralAuthors(
       ),
     };
   } catch (err) {
+    if (signal?.aborted) throw err;
     return {
       authors: [],
       snippets: [],

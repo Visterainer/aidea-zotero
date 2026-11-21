@@ -219,7 +219,7 @@ def parse_progress(line):
     m = PROGRESS_PATTERNS[0].search(progress_text)
     if m:
         current, total = int(m.group(1)), int(m.group(2))
-        if total > 0:
+        if total > 0 and 0 <= current <= total:
             pct = min(round(current / total * 100), 100)
             return current, total, pct
 
@@ -768,6 +768,12 @@ OVERLAY_FONT_CANDIDATES = [
     os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyh.ttf"),
     os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "simsun.ttc"),
     os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "simhei.ttf"),
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
 ]
 FORMULAISH_TEXT_RE = re.compile(
     r"(?:\bsoftmax\b|\bffn\b|\bsin\b|\bcos\b|[=^_{}\\]|[A-Z]\s*\()",
@@ -1072,12 +1078,12 @@ def _translate_overlay_text(proxy, model_id, source_lang, target_lang, text, cac
     if candidate_kind == "title":
         prompt = (
             f"Translate the following academic paper title from {source_lang} into {target_lang}. "
-            "Do not keep the English title. Return only the Chinese title."
+            f"Do not keep the {source_lang} title. Return only the translated title in {target_lang}."
         )
     elif candidate_kind == "figure":
         prompt = (
             f"Translate the following figure text from {source_lang} into {target_lang}. "
-            "Return only the translated sentence in natural Chinese."
+            f"Return only the translated sentence in natural {target_lang}."
         )
     translated = proxy.handle_chat_completion({
         "model": model_id,
@@ -1104,23 +1110,43 @@ def _paint_overlay_translation(page, bbox, translated_text, align=0):
     rect.y0 -= 1
     rect.y1 += 1
     font_kwargs = _build_overlay_textbox_kwargs(translated_text)
-    page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
-    fontsize = min(max(rect.height * 0.45, 8.5), 16)
-    while fontsize >= 6.0:
-        result = page.insert_textbox(
-            rect,
-            translated_text,
-            fontsize=fontsize,
-            color=(0, 0, 0),
-            align=align,
-            lineheight=1.0,
-            overlay=True,
-            **font_kwargs,
+    # Find a fitting font size on a scratch page before painting the white
+    # cover rect, so overflow never leaves a blank white hole on the PDF.
+    fit_fontsize = None
+    with fitz.open() as probe_doc:
+        probe_page = probe_doc.new_page(
+            width=max(rect.x1 + 10, 100),
+            height=max(rect.y1 + 10, 100),
         )
-        if result >= 0:
-            return True
-        fontsize -= 0.5
-    return False
+        fontsize = min(max(rect.height * 0.45, 8.5), 16)
+        while fontsize >= 6.0:
+            result = probe_page.insert_textbox(
+                rect,
+                translated_text,
+                fontsize=fontsize,
+                color=(0, 0, 0),
+                align=align,
+                lineheight=1.0,
+                **font_kwargs,
+            )
+            if result >= 0:
+                fit_fontsize = fontsize
+                break
+            fontsize -= 0.5
+    if fit_fontsize is None:
+        return False
+    page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
+    result = page.insert_textbox(
+        rect,
+        translated_text,
+        fontsize=fit_fontsize,
+        color=(0, 0, 0),
+        align=align,
+        lineheight=1.0,
+        overlay=True,
+        **font_kwargs,
+    )
+    return result >= 0
 
 
 def _collect_output_files(output_dir, pdf_path, baseline=None):
@@ -2146,6 +2172,7 @@ class OAuthCompatProxyServer:
         self._debug_json_error_count = 0
         self._debug_json_dedupe_count = 0
         self._debug_plain_dedupe_count = 0
+        self._state_lock = threading.Lock()
         self._unsupported_minimax_reasoning_split = set()
         self._codex_reasoning_rejected = False
         self._api_reasoning_rejected = set()
@@ -2308,7 +2335,16 @@ class OAuthCompatProxyServer:
                 except ValueError as err:
                     self._send_json(400, {"error": {"message": str(err)}})
                 except Exception as err:
-                    self._send_json(500, {"error": {"message": str(err)}})
+                    # Propagate upstream terminal client/rate-limit statuses so
+                    # the OpenAI SDK does not endlessly retry 401/403/400 as 500.
+                    status_match = re.search(r"\bHTTP\s+(\d{3})\b", str(err))
+                    upstream_status = int(status_match.group(1)) if status_match else 500
+                    reply_status = (
+                        upstream_status
+                        if upstream_status in (400, 401, 403, 404, 422, 429)
+                        else 500
+                    )
+                    self._send_json(reply_status, {"error": {"message": str(err)}})
 
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = int(self.httpd.server_address[1])
@@ -2357,13 +2393,15 @@ class OAuthCompatProxyServer:
                 if policy.recover(exc, request_payload):
                     continue
                 if reasoning_wire in request_payload and _is_api_reasoning_rejection(exc, reasoning_wire):
-                    self._api_reasoning_rejected.add(str(payload.get("model", "")))
+                    with self._state_lock:
+                        self._api_reasoning_rejected.add(str(payload.get("model", "")))
                     request_payload.pop(reasoning_wire, None)
                     continue
                 if (minimax_key is not None and not removed_reasoning_split
                         and "reasoning_split" in request_payload
                         and _is_minimax_reasoning_split_rejection(exc)):
-                    self._unsupported_minimax_reasoning_split.add(minimax_key)
+                    with self._state_lock:
+                        self._unsupported_minimax_reasoning_split.add(minimax_key)
                     request_payload.pop("reasoning_split", None)
                     removed_reasoning_split = True
                     continue
@@ -2393,12 +2431,17 @@ class OAuthCompatProxyServer:
             "/chat/completions",
         )
         request_payload = dict(payload)
+        # Proxy parses JSON from upstream and synthesizes SSE for streaming callers.
+        request_payload["stream"] = False
         effort = str(self.proxy_cfg.get("reasoningEffort") or "").strip()
         wire = self.proxy_cfg.get("reasoningWire")
-        if effort and wire in ("reasoning_effort", "reasoning", "verbosity") and model not in self._api_reasoning_rejected:
+        with self._state_lock:
+            reasoning_rejected = model in self._api_reasoning_rejected
+            minimax_rejected = capability_key in self._unsupported_minimax_reasoning_split
+        if effort and wire in ("reasoning_effort", "reasoning", "verbosity") and not reasoning_rejected:
             request_payload[wire] = {"effort": effort} if wire == "reasoning" else effort
         if _is_official_minimax_reasoning_model(base_url, model):
-            if capability_key in self._unsupported_minimax_reasoning_split:
+            if minimax_rejected:
                 request_payload.pop("reasoning_split", None)
             else:
                 request_payload["reasoning_split"] = True
@@ -2451,7 +2494,9 @@ class OAuthCompatProxyServer:
             "stream": True,
         }
         reasoning_effort = str(self.proxy_cfg.get("reasoningEffort") or "").strip()
-        if reasoning_effort and not self._codex_reasoning_rejected:
+        with self._state_lock:
+            codex_rejected = self._codex_reasoning_rejected
+        if reasoning_effort and not codex_rejected:
             req_body["reasoning"] = {"effort": reasoning_effort}
         if request_json_mode and input_mentions_json and not prompt_requests_json_array:
             req_body["text"] = {"format": {"type": "json_object"}}
@@ -2504,7 +2549,8 @@ class OAuthCompatProxyServer:
             )
             # Only a retry that succeeds proves the effort was the cause; an
             # unrelated 400 must not drop the effort for the rest of the task.
-            self._codex_reasoning_rejected = True
+            with self._state_lock:
+                self._codex_reasoning_rejected = True
         text = _extract_codex_output_text_from_sse(raw)
         if not text.strip():
             try:
@@ -2763,11 +2809,14 @@ def main():
         progress_dir = os.path.dirname(progress_file) or tempfile.gettempdir()
         log_file = os.path.join(progress_dir, "bridge.log")
 
+    log_lock = threading.Lock()
+
     def log_line(message):
         try:
             text = _sanitize_log_line(message)
-            with open(log_file, "a", encoding="utf-8", errors="replace") as lf:
-                lf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {text}\n")
+            with log_lock:
+                with open(log_file, "a", encoding="utf-8", errors="replace") as lf:
+                    lf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {text}\n")
         except Exception:
             pass
 

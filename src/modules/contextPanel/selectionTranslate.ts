@@ -520,7 +520,15 @@ export async function translateSelectedTextForReader(params: {
   item: Zotero.Item;
   selectedText: string;
   callbacks?: SelectionTranslateCallbacks;
+  signal?: AbortSignal;
 }): Promise<SelectionTranslateResult> {
+  const throwIfAborted = () => {
+    if (!params.signal?.aborted) return;
+    const err = new Error("Selection translation cancelled");
+    err.name = "AbortError";
+    throw err;
+  };
+  throwIfAborted();
   const prefs = getSelectionTranslatePrefs();
   if (!prefs.enabled) {
     throw new Error("Selection translation is disabled");
@@ -543,6 +551,7 @@ export async function translateSelectedTextForReader(params: {
   }
 
   const documentContext = await ensureDocumentContext(document);
+  throwIfAborted();
   const adapter = getDocumentAdapter(document.kind);
   const selectionPolicy = adapter?.selectionContextPolicy;
   let contextText = "";
@@ -559,6 +568,7 @@ export async function translateSelectedTextForReader(params: {
           anchorText: selectedText,
           maxChunks: selectionPolicy.maxChunks,
           maxLength: selectionPolicy.maxLength,
+          signal: params.signal,
         },
       );
       if (contextText) contextMode = "retrieved-document";
@@ -576,11 +586,14 @@ export async function translateSelectedTextForReader(params: {
       }
     }
   }
+  throwIfAborted();
 
   params.callbacks?.onStage?.(
     contextMode === "no-context" ? "no-context" : "translate",
   );
-  const translation = normalizeCacheText(
+  // Do not clip the user-facing translation with COLD_START_CACHE_TEXT_LIMIT
+  // (8000 chars); preserve the full translated output.
+  const translation = (
     await callLLMStream(
       {
         systemPrompt: SELECTION_TRANSLATION_SYSTEM_PROMPT,
@@ -596,6 +609,7 @@ export async function translateSelectedTextForReader(params: {
         apiKey: modelConfig.apiKey,
         temperature: 0.2,
         maxTokens: 1200,
+        signal: params.signal,
         reasoningEffort: resolveRequestReasoningEffort(
           modelConfig.apiBase,
           modelConfig.model,
@@ -604,10 +618,14 @@ export async function translateSelectedTextForReader(params: {
         ),
       },
       (delta) => {
-        if (delta) params.callbacks?.onDelta?.(delta, prefs.targetLang);
+        if (delta && !params.signal?.aborted) {
+          params.callbacks?.onDelta?.(delta, prefs.targetLang);
+        }
       },
-    ),
-  );
+    )
+  )
+    .replace(/\r\n/g, "\n")
+    .trim();
   if (!translation) {
     throw new Error("Selection translation returned empty content");
   }

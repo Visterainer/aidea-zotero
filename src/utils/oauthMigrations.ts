@@ -45,14 +45,23 @@ function setPref(key: string, value: string): void {
   }
 }
 
-function isRemovedProvider(value: string): boolean {
+const GEMINI_MIGRATED_PREF = "geminiOAuthMigrated";
+
+function isRemovedProvider(
+  value: string,
+  includeLegacyAlias: boolean,
+): boolean {
   const normalized = value.trim().toLowerCase();
-  return normalized === REMOVED_PROVIDER || normalized === "gemini";
+  return (
+    normalized === REMOVED_PROVIDER ||
+    (includeLegacyAlias && normalized === "gemini")
+  );
 }
 
 /** Returns true when any pref had to change. */
 export function migrateRemovedGeminiOAuth(): boolean {
   let changed = false;
+  const alreadyMigrated = getPref(GEMINI_MIGRATED_PREF) === "1";
   for (const suffix of PROFILE_SUFFIXES) {
     if (getPref(`apiBase${suffix}`).trim() !== REMOVED_MARKER) continue;
     setPref(`apiBase${suffix}`, REPLACEMENT_MARKER);
@@ -79,7 +88,7 @@ export function migrateRemovedGeminiOAuth(): boolean {
     }
   }
   for (const key of PROVIDER_PREFS) {
-    if (!isRemovedProvider(getPref(key))) continue;
+    if (!isRemovedProvider(getPref(key), !alreadyMigrated)) continue;
     setPref(key, "");
     changed = true;
   }
@@ -87,6 +96,9 @@ export function migrateRemovedGeminiOAuth(): boolean {
     if (!getPref(key)) continue;
     setPref(key, "");
     changed = true;
+  }
+  if (!alreadyMigrated) {
+    setPref(GEMINI_MIGRATED_PREF, "1");
   }
   return changed;
 }

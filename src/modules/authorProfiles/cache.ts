@@ -25,9 +25,11 @@ function isAuthorProfileNote(note: Zotero.Item | null | undefined): boolean {
 async function getChildNotes(parentItem: Zotero.Item): Promise<Zotero.Item[]> {
   const out: Zotero.Item[] = [];
   const seen = new Set<number>();
+  let gotNotesViaApi = false;
   try {
     const noteIds = await (parentItem as any).getNotes?.();
     if (Array.isArray(noteIds)) {
+      gotNotesViaApi = true;
       for (const rawId of noteIds) {
         const id = Number(rawId);
         if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue;
@@ -40,7 +42,7 @@ async function getChildNotes(parentItem: Zotero.Item): Promise<Zotero.Item[]> {
     /* fall back to library scan */
   }
 
-  if (out.length) return out;
+  if (gotNotesViaApi) return out;
 
   try {
     const items = await Zotero.Items.getAll(
@@ -71,6 +73,15 @@ export async function hasAuthorProfileNote(
   return Boolean(await findAuthorProfileNote(parentItem));
 }
 
+function escapeNoteHtml(text: string): string {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildNoteHtml(result: AuthorProfileResult): string {
   const copy = getAuthorProfileCopy(result.language);
   const useCjkPunctuation = /^(zh|ja|ko)/i.test(result.language);
@@ -83,8 +94,8 @@ function buildNoteHtml(result: AuthorProfileResult): string {
   const sourceText = sourceNames || copy.defaultSource;
   const title = result.noteTitle || copy.noteTitle;
   const meta = [
-    `<p dir="${copy.dir}"><!-- ${NOTE_MARKER} --><strong>${title}</strong></p>`,
-    `<p dir="${copy.dir}"><small>AIdea ${copy.metaGeneratedAt}${colon}${result.generatedAt}${separator}${copy.metaModel}${colon}${result.model || "default"}${separator}${copy.metaSources}${colon}${sourceText}</small></p>`,
+    `<p dir="${copy.dir}"><!-- ${NOTE_MARKER} --><strong>${escapeNoteHtml(title)}</strong></p>`,
+    `<p dir="${copy.dir}"><small>AIdea ${escapeNoteHtml(copy.metaGeneratedAt)}${colon}${escapeNoteHtml(result.generatedAt)}${separator}${escapeNoteHtml(copy.metaModel)}${colon}${escapeNoteHtml(result.model || "default")}${separator}${escapeNoteHtml(copy.metaSources)}${colon}${escapeNoteHtml(sourceText)}</small></p>`,
     "<hr/>",
   ].join("");
   return `${meta}${normalizeRenderedHeadingLevel(renderMarkdownForNote(result.markdown))}`;

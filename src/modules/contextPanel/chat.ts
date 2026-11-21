@@ -1513,10 +1513,20 @@ export async function prepareChatRequest(params: {
         base: true,
       });
   }
+  const resolvedTargetItemIds = new Set<number>();
+  for (const target of targets) {
+    const resolvedDoc = resolveReaderDocument(target.item);
+    resolvedTargetItemIds.add(
+      resolvedDoc ? resolvedDoc.item.id : target.item.id,
+    );
+  }
   for (const ref of params.paperContexts) {
-    if (targets.some((t) => t.item.id === ref.contextItemId)) continue;
     const item = getZoteroItem(ref.contextItemId) || getZoteroItem(ref.itemId);
     if (!item) continue;
+    const resolvedDoc = resolveReaderDocument(item);
+    const canonicalId = resolvedDoc ? resolvedDoc.item.id : item.id;
+    if (resolvedTargetItemIds.has(canonicalId)) continue;
+    resolvedTargetItemIds.add(canonicalId);
     targets.push({ item });
     pool.supplementalContexts.set(ref.contextItemId, {
       ref,
@@ -2654,27 +2664,32 @@ async function runEditUserMessageAndRetry(
       -MAX_SELECTED_IMAGES,
     );
     let streamedAnswer = "";
-    const answer = await callLLMStream(
-      {
-        prompt: question,
-        context: combinedContext,
-        history: llmHistory,
-        signal: panelAbortController?.signal,
-        images: requestImages,
-        attachments: fileAttachments,
-        model: effectiveRequestConfig.model,
-        apiBase: effectiveRequestConfig.apiBase,
-        apiKey: effectiveRequestConfig.apiKey,
-        temperature: effectiveRequestConfig.advanced?.temperature,
-        maxTokens: effectiveRequestConfig.advanced?.maxTokens,
-        reasoningEffort: effectiveRequestConfig.reasoningEffort,
-      },
-      (delta) => {
-        streamedAnswer += sanitizeText(delta);
-        assistantMessage.text = streamedAnswer;
-        queueEditPatch();
-      },
-    );
+    let answer = "";
+    try {
+      answer = await callLLMStream(
+        {
+          prompt: question,
+          context: combinedContext,
+          history: llmHistory,
+          signal: panelAbortController?.signal,
+          images: requestImages,
+          attachments: fileAttachments,
+          model: effectiveRequestConfig.model,
+          apiBase: effectiveRequestConfig.apiBase,
+          apiKey: effectiveRequestConfig.apiKey,
+          temperature: effectiveRequestConfig.advanced?.temperature,
+          maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+          reasoningEffort: effectiveRequestConfig.reasoningEffort,
+        },
+        (delta) => {
+          streamedAnswer += sanitizeText(delta);
+          assistantMessage.text = streamedAnswer;
+          queueEditPatch();
+        },
+      );
+    } finally {
+      queueEditPatch.cancel();
+    }
 
     if (
       isPanelRequestCancelled(body, thisRequestId) ||
@@ -2962,27 +2977,32 @@ async function runRetryLatestAssistantResponse(
       -MAX_SELECTED_IMAGES,
     );
 
-    const answer = await callLLMStream(
-      {
-        prompt: question,
-        context: combinedContext,
-        history: llmHistory,
-        signal: panelAbortController?.signal,
-        images: requestImages,
-        attachments: fileAttachments,
-        model: effectiveRequestConfig.model,
-        apiBase: effectiveRequestConfig.apiBase,
-        apiKey: effectiveRequestConfig.apiKey,
-        temperature: effectiveRequestConfig.advanced?.temperature,
-        maxTokens: effectiveRequestConfig.advanced?.maxTokens,
-        reasoningEffort: effectiveRequestConfig.reasoningEffort,
-      },
-      (delta) => {
-        streamedAnswer += sanitizeText(delta);
-        assistantMessage.text = streamedAnswer;
-        queueRetryPatch();
-      },
-    );
+    let answer = "";
+    try {
+      answer = await callLLMStream(
+        {
+          prompt: question,
+          context: combinedContext,
+          history: llmHistory,
+          signal: panelAbortController?.signal,
+          images: requestImages,
+          attachments: fileAttachments,
+          model: effectiveRequestConfig.model,
+          apiBase: effectiveRequestConfig.apiBase,
+          apiKey: effectiveRequestConfig.apiKey,
+          temperature: effectiveRequestConfig.advanced?.temperature,
+          maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+          reasoningEffort: effectiveRequestConfig.reasoningEffort,
+        },
+        (delta) => {
+          streamedAnswer += sanitizeText(delta);
+          assistantMessage.text = streamedAnswer;
+          queueRetryPatch();
+        },
+      );
+    } finally {
+      queueRetryPatch.cancel();
+    }
 
     if (
       isPanelRequestCancelled(body, thisRequestId) ||
@@ -3312,26 +3332,31 @@ async function runSendQuestion(
       ...screenshotImagesForMessage,
     ].slice(-MAX_SELECTED_IMAGES);
 
-    const answer = await callLLMStream(
-      {
-        prompt: question,
-        context: combinedContext,
-        history: llmHistory,
-        signal: panelAbortController?.signal,
-        images: requestImages,
-        attachments: requestFileAttachments,
-        model: effectiveRequestConfig.model,
-        apiBase: effectiveRequestConfig.apiBase,
-        apiKey: effectiveRequestConfig.apiKey,
-        temperature: effectiveRequestConfig.advanced?.temperature,
-        maxTokens: effectiveRequestConfig.advanced?.maxTokens,
-        reasoningEffort: effectiveRequestConfig.reasoningEffort,
-      },
-      (delta) => {
-        assistantMessage.text += sanitizeText(delta);
-        queueStreamingPatch();
-      },
-    );
+    let answer = "";
+    try {
+      answer = await callLLMStream(
+        {
+          prompt: question,
+          context: combinedContext,
+          history: llmHistory,
+          signal: panelAbortController?.signal,
+          images: requestImages,
+          attachments: requestFileAttachments,
+          model: effectiveRequestConfig.model,
+          apiBase: effectiveRequestConfig.apiBase,
+          apiKey: effectiveRequestConfig.apiKey,
+          temperature: effectiveRequestConfig.advanced?.temperature,
+          maxTokens: effectiveRequestConfig.advanced?.maxTokens,
+          reasoningEffort: effectiveRequestConfig.reasoningEffort,
+        },
+        (delta) => {
+          assistantMessage.text += sanitizeText(delta);
+          queueStreamingPatch();
+        },
+      );
+    } finally {
+      queueStreamingPatch.cancel();
+    }
 
     if (
       isPanelRequestCancelled(body, thisRequestId) ||

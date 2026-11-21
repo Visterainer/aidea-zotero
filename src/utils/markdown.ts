@@ -108,7 +108,7 @@ const SAFE_LINK_SCHEMES = new Set([
   "zotero",
   "aidea-cite",
 ]);
-const SAFE_IMAGE_SCHEMES = new Set(["http", "https", "file"]);
+const SAFE_IMAGE_SCHEMES = new Set(["http", "https"]);
 
 /** Lower-cased URL scheme, or "" for a relative/fragment reference. */
 function getUrlScheme(url: string): string {
@@ -126,7 +126,9 @@ function isSafeLinkUrl(url: string): boolean {
 
 function isSafeImageUrl(url: string): boolean {
   const scheme = getUrlScheme(url);
-  if (scheme === "data") return /^\s*data:image\//i.test(url);
+  if (scheme === "data") {
+    return /^\s*data:image\/(?!svg\+xml\b)[a-z0-9.+-]+/i.test(url);
+  }
   return !scheme || SAFE_IMAGE_SCHEMES.has(scheme);
 }
 
@@ -327,15 +329,8 @@ function isDelimiterBalanced(text: string, delimiter: string): boolean {
   return countOccurrences(text, delimiter) % 2 === 0;
 }
 
-/** Check if code block delimiters are balanced */
-function hasBalancedCodeBlocks(text: string): boolean {
-  return countOccurrences(text, "```") % 2 === 0;
-}
-
 /** Check if inline delimiters are balanced (for $, `, **, etc.) */
 function hasBalancedInlineDelimiter(text: string, delimiter: string): boolean {
-  // For single-char delimiters, count them
-  // For multi-char like **, count occurrences
   return isDelimiterBalanced(text, delimiter);
 }
 
@@ -346,10 +341,9 @@ function hasBalancedInlineDelimiter(text: string, delimiter: string): boolean {
 /** Split text into independent blocks for isolated rendering */
 function splitIntoBlocks(text: string): TextBlock[] {
   const blocks: TextBlock[] = [];
-  const remaining = text;
 
-  // First, extract fenced code blocks (they're atomic)
-  const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
+  // First, extract completed fenced code blocks (they're atomic)
+  const codeBlockRegex = /```([^\s`]*)\n?([\s\S]*?)```/g;
   const codeBlockMatches: {
     match: string;
     index: number;
@@ -367,20 +361,13 @@ function splitIntoBlocks(text: string): TextBlock[] {
     });
   }
 
-  // If we have unbalanced code blocks, treat entire text as one paragraph
-  if (!hasBalancedCodeBlocks(text)) {
-    return [{ type: "paragraph", content: text, raw: text }];
-  }
-
-  // Split around code blocks
+  // Split around completed code blocks
   let lastEnd = 0;
   for (const cb of codeBlockMatches) {
-    // Text before this code block
     if (cb.index > lastEnd) {
       const beforeText = text.slice(lastEnd, cb.index);
       blocks.push(...splitTextBlocks(beforeText));
     }
-    // The code block itself
     blocks.push({
       type: "codeblock",
       content: cb.code,
@@ -389,10 +376,25 @@ function splitIntoBlocks(text: string): TextBlock[] {
     lastEnd = cb.index + cb.match.length;
   }
 
-  // Text after last code block
+  // Text after last completed code block; preserve prior rendered blocks if
+  // an unclosed trailing fence is still streaming in.
   if (lastEnd < text.length) {
     const afterText = text.slice(lastEnd);
-    blocks.push(...splitTextBlocks(afterText));
+    const openFenceIdx = afterText.indexOf("```");
+    if (openFenceIdx >= 0) {
+      if (openFenceIdx > 0) {
+        blocks.push(...splitTextBlocks(afterText.slice(0, openFenceIdx)));
+      }
+      const unclosed = afterText.slice(openFenceIdx);
+      const unclosedMatch = unclosed.match(/^```([^\s`]*)\n?([\s\S]*)$/);
+      blocks.push({
+        type: "codeblock",
+        content: unclosedMatch ? unclosedMatch[2] : unclosed.slice(3),
+        raw: unclosed,
+      });
+    } else {
+      blocks.push(...splitTextBlocks(afterText));
+    }
   }
 
   return blocks;
@@ -617,9 +619,9 @@ function renderBlock(block: TextBlock): string {
 /** Render fenced code block */
 function renderCodeBlock(code: string, raw: string): string {
   // Extract language from raw if present
-  const langMatch = raw.match(/^```(\w*)/);
-  const lang = langMatch?.[1] || "";
-  const langClass = lang ? ` class="lang-${lang}"` : "";
+  const langMatch = raw.match(/^```([^\s`]*)/);
+  const lang = (langMatch?.[1] || "").replace(/[^a-zA-Z0-9_+#.-]/g, "");
+  const langClass = lang ? ` class="lang-${escapeAttr(lang)}"` : "";
   const trimmedCode = code.trim();
   const copyBtn = zoteroNoteMode ? "" : blockCopyButton(trimmedCode);
   return `<pre${langClass}>${copyBtn}<code>${escapeHtml(trimmedCode)}</code></pre>`;
@@ -627,10 +629,11 @@ function renderCodeBlock(code: string, raw: string): string {
 
 /** Render display math block */
 function renderMathBlock(content: string): string {
-  // Remove $$ or \[...\] delimiters
+  // Remove $$ or \[...\] delimiters (including unclosed trailing blocks)
   let math = content.trim();
-  if (math.startsWith("$$") && math.endsWith("$$")) {
-    math = math.slice(2, -2);
+  if (math.startsWith("$$")) {
+    math = math.slice(2);
+    if (math.endsWith("$$")) math = math.slice(0, -2);
   } else {
     if (math.startsWith("\\[")) math = math.slice(2);
     if (math.endsWith("\\]")) math = math.slice(0, -2);
@@ -835,15 +838,33 @@ function renderInlineMath(
   return result;
 }
 
+function applyItalics(input: string): string {
+  let out = input.replace(
+    /(^|[\s(])\*([^\s*][^*]*?[^\s*])\*(?=[\s).,!?:;]|$)/g,
+    "$1<em>$2</em>",
+  );
+  out = out.replace(/(^|[\s(])\*([^\s*])\*(?=[\s).,!?:;]|$)/g, "$1<em>$2</em>");
+  out = out.replace(
+    /(^|[\s(])_([^\s_][^_]*?[^\s_])_(?=[\s).,!?:;]|$)/g,
+    "$1<em>$2</em>",
+  );
+  out = out.replace(/(^|[\s(])_([^\s_])_(?=[\s).,!?:;]|$)/g, "$1<em>$2</em>");
+  return out;
+}
+
 /** Render inline elements within a line/block */
 function renderInline(text: string): string {
   let result = text;
 
-  // Store protected content
+  // Store protected content using a per-call random token prefix so untrusted
+  // markdown text cannot collide with placeholders and break out of attributes.
+  const nonce = Math.random().toString(36).slice(2, 10);
+  const tokenPrefix = `@@P${nonce}_`;
+  const tokenPattern = new RegExp(`@@P${nonce}_\\d+@@`);
   const protectedBlocks: string[] = [];
   const protect = (html: string): string => {
     protectedBlocks.push(html);
-    return `@@PROTECTED${protectedBlocks.length - 1}@@`;
+    return `${tokenPrefix}${protectedBlocks.length - 1}@@`;
   };
 
   // 1. Protect code before interpreting any math delimiters inside it.
@@ -897,40 +918,27 @@ function renderInline(text: string): string {
     });
   }
 
-  // 9. Italic (*...* but not inside words)
-  // Only apply if there are potential matches (avoid false positives)
-  result = result.replace(
-    /(^|[\s(])\*([^\s*][^*]*?[^\s*])\*(?=[\s).,!?:;]|$)/g,
-    "$1<em>$2</em>",
-  );
-  result = result.replace(
-    /(^|[\s(])\*([^\s*])\*(?=[\s).,!?:;]|$)/g,
-    "$1<em>$2</em>",
-  );
-
-  // 10. Italic (_..._ but not inside words)
-  result = result.replace(
-    /(^|[\s(])_([^\s_][^_]*?[^\s_])_(?=[\s).,!?:;]|$)/g,
-    "$1<em>$2</em>",
-  );
-  result = result.replace(
-    /(^|[\s(])_([^\s_])_(?=[\s).,!?:;]|$)/g,
-    "$1<em>$2</em>",
-  );
-
-  // 11. Links [text](url)
+  // 9. Links [text](url) before italics so * / _ inside URLs are never mangled.
   // The URL is already HTML-escaped (step 5). Unsafe schemes (javascript:,
   // file:, data:, ...) and URLs containing protected markup stay plain text.
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
-    if (/@@PROTECTED\d+@@/.test(url) || !isSafeLinkUrl(url)) return match;
-    return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
-  });
+  result = result.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (match, linkText, url) => {
+      if (tokenPattern.test(url) || !isSafeLinkUrl(url)) return match;
+      return protect(
+        `<a href="${url}" target="_blank" rel="noopener">${applyItalics(linkText)}</a>`,
+      );
+    },
+  );
 
-  // 12. Restore protected blocks.
+  // 10. Italic (*...* and _..._ outside words)
+  result = applyItalics(result);
+
+  // 11. Restore protected blocks.
   // Reverse order is important for nested placeholders such as **$x$**:
   // bold wrapping can protect a token that itself points to rendered math.
   for (let i = protectedBlocks.length - 1; i >= 0; i--) {
-    const token = `@@PROTECTED${i}@@`;
+    const token = `${tokenPrefix}${i}@@`;
     if (result.includes(token)) {
       result = result.split(token).join(protectedBlocks[i]);
     }

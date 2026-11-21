@@ -42,6 +42,11 @@ import {
 
 import { shutdownTranslationProcesses } from "./modules/pdfTranslator/processRunner";
 import { stopQueueIfLoaded } from "./modules/pdfTranslator/translationQueueService";
+import { killActiveShellProcesses } from "./utils/processRunner";
+import {
+  documentTextCache,
+  documentTextRetryAfterByItem,
+} from "./modules/contextPanel/state";
 
 function stopTranslationWork(): void {
   try {
@@ -137,8 +142,11 @@ async function onStartup() {
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
-  // Create ztoolkit for every window
-  addon.data.ztoolkit = createZToolkit();
+  // Reuse the shared ztoolkit instance instead of overwriting it per window,
+  // so closing one secondary window does not unregister another window's hooks.
+  if (!addon.data.ztoolkit) {
+    addon.data.ztoolkit = createZToolkit();
+  }
 
   // Each step is isolated so one failure cannot block the others.
   const step = async (name: string, run: () => unknown) => {
@@ -192,7 +200,10 @@ async function onMainWindowUnload(win: Window): Promise<void> {
   removeLibraryPanel(win);
   removeReaderPanels(win);
   removeLLMStyles(win);
-  ztoolkit.unregisterAll();
+  const remaining = Zotero.getMainWindows?.().filter((w) => w !== win) || [];
+  if (!remaining.length) {
+    ztoolkit.unregisterAll();
+  }
   addon.data.dialog?.window?.close();
 }
 
@@ -216,6 +227,13 @@ function onShutdown(): void {
   } catch (err) {
     ztoolkit.log("AIdea: failed to stop translations", err);
   }
+  try {
+    killActiveShellProcesses();
+  } catch (err) {
+    ztoolkit.log("AIdea: failed to stop shell subprocesses", err);
+  }
+  documentTextCache.clear();
+  documentTextRetryAfterByItem.clear();
   unregisterReaderSelectionTracking();
   unregisterReaderContextPanel();
   try {

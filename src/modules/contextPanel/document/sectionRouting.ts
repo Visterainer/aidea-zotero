@@ -68,9 +68,23 @@ function normalizeComparableText(value: unknown): string {
     .trim();
 }
 
+const ROMAN_NUMERAL_RE = /^[ivxlcdm]+$/i;
+
 function isUsefulLabel(value: string): boolean {
   const compact = value.replace(/\s+/g, "");
-  return compact.length >= 2 && !/^\d+$/.test(compact);
+  if (compact.length < 2 || /^\d+$/.test(compact)) return false;
+  if (compact.length <= 4 && ROMAN_NUMERAL_RE.test(compact)) return false;
+  return true;
+}
+
+function questionMentionsCandidate(
+  normalizedQuestion: string,
+  candidate: string,
+): boolean {
+  if (/^[a-z0-9\s]+$/.test(candidate)) {
+    return ` ${normalizedQuestion} `.includes(` ${candidate} `);
+  }
+  return normalizedQuestion.includes(candidate);
 }
 
 /**
@@ -96,17 +110,25 @@ export function buildDeterministicSectionPlan(
 
   const matches = catalog.cards
     .map((card) => {
-      const candidates = [card.label, ...card.path]
+      const ownLabel = normalizeComparableText(card.label);
+      const pathLabels = card.path
         .map(normalizeComparableText)
-        .filter(isUsefulLabel);
+        .filter((candidate) => candidate && candidate !== ownLabel);
       let score = 0;
-      for (const candidate of candidates) {
+      const scoreCandidate = (candidate: string, isOwnLabel: boolean) => {
+        if (!isUsefulLabel(candidate)) return;
+        const specificityBonus = isOwnLabel ? 1 : 0;
         if (normalizedQuestion === candidate) {
-          score = Math.max(score, 100);
-        } else if (normalizedQuestion.includes(candidate)) {
-          score = Math.max(score, 60 + Math.min(candidate.length, 30));
+          score = Math.max(score, 100 + specificityBonus);
+        } else if (questionMentionsCandidate(normalizedQuestion, candidate)) {
+          score = Math.max(
+            score,
+            60 + Math.min(candidate.length, 30) + specificityBonus,
+          );
         }
-      }
+      };
+      scoreCandidate(ownLabel, true);
+      for (const candidate of pathLabels) scoreCandidate(candidate, false);
       return { id: card.id, score };
     })
     .filter((entry) => entry.score >= 60)

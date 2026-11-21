@@ -43,6 +43,7 @@ interface LibraryPanelState {
   host: HTMLElement;
   notifierID: string | null;
   hasBootstrapped: boolean;
+  bootstrapPromise: Promise<void> | null;
   mutationObserver: MutationObserver | null;
   selectionListener: (() => void) | null;
   selectionPollTimer: number | null;
@@ -71,6 +72,7 @@ export function getSharedLibraryPanelHost(win: Window): HTMLElement {
       host,
       notifierID: null,
       hasBootstrapped: false,
+      bootstrapPromise: null,
       mutationObserver: null,
       selectionListener: null,
       selectionPollTimer: null,
@@ -92,10 +94,17 @@ export async function bootstrapSharedLibraryPanel(
 ): Promise<void> {
   const state = panelStateByWindow.get(win);
   if (!state) return;
+  if (state.bootstrapPromise) return state.bootstrapPromise;
   if (state.hasBootstrapped) return;
 
-  // Mark as bootstrapped immediately to prevent parallel initialization
+  // Mark as bootstrapped immediately and share the promise so concurrent
+  // callers wait until buildUI/setupHandlers have actually created the DOM.
   state.hasBootstrapped = true;
+
+  let resolveBootstrap: () => void = () => undefined;
+  state.bootstrapPromise = new Promise<void>((resolve) => {
+    resolveBootstrap = resolve;
+  });
 
   try {
     await initChatStore();
@@ -137,6 +146,9 @@ export async function bootstrapSharedLibraryPanel(
   } catch (err) {
     ztoolkit.log(`LLM: bootstrapSharedLibraryPanel failed: ${err}`);
     state.hasBootstrapped = false;
+  } finally {
+    state.bootstrapPromise = null;
+    resolveBootstrap();
   }
 }
 
@@ -626,19 +638,25 @@ export async function injectLibraryPanel(
     state.mutationObserver = observer;
   }
 
+  let selectionListenerAttached = Boolean(state.selectionListener);
   if (!state.selectionListener) {
     state.selectionListener = () => scheduleLibraryPanelVisibilityUpdate(win);
     try {
       const onSelect = (win as any)?.ZoteroPane?.itemsView?.onSelect;
       if (onSelect?.addListener) {
         onSelect.addListener(state.selectionListener);
+        selectionListenerAttached = true;
+      } else {
+        state.selectionListener = null;
       }
     } catch (err) {
+      state.selectionListener = null;
       ztoolkit.log("LLM: failed to attach library selection listener", err);
     }
   }
 
-  if (state.selectionPollTimer === null) {
+  // Only poll as a fallback when ZoteroPane.itemsView.onSelect is unavailable.
+  if (!selectionListenerAttached && state.selectionPollTimer === null) {
     const selectedItemIds = getLibrarySelectedItemIdsFromWindow(win);
     state.lastSelectionSignature = selectedItemIds.join(",");
     state.lastSelectionState = getLibrarySelectionState(
@@ -697,6 +715,12 @@ export function removeLibraryPanel(win: Window): void {
   if (state.host) {
     disposePanelHostRuntime(state.host);
     state.host.remove();
+  }
+
+  try {
+    if (win.document) removeStandaloneLibrarySidenavButton(win.document);
+  } catch {
+    /* ignore */
   }
 
   panelStateByWindow.delete(win);

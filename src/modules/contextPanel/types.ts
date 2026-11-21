@@ -126,6 +126,7 @@ export type DocumentTextContext = {
   embeddingKey?: string;
   embeddingPromise?: Promise<number[][] | null>;
   embeddingFailed?: boolean;
+  embeddingFailedUntil?: number;
   /** Format-neutral metadata. Optional for legacy/test-created contexts. */
   documentKind?: DocumentKind;
   documentCapabilities?: DocumentCapabilities;

@@ -312,10 +312,6 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
     const imageUnsupported = deps.isScreenshotUnsupportedModel(
       deps.getCurrentModel(),
     );
-    const nextImages = [...(deps.selectedImageCache.get(item.id) || [])];
-    const nextFiles = [
-      ...(deps.selectedFileAttachmentCache.get(item.id) || []),
-    ];
     let addedCount = 0;
     let replacedCount = 0;
     let rejectedPdfCount = 0;
@@ -340,17 +336,27 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
       });
       const category = resolveAttachmentCategory(normalizedFile);
       if (category === "image") {
-        if (imageUnsupported || nextImages.length >= MAX_SELECTED_IMAGES) {
+        const currentImages = deps.selectedImageCache.get(item.id) || [];
+        if (imageUnsupported || currentImages.length >= MAX_SELECTED_IMAGES) {
           skippedImageCount += 1;
           continue;
         }
         try {
           const dataUrl = await readFileAsDataURL(deps.body, normalizedFile);
+          if (wasCleared()) return;
           const panelWindow = deps.body.ownerDocument?.defaultView;
           const optimizedDataUrl = panelWindow
             ? await deps.optimizeImageDataUrl(panelWindow, dataUrl)
             : dataUrl;
-          nextImages.push(optimizedDataUrl);
+          if (wasCleared()) return;
+          const liveImages = [...(deps.selectedImageCache.get(item.id) || [])];
+          if (liveImages.length >= MAX_SELECTED_IMAGES) {
+            skippedImageCount += 1;
+            continue;
+          }
+          liveImages.push(optimizedDataUrl);
+          deps.selectedImageCache.set(item.id, liveImages);
+          deps.updateImagePreview();
           addedCount += 1;
         } catch (err) {
           skippedImageCount += 1;
@@ -359,32 +365,35 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         continue;
       }
 
-      // --- Insert a processing placeholder immediately ---
-      const placeholderId = createAttachmentId();
+      // --- Insert a processing placeholder into the live cache immediately ---
+      const currentFiles = [
+        ...(deps.selectedFileAttachmentCache.get(item.id) || []),
+      ];
+      const existingPlaceholderIndex = currentFiles.findIndex(
+        (entry) =>
+          entry &&
+          typeof entry.name === "string" &&
+          entry.name.trim().toLowerCase() === fileName.toLowerCase(),
+      );
+      const entryId =
+        existingPlaceholderIndex >= 0
+          ? currentFiles[existingPlaceholderIndex].id
+          : createAttachmentId();
+      const wasReplacement = existingPlaceholderIndex >= 0;
       const placeholderEntry: ChatAttachment = {
-        id: placeholderId,
+        id: entryId,
         name: fileName || "untitled",
         mimeType: normalizedFile.type || "application/octet-stream",
         sizeBytes: normalizedFile.size || 0,
         category,
         processing: true,
       };
-      const existingPlaceholderIndex = nextFiles.findIndex(
-        (entry) =>
-          entry &&
-          typeof entry.name === "string" &&
-          entry.name.trim().toLowerCase() === fileName.toLowerCase(),
-      );
       if (existingPlaceholderIndex >= 0) {
-        nextFiles[existingPlaceholderIndex] = {
-          ...placeholderEntry,
-          id: nextFiles[existingPlaceholderIndex].id,
-        };
+        currentFiles[existingPlaceholderIndex] = placeholderEntry;
       } else {
-        nextFiles.push(placeholderEntry);
+        currentFiles.push(placeholderEntry);
       }
-      // Show the placeholder immediately
-      deps.selectedFileAttachmentCache.set(item.id, [...nextFiles]);
+      deps.selectedFileAttachmentCache.set(item.id, currentFiles);
       deps.updateFilePreview();
 
       // --- Persist the file FIRST so we have a storedPath for Zotero APIs ---
@@ -403,16 +412,10 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         if (wasCleared()) return;
         failedPersistCount += 1;
         ztoolkit.log("LLM: Failed to persist uploaded attachment", err);
-        // Remove the placeholder on failure
-        const failIndex = nextFiles.findIndex(
-          (e) =>
-            e.id ===
-            (existingPlaceholderIndex >= 0
-              ? nextFiles[existingPlaceholderIndex]?.id
-              : placeholderId),
-        );
-        if (failIndex >= 0) nextFiles.splice(failIndex, 1);
-        deps.selectedFileAttachmentCache.set(item.id, [...nextFiles]);
+        const liveFiles = (
+          deps.selectedFileAttachmentCache.get(item.id) || []
+        ).filter((e) => e.id !== entryId);
+        deps.selectedFileAttachmentCache.set(item.id, liveFiles);
         deps.updateFilePreview();
         continue;
       }
@@ -468,16 +471,17 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         }
       }
 
-      // storedPath and contentHash are already set above
+      if (wasCleared()) return;
 
-      // --- Replace the placeholder with the final entry ---
-      const finalEntryId =
-        existingPlaceholderIndex >= 0
-          ? nextFiles[existingPlaceholderIndex]?.id || placeholderId
-          : placeholderId;
-      const finalIndex = nextFiles.findIndex((e) => e.id === finalEntryId);
-      const nextEntry: ChatAttachment = {
-        id: finalEntryId,
+      // Patch the live cache by entryId so concurrent uploads are not lost and
+      // attachments removed/sent mid-extraction are never resurrected.
+      const liveFiles = [
+        ...(deps.selectedFileAttachmentCache.get(item.id) || []),
+      ];
+      const liveIndex = liveFiles.findIndex((e) => e.id === entryId);
+      if (liveIndex < 0) continue;
+      liveFiles[liveIndex] = {
+        id: entryId,
         name: fileName || "untitled",
         mimeType: normalizedFile.type || "application/octet-stream",
         sizeBytes: normalizedFile.size || 0,
@@ -486,26 +490,16 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
         storedPath,
         contentHash,
       };
-      if (finalIndex >= 0) {
-        nextFiles[finalIndex] = nextEntry;
-        if (existingPlaceholderIndex >= 0) {
-          replacedCount += 1;
-        } else {
-          addedCount += 1;
-        }
+      deps.selectedFileAttachmentCache.set(item.id, liveFiles);
+      if (wasReplacement) {
+        replacedCount += 1;
       } else {
-        nextFiles.push(nextEntry);
         addedCount += 1;
       }
+      deps.updateFilePreview();
     }
 
     if (wasCleared()) return;
-    if (nextImages.length) {
-      deps.selectedImageCache.set(item.id, nextImages);
-    }
-    if (nextFiles.length) {
-      deps.selectedFileAttachmentCache.set(item.id, nextFiles);
-    }
     if (addedCount > 0 || replacedCount > 0) {
       deps.scheduleAttachmentGc();
     }
@@ -514,10 +508,11 @@ export function createFileIntakeController(deps: FileIntakeControllerDeps): {
     deps.updateFilePreview();
 
     // Notify caller about file state change for persistence.
+    const finalFiles = deps.selectedFileAttachmentCache.get(item.id) || [];
     if (deps.onFileStateChanged && (addedCount > 0 || replacedCount > 0)) {
       deps.onFileStateChanged(
         item.id,
-        nextFiles.map((f) => f.id),
+        finalFiles.map((f) => f.id),
       );
     }
 

@@ -15,6 +15,7 @@ import {
 } from "../pdfTranslator/translationFields";
 import { pickChatInputPlaceholder } from "./placeholderTips";
 import { applyCurrentThemeToRoot } from "./theme";
+import { getPanelDisposeSignal } from "./heightSync";
 
 type PanelTab = "discussion" | "translate" | "setting";
 
@@ -516,12 +517,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     trModelDropdown.classList.toggle("open", !open);
   });
   // Close on outside click
-  doc.addEventListener("click", (e: Event) => {
-    if (!trModelDropdown.contains(e.target as Node)) {
-      trModelMenu.style.display = "none";
-      trModelDropdown.classList.remove("open");
-    }
-  });
+  const buildUiDisposeSignal = getPanelDisposeSignal(body);
+  doc.addEventListener(
+    "click",
+    (e: Event) => {
+      if (!trModelDropdown.contains(e.target as Node)) {
+        trModelMenu.style.display = "none";
+        trModelDropdown.classList.remove("open");
+      }
+    },
+    buildUiDisposeSignal ? { signal: buildUiDisposeSignal } : undefined,
+  );
   trModelRow.append(trModelLabel, trModelDropdown);
 
   // Reasoning effort row — options depend on the selected model, so the
@@ -562,12 +568,16 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     trReasoningMenu.style.display = open ? "none" : "block";
     trReasoningDropdown.classList.toggle("open", !open);
   });
-  doc.addEventListener("click", (e: Event) => {
-    if (!trReasoningDropdown.contains(e.target as Node)) {
-      trReasoningMenu.style.display = "none";
-      trReasoningDropdown.classList.remove("open");
-    }
-  });
+  doc.addEventListener(
+    "click",
+    (e: Event) => {
+      if (!trReasoningDropdown.contains(e.target as Node)) {
+        trReasoningMenu.style.display = "none";
+        trReasoningDropdown.classList.remove("open");
+      }
+    },
+    buildUiDisposeSignal ? { signal: buildUiDisposeSignal } : undefined,
+  );
   trReasoningRow.append(trReasoningLabel, trReasoningDropdown);
 
   const trLangRow = createLanguagePair(doc, i18n);

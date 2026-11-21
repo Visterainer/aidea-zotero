@@ -94,7 +94,7 @@ describe("translation environment updater", function () {
             ) {
               const script = files.get(args[0]) || "";
               scripts.push(script);
-              const log = script.match(/2>"([^"]+)"/)?.[1];
+              const log = script.match(/2>["']([^"']+)["']/)?.[1];
               if (log && script.includes("uname -m")) {
                 files.set(log, probeOutput);
               }

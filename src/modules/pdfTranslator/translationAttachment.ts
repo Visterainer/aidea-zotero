@@ -275,10 +275,14 @@ export async function refreshTranslationAttachment(item: ZItem): Promise<void> {
   const ft = Zotero.FullText;
   // indexItems() prefers text awaiting sync processing to the actual PDF.
   // The processor-cache accessor was renamed in newer Zotero releases.
-  const pending = (
-    ft.getSyncedContentCacheFile ?? ft.getItemProcessorCacheFile
-  ).call(ft, item);
-  await IOUtils.remove(pending.path, { ignoreAbsent: true });
+  const cacheGetter =
+    ft.getSyncedContentCacheFile ?? ft.getItemProcessorCacheFile;
+  if (typeof cacheGetter === "function") {
+    const pending = cacheGetter.call(ft, item);
+    if (pending?.path) {
+      await IOUtils.remove(pending.path, { ignoreAbsent: true });
+    }
+  }
   await Zotero.DB.executeTransaction(() => ft.clearItemWords(item.id));
   try {
     // queueItem(item) is the API used by Zotero's attachment post-processor.

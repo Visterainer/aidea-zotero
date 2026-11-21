@@ -584,10 +584,11 @@ export async function runCmd(
   } catch {
     /* ignore stale log */
   }
-  const quotedArgs = args.map((a) =>
-    IS_WIN ? `"${a.replace(/"/g, '""')}"` : `'${a.replace(/'/g, "'\\''")}'`,
-  );
-  const cmdLine = `"${exe}" ${quotedArgs.join(" ")}`;
+  const quotePosix = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+  const quoteBatch = (s: string) =>
+    `"${s.replace(/%/g, "%%").replace(/"/g, '""')}"`;
+  const quotedArgs = args.map((a) => (IS_WIN ? quoteBatch(a) : quotePosix(a)));
+  const cmdLine = `${IS_WIN ? quoteBatch(exe) : quotePosix(exe)} ${quotedArgs.join(" ")}`;
   const scriptPath = PathUtils.join(
     tempDir,
     `aidea-cmd-${commandId}.${IS_WIN ? "bat" : "sh"}`,
@@ -597,14 +598,14 @@ export async function runCmd(
     if (IS_WIN) {
       // cmd.exe parses the script in the OEM code page unless told otherwise,
       // which corrupts non-ASCII paths (e.g. C:\Users\张三).
-      const script = `@echo off\r\nchcp 65001 >nul\r\n${buildEnvLines(env, true)}${cmdLine} 2>"${logFile}"\r\nexit /b %ERRORLEVEL%\r\n`;
+      const script = `@echo off\r\nchcp 65001 >nul\r\n${buildEnvLines(env, true)}${cmdLine} 2>${quoteBatch(logFile)}\r\nexit /b %ERRORLEVEL%\r\n`;
       await IOUtils.writeUTF8(scriptPath, script);
       await _runNsIProcess(`${getWindowsSystemRoot()}\\System32\\cmd.exe`, [
         "/c",
         scriptPath,
       ]);
     } else {
-      const script = `#!/bin/sh\n${buildEnvLines(env, false)}${cmdLine} 2>"${logFile}"\n`;
+      const script = `#!/bin/sh\n${buildEnvLines(env, false)}${cmdLine} 2>${quotePosix(logFile)}\n`;
       await IOUtils.writeUTF8(scriptPath, script);
       await _runNsIProcess("/bin/chmod", ["+x", scriptPath]);
       await _runNsIProcess("/bin/sh", [scriptPath]);
