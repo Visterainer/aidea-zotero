@@ -496,13 +496,17 @@ def _scan_pixels(page, dpi, marks):
     hidden = [(xref, mark.flags) for xref, mark in marks]
     hidden.extend((annot.xref, annot.flags)
                   for annot in page.annots(types=(fitz.PDF_ANNOT_REDACT,)))
+    document = page.parent
+    saved_flags = {xref: document.xref_get_key(xref, "F")[1] for xref, _ in hidden}
     try:
+        # Annot.set_flags can regenerate the preview appearance on new MuPDF
+        # versions. Setting the PDF flags directly leaves the appearance intact.
         for xref, flags in hidden:
-            page.load_annot(xref).set_flags(flags | fitz.PDF_ANNOT_IS_HIDDEN)
+            document.xref_set_key(xref, "F", str(flags | fitz.PDF_ANNOT_IS_HIDDEN))
         return page.get_pixmap(dpi=dpi, colorspace=fitz.csRGB, alpha=False)
     finally:
-        for xref, flags in hidden:
-            page.load_annot(xref).set_flags(flags)
+        for xref, flags in saved_flags.items():
+            document.xref_set_key(xref, "F", flags)
 
 
 def prepare_input(source, stage_dir, source_lang, enabled, on_progress, log):

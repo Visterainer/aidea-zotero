@@ -53,12 +53,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install uv
-      - name: Validate candidate and smoke test
+      - name: Verify candidate and bridge compatibility
         shell: bash
         run: |
           lock_file=$(python scripts/translation-env/verify_manifest.py --print-lock-path | tail -1)
           uv venv .scaffold/translation-venv --python 3.12
-          uv pip sync "$lock_file" --python .scaffold/translation-venv --only-binary :all:
+          uv pip sync "$lock_file" --python .scaffold/translation-venv --only-binary :all: --require-hashes
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             python_bin=.scaffold/translation-venv/Scripts/python.exe
             engine_bin=.scaffold/translation-venv/Scripts/pdf2zh_next.exe
@@ -68,6 +68,7 @@ jobs:
           fi
           "$python_bin" -c "from pdf2zh_next.main import cli"
           "$engine_bin" --help >/dev/null
+          "$python_bin" -B -m unittest discover -s test/pdfTranslator -p 'test_*.py'
 
   propose:
     needs: [prepare, smoke]
@@ -86,4 +87,4 @@ jobs:
           delete-branch: true
           title: "Update verified translation environment"
           body: |
-            Candidate generated from current upstream releases. Import and CLI smoke tests passed on Linux, macOS, and Windows. Review bridge compatibility before merging; merging publishes the environment independently of a plugin release.
+            Candidate generated from upstream releases. CLI and bridge regression tests passed on Linux, macOS, and Windows. Review end-to-end translation before merging, which publishes the environment independently of a plugin release.

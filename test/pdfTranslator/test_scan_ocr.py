@@ -136,8 +136,6 @@ class ScanOCRTest(unittest.TestCase):
             self.assertTrue(normalized[0].get_images())
 
     def test_cropped_text_cleanup_does_not_apply_pending_redactions(self):
-        from babeldoc.pdfminer.high_level import extract_text
-
         source = self.root / "crop-with-pending-redaction.pdf"
         content = "Visible text under a pending mark"
         with fitz.open() as pdf:
@@ -171,7 +169,11 @@ class ScanOCRTest(unittest.TestCase):
                 spread.insert_text((260, 45), "Translation panel")
             dual.save(output)
 
-        text = extract_text(output)
+        with fitz.open(output) as pdf:
+            text = "\n".join(
+                "".join(chr(char[0]) for char in span["chars"])
+                for page in pdf for span in page.get_texttrace()
+            )
         self.assertEqual(text.count(content), 2)
         self.assertNotIn("OFF-TOP HEADER", text)
         self.assertNotIn("ghost text", text)
