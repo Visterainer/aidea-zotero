@@ -76,10 +76,7 @@ import {
   isSelectionTranslateEnabled,
   translateSelectedTextForReader,
 } from "./selectionTranslate";
-import {
-  EPUB_CONTENT_TYPE,
-  getReaderDocumentKind,
-} from "./documentContext";
+import { EPUB_CONTENT_TYPE, getReaderDocumentKind } from "./documentContext";
 import { appendSelectionTranslationToNote } from "./notes";
 import {
   applyPendingSelectionTranslationToAnnotation,

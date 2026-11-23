@@ -264,8 +264,7 @@ const OAUTH_ENV_UPDATE_COPIES: Record<PanelLang, OAuthEnvUpdateCopy> = {
     idle: "AIdea ने पाया कि OAuth authorization environment को update या repair की जरूरत है. Zotero idle लगता है, इसलिए countdown के बाद update अपने आप शुरू होगा.",
     updating: "OAuth authorization environment update हो रहा है...",
     done: "OAuth authorization environment update हो गया.",
-    failed:
-      "OAuth environment update पूरा नहीं हुआ. बाद में Settings log देखें.",
+    failed: "OAuth environment update पूरा नहीं हुआ. बाद में Settings log देखें.",
     providers: "Authorization",
     now: "अभी update करें",
     later: "बाद में",

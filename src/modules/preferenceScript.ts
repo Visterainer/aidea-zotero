@@ -1391,8 +1391,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     customApiBasePlaceholder: "उदाहरण: http://127.0.0.1:11434/v1/",
     customApiBaseHint: "OpenAI-संगत endpoint, जो /v1/ पर समाप्त होना चाहिए।",
     customApiKey: "API Key",
-    customApiKeyPlaceholder:
-      "वैकल्पिक; खाली होने पर Authorization नहीं भेजा जाएगा",
+    customApiKeyPlaceholder: "वैकल्पिक; खाली होने पर Authorization नहीं भेजा जाएगा",
     customApiKeyHint: "स्थानीय Zotero सेटिंग्स में सहेजा जाएगा।",
     customModel: "मॉडल *",
     customModelPlaceholder: "उदाहरण: llama3.1, deepseek-chat",
@@ -1402,8 +1401,7 @@ const SETTINGS_I18N_BASE_OVERRIDES: Partial<Record<Lang, Dict>> = {
     fetchModelsDone: "{n} मॉडल मिले",
     fetchModelsFailed: "मॉडल लाने में विफल: {msg}",
     fetchModelsEmpty: "Endpoint ने कोई मॉडल वापस नहीं किया",
-    customModeDisabled:
-      "कस्टम API मोड सक्षम करने के लिए API Base URL और Model भरें।",
+    customModeDisabled: "कस्टम API मोड सक्षम करने के लिए API Base URL और Model भरें।",
     customModeMissing: "अभी बाकी है: {fields}",
     customModeReady: "कस्टम API मोड तैयार है।",
     installEnv: "Environment इंस्टॉल/अपडेट करें",

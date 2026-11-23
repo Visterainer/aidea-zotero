@@ -895,8 +895,7 @@ const COPY_BY_LANGUAGE: Record<string, AuthorProfileCopy> = {
     defaultSource: "AIdea",
     stageMetadata: "Zotero item metadata पढ़ा जा रहा है",
     stagePdf: "स्थानीय PDF से संपर्क लेखक संकेत पढ़े जा रहे हैं",
-    stageSources:
-      "Crossref / OpenAlex / Semantic Scholar / PMC query हो रहा है",
+    stageSources: "Crossref / OpenAlex / Semantic Scholar / PMC query हो रहा है",
     stageResolve: "लेखक records मिलाकर संपर्क लेखक पहचाना जा रहा है",
     stageEnrich: "लेखक metrics और affiliations जोड़े जा रहे हैं",
     stageLlm: "मौजूदा AIdea model से generation हो रहा है",

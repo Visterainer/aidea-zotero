@@ -108,8 +108,8 @@ function loadNoticeRuntime(prefs = new Map<string, unknown>(), lang = "en-US") {
 }
 
 describe("one-time update notice", function () {
-  it("uses the v3.8.0 notice id matching the package version", function () {
-    assert.equal(NOTICE_ID, "v3.8.0-pdf-translation-interface-v1");
+  it("uses the v4.0.2 notice id matching the package version", function () {
+    assert.equal(NOTICE_ID, "v4.0.2-batch-pdf-persian-v1");
     assert.isTrue(NOTICE_ID.startsWith(`v${version}-`));
   });
 
@@ -165,30 +165,25 @@ describe("one-time update notice", function () {
     assert.deepEqual(
       english.alsoItems?.map((item) => item.label),
       [
-        "PDF translation from the item menu",
-        "Updated themes",
-        "Verified translation environment updates",
-        "Clearer errors and stability fixes",
+        "Batch translation and queue recovery",
+        "Persian support",
+        "Updated translation environment",
+        "Scans and tables",
       ],
     );
-    assert.include(english.alsoItems?.[0].text, "opened in Zotero's reader");
-    assert.include(english.alsoItems?.[1].text, "custom color changes");
-    assert.include(english.alsoItems?.[2].text, "verified environment");
-    assert.include(english.alsoItems?.[3].text, "zero models");
+    assert.include(english.alsoItems?.[0].text, "select Continue");
+    assert.include(english.alsoItems?.[1].text, "right to left");
+    assert.include(english.alsoItems?.[2].text, "verified dependency versions");
+    assert.include(english.alsoItems?.[3].text, "before OCR");
     const chinese = CURRENT_UPDATE_NOTICE_COPIES["zh-CN"];
     assert.deepEqual(
       chinese.alsoItems?.map((item) => item.label),
-      [
-        "PDF 右键翻译与自动关联",
-        "主题配色与自定义颜色",
-        "已验证的翻译环境更新",
-        "模型列表错误与稳定性修复",
-      ],
+      ["批量翻译与队列恢复", "波斯语支持", "新版翻译环境", "扫描件与表格"],
     );
-    assert.include(chinese.alsoItems?.[0].text, "Zotero 阅读器");
-    assert.include(chinese.alsoItems?.[1].text, "自定义的颜色");
-    assert.include(chinese.alsoItems?.[2].text, "已验证的环境");
-    assert.include(chinese.alsoItems?.[3].text, "零个模型");
+    assert.include(chinese.alsoItems?.[0].text, "「继续」");
+    assert.include(chinese.alsoItems?.[1].text, "从右向左");
+    assert.include(chinese.alsoItems?.[2].text, "安装/更新翻译环境");
+    assert.include(chinese.alsoItems?.[3].text, "纠正扫描方向");
   });
 
   describe("one-time update notice runtime", function () {

@@ -4,7 +4,7 @@ import { getPanelLang, type PanelLang } from "./contextPanel/i18n";
 import { getUiLanguageOption } from "./contextPanel/languages";
 import { applyCurrentThemeToRoot } from "./contextPanel/theme";
 
-export const NOTICE_ID = "v3.8.0-pdf-translation-interface-v1";
+export const NOTICE_ID = "v4.0.2-batch-pdf-persian-v1";
 const NOTICE_PREF = `${config.prefsPrefix}.updateNoticeSeen`;
 
 type UpdateNoticeCopy = {
@@ -874,8 +874,7 @@ const PDF_TRANSLATION_UPDATE_COPIES: ArchivedCopies = {
   },
   "hi-IN": {
     eyebrow: "अपडेट",
-    title:
-      "पूरे दस्तावेज़ के अनुवाद की विश्वसनीयता और स्ट्रीमिंग डिस्प्ले सुधार",
+    title: "पूरे दस्तावेज़ के अनुवाद की विश्वसनीयता और स्ट्रीमिंग डिस्प्ले सुधार",
     lead: "यह अपडेट Codex OAuth से पूरे PDF के अनुवाद की विफलता, गलत पूर्ण स्थिति और स्ट्रीमिंग उत्तर के लेआउट को ठीक करता है।",
     note: "अपडेट इंस्टॉल करने के बाद Zotero को पुनः शुरू करें। पूरे दस्तावेज़ के अनुवाद environment को दोबारा इंस्टॉल या अपडेट करने की आवश्यकता नहीं है।",
     alsoLabel: "इस अपडेट में शामिल है",
@@ -1264,29 +1263,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
   {
     "en-US": {
       eyebrow: "Update",
-      title:
-        "AIdea v3.8.0: One-click PDF translation and interface improvements",
-      lead: "Start full-PDF translation from a Zotero item's context menu. The translated PDF is added to the item and opened in the reader. This update also improves theme colors, translation environment updates, and connection error messages.",
+      title: "AIdea v4.0.2 · Batch PDF translation and Persian support",
+      lead: "Queue PDFs from several Zotero items and file each translation with its source item.",
       alsoLabel: "This update includes",
       alsoItems: [
         {
-          label: "PDF translation from the item menu",
-          text: "Right-click one item with a PDF to use your saved Translate settings. The translated PDF is added to that item and opened in Zotero's reader.",
+          label: "Batch translation and queue recovery",
+          text: "Preview jobs before submitting. After restarting Zotero, select Continue in the Translate tab.",
         },
         {
-          label: "Updated themes",
-          text: "Built-in palettes have clearer contrast. Your custom color changes are preserved when themes are updated.",
+          label: "Persian support",
+          text: "Use the فارسی interface or select Persian as a target language. Selection translations display right to left. Ordinary horizontal paragraphs in exported PDFs can be searched, selected, and copied.",
         },
         {
-          label: "Verified translation environment updates",
-          text: "AIdea checks for compatible updates and installs a verified environment when you choose Install/Update in the Translate tab.",
+          label: "Updated translation environment",
+          text: "Choose Install/Update Translation Environment in AIdea’s Translate tab to install verified dependency versions.",
         },
         {
-          label: "Clearer errors and stability fixes",
-          text: "Model-list refresh reports network, access, or sign-in failures instead of a successful result with zero models. Other chat and translation failures are also fixed.",
+          label: "Scans and tables",
+          text: "AIdea corrects scan orientation before OCR and improves annotation placement on cropped, rotated pages and copying numbers from tables.",
         },
       ],
-      note: "Before using the context-menu action, choose a model and prepare the translation environment in the AIdea Translate tab. Restart Zotero after updating.",
+      note: "Restart Zotero after updating. Before translating a full PDF, select a model and prepare the environment in AIdea’s Translate tab.",
       confirm: "Got it",
       close: "Close update notice",
       exampleLabel: "",
@@ -1294,28 +1292,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-CN": {
       eyebrow: "更新提示",
-      title: "AIdea v3.8.0：PDF 一键翻译与界面体验更新",
-      lead: "现在可在 Zotero 文献条目的右键菜单中启动全文 PDF 翻译。译文会自动添加到对应条目并在阅读器中打开。本次更新还改进了主题配色、翻译环境更新和连接错误提示。",
+      title: "AIdea v4.0.2 · 批量 PDF 翻译与波斯语支持",
+      lead: "现在可以一次提交多篇文献的 PDF，译文会分别归档到对应的 Zotero 条目。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "PDF 右键翻译与自动关联",
-          text: "右键单个带有 PDF 的条目，即可使用翻译标签页中保存的设置。译文会添加到对应条目并在 Zotero 阅读器中打开。",
+          label: "批量翻译与队列恢复",
+          text: "提交前可预览任务，重启 Zotero 后可在翻译标签页点击「继续」。",
         },
         {
-          label: "主题配色与自定义颜色",
-          text: "内置配色的对比度更清晰；已自定义的颜色在主题更新后仍会保留。",
+          label: "波斯语支持",
+          text: "新增 فارسی 界面和翻译目标。划词译文从右向左显示，导出的普通横排段落可搜索、选中和复制。",
         },
         {
-          label: "已验证的翻译环境更新",
-          text: "AIdea 检查兼容的环境更新；在翻译标签页点击“安装/更新”时安装已验证的环境。",
+          label: "新版翻译环境",
+          text: "在 AIdea 翻译标签页点击「安装/更新翻译环境」，即可安装经过验证的依赖版本。",
         },
         {
-          label: "模型列表错误与稳定性修复",
-          text: "刷新模型列表失败时会提示网络、访问或登录原因，不再把零个模型显示为成功；同时修复多项聊天和翻译问题。",
+          label: "扫描件与表格",
+          text: "识别前自动纠正扫描方向，改进裁剪旋转页的批注定位和表格数值复制。",
         },
       ],
-      note: "使用右键翻译前，请先在 AIdea 翻译标签页选择模型并准备翻译环境；更新后请重启 Zotero。",
+      note: "更新后请重启 Zotero。使用全文翻译前，请在 AIdea 翻译标签页选好模型并准备翻译环境。",
       confirm: "知道了",
       close: "关闭更新提示",
       exampleLabel: "",
@@ -1323,28 +1321,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "zh-TW": {
       eyebrow: "更新提示",
-      title: "AIdea v3.8.0：一鍵 PDF 翻譯與介面改善",
-      lead: "現在可從 Zotero 文獻項目的右鍵選單啟動全文 PDF 翻譯。譯文會自動加入對應項目並在閱讀器中開啟。本次更新也改善了主題配色、翻譯環境更新和連線錯誤提示。",
+      title: "AIdea v4.0.2 · 批次 PDF 翻譯與波斯語支援",
+      lead: "現在可以一次提交多筆文獻的 PDF，譯文會分別歸檔到對應的 Zotero 項目。",
       alsoLabel: "本次更新",
       alsoItems: [
         {
-          label: "右鍵翻譯 PDF 並自動加入項目",
-          text: "右鍵點選單一含有 PDF 的項目，即可使用翻譯分頁儲存的設定；譯文會加入該項目並在 Zotero 閱讀器中開啟。",
+          label: "批次翻譯與佇列復原",
+          text: "提交前可預覽工作，重新啟動 Zotero 後可在翻譯分頁點選「繼續」。",
         },
         {
-          label: "主題配色與自訂色彩",
-          text: "內建配色的對比度更清晰；主題更新後仍會保留自訂色彩。",
+          label: "波斯語支援",
+          text: "新增 فارسی 介面與翻譯目標。選取文字的譯文由右向左顯示，匯出 PDF 內一般的橫排段落可搜尋、選取與複製。",
         },
         {
-          label: "經驗證的翻譯環境更新",
-          text: "AIdea 會檢查相容的環境更新；在翻譯分頁點選「安裝／更新」時安裝經驗證的環境。",
+          label: "新版翻譯環境",
+          text: "在 AIdea 翻譯分頁安裝或更新翻譯環境，即可取得經驗證的相依套件。",
         },
         {
-          label: "模型清單錯誤與穩定性修復",
-          text: "模型清單更新失敗時會顯示網路、存取或登入原因，不再將零個模型視為成功；另修正多項聊天與翻譯問題。",
+          label: "掃描文件與表格",
+          text: "辨識前自動校正掃描方向，改善裁切旋轉頁的註解位置和表格數值的複製。",
         },
       ],
-      note: "使用右鍵翻譯前，請先在 AIdea 翻譯分頁選擇模型並準備翻譯環境；更新後請重新啟動 Zotero。",
+      note: "更新後請重新啟動 Zotero。翻譯整份 PDF 前，請在 AIdea 翻譯分頁選擇模型並準備翻譯環境。",
       confirm: "知道了",
       close: "關閉更新提示",
       exampleLabel: "",
@@ -1352,28 +1350,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ja-JP": {
       eyebrow: "更新のお知らせ",
-      title: "AIdea v3.8.0: PDF のワンクリック翻訳と画面の改善",
-      lead: "Zotero の項目を右クリックして PDF 全文翻訳を開始できます。翻訳した PDF はその項目に追加され、リーダーで開きます。テーマ、翻訳環境の更新、接続エラーの表示も改善しました。",
+      title: "AIdea v4.0.2 · PDF の一括翻訳とペルシャ語対応",
+      lead: "複数の Zotero アイテムの PDF をまとめて翻訳し、訳文をそれぞれ元のアイテムに保存できます。",
       alsoLabel: "今回の更新",
       alsoItems: [
         {
-          label: "右クリックから PDF を翻訳",
-          text: "PDF を含む項目を一つ右クリックすると、翻訳タブの保存済み設定で翻訳し、結果を項目に追加して Zotero リーダーで開きます。",
+          label: "一括翻訳とキューの再開",
+          text: "追加前にジョブを確認できます。Zotero を再起動したら翻訳タブで続行できます。",
         },
         {
-          label: "テーマとカスタム色",
-          text: "内蔵テーマのコントラストを改善し、テーマ更新後も変更した色を保持します。",
+          label: "ペルシャ語対応",
+          text: "فارسی のインターフェースと翻訳先を追加しました。選択したテキストの訳文は右から左に表示され、PDF に書き出した通常の横書き段落は検索、選択、コピーができます。",
         },
         {
-          label: "検証済みの翻訳環境",
-          text: "互換性のある更新を確認し、翻訳タブで「インストール／更新」を選んだときに検証済み環境を導入します。",
+          label: "翻訳環境の更新",
+          text: "AIdea の翻訳タブから翻訳環境をインストールまたは更新して、検証済みの依存関係を導入できます。",
         },
         {
-          label: "モデル一覧のエラーと安定性",
-          text: "一覧取得の失敗時にはネットワーク、アクセス、ログインの原因を表示します。チャットと翻訳の不具合も修正しました。",
+          label: "スキャンと表",
+          text: "OCR の前にスキャンの向きを補正します。切り抜きと回転が適用されたページの注釈位置や、表の数値のコピーも改善しました。",
         },
       ],
-      note: "右クリック翻訳の前に AIdea の翻訳タブでモデルを選び、翻訳環境を準備してください。更新後は Zotero を再起動してください。",
+      note: "更新後は Zotero を再起動してください。PDF 全体を翻訳する前に、AIdea の翻訳タブでモデルを選び、翻訳環境を準備してください。",
       confirm: "了解",
       close: "更新のお知らせを閉じる",
       exampleLabel: "",
@@ -1381,28 +1379,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ko-KR": {
       eyebrow: "업데이트 안내",
-      title: "AIdea v3.8.0: 원클릭 PDF 번역과 화면 개선",
-      lead: "Zotero 항목의 오른쪽 클릭 메뉴에서 PDF 전체 번역을 시작할 수 있습니다. 번역된 PDF는 해당 항목에 추가되고 리더에서 열립니다. 테마 색상, 번역 환경 업데이트, 연결 오류 안내도 개선했습니다.",
+      title: "AIdea v4.0.2 · PDF 일괄 번역 및 페르시아어 지원",
+      lead: "여러 Zotero 항목의 PDF를 한 번에 제출하고 번역본을 각 원본 항목에 보관할 수 있습니다.",
       alsoLabel: "이번 업데이트",
       alsoItems: [
         {
-          label: "오른쪽 클릭 PDF 번역",
-          text: "PDF가 있는 항목 하나를 오른쪽 클릭하면 번역 탭에 저장된 설정을 사용하고 결과를 해당 항목에 추가해 Zotero 리더에서 엽니다.",
+          label: "일괄 번역 및 대기열 복구",
+          text: "제출하기 전에 작업을 미리 확인할 수 있습니다. Zotero를 다시 시작한 뒤 번역 탭에서 작업을 계속할 수 있습니다.",
         },
         {
-          label: "테마와 사용자 지정 색상",
-          text: "기본 테마의 대비를 개선하고 테마 업데이트 후에도 사용자가 바꾼 색상을 유지합니다.",
+          label: "페르시아어 지원",
+          text: "فارسی 인터페이스와 페르시아어 번역을 지원합니다. 선택 영역 번역은 오른쪽에서 왼쪽으로 표시되며, 내보낸 PDF의 일반 가로 문단은 검색, 선택, 복사할 수 있습니다.",
         },
         {
-          label: "검증된 번역 환경 업데이트",
-          text: "호환되는 업데이트를 확인하며 번역 탭에서 설치/업데이트를 선택하면 검증된 환경을 설치합니다.",
+          label: "번역 환경 업데이트",
+          text: "AIdea의 번역 탭에서 번역 환경을 설치하거나 업데이트하여 검증된 의존성 버전을 사용할 수 있습니다.",
         },
         {
-          label: "모델 목록 오류와 안정성",
-          text: "목록을 가져오지 못하면 네트워크, 접근 또는 로그인 원인을 표시합니다. 채팅과 번역 문제도 수정했습니다.",
+          label: "스캔과 표",
+          text: "OCR 전에 스캔 방향을 바로잡습니다. 잘리고 회전된 페이지의 주석 위치와 표의 숫자 복사 기능을 개선했습니다.",
         },
       ],
-      note: "오른쪽 클릭 번역을 사용하기 전에 AIdea 번역 탭에서 모델을 선택하고 번역 환경을 준비하세요. 업데이트 후 Zotero를 다시 시작하세요.",
+      note: "업데이트 후 Zotero를 다시 시작하세요. 전체 PDF 번역 전 AIdea의 번역 탭에서 모델을 선택하고 번역 환경을 준비하세요.",
       confirm: "확인",
       close: "업데이트 안내 닫기",
       exampleLabel: "",
@@ -1410,28 +1408,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fr-FR": {
       eyebrow: "Mise à jour",
-      title: "AIdea v3.8.0 : traduction PDF en un clic et interface améliorée",
-      lead: "Lancez la traduction intégrale d’un PDF depuis le menu contextuel d’un élément Zotero. Le PDF traduit est ajouté à l’élément et ouvert dans le lecteur. Cette version améliore aussi les thèmes, les mises à jour de l’environnement de traduction et les messages d’erreur de connexion.",
+      title:
+        "AIdea v4.0.2 · Traduction de PDF par lots et prise en charge du persan",
+      lead: "Mettez en file d’attente les PDF de plusieurs éléments Zotero et joignez chaque traduction à son élément source.",
       alsoLabel: "Cette mise à jour comprend",
       alsoItems: [
         {
-          label: "Traduction PDF depuis le menu contextuel",
-          text: "Cliquez avec le bouton droit sur un seul élément contenant un PDF. Les réglages enregistrés sont utilisés et le résultat est ajouté à l’élément puis ouvert dans Zotero.",
+          label: "Traduction par lots et reprise de la file",
+          text: "Vérifiez les tâches avant de les lancer. Après un redémarrage de Zotero, reprenez la file dans l’onglet Traduction.",
         },
         {
-          label: "Thèmes et couleurs personnalisées",
-          text: "Le contraste des thèmes intégrés est amélioré et vos couleurs personnalisées sont conservées après la mise à jour.",
+          label: "Prise en charge du persan",
+          text: "Utilisez l’interface فارسی ou choisissez le persan comme langue cible. Les traductions de sélections s’affichent de droite à gauche. Les paragraphes horizontaux ordinaires des PDF exportés peuvent être recherchés, sélectionnés et copiés.",
         },
         {
-          label: "Environnement de traduction vérifié",
-          text: "AIdea recherche les mises à jour compatibles et installe un environnement vérifié lorsque vous choisissez Installer/Mettre à jour dans l’onglet Traduction.",
+          label: "Nouvel environnement de traduction",
+          text: "Installez ou mettez à jour l’environnement dans l’onglet Traduction d’AIdea pour obtenir des versions vérifiées des dépendances.",
         },
         {
-          label: "Erreurs et stabilité",
-          text: "L’actualisation des modèles explique les échecs de réseau, d’accès ou de connexion au lieu d’annoncer zéro modèle. D’autres problèmes de chat et de traduction sont corrigés.",
+          label: "Numérisations et tableaux",
+          text: "AIdea corrige l’orientation avant l’OCR et améliore le placement des annotations sur les pages recadrées et pivotées, ainsi que la copie de valeurs numériques dans les tableaux.",
         },
       ],
-      note: "Avant d’utiliser le menu contextuel, choisissez un modèle et préparez l’environnement dans l’onglet Traduction d’AIdea. Redémarrez Zotero après la mise à jour.",
+      note: "Redémarrez Zotero après la mise à jour. Avant de traduire un PDF entier, choisissez un modèle et préparez l’environnement dans l’onglet Traduction d’AIdea.",
       confirm: "Compris",
       close: "Fermer l’avis de mise à jour",
       exampleLabel: "",
@@ -1440,28 +1439,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     "de-DE": {
       eyebrow: "Update",
       title:
-        "AIdea v3.8.0: PDF-Übersetzung per Rechtsklick und bessere Oberfläche",
-      lead: "Starten Sie die vollständige PDF-Übersetzung über das Kontextmenü eines Zotero-Eintrags. Das übersetzte PDF wird dem Eintrag hinzugefügt und im Reader geöffnet. Auch Themenfarben, Übersetzungsumgebung und Fehlermeldungen bei Verbindungsproblemen wurden verbessert.",
+        "AIdea v4.0.2 · PDF-Stapelübersetzung und Unterstützung für Persisch",
+      lead: "Reihen Sie PDFs mehrerer Zotero-Einträge ein und speichern Sie jede Übersetzung beim jeweiligen Quelldokument.",
       alsoLabel: "Dieses Update enthält",
       alsoItems: [
         {
-          label: "PDF-Übersetzung im Kontextmenü",
-          text: "Klicken Sie mit der rechten Maustaste auf einen einzelnen Eintrag mit PDF. Gespeicherte Übersetzungseinstellungen werden verwendet; das Ergebnis wird dem Eintrag hinzugefügt und geöffnet.",
+          label: "Stapelübersetzung und Fortsetzen der Warteschlange",
+          text: "Prüfen Sie die Aufträge vor dem Einreihen. Nach einem Neustart von Zotero können Sie die Warteschlange im Übersetzungs-Tab fortsetzen.",
         },
         {
-          label: "Themen und eigene Farben",
-          text: "Die integrierten Themen bieten besseren Kontrast. Eigene Farbänderungen bleiben nach Themenupdates erhalten.",
+          label: "Unterstützung für Persisch",
+          text: "Nutzen Sie die Oberfläche auf فارسی oder wählen Sie Persisch als Zielsprache. Übersetzungen von Textauswahlen erscheinen von rechts nach links. Gewöhnliche waagerechte Absätze in exportierten PDFs lassen sich suchen, auswählen und kopieren.",
         },
         {
-          label: "Geprüfte Übersetzungsumgebung",
-          text: "AIdea prüft kompatible Updates und installiert eine geprüfte Umgebung, wenn Sie im Übersetzungsreiter Installieren/Aktualisieren wählen.",
+          label: "Aktualisierte Übersetzungsumgebung",
+          text: "Installieren oder aktualisieren Sie die Umgebung im Übersetzungs-Tab von AIdea, um geprüfte Versionen der Abhängigkeiten zu erhalten.",
         },
         {
-          label: "Fehlerhinweise und Stabilität",
-          text: "Beim Abrufen der Modellliste werden Netzwerk-, Zugriffs- oder Anmeldefehler gemeldet statt eines scheinbaren Erfolgs mit null Modellen. Weitere Chat- und Übersetzungsfehler sind behoben.",
+          label: "Scans und Tabellen",
+          text: "AIdea richtet Scans vor der OCR aus und verbessert die Position von Anmerkungen auf zugeschnittenen, gedrehten Seiten sowie das Kopieren von Tabellenwerten.",
         },
       ],
-      note: "Wählen Sie vor der Übersetzung per Rechtsklick ein Modell und richten Sie die Umgebung im AIdea-Übersetzungsreiter ein. Starten Sie Zotero nach dem Update neu.",
+      note: "Starten Sie Zotero nach dem Update neu. Wählen Sie vor der Übersetzung ganzer PDFs im Übersetzungs-Tab von AIdea ein Modell und richten Sie die Umgebung ein.",
       confirm: "Verstanden",
       close: "Update-Hinweis schließen",
       exampleLabel: "",
@@ -1469,28 +1468,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "es-ES": {
       eyebrow: "Actualización",
-      title: "AIdea v3.8.0: traducción PDF con un clic y mejoras de interfaz",
-      lead: "Inicie la traducción completa de un PDF desde el menú contextual de un elemento de Zotero. El PDF traducido se añade al elemento y se abre en el lector. También mejoran los temas, las actualizaciones del entorno de traducción y los errores de conexión.",
+      title:
+        "AIdea v4.0.2 · Traducción de PDF por lotes y compatibilidad con el persa",
+      lead: "Pon en cola PDF de varios elementos de Zotero y guarda cada traducción como adjunto de su elemento de origen.",
       alsoLabel: "Esta actualización incluye",
       alsoItems: [
         {
-          label: "Traducción PDF desde el menú contextual",
-          text: "Haga clic derecho en un solo elemento con PDF para usar los ajustes guardados. El resultado se añade al elemento y se abre en el lector de Zotero.",
+          label: "Traducción por lotes y reanudación de la cola",
+          text: "Revisa las tareas antes de enviarlas. Tras reiniciar Zotero, reanuda la cola en la pestaña de traducción.",
         },
         {
-          label: "Temas y colores personalizados",
-          text: "Los temas integrados tienen mejor contraste y sus colores personalizados se conservan tras la actualización.",
+          label: "Compatibilidad con el persa",
+          text: "Usa la interfaz en فارسی o selecciona el persa como idioma de destino. Las traducciones de selecciones se muestran de derecha a izquierda. Los párrafos horizontales ordinarios de los PDF exportados se pueden buscar, seleccionar y copiar.",
         },
         {
-          label: "Entorno de traducción verificado",
-          text: "AIdea busca actualizaciones compatibles e instala un entorno verificado cuando elige Instalar/Actualizar en la pestaña Traducción.",
+          label: "Entorno de traducción actualizado",
+          text: "Instala o actualiza el entorno desde la pestaña de traducción de AIdea para obtener versiones verificadas de las dependencias.",
         },
         {
-          label: "Errores y estabilidad",
-          text: "La actualización de modelos informa de fallos de red, acceso o inicio de sesión en lugar de mostrar cero modelos como éxito. También se corrigen problemas de chat y traducción.",
+          label: "Escaneos y tablas",
+          text: "AIdea corrige la orientación del escaneo antes del OCR y mejora la colocación de anotaciones en páginas recortadas y giradas y la copia de números de las tablas.",
         },
       ],
-      note: "Antes de usar el menú contextual, elija un modelo y prepare el entorno en la pestaña Traducción de AIdea. Reinicie Zotero tras actualizar.",
+      note: "Reinicia Zotero tras actualizar. Antes de traducir un PDF completo, selecciona un modelo y prepara el entorno en la pestaña de traducción de AIdea.",
       confirm: "Entendido",
       close: "Cerrar aviso de actualización",
       exampleLabel: "",
@@ -1498,28 +1498,29 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ru-RU": {
       eyebrow: "Обновление",
-      title: "AIdea v3.8.0: перевод PDF одним нажатием и улучшение интерфейса",
-      lead: "Запускайте полный перевод PDF из контекстного меню записи Zotero. Переведённый PDF добавляется к записи и открывается в ридере. Улучшены темы, обновление среды перевода и сообщения об ошибках подключения.",
+      title:
+        "AIdea v4.0.2 · Пакетный перевод PDF и поддержка персидского языка",
+      lead: "Добавляйте PDF из нескольких записей Zotero в очередь и сохраняйте каждый перевод в исходной записи.",
       alsoLabel: "В этом обновлении",
       alsoItems: [
         {
-          label: "Перевод PDF из контекстного меню",
-          text: "Щёлкните правой кнопкой по одной записи с PDF. Используются сохранённые настройки; результат добавляется к записи и открывается в Zotero.",
+          label: "Пакетный перевод и восстановление очереди",
+          text: "Проверяйте задания перед отправкой. После перезапуска Zotero продолжите выполнение на вкладке перевода.",
         },
         {
-          label: "Темы и собственные цвета",
-          text: "У встроенных тем улучшен контраст, а ваши изменения цветов сохраняются после обновления.",
+          label: "Поддержка персидского языка",
+          text: "Используйте интерфейс فارسی или выберите персидский язык для перевода. Перевод выделенного текста отображается справа налево. Обычные горизонтальные абзацы в экспортированных PDF можно искать, выделять и копировать.",
         },
         {
-          label: "Проверенная среда перевода",
-          text: "AIdea проверяет совместимые обновления и устанавливает проверенную среду при выборе «Установить/обновить» на вкладке перевода.",
+          label: "Обновлённая среда перевода",
+          text: "Установите или обновите среду на вкладке перевода AIdea, чтобы получить проверенные версии зависимостей.",
         },
         {
-          label: "Ошибки и стабильность",
-          text: "При сбое загрузки списка моделей указывается причина: сеть, доступ или вход. Исправлены и другие ошибки чата и перевода.",
+          label: "Сканы и таблицы",
+          text: "AIdea исправляет ориентацию сканов до OCR и улучшает размещение аннотаций на обрезанных и повёрнутых страницах и копирование чисел из таблиц.",
         },
       ],
-      note: "Перед переводом через меню выберите модель и подготовьте среду на вкладке перевода AIdea. После обновления перезапустите Zotero.",
+      note: "После обновления перезапустите Zotero. Перед переводом PDF целиком выберите модель и подготовьте среду на вкладке перевода AIdea.",
       confirm: "Понятно",
       close: "Закрыть уведомление",
       exampleLabel: "",
@@ -1527,29 +1528,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "pt-BR": {
       eyebrow: "Atualização",
-      title:
-        "AIdea v3.8.0: tradução de PDF com um clique e interface melhorada",
-      lead: "Inicie a tradução integral de um PDF pelo menu de contexto de um item do Zotero. O PDF traduzido é adicionado ao item e aberto no leitor. Esta versão também melhora as cores dos temas, as atualizações do ambiente de tradução e as mensagens de erro de conexão.",
+      title: "AIdea v4.0.2 · Tradução de PDF em lote e suporte ao persa",
+      lead: "Coloque PDFs de vários itens do Zotero na fila e anexe cada tradução ao item de origem.",
       alsoLabel: "Esta atualização inclui",
       alsoItems: [
         {
-          label: "Tradução de PDF pelo menu de contexto",
-          text: "Clique com o botão direito em um único item com PDF para usar as configurações salvas. O resultado é adicionado ao item e aberto no leitor do Zotero.",
+          label: "Tradução em lote e retomada da fila",
+          text: "Confira as tarefas antes de enviar. Depois de reiniciar o Zotero, retome a fila na aba de tradução.",
         },
         {
-          label: "Temas e cores personalizadas",
-          text: "Os temas integrados têm melhor contraste e as cores personalizadas são preservadas após a atualização.",
+          label: "Suporte ao persa",
+          text: "Use a interface em فارسی ou escolha o persa como idioma de destino. Traduções de trechos selecionados aparecem da direita para a esquerda. Parágrafos horizontais comuns nos PDFs exportados podem ser pesquisados, selecionados e copiados.",
         },
         {
-          label: "Ambiente de tradução verificado",
-          text: "AIdea verifica atualizações compatíveis e instala um ambiente validado quando você escolhe Instalar/Atualizar na aba Tradução.",
+          label: "Ambiente de tradução atualizado",
+          text: "Instale ou atualize o ambiente na aba de tradução do AIdea para obter versões verificadas das dependências.",
         },
         {
-          label: "Erros e estabilidade",
-          text: "A atualização da lista de modelos informa falhas de rede, acesso ou login em vez de mostrar zero modelos como sucesso. Outros problemas de chat e tradução também foram corrigidos.",
+          label: "Digitalizações e tabelas",
+          text: "O AIdea corrige a orientação antes do OCR e melhora a posição das anotações em páginas recortadas e giradas e a cópia de números das tabelas.",
         },
       ],
-      note: "Antes de usar o menu de contexto, escolha um modelo e prepare o ambiente na aba Tradução do AIdea. Reinicie o Zotero após atualizar.",
+      note: "Reinicie o Zotero após a atualização. Antes de traduzir um PDF inteiro, escolha um modelo e prepare o ambiente na aba de tradução do AIdea.",
       confirm: "Entendi",
       close: "Fechar aviso de atualização",
       exampleLabel: "",
@@ -1557,28 +1557,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "fa-IR": {
       eyebrow: "به‌روزرسانی",
-      title: "AIdea v3.8.0: ترجمهٔ PDF با یک کلیک و بهبود رابط کاربری",
-      lead: "ترجمهٔ کامل PDF را از منوی راست‌کلیک یک مدرک در Zotero شروع کنید. فایل ترجمه‌شده به همان مدرک پیوست می‌شود و در نمایشگر Zotero باز می‌شود. این نسخه رنگ‌های پوسته، به‌روزرسانی محیط ترجمه و پیام‌های خطای اتصال را نیز بهبود می‌دهد.",
+      title: "AIdea v4.0.2 · ترجمهٔ دسته‌ای PDF و پشتیبانی از فارسی",
+      lead: "فایل‌های PDF چند مدخل Zotero را در صف بگذارید و هر ترجمه را به مدخل اصلی پیوست کنید.",
       alsoLabel: "در این نسخه",
       alsoItems: [
         {
-          label: "ترجمهٔ PDF از منوی مدرک",
-          text: "روی مدرکی که PDF دارد راست‌کلیک کنید. ترجمه با تنظیمات ذخیره‌شدهٔ زبانهٔ ترجمه انجام می‌شود و نتیجه پس از پیوست شدن به مدرک، در Zotero باز می‌شود.",
+          label: "ترجمهٔ دسته‌ای و ادامهٔ صف",
+          text: "پیش از ارسال، کارها را مرور کنید. پس از راه‌اندازی مجدد Zotero، صف را از برگهٔ ترجمه ادامه دهید.",
         },
         {
-          label: "بهبود پوسته‌ها",
-          text: "رنگ‌های پوسته‌های داخلی کنتراست بهتری دارند. رنگ‌هایی که خودتان انتخاب کرده‌اید پس از به‌روزرسانی حفظ می‌شوند.",
+          label: "پشتیبانی از فارسی",
+          text: "از رابط فارسی استفاده کنید یا فارسی را زبان مقصد بگذارید. ترجمهٔ متن انتخاب‌شده از راست به چپ نمایش داده می‌شود. پاراگراف‌های افقی عادی در PDF خروجی را می‌توان جست‌وجو، انتخاب و کپی کرد.",
         },
         {
-          label: "به‌روزرسانی محیط ترجمه",
-          text: "AIdea نسخه‌های سازگار را بررسی می‌کند. با انتخاب «نصب یا به‌روزرسانی» در زبانهٔ ترجمه، محیط بررسی‌شده نصب می‌شود.",
+          label: "محیط ترجمهٔ به‌روز",
+          text: "محیط ترجمه را در برگهٔ ترجمهٔ AIdea نصب یا به‌روز کنید تا نسخه‌های تأییدشدهٔ وابستگی‌ها نصب شوند.",
         },
         {
-          label: "خطاهای روشن‌تر و پایداری بیشتر",
-          text: "اگر فهرست مدل‌ها به‌روز نشود، به‌جای اعلام موفقیت با صفر مدل، دلیل خطای شبکه، دسترسی یا ورود نمایش داده می‌شود. مشکلات دیگری در گفتگو و ترجمه نیز برطرف شده‌اند.",
+          label: "اسکن‌ها و جدول‌ها",
+          text: "AIdea جهت اسکن را پیش از OCR اصلاح می‌کند و جای یادداشت‌ها در صفحه‌های برش‌خورده و چرخیده و کپی اعداد جدول را بهبود می‌دهد.",
         },
       ],
-      note: "پیش از ترجمه از منوی مدرک، در زبانهٔ ترجمهٔ AIdea یک مدل انتخاب و محیط ترجمه را آماده کنید. پس از به‌روزرسانی، Zotero را دوباره اجرا کنید.",
+      note: "پس از به‌روزرسانی، Zotero را دوباره راه‌اندازی کنید. پیش از ترجمهٔ کامل PDF، مدل را انتخاب و محیط را در برگهٔ ترجمهٔ AIdea آماده کنید.",
       confirm: "متوجه شدم",
       close: "بستن پیام به‌روزرسانی",
       exampleLabel: "",
@@ -1586,28 +1586,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "ar-SA": {
       eyebrow: "تحديث",
-      title: "AIdea v3.8.0: ترجمة PDF بنقرة واحدة وتحسين الواجهة",
-      lead: "يمكنك بدء ترجمة ملف PDF بالكامل من القائمة السياقية لعنصر Zotero. تُضاف النسخة المترجمة إلى العنصر وتُفتح في القارئ. يحسّن التحديث أيضاً ألوان السمات وتحديث بيئة الترجمة ورسائل أخطاء الاتصال.",
+      title: "AIdea v4.0.2 · ترجمة ملفات PDF دفعة واحدة ودعم الفارسية",
+      lead: "أضف ملفات PDF من عدة عناصر Zotero إلى قائمة الانتظار وأرفق كل ترجمة بعنصرها الأصلي.",
       alsoLabel: "يتضمن هذا التحديث",
       alsoItems: [
         {
-          label: "ترجمة PDF من القائمة السياقية",
-          text: "انقر بزر الفأرة الأيمن على عنصر واحد يحتوي على PDF لاستخدام الإعدادات المحفوظة؛ تُضاف النتيجة إلى العنصر وتُفتح في قارئ Zotero.",
+          label: "الترجمة الدفعية واستئناف قائمة الانتظار",
+          text: "راجع المهام قبل إرسالها. بعد إعادة تشغيل Zotero، استأنف قائمة الانتظار من علامة تبويب الترجمة.",
         },
         {
-          label: "السمات والألوان المخصصة",
-          text: "تحسّن تباين السمات المدمجة وتبقى تعديلات الألوان المخصصة بعد التحديث.",
+          label: "دعم الفارسية",
+          text: "استخدم واجهة فارسی أو اختر الفارسية لغةً للترجمة. تظهر ترجمة النص المحدد من اليمين إلى اليسار. يمكنك البحث في الفقرات الأفقية العادية في ملفات PDF المصدّرة وتحديدها ونسخها.",
         },
         {
-          label: "بيئة ترجمة تم التحقق منها",
-          text: "يفحص AIdea التحديثات المتوافقة ويثبّت بيئة تم التحقق منها عند اختيار تثبيت/تحديث في تبويب الترجمة.",
+          label: "تحديث بيئة الترجمة",
+          text: "ثبّت بيئة الترجمة أو حدّثها من علامة تبويب الترجمة في AIdea للحصول على إصدارات موثّقة من التبعيات.",
         },
         {
-          label: "الأخطاء والاستقرار",
-          text: "عند فشل تحديث قائمة النماذج تظهر أسباب الشبكة أو الوصول أو تسجيل الدخول بدلاً من إعلان النجاح مع صفر نماذج. أُصلحت أيضاً مشكلات في المحادثة والترجمة.",
+          label: "المستندات الممسوحة والجداول",
+          text: "يصحّح AIdea اتجاه المسح قبل OCR ويحسّن موضع التعليقات في الصفحات المقصوصة والمدوّرة ونسخ الأرقام من الجداول.",
         },
       ],
-      note: "قبل استخدام الترجمة من القائمة، اختر نموذجاً وجهّز بيئة الترجمة في تبويب الترجمة في AIdea. أعد تشغيل Zotero بعد التحديث.",
+      note: "أعد تشغيل Zotero بعد التحديث. قبل ترجمة ملف PDF بالكامل، اختر نموذجًا وجهّز البيئة في علامة تبويب الترجمة في AIdea.",
       confirm: "فهمت",
       close: "إغلاق إشعار التحديث",
       exampleLabel: "",
@@ -1615,28 +1615,28 @@ export const CURRENT_UPDATE_NOTICE_COPIES: Record<PanelLang, UpdateNoticeCopy> =
     },
     "hi-IN": {
       eyebrow: "अपडेट",
-      title: "AIdea v3.8.0: एक क्लिक PDF अनुवाद और बेहतर इंटरफ़ेस",
-      lead: "Zotero आइटम के राइट-क्लिक मेनू से पूरा PDF अनुवाद शुरू करें। अनुवादित PDF उसी आइटम में जुड़ता है और रीडर में खुलता है। इस अपडेट में थीम रंग, अनुवाद वातावरण अपडेट और कनेक्शन त्रुटि संदेश भी सुधरे हैं।",
+      title: "AIdea v4.0.2 · PDF का बैच अनुवाद और फ़ारसी समर्थन",
+      lead: "कई Zotero आइटमों के PDF कतार में जोड़ें और हर अनुवाद उसके मूल आइटम के साथ सहेजें।",
       alsoLabel: "इस अपडेट में",
       alsoItems: [
         {
-          label: "राइट-क्लिक से PDF अनुवाद",
-          text: "PDF वाले एक आइटम पर राइट-क्लिक करके सहेजी गई अनुवाद सेटिंग इस्तेमाल करें। परिणाम आइटम में जुड़कर Zotero रीडर में खुलता है।",
+          label: "बैच अनुवाद और कतार फिर शुरू करना",
+          text: "भेजने से पहले कामों की समीक्षा करें। Zotero को फिर शुरू करने पर अनुवाद टैब से कतार जारी रखें।",
         },
         {
-          label: "थीम और अपने रंग",
-          text: "बिल्ट-इन थीम का कंट्रास्ट बेहतर है और आपके चुने हुए रंग अपडेट के बाद भी सुरक्षित रहते हैं।",
+          label: "फ़ारसी समर्थन",
+          text: "فارسی इंटरफ़ेस इस्तेमाल करें या फ़ारसी को लक्ष्य भाषा चुनें। चयनित पाठ का अनुवाद दाएँ से बाएँ दिखता है। निर्यात किए गए PDF के सामान्य क्षैतिज अनुच्छेद खोजे, चुने और कॉपी किए जा सकते हैं।",
         },
         {
-          label: "जाँचा हुआ अनुवाद वातावरण",
-          text: "AIdea संगत अपडेट जाँचता है और अनुवाद टैब में इंस्टॉल/अपडेट चुनने पर सत्यापित वातावरण इंस्टॉल करता है।",
+          label: "अपडेट किया गया अनुवाद परिवेश",
+          text: "सत्यापित निर्भरताएँ पाने के लिए AIdea के अनुवाद टैब से परिवेश इंस्टॉल या अपडेट करें।",
         },
         {
-          label: "त्रुटि संदेश और स्थिरता",
-          text: "मॉडल सूची रिफ़्रेश विफल होने पर नेटवर्क, पहुँच या लॉगिन का कारण दिखता है, शून्य मॉडल को सफलता नहीं बताया जाता। चैट और अनुवाद की अन्य समस्याएँ भी ठीक की गई हैं।",
+          label: "स्कैन और तालिकाएँ",
+          text: "AIdea OCR से पहले स्कैन की दिशा ठीक करता है। कटे और घुमाए गए पृष्ठों पर टिप्पणियों की स्थिति और तालिकाओं से संख्याएँ कॉपी करने में सुधार हुआ है।",
         },
       ],
-      note: "राइट-क्लिक अनुवाद से पहले AIdea अनुवाद टैब में मॉडल चुनें और वातावरण तैयार करें। अपडेट के बाद Zotero पुनः शुरू करें।",
+      note: "अपडेट के बाद Zotero पुनः शुरू करें। पूरा PDF अनुवाद करने से पहले AIdea के अनुवाद टैब में मॉडल चुनें और परिवेश तैयार करें।",
       confirm: "समझ गया",
       close: "अपडेट सूचना बंद करें",
       exampleLabel: "",

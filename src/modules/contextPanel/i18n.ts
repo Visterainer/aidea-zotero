@@ -791,8 +791,7 @@ const PANEL_I18N_READINESS_OVERRIDES: Partial<
     chatReadinessTitle: "AIdea अभी तैयार नहीं है",
     chatReadinessNoModels:
       "कोई उपलब्ध मॉडल नहीं है। लॉग इन करने या मॉडल सूची रीफ़्रेश करने के लिए AIdea सेटिंग्स खोलें।",
-    chatReadinessSelectModel:
-      "चैट शुरू करने से पहले AIdea सेटिंग्स में मॉडल चुनें।",
+    chatReadinessSelectModel: "चैट शुरू करने से पहले AIdea सेटिंग्स में मॉडल चुनें।",
     chatReadinessCustomConfig:
       "चैट शुरू करने से पहले AIdea सेटिंग्स में custom API Base URL और मॉडल पूरा करें।",
     chatReadinessOpenSettings: "AIdea सेटिंग्स खोलें",
@@ -1556,8 +1555,7 @@ const PANEL_I18N_OVERRIDES: Partial<Record<PanelLang, Partial<PanelI18n>>> = {
       "दस्तावेज़ का केवल कुछ हिस्सा शामिल है। मॉडल की उन्नत सेटिंग में संदर्भ सीमा जाँचें।",
     statusSelectItem: "कोई आइटम चुनें या PDF खोलें",
     placeholderGlobal: "कुछ भी पूछें... पेपर जोड़ने के लिए @ लिखें",
-    placeholderPaper:
-      "इस पेपर के बारे में पूछें... अन्य पेपर जोड़ने के लिए @ लिखें",
+    placeholderPaper: "इस पेपर के बारे में पूछें... अन्य पेपर जोड़ने के लिए @ लिखें",
     modelSelectHint: "मॉडल चुनें",
     modelNoModels: "कोई मॉडल उपलब्ध नहीं। सेटिंग्स में लॉगिन कर रीफ़्रेश करें।",
     uploadFiles: "फ़ाइलें अपलोड करें",
@@ -3205,14 +3203,12 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     title: "AIdea",
     copyChatMd: "चैट को Markdown के रूप में कॉपी करें",
     saveChatAsNote: "चैट को नोट के रूप में सहेजें",
-    statusNoContext:
-      "कोई सक्रिय पेपर संदर्भ नहीं है। पेपर जोड़ने के लिए @ टाइप करें।",
+    statusNoContext: "कोई सक्रिय पेपर संदर्भ नहीं है। पेपर जोड़ने के लिए @ टाइप करें।",
     modelClickChoose: "मॉडल चुनने के लिए क्लिक करें",
     modelOnlyOne: "केवल एक मॉडल कॉन्फ़िगर है",
     conversationLoaded: "बातचीत लोड हुई",
     noEditableLatestPrompt: "संपादित करने योग्य नवीनतम प्रश्न नहीं है",
-    referencePickerReady:
-      "संदर्भ चयन तैयार है। पेपर खोजने के लिए @ के बाद टाइप करें।",
+    referencePickerReady: "संदर्भ चयन तैयार है। पेपर खोजने के लिए @ के बाद टाइप करें।",
     paperAlreadySelected: "पेपर पहले से चुना गया है",
     paperContextAdded: (n, max) => `पेपर संदर्भ जोड़ा गया (${n}/${max})`,
     cancelled: "रद्द किया गया",
@@ -3261,8 +3257,7 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       "अधिक संगत PDF रेंडरिंग का उपयोग करता है। लेआउट गुणवत्ता थोड़ी घट सकती है।",
     trHintTranslateTable:
       "तालिका के अंदर टेक्स्ट का अनुवाद करता है। जटिल तालिकाएँ बिगड़ सकती हैं।",
-    trHintOcr:
-      "सभी पृष्ठों पर OCR बाध्य करता है। स्कैन या खराब टेक्स्ट-लेयर PDF के लिए।",
+    trHintOcr: "सभी पृष्ठों पर OCR बाध्य करता है। स्कैन या खराब टेक्स्ट-लेयर PDF के लिए।",
     trHintAutoOcr: "स्कैन PDF स्वतः पहचानता है और ज़रूरत पर OCR सक्षम करता है।",
     trHintSaveGlossary: "अनुवाद के दौरान शब्दावली स्वतः निकालकर सहेजता है।",
     trHintDisableGlossary: "स्वचालित शब्दावली निष्कर्षण पूरी तरह बंद करता है।",
@@ -3323,8 +3318,7 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
     noActiveLibraryForGlobalConversation:
       "वैश्विक बातचीत के लिए सक्रिय लाइब्रेरी नहीं",
     failedToCreateConversation: "बातचीत बनाने में विफल",
-    waitForResponseBeforeSwitching:
-      "बदलने से पहले उत्तर पूरा होने तक प्रतीक्षा करें",
+    waitForResponseBeforeSwitching: "बदलने से पहले उत्तर पूरा होने तक प्रतीक्षा करें",
     selectRegion: "क्षेत्र चुनें...",
     selectionCancelled: "चयन रद्द हुआ",
     screenshotFailed: "स्क्रीनशॉट विफल",
@@ -3343,8 +3337,7 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       `आउटपुट फ़ॉर्मेट: Mono=${mono} | Dual=${dual}`,
     trLogResolvingCredentials: "मॉडल क्रेडेंशियल हल हो रहे हैं...",
     trLogCheckingEnvironment: "अनुवाद वातावरण जाँचा जा रहा है...",
-    trLogEnvironmentNotReady: (status) =>
-      `वातावरण तैयार नहीं (स्थिति: ${status})`,
+    trLogEnvironmentNotReady: (status) => `वातावरण तैयार नहीं (स्थिति: ${status})`,
     trLogInstallEnvironmentInstruction:
       "Python वातावरण सेट करने के लिए 'Install Environment' बटन क्लिक करें",
     trLogBridgeError: (message) => `ब्रिज त्रुटि: ${message}`,
@@ -3727,8 +3720,7 @@ const PANEL_I18N_RUNTIME_OVERRIDES: Partial<
     addingToNote: "जोड़ा जा रहा है...",
     addedToNote: "जोड़ा गया",
     addToNoteFailed: "जोड़ना विफल",
-    screenshotSelectionInstruction:
-      "क्षेत्र चुनने के लिए क्लिक करके खींचें, फिर छोड़ें",
+    screenshotSelectionInstruction: "क्षेत्र चुनने के लिए क्लिक करके खींचें, फिर छोड़ें",
     cancelEsc: "रद्द करें (Esc)",
     pinTextContext: "टेक्स्ट संदर्भ पिन करें",
     unpinTextContext: "टेक्स्ट संदर्भ अनपिन करें",
@@ -4260,8 +4252,7 @@ const PANEL_I18N_LOG_OVERRIDES: Record<PanelLang, PanelI18nLogKeys> = {
     trLogEnvironmentSetupComplete: "محیط ترجمه آماده شد",
     trLogResumed: "ترجمه از سر گرفته شد",
     trLogPaused: "ترجمه موقتاً متوقف شد",
-    trLogPauseError: (message) =>
-      `خطا در توقف موقت یا ادامهٔ ترجمه: ${message}`,
+    trLogPauseError: (message) => `خطا در توقف موقت یا ادامهٔ ترجمه: ${message}`,
     trLogCannotClearRunning:
       "هنگام ترجمه نمی‌توان حافظهٔ نهان را پاک کرد. ترجمه را موقتاً متوقف کنید یا تا پایان آن صبر کنید.",
     trLogCacheDetails: (removed, skipped) =>
