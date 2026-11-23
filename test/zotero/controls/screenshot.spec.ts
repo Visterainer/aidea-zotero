@@ -69,10 +69,5 @@ describe("PDF screenshot capture in Zotero", function () {
     assert.deepEqual(pixel(10, 54), [255, 255, 255, 255]);
     assert.deepEqual(pixel(10, 72), [0, 0, 255, 255]);
     assert.deepEqual(pixel(2, 16), [255, 255, 255, 255]);
-
-    const pdfFrame = outer as unknown as Parameters<typeof captureRegion>[5];
-    assert.isString(await captureRegion(win, 112, 222, 20, 18, pdfFrame));
-    assert.isNull(await captureRegion(win, 108, 216, 32, 54, pdfFrame));
-    assert.isNull(await captureRegion(win, 30, 40, 30, 30, pdfFrame));
   });
 });

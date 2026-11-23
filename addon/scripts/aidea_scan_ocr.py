@@ -401,6 +401,43 @@ def _normalize_page_content(document, page):
     return document.reload_page(page)
 
 
+def _trim_cropped_edge_text(page):
+    """Remove text beyond the side of the crop, preserving any visible ink."""
+    visible = page.rect
+    rectangles = [fitz.Rect(bbox) for span in page.get_texttrace()
+                  for _, _, _, bbox in span["chars"]]
+    edges = [rect for rect in rectangles if rect.y0 < visible.y1 and rect.y1 > visible.y0
+             and (rect.x0 < visible.x0 or rect.x1 > visible.x1)]
+    if not edges or next(page.annots(types=(fitz.PDF_ANNOT_REDACT,)), None):
+        return
+
+    # A Form's visual clipping does not stop PDF text extractors at the seam
+    # of a bilingual spread. Keep the visible strokes of split glyphs as
+    # small image patches and remove their out-of-bounds text operators.
+    zoom = fitz.Matrix(4, 4)
+    visible_pieces = sorted((rect & visible for rect in edges), key=lambda rect: (rect.y0, rect.x0))
+    regions = []
+    for rect in visible_pieces:
+        if rect.is_empty:
+            continue
+        if regions and rect.intersects(regions[-1]):
+            regions[-1] |= rect
+        else:
+            regions.append(rect)
+    pixels = [page.get_pixmap(matrix=zoom, clip=rect, alpha=True, annots=False)
+              for rect in regions]
+
+    left = min(rect.x0 for rect in edges)
+    right = max(rect.x1 for rect in edges)
+    for margin in (fitz.Rect(left, visible.y0, visible.x0, visible.y1),
+                   fitz.Rect(visible.x1, visible.y0, right, visible.y1)):
+        if not margin.is_empty:
+            page.add_redact_annot(margin, fill=False, cross_out=False)
+    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+    for patch in pixels:
+        page.insert_image(fitz.Rect(patch.irect) * ~zoom, pixmap=patch)
+
+
 def normalize_page_geometry(source, directory):
     """Normalize the visible PDF page geometry without rasterizing digital text."""
     source = Path(source)
@@ -413,12 +450,16 @@ def normalize_page_geometry(source, directory):
         for number in pages:
             page = document[number]
             matrix = page.rotation_matrix
+            media = page.mediabox
+            cropped = page.cropbox != fitz.Rect(media.x0, 0, media.x1, media.height)
             marks = list(_page_text_markup(page))
             # remove_rotation moves annotation rectangles but does not rotate
             # text markup QuadPoints or regenerate their appearances.
             for xref, _ in marks:
                 page.delete_annot(page.load_annot(xref))
             page = _normalize_page_content(document, page)
+            if cropped:
+                _trim_cropped_edge_text(page)
             for _, mark in marks:
                 mark.place(page, mark.project(matrix, page.rect), page.rect)
         destination = Path(directory) / source.name
@@ -519,6 +560,25 @@ def _in_layout(box, regions):
                for region in regions)
 
 
+def _ocr_page_number_boxes(page):
+    """Find isolated, centered page numbers in the OCR text layer."""
+    lines = {}
+    for x0, y0, x1, y1, text, block, line, _ in page.get_text("words"):
+        lines.setdefault((block, line), []).append((fitz.Rect(x0, y0, x1, y1), text))
+    width, height = page.rect.width, page.rect.height
+    to_pdf = ~page.transformation_matrix
+    numbers = []
+    for words in lines.values():
+        if len(words) != 1:
+            continue
+        rect, text = words[0]
+        if (text.isdecimal() and len(text) <= 4
+                and abs((rect.x0 + rect.x1) / 2 - width / 2) <= width * 0.05
+                and (rect.y1 <= height * 0.1 or rect.y0 >= height * 0.9)):
+            numbers.append(rect * to_pdf)
+    return numbers
+
+
 def _group_ocr_prose(characters, layout_for):
     # OCR can emit alternating left and right lines. Keep each detected prose
     # region contiguous, while preserving the order within that region and
@@ -564,7 +624,7 @@ def _paper_color(pixels, rect):
 def install_page_overlay():
     """Use BabelDOC's OCR overlay per recognized page, including mixed PDFs."""
     from babeldoc.format.pdf.document_il.backend.pdf_creater import CharacterRenderUnit, PDFCreater
-    from babeldoc.format.pdf.document_il.il_version_1 import GraphicState
+    from babeldoc.format.pdf.document_il.il_version_1 import Box, GraphicState
     from babeldoc.format.pdf.document_il.midend.paragraph_finder import ParagraphFinder
     from babeldoc.format.pdf.document_il.utils.layout_helper import get_character_layout
     from babeldoc.format.pdf.document_il.utils.style_helper import BLACK
@@ -573,10 +633,19 @@ def install_page_overlay():
     process_page = ParagraphFinder.process_page
     group_characters = ParagraphFinder._group_characters_into_paragraphs
     render_page = PDFCreater.create_render_units_for_page
-    table_text_by_page = {}
+    original_text_by_page = {}
+    page_number_boxes = {}
 
     def process_ocr_document(self, document):
-        table_text_by_page.clear()
+        original_text_by_page.clear()
+        page_number_boxes.clear()
+        with fitz.open(self.translation_config.input_file) as source:
+            for page in document.page:
+                if _ocr_font_present(page):
+                    page_number_boxes[page.page_number] = [
+                        Box(rect.x0, rect.y0, rect.x1, rect.y1)
+                        for rect in _ocr_page_number_boxes(source[page.page_number])
+                    ]
         return process_document(self, document)
 
     def process_ocr_page(self, page):
@@ -592,11 +661,14 @@ def install_page_overlay():
             layout.box for layout in page.page_layout
             if layout.class_name == "table" and layout.box is not None
         ]
-        if tables:
+        # Isolated page numbers also stay in the scan. Keep their individual
+        # text layer so the translator cannot join them to a nearby footer.
+        keep_in_scan = tables + page_number_boxes.get(page.page_number, [])
+        if keep_in_scan:
             prose = []
-            table_text = []
+            original_text = []
             for char in page.pdf_character:
-                if not _in_layout(char.box, tables):
+                if not _in_layout(char.box, keep_in_scan):
                     prose.append(char)
                     continue
                 char.pdf_style = copy(char.pdf_style)
@@ -609,9 +681,10 @@ def install_page_overlay():
                 char.pdf_style.graphic_state = GraphicState(
                     passthrough_per_char_instruction=f"3 Tr {scale:.6f} Tz"
                 )
-                table_text.append(char)
+                original_text.append(char)
             page.pdf_character = prose
-            table_text_by_page[id(page)] = table_text
+            original_text_by_page[id(page)] = original_text
+        if tables:
             page.pdf_paragraph = [
                 paragraph for paragraph in page.pdf_paragraph
                 if not _in_layout(paragraph.box, tables)
@@ -641,7 +714,7 @@ def install_page_overlay():
         units = render_page(self, page, config)
         units.extend(
             CharacterRenderUnit(char, None, index)
-            for index, char in enumerate(table_text_by_page.get(id(page), ()))
+            for index, char in enumerate(original_text_by_page.get(id(page), ()))
         )
         return units
 

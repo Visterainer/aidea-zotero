@@ -109,6 +109,39 @@ class ScanOCRTest(unittest.TestCase):
                 self.assertNotIn("Outside the visible crop", current.get_text())
                 self.assertEqual(current.get_pixmap().samples, expected.get_pixmap().samples)
 
+    def test_crop_edge_does_not_expose_hidden_text_in_the_other_panel(self):
+        source = self.root / "crop-crossing-text.pdf"
+        with fitz.open() as pdf:
+            page = pdf.new_page(width=310, height=190)
+            page.set_cropbox(fitz.Rect(20, 0, 260, 190))
+            page.insert_text((30, 45), "Copyable text inside the original crop")
+            page.insert_text((226, 140), "Border ghost text", fontsize=12)
+            pdf.save(source)
+        original = source.read_bytes()
+        prepared = ocr.normalize_page_geometry(source, self.root / "stage")
+        self.assertEqual(source.read_bytes(), original)
+        with fitz.open(prepared) as normalized, fitz.open() as dual:
+            page = dual.new_page(width=480, height=190)
+            page.show_pdf_page(fitz.Rect(0, 0, 240, 190), normalized, 0)
+            right = fitz.Rect(240, 0, 480, 190)
+            self.assertNotIn("ghost", page.get_text())
+            self.assertEqual(page.get_text(clip=right), "")
+            self.assertIn("Copyable text inside the original crop", page.get_text())
+            left_ink = page.get_pixmap(clip=fitz.Rect(234, 127, 240, 145))
+            self.assertLess(min(left_ink.samples), 140)
+            self.assertTrue(normalized[0].get_images())
+
+    def test_finds_an_isolated_ocr_page_number_without_consuming_numeric_body_text(self):
+        with fitz.open() as pdf:
+            page = pdf.new_page(width=240, height=300)
+            for x, y, text in ((116, 19, "7"), (113, 140, "26"),
+                               (38, 282, "Keep footer 42"), (108, 297, "0.75")):
+                page.insert_text((x, y), text, fontsize=9)
+            boxes = ocr._ocr_page_number_boxes(page)
+            self.assertEqual(len(boxes), 1)
+            self.assertEqual(page.get_text(clip=(boxes[0] * page.transformation_matrix)
+                                           + (-0.1, -0.1, 0.1, 0.1)).strip(), "7")
+
     def test_preserves_multiline_text_markup_on_rotated_cropped_pages(self):
         source = self.root / "highlighted.pdf"
         with fitz.open() as pdf:
