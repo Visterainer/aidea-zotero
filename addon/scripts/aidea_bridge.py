@@ -20,6 +20,7 @@ import uuid
 import random
 import threading
 from collections import deque, OrderedDict
+from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -55,7 +56,7 @@ def _is_persian_layout_target(lang):
     return str(lang or "").strip().lower().replace("_", "-") in ("fa", "fa-ir")
 
 
-def _prepare_pdf2zh_runtime_env(target_lang="", scan_ocr=False, translate_table_text=False):
+def _prepare_pdf2zh_runtime_env(target_lang="", scan_ocr=False, translate_table_text=False, rust=False):
     """
     Build a subprocess env for pdf2zh_next that injects a sitecustomize patch.
 
@@ -78,50 +79,53 @@ def _prepare_pdf2zh_runtime_env(target_lang="", scan_ocr=False, translate_table_
         "        _m.DOC_LAYOUT_ONNX_MODEL_URL['modelscope'] = _hf_doc\n"
         "except Exception:\n"
         "    pass\n"
-        "\n"
-        "try:\n"
-        "    import importlib.util\n"
-        "    from pathlib import Path\n"
-        "    _spec = importlib.util.find_spec('babeldoc.format.pdf.document_il.midend.il_translator_llm_only')\n"
-        "    if _spec and _spec.origin:\n"
-        "        _path = Path(_spec.origin)\n"
-        "        _text = _path.read_text(encoding='utf-8')\n"
-        "        _bad = \"            for input_ in inputs:\\n                input_[2].unicode = input_[5]\\n\"\n"
-        "        _good = (\n"
-        "            \"            for input_index, input_ in enumerate(inputs):\\n\"\n"
-        "            \"                original_unicodes = input_[5]\\n\"\n"
-        "            \"                if isinstance(original_unicodes, list) and input_index < len(original_unicodes):\\n\"\n"
-        "            \"                    input_[2].unicode = original_unicodes[input_index]\\n\"\n"
-        "        )\n"
-        "        if _bad in _text:\n"
-        + (
-            # For Persian the adapter already runs in an isolated worker. Keep
-            # the existing batch-retry fix in memory too; do not write into a
-            # managed/read-only environment or race another running Zotero.
-            "            import importlib.machinery as _im\n"
-            "            class _FixedLoader(_im.SourceFileLoader):\n"
-            "                def get_code(self, fullname):\n"
-            "                    return compile(_text.replace(_bad, _good, 1), self.path, 'exec')\n"
-            "            class _OneModuleFinder:\n"
-            "                def find_spec(self, fullname, path, target=None):\n"
-            "                    if fullname == _spec.name:\n"
-            "                        return importlib.util.spec_from_file_location(fullname, _spec.origin, loader=_FixedLoader(fullname, _spec.origin))\n"
-            "            sys.meta_path.insert(0, _OneModuleFinder())\n"
-            if _is_persian_layout_target(target_lang) else
-            "            _path.write_text(_text.replace(_bad, _good, 1), encoding='utf-8')\n"
-            "            print('[aidea_bridge] Applied BabelDOC fallback restore compatibility patch', file=sys.stderr, flush=True)\n"
-            "        _cache_dir = _path.parent / '__pycache__'\n"
-            "        if _cache_dir.exists():\n"
-            "            for _pyc in _cache_dir.glob('il_translator_llm_only*.pyc'):\n"
-            "                try:\n"
-            "                    _pyc.unlink()\n"
-            "                except Exception:\n"
-            "                    pass\n"
-        )
-        + "except Exception as _err:\n"
-        "    print(f'[aidea_bridge] BabelDOC fallback compatibility patch skipped: {_err}', file=sys.stderr, flush=True)\n"
     )
-    if _is_persian_layout_target(target_lang):
+    if not rust:
+        patch_code += (
+            "\n"
+            "try:\n"
+            "    import importlib.util\n"
+            "    from pathlib import Path\n"
+            "    _spec = importlib.util.find_spec('babeldoc.format.pdf.document_il.midend.il_translator_llm_only')\n"
+            "    if _spec and _spec.origin:\n"
+            "        _path = Path(_spec.origin)\n"
+            "        _text = _path.read_text(encoding='utf-8')\n"
+            "        _bad = \"            for input_ in inputs:\\n                input_[2].unicode = input_[5]\\n\"\n"
+            "        _good = (\n"
+            "            \"            for input_index, input_ in enumerate(inputs):\\n\"\n"
+            "            \"                original_unicodes = input_[5]\\n\"\n"
+            "            \"                if isinstance(original_unicodes, list) and input_index < len(original_unicodes):\\n\"\n"
+            "            \"                    input_[2].unicode = original_unicodes[input_index]\\n\"\n"
+            "        )\n"
+            "        if _bad in _text:\n"
+            + (
+                # For Persian the adapter already runs in an isolated worker. Keep
+                # the existing batch-retry fix in memory too; do not write into a
+                # managed/read-only environment or race another running Zotero.
+                "            import importlib.machinery as _im\n"
+                "            class _FixedLoader(_im.SourceFileLoader):\n"
+                "                def get_code(self, fullname):\n"
+                "                    return compile(_text.replace(_bad, _good, 1), self.path, 'exec')\n"
+                "            class _OneModuleFinder:\n"
+                "                def find_spec(self, fullname, path, target=None):\n"
+                "                    if fullname == _spec.name:\n"
+                "                        return importlib.util.spec_from_file_location(fullname, _spec.origin, loader=_FixedLoader(fullname, _spec.origin))\n"
+                "            sys.meta_path.insert(0, _OneModuleFinder())\n"
+                if _is_persian_layout_target(target_lang) else
+                "            _path.write_text(_text.replace(_bad, _good, 1), encoding='utf-8')\n"
+                "            print('[aidea_bridge] Applied BabelDOC fallback restore compatibility patch', file=sys.stderr, flush=True)\n"
+                "        _cache_dir = _path.parent / '__pycache__'\n"
+                "        if _cache_dir.exists():\n"
+                "            for _pyc in _cache_dir.glob('il_translator_llm_only*.pyc'):\n"
+                "                try:\n"
+                "                    _pyc.unlink()\n"
+                "                except Exception:\n"
+                "                    pass\n"
+            )
+            + "except Exception as _err:\n"
+            "    print(f'[aidea_bridge] BabelDOC fallback compatibility patch skipped: {_err}', file=sys.stderr, flush=True)\n"
+        )
+    if not rust and _is_persian_layout_target(target_lang):
         # Expose only our shipped helpers, in this child's private import path.
         # Do not install packages or patch files in the user's Python env.
         try:
@@ -141,15 +145,24 @@ def _prepare_pdf2zh_runtime_env(target_lang="", scan_ocr=False, translate_table_
         )
     name = "aidea_pdf_text.py"
     shutil.copyfile(os.path.join(os.path.dirname(__file__), name), os.path.join(patch_dir, name))
-    patch_code += (
-        "\ntry:\n"
-        "    from aidea_pdf_text import install_data_paragraph_preservation, install_space_mapping\n"
-        "    install_space_mapping()\n"
-        "    install_data_paragraph_preservation()\n"
-        "except (ImportError, AttributeError) as e:\n"
-        "    print(f'[aidea_bridge] PDF space mapping unavailable: {e}', file=sys.stderr, flush=True)\n"
-    )
-    if translate_table_text:
+    if rust:
+        patch_code += (
+            "\ntry:\n"
+            "    from aidea_pdf_text import install_rust_data_preservation\n"
+            "    install_rust_data_preservation()\n"
+            "except (ImportError, AttributeError) as e:\n"
+            "    raise SystemExit(f'AIdea table protection initialization failed: {e}')\n"
+        )
+    else:
+        patch_code += (
+            "\ntry:\n"
+            "    from aidea_pdf_text import install_data_paragraph_preservation, install_space_mapping\n"
+            "    install_space_mapping()\n"
+            "    install_data_paragraph_preservation()\n"
+            "except (ImportError, AttributeError) as e:\n"
+            "    print(f'[aidea_bridge] PDF space mapping unavailable: {e}', file=sys.stderr, flush=True)\n"
+        )
+    if not rust and translate_table_text:
         patch_code += (
             "\ntry:\n"
             "    from aidea_pdf_text import install_table_cell_bounds\n"
@@ -157,7 +170,7 @@ def _prepare_pdf2zh_runtime_env(target_lang="", scan_ocr=False, translate_table_
             "except (ImportError, AttributeError) as e:\n"
             "    print(f'[aidea_bridge] Table cell bounds unavailable: {e}', file=sys.stderr, flush=True)\n"
         )
-    if scan_ocr:
+    if not rust and scan_ocr:
         name = "aidea_scan_ocr.py"
         shutil.copyfile(os.path.join(os.path.dirname(__file__), name), os.path.join(patch_dir, name))
         patch_code += (
@@ -1314,16 +1327,20 @@ def _postprocess_mono_pdf(
     return changed
 
 
-def _rewrite_translation_custom_prompt(config_file, prompt):
+def _rewrite_translation_custom_prompt(config_file, prompt, *, append=False):
     with open(config_file, "r", encoding="utf-8") as f:
         toml = f.read()
 
+    prompt_pattern = r'(?ms)^custom_system_prompt\s*=\s*("(?:[^"\\]|\\.)*")\s*$\n?'
+    current = re.search(prompt_pattern, toml)
+    if append and current:
+        prompt = "\n".join((json.loads(current[1]), prompt))
     prompt_literal = json.dumps(_sanitize_multiline_prompt(prompt), ensure_ascii=False)
     target_line = f"custom_system_prompt = {prompt_literal}"
     # Remove any pre-existing custom_system_prompt line/block first.
     # This also heals malformed multi-line prompt strings from previous runs.
     cleaned = re.sub(
-        r'(?ms)^custom_system_prompt\s*=\s*"(?:[^"\\]|\\.)*"\s*$\n?',
+        prompt_pattern,
         "",
         toml,
     )
@@ -2874,9 +2891,13 @@ def main():
 
         engine_input = pdf_path
         scan_ocr = False
+        scanned_pages = set()
+        rust = False
         if fitz is not None:
+            from aidea_pdf_pipeline import uses_rust_engine
             from aidea_scan_ocr import ScanOCRError, normalize_page_geometry, prepare_input
 
+            rust = uses_rust_engine()
             normalized = normalize_page_geometry(pdf_path, os.path.join(ocr_stage, "geometry"))
             if normalized is not None:
                 engine_input = str(normalized)
@@ -2893,6 +2914,7 @@ def main():
                 prepared = prepare_input(
                     engine_input, os.path.dirname(ocr_stage), source_lang,
                     ocr_workaround or auto_ocr_workaround, ocr_progress, log_line,
+                    recognized_pages=scanned_pages,
                 )
                 if prepared is not None:
                     engine_input = str(prepared)
@@ -2904,7 +2926,7 @@ def main():
                     stage="error",
                 ))
                 sys.exit(1)
-        if scan_ocr and auto_ocr_workaround:
+        if rust or (scan_ocr and auto_ocr_workaround):
             _use_per_page_ocr(config_file)
 
         if isinstance(oauth_proxy_cfg, dict):
@@ -2937,6 +2959,7 @@ def main():
                 )
 
         selected_pages_spec = ""
+        translate_pages = None
         reference_pages = []
         if skip_references_auto:
             write_progress(progress_file, make_progress(
@@ -2980,8 +3003,17 @@ def main():
                     f"refs={reference_pages}; appendix={appendix_pages}"
                 )
 
+        rust_persian = rust and _is_persian_layout_target(target_lang)
+        if rust_persian:
+            _rewrite_translation_custom_prompt(
+                config_file,
+                "Translate every sentence of ordinary prose fully into Persian. Preserve only "
+                "identifiers, URLs, numerical data, scientific symbols and required placeholders "
+                "in their original form. Use standard Persian spelling, including half-spaces.",
+                append=True,
+            )
         runtime_env, patch_dir = _prepare_pdf2zh_runtime_env(
-            target_lang, scan_ocr, translate_table_text,
+            target_lang, scan_ocr, translate_table_text, rust=rust,
         )
         _log_runtime_package_versions(log_line)
 
@@ -2998,7 +3030,7 @@ def main():
         ]
         if no_dual:
             cmd.append("--no-dual")
-        if no_mono:
+        if no_mono and not rust_persian:
             cmd.append("--no-mono")
         if disable_rich_text_translate:
             cmd.append("--disable-rich-text-translate")
@@ -3006,11 +3038,11 @@ def main():
             cmd.append("--enhance-compatibility")
         if translate_table_text:
             cmd.append("--translate-table-text")
-        if ocr_workaround and not (scan_ocr and auto_ocr_workaround):
+        if not rust and ocr_workaround and not (scan_ocr and auto_ocr_workaround):
             cmd.append("--ocr-workaround")
-        if scan_ocr and auto_ocr_workaround:
+        if not rust and scan_ocr and auto_ocr_workaround:
             cmd.append("--skip-scanned-detection")
-        elif auto_ocr_workaround:
+        elif not rust and auto_ocr_workaround:
             cmd.append("--auto-enable-ocr-workaround")
         if save_glossary and not disable_glossary:
             cmd.append("--save-auto-extracted-glossary")
@@ -3024,11 +3056,27 @@ def main():
             cmd.append("--skip-clean")
         if font_family in ("serif", "sans-serif", "script"):
             cmd.extend(["--primary-font-family", font_family])
-        if selected_pages_spec:
+        if not rust and selected_pages_spec:
             cmd.extend(["--pages", selected_pages_spec])
         if pool_max_worker and pool_max_worker > 1:
             cmd.extend(["--pool-max-worker", str(pool_max_worker)])
-        log_line("Command: " + " ".join(cmd))
+        passes = []
+        if rust:
+            from aidea_pdf_pipeline import assemble_outputs, translation_partitions
+            with fitz.open(engine_input) as source:
+                page_groups = translation_partitions(len(source), translate_pages, scanned_pages)
+            for index, (pages, use_ocr) in enumerate(page_groups):
+                directory = Path(ocr_stage) / f"pass-{index + 1}"
+                directory.mkdir(parents=True, exist_ok=True)
+                pass_cmd = list(cmd)
+                pass_cmd[pass_cmd.index("--output") + 1] = str(directory)
+                pass_cmd.extend(["--pages", build_pages_spec(pages)])
+                pass_cmd.append("--ocr-workaround" if use_ocr else "--skip-scanned-detection")
+                if len(page_groups) > 1 and not disable_glossary and not save_glossary:
+                    pass_cmd.append("--save-auto-extracted-glossary")
+                passes.append((pass_cmd, str(directory), pages))
+        else:
+            passes.append((cmd, output_dir, []))
 
         # ── Phased progress mapping ──
         # Phase 1: Init           →  0 –  5%
@@ -3045,28 +3093,7 @@ def main():
         ))
 
         output_snapshot = _snapshot_output_files(output_dir, pdf_path)
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=runtime_env,
-            )
-        except FileNotFoundError:
-            write_progress(progress_file, make_progress(
-                "error", 0, f"pdf2zh_next not found: {pdf2zh_bin}",
-                error="binary_not_found",
-                logFile=log_file,
-            ))
-            sys.exit(1)
-
-        last_raw_pct = 0   # raw page-level pct from stdout (0-100)
         last_pct = PHASE_TRANSLATE_START  # mapped overall pct
-        last_current = None
-        last_total = None
         tail_lines = deque(maxlen=80)
         errors = _EngineErrors()
         persian_pages = {}
@@ -3080,113 +3107,155 @@ def main():
         translation_stats = {}
         last_write_time = 0
         WRITE_THROTTLE_SEC = 0.8  # min interval between progress writes
-        suppress_cleanup_trace = False
 
-        def _map_page_pct(raw_pct):
-            """Map raw 0–100 page pct to PHASE_TRANSLATE_START – PHASE_TRANSLATE_END."""
-            return PHASE_TRANSLATE_START + int(
-                raw_pct * (PHASE_TRANSLATE_END - PHASE_TRANSLATE_START) / 100
-            )
+        returncode = 0
+        finished_passes = []
 
-        for line in proc.stdout:
-            line = line.rstrip()
-            if not line:
-                continue
-
-            if "Translate process did not finish in time, terminate it" in line:
-                suppress_cleanup_trace = True
-            elif suppress_cleanup_trace and _is_benign_pdf2zh_cleanup_trace_line(line):
-                continue
-            else:
-                suppress_cleanup_trace = False
-
-            print(line, flush=True)
-            log_line(line)
-            tail_lines.append(_sanitize_log_line(line, max_len=1000))
-
-            if _is_persian_layout_target(target_lang) and line.startswith("AIDEA_PERSIAN_PAGE "):
-                marker = re.match(r"AIDEA_PERSIAN_PAGE page=(\d+) replaced=(\d+) skipped=(\d+)\b", line)
-                if marker:
-                    page_no, replaced, skipped = map(int, marker.groups())
-                    persian_pages[page_no] = (replaced, skipped)
-                continue
-            warning_key = _categorize_warning_line(line)
-            if warning_key:
-                warning_stats[warning_key] = warning_stats.get(warning_key, 0) + 1
-
-            stats_match = TRANSLATION_STATS_RE.search(line)
-            if stats_match:
-                translation_stats = {
-                    "total": int(stats_match.group(1)),
-                    "successful": int(stats_match.group(2)),
-                    "fallback": int(stats_match.group(3)),
-                }
-
-            if errors.feed(line):
+        for pass_index, (pass_cmd, pass_dir, pages) in enumerate(passes):
+            last_raw_pct = 0
+            last_current = last_total = None
+            suppress_cleanup_trace = False
+            pass_stats = {}
+            if rust and finished_passes and not disable_glossary:
+                previous_glossary = next(Path(finished_passes[-1][0]).glob("*.glossary.csv"), None)
+                if previous_glossary is not None:
+                    pass_cmd.extend(["--glossaries", str(previous_glossary)])
+            log_line("Command: " + " ".join(pass_cmd))
+            try:
+                proc = subprocess.Popen(
+                    pass_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=runtime_env,
+                )
+            except FileNotFoundError:
                 write_progress(progress_file, make_progress(
-                    "running", last_pct,
-                    f"⚠ Engine error ({errors.count})",
-                    detail=errors.current,
-                    errorCount=errors.count,
-                    stage="translating",
+                    "error", 0, f"pdf2zh_next not found: {pdf2zh_bin}",
+                    error="binary_not_found",
+                    logFile=log_file,
                 ))
-                last_write_time = time.time()
-                continue
+                sys.exit(1)
 
-            # Parse page progress (e.g. "4/14")
-            result = parse_progress(line)
-            if result:
-                current, total, raw_pct = result
-                if raw_pct > last_raw_pct:
-                    last_raw_pct = raw_pct
-                    last_pct = _map_page_pct(raw_pct)
-                    last_current = current
-                    last_total = total
-                    if current is not None and total is not None:
-                        message = f"Translating {current}/{total} pages..."
-                    else:
-                        message = f"Translating... {raw_pct}%"
+            for line in proc.stdout:
+                line = line.rstrip()
+                if not line:
+                    continue
+
+                if "Translate process did not finish in time, terminate it" in line:
+                    suppress_cleanup_trace = True
+                elif suppress_cleanup_trace and _is_benign_pdf2zh_cleanup_trace_line(line):
+                    continue
+                else:
+                    suppress_cleanup_trace = False
+
+                print(line, flush=True)
+                log_line(line)
+                tail_lines.append(_sanitize_log_line(line, max_len=1000))
+
+                if _is_persian_layout_target(target_lang) and line.startswith("AIDEA_PERSIAN_PAGE "):
+                    marker = re.match(r"AIDEA_PERSIAN_PAGE page=(\d+) replaced=(\d+) skipped=(\d+)\b", line)
+                    if marker:
+                        page_no, replaced, skipped = map(int, marker.groups())
+                        persian_pages[page_no] = (replaced, skipped)
+                    continue
+                warning_key = _categorize_warning_line(line)
+                if warning_key:
+                    warning_stats[warning_key] = warning_stats.get(warning_key, 0) + 1
+
+                stats_match = TRANSLATION_STATS_RE.search(line)
+                if stats_match:
+                    pass_stats = {
+                        "total": int(stats_match.group(1)),
+                        "successful": int(stats_match.group(2)),
+                        "fallback": int(stats_match.group(3)),
+                    }
+
+                if errors.feed(line):
                     write_progress(progress_file, make_progress(
-                        "running", last_pct, message,
-                        current=current, total=total,
-                        detail=_sanitize_text(line, max_len=1000),
+                        "running", last_pct,
+                        f"⚠ Engine error ({errors.count})",
+                        detail=errors.current,
+                        errorCount=errors.count,
                         stage="translating",
                     ))
                     last_write_time = time.time()
                     continue
 
-            # For non-progress lines: write detail update (throttled)
-            now = time.time()
-            if now - last_write_time >= WRITE_THROTTLE_SEC:
-                detail_text = _sanitize_text(line, max_len=1000)
-                if detail_text:
-                    # Keep message as the last known progress message,
-                    # put the raw engine output in detail only.
-                    # Omit current/total so TypeScript won't re-print page line.
-                    if last_current is not None and last_total is not None:
-                        keep_msg = f"Translating {last_current}/{last_total} pages..."
-                    elif last_raw_pct > 0:
-                        keep_msg = f"Translating... {last_raw_pct}%"
-                    else:
-                        keep_msg = "Processing..."
-                    write_progress(progress_file, make_progress(
-                        "running", last_pct, keep_msg,
-                        detail=detail_text,
-                        stage="translating",
-                    ))
-                    last_write_time = now
+                # Parse page progress (e.g. "4/14")
+                result = parse_progress(line)
+                if result:
+                    current, total, raw_pct = result
+                    if raw_pct > last_raw_pct:
+                        last_raw_pct = raw_pct
+                        overall = (pass_index + raw_pct / 100) / len(passes)
+                        last_pct = PHASE_TRANSLATE_START + int(
+                            overall * (PHASE_TRANSLATE_END - PHASE_TRANSLATE_START)
+                        )
+                        last_current = current
+                        last_total = total
+                        if current is not None and total is not None:
+                            message = f"Translating {current}/{total} pages..."
+                        else:
+                            message = f"Translating... {raw_pct}%"
+                        write_progress(progress_file, make_progress(
+                            "running", last_pct, message,
+                            current=current, total=total,
+                            detail=_sanitize_text(line, max_len=1000),
+                            stage="translating",
+                        ))
+                        last_write_time = time.time()
+                        continue
+
+                # For non-progress lines: write detail update (throttled)
+                now = time.time()
+                if now - last_write_time >= WRITE_THROTTLE_SEC:
+                    detail_text = _sanitize_text(line, max_len=1000)
+                    if detail_text:
+                        # Keep message as the last known progress message,
+                        # put the raw engine output in detail only.
+                        # Omit current/total so TypeScript won't re-print page line.
+                        if last_current is not None and last_total is not None:
+                            keep_msg = f"Translating {last_current}/{last_total} pages..."
+                        elif last_raw_pct > 0:
+                            keep_msg = f"Translating... {last_raw_pct}%"
+                        else:
+                            keep_msg = "Processing..."
+                        write_progress(progress_file, make_progress(
+                            "running", last_pct, keep_msg,
+                            detail=detail_text,
+                            stage="translating",
+                        ))
+                        last_write_time = now
+
+            returncode = proc.wait()
+            if returncode:
+                break
+            for name, count in pass_stats.items():
+                translation_stats[name] = translation_stats.get(name, 0) + count
+            finished_passes.append((pass_dir, pages))
 
         error_lines = errors.finish()
         # Fatal/no-output outcomes use the tail, not the done diagnostics.
         if errors.service_error:
             tail_lines = [errors.service_error, *tail_lines]
-        returncode = proc.wait()
         if returncode == 0:
-            output_files = _collect_output_files(
-                output_dir,
-                pdf_path,
-                baseline=output_snapshot,
-            )
+            result_dir = output_dir
+            if rust:
+                result_dir = os.path.join(ocr_stage, "result")
+                os.makedirs(result_dir, exist_ok=True)
+                output_files = assemble_outputs(
+                    engine_input, finished_passes, result_dir,
+                    mono=not no_mono or rust_persian, dual=not no_dual,
+                    alternating=dual_mode == "TB",
+                    save_glossary=save_glossary and not disable_glossary,
+                )
+            else:
+                output_files = _collect_output_files(
+                    output_dir, pdf_path, baseline=output_snapshot,
+                )
             if not output_files:
                 no_output_data = _make_no_output_error_progress(
                     last_pct,
@@ -3209,6 +3278,19 @@ def main():
                 translationStats=translation_stats or None,
             ))
             overlay_changes = 0
+            if rust_persian:
+                from aidea_persian_pdf import reflow_persian_pdf
+                translated = {page for _, pages in finished_passes for page in pages}
+                for fn in output_files:
+                    is_dual = ".dual." in fn.lower()
+                    report = reflow_persian_pdf(
+                        os.path.join(result_dir, fn), engine_input, dual=is_dual,
+                        alternating=dual_mode == "TB", translated_first=trans_first,
+                        scanned=scanned_pages, translated=translated,
+                    )
+                    for number, (corrected, skipped) in report.items():
+                        before = persian_pages.get(number, (0, 0))
+                        persian_pages[number] = (max(before[0], corrected), max(before[1], skipped))
             if output_files:
                 try:
                     if not reference_pages and fitz is not None:
@@ -3221,7 +3303,7 @@ def main():
                         if ".mono." not in fn.lower():
                             continue
                         overlay_changes += _postprocess_mono_pdf(
-                            os.path.join(output_dir, fn),
+                            os.path.join(result_dir, fn),
                             proxy,
                             model_id,
                             source_lang,
@@ -3235,11 +3317,19 @@ def main():
                         f"{type(overlay_err).__name__}: {overlay_err}"
                     )
             if fitz is not None:
-                from aidea_pdf_text import repair_math_delimiters
+                from aidea_pdf_text import repair_math_delimiters, restore_numeric_columns
                 from aidea_scan_ocr import restore_dual_text_markup
 
+                digital = {page for _, pages in finished_passes for page in pages} - scanned_pages
                 for fn in output_files:
-                    output_path = os.path.join(output_dir, fn)
+                    output_path = os.path.join(result_dir, fn)
+                    if rust:
+                        restored_columns = restore_numeric_columns(
+                            engine_input, output_path, dual=".dual." in fn.lower(),
+                            alternating=dual_mode == "TB", translated_first=trans_first, pages=digital,
+                        )
+                        if restored_columns:
+                            log_line(f"Restored {restored_columns} numeric list column(s) in {fn}.")
                     if ".dual." in fn.lower():
                         try:
                             restored = restore_dual_text_markup(
@@ -3259,6 +3349,15 @@ def main():
                         continue
                     if updated:
                         log_line(f"Restored Unicode mappings for {updated} TeX delimiter font(s) in {fn}.")
+            if rust:
+                from aidea_pdf_pipeline import publish_outputs
+                if no_mono:
+                    output_files = [name for name in output_files if ".mono." not in name]
+                publish_outputs(
+                    [Path(result_dir) / name for name in output_files]
+                    + list(Path(result_dir).glob("*.glossary.csv")),
+                    output_dir,
+                )
             done_data = make_progress(
                 "done", 100, "Translation complete", outputFiles=output_files,
                 logFile=log_file,
@@ -3269,8 +3368,10 @@ def main():
                 skipped = sum(row[1] for row in persian_pages.values())
                 done_data["persianLayout"] = {"corrected": corrected, "skipped": skipped}
                 if skipped or not corrected:
+                    affected = build_pages_spec(p for p, (_, skipped) in persian_pages.items() if skipped)
                     detail = (f"Persian RTL layout: {corrected} paragraph(s) corrected; "
-                              f"{skipped} left in native layout. Inspect the translated PDF."
+                              f"{skipped} left in native layout"
+                              f"{' on pages ' + affected if affected else ''}. Inspect the translated PDF."
                               if persian_pages else "No Persian RTL layout report; inspect the translated PDF.")
                     error_lines = [*error_lines, detail]
                     errors.count += 1

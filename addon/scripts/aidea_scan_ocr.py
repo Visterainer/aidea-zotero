@@ -509,7 +509,7 @@ def _scan_pixels(page, dpi, marks):
             document.xref_set_key(xref, "F", flags)
 
 
-def prepare_input(source, stage_dir, source_lang, enabled, on_progress, log):
+def prepare_input(source, stage_dir, source_lang, enabled, on_progress, log, *, recognized_pages=None):
     """Make a private same-name copy only if there are raster pages to recognize."""
     source = Path(source)
     with fitz.open(source) as pdf:
@@ -548,6 +548,8 @@ def prepare_input(source, stage_dir, source_lang, enabled, on_progress, log):
                                     mark.place(destination, mark.project(matrix, destination.rect), destination.rect)
                                 output.insert_pdf(text_pdf)
                                 recognized += 1
+                                if recognized_pages is not None:
+                                    recognized_pages.add(number + 1)
                                 if turns:
                                     log(f"Local OCR rotated scan page {number + 1} by {turns * 90}° counterclockwise.")
                             else:

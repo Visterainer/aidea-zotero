@@ -1,6 +1,6 @@
-export const TRANSLATION_BRIDGE_API = 1;
+export const TRANSLATION_BRIDGE_API = 2;
 export const TRANSLATION_ENV_URL =
-  "https://visterainer.github.io/aidea-zotero/translate-env/manifest.json";
+  "https://visterainer.github.io/aidea-zotero/translate-env/manifest-v2.json";
 
 export interface TranslationEnvManifest {
   schemaVersion: 1;
@@ -13,6 +13,7 @@ export interface TranslationEnvManifest {
     "pdf2zh-next": string;
     babeldoc: string;
     bitstring: string;
+    pymupdf?: string;
   };
 }
 
@@ -30,12 +31,13 @@ const HASH_TOKEN_RE = /^--hash=sha256:[a-f0-9]{64}$/;
 export function parseTranslationEnvManifest(
   value: unknown,
   minimumRevision: number,
+  bridgeApi = TRANSLATION_BRIDGE_API,
 ): TranslationEnvManifest {
   if (!value || typeof value !== "object") throw new Error("Invalid manifest");
   const m = value as Record<string, unknown>;
   if (
     m.schemaVersion !== 1 ||
-    m.bridgeApi !== TRANSLATION_BRIDGE_API ||
+    m.bridgeApi !== bridgeApi ||
     m.python !== "3.12" ||
     !Number.isSafeInteger(m.revision) ||
     (m.revision as number) < minimumRevision ||
@@ -54,7 +56,12 @@ export function parseTranslationEnvManifest(
   if (!versions || typeof versions !== "object") {
     throw new Error("Missing engine versions");
   }
-  for (const name of ["pdf2zh-next", "babeldoc", "bitstring"]) {
+  const packageNames = ["pdf2zh-next", "babeldoc", "bitstring"];
+  if (bridgeApi === 2) packageNames.push("pymupdf");
+  if (Object.keys(versions).length !== packageNames.length) {
+    throw new Error("Unexpected engine versions");
+  }
+  for (const name of packageNames) {
     const version = (versions as Record<string, unknown>)[name];
     if (typeof version !== "string" || !VERSION_RE.test(version)) {
       throw new Error(`Invalid ${name} version`);
@@ -272,7 +279,7 @@ export function chooseTranslationEnvAction(
 
 /** `aidea-translate-env-r<revision>-<sha8>-<nonce>`, as created by the updater. */
 const REVISIONED_ENV_NAME_RE =
-  /^aidea-translate-env-r\d+-[a-f0-9]{8}-[a-z0-9]*$/;
+  /^aidea-translate-env(?:-v2)?-r\d+-[a-f0-9]{8}-[a-z0-9]*$/;
 const LEGACY_ENV_NAMES = ["aidea-translate-env", "aidea-translate-conda-env"];
 
 /**
@@ -297,9 +304,11 @@ export function selectRemovableEnvironmentDirs(
   const keep = new Set(
     [activeName, previousName || ""].map((name) => name.toLowerCase()),
   );
+  const versionTwo = activeName.startsWith("aidea-translate-env-v2-");
   return entryNames.filter(
     (name) =>
       !keep.has(name.toLowerCase()) &&
+      versionTwo === name.startsWith("aidea-translate-env-v2-") &&
       (REVISIONED_ENV_NAME_RE.test(name) || LEGACY_ENV_NAMES.includes(name)),
   );
 }

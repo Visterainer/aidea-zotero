@@ -5,7 +5,7 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "site" / "public" / "translate-env"
-manifest = json.loads((CATALOG / "manifest.json").read_text())
+manifest = json.loads((CATALOG / "manifest-v2.json").read_text())
 lock = (CATALOG / f"requirements-{manifest['revision']}.lock").read_text()
 out = ROOT / "src" / "modules" / "pdfTranslator" / "bundledEnvironment.ts"
 out.write_text(

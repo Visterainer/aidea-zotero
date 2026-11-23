@@ -462,12 +462,14 @@ export class TranslateController {
         "aidea_bridge.py",
         "aidea_scan_ocr.py",
         "aidea_pdf_text.py",
+        "aidea_pdf_pipeline.py",
       ];
       if (/^fa(?:[-_]|$)/i.test(targetLang)) {
         scripts.push(
           "aidea_persian_backend.py",
           "aidea_persian_render.py",
           "aidea_persian_text.py",
+          "aidea_persian_pdf.py",
         );
       }
       const zipReader = Cc["@mozilla.org/libjar/zip-reader;1"].createInstance(

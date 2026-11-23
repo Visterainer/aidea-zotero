@@ -83,7 +83,7 @@ jobs:
       - uses: peter-evans/create-pull-request@v7
         with:
           add-paths: site/public/translate-env/
-          branch: codex/translation-env-update
+          branch: codex/translation-env-update-v2
           delete-branch: true
           title: "Update verified translation environment"
           body: |

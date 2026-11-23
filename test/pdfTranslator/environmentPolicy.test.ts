@@ -14,7 +14,7 @@ import {
 
 const catalogDir = new URL("../../site/public/translate-env/", import.meta.url);
 const manifest = JSON.parse(
-  readFileSync(new URL("manifest.json", catalogDir), "utf8"),
+  readFileSync(new URL("manifest-v2.json", catalogDir), "utf8"),
 );
 const lock = readFileSync(
   new URL(`requirements-${manifest.revision}.lock`, catalogDir),
@@ -42,7 +42,7 @@ describe("translation environment policy", function () {
       ),
     );
     assert.throws(() =>
-      parseTranslationEnvManifest({ ...manifest, bridgeApi: 2 }, 1),
+      parseTranslationEnvManifest({ ...manifest, bridgeApi: 1 }, 1),
     );
   });
 

@@ -1,10 +1,12 @@
 """Keep translated PDF text extractable without changing its drawing commands."""
 
+from collections import Counter
 from copy import copy
+import json
 import os
 import re
 from tempfile import NamedTemporaryFile
-from unicodedata import category
+from unicodedata import category, normalize
 
 
 def install_space_mapping():
@@ -47,6 +49,13 @@ def _contains_only_formula_code(text):
     )
 
 
+def _preserved_data(text):
+    if not isinstance(text, str) or not (text := text.strip()):
+        return False
+    return bool(_NUMBER_LIST.fullmatch(text) or _LIST_PUNCTUATION.fullmatch(text)
+                or _contains_only_formula_code(text))
+
+
 def install_data_paragraph_preservation():
     from babeldoc.format.pdf.document_il.midend import il_translator, il_translator_llm_only
     from babeldoc.format.pdf.document_il.utils.paragraph_helper import is_pure_numeric_paragraph
@@ -55,17 +64,186 @@ def install_data_paragraph_preservation():
         text = getattr(paragraph, "unicode", None)
         if is_pure_numeric_paragraph(paragraph):
             return True
-        if not text or not (text := text.strip()):
-            return False
         # Layout detection can place list separators in a separate paragraph.
-        return bool(_NUMBER_LIST.fullmatch(text) or _LIST_PUNCTUATION.fullmatch(text)) or (
-            _contains_only_formula_code(text)
-        )
+        return _preserved_data(text)
 
     # Both the batched translator and its single-paragraph fallback import
     # their own reference to the helper. Keep the original PDF glyphs in both.
     il_translator.is_pure_numeric_paragraph = is_preserved_data
     il_translator_llm_only.is_pure_numeric_paragraph = is_preserved_data
+
+
+def install_rust_data_preservation():
+    """Preserve numeric lists and code at the engine's translator callback."""
+    from babeldoc.rust_translation_service import RustTranslatorService
+
+    translate = RustTranslatorService.translate
+    llm_translate = RustTranslatorService.llm_translate
+
+    def translate_data(self, text, rate_limit_params=None):
+        if _preserved_data(text):
+            return text
+        return translate(self, text, rate_limit_params)
+
+    def translate_batch(self, prompt, rate_limit_params=None):
+        marker = "Now translate the following text:\n"
+        if isinstance(prompt, str) and marker in prompt:
+            text = prompt.rsplit(marker, 1)[1].strip()
+            if _preserved_data(text):
+                return text
+        rows = _translation_batch(prompt)
+        protected = {str(row["id"]): row for row in rows if _preserved_data(row["input"])}
+        if protected and len(protected) == len(rows):
+            return json.dumps([{"id": row["id"], "output": row["input"]} for row in protected.values()],
+                              ensure_ascii=False)
+        result = llm_translate(self, prompt, rate_limit_params)
+        if not protected:
+            return result
+        try:
+            response = json.loads(re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", result))
+        except (ValueError, TypeError):
+            return result
+        if not isinstance(response, list):
+            return result
+        for row in response:
+            if isinstance(row, dict) and str(row.get("id")) in protected:
+                row["output"] = protected[str(row["id"])]["input"]
+        return json.dumps(response, ensure_ascii=False)
+
+    RustTranslatorService.translate = translate_data
+    RustTranslatorService.llm_translate = translate_batch
+
+
+def _translation_batch(prompt):
+    if not isinstance(prompt, str):
+        return []
+    # The real request follows the example batch in the native prompt.
+    for marker in reversed(list(re.finditer(r"\[\s*\{", prompt))):
+        try:
+            rows, _ = json.JSONDecoder().raw_decode(prompt, marker.start())
+        except ValueError:
+            continue
+        if rows and all(isinstance(row, dict) and isinstance(row.get("input"), str)
+                        and isinstance(row.get("id"), (str, int)) for row in rows):
+            return rows
+    return []
+
+
+_NUMERIC_TOKEN = re.compile(r"[-+−]?\d+(?:\.\d+)?")
+_NON_NUMERIC = re.compile(r"[^\d\s,.;%+−-]")
+
+
+def _numeric_columns(page):
+    rows = {}
+    for block in page.get_text("dict")["blocks"]:
+        for line in block.get("lines", []):
+            if line["dir"] != (1, 0):
+                continue
+            for span in line["spans"]:
+                text = span["text"].strip()
+                if "," in text and _NUMBER_LIST.fullmatch(text) and len(_NUMERIC_TOKEN.findall(text)) > 1:
+                    rows.setdefault(round(span["origin"][0]), []).append(span)
+    for spans in rows.values():
+        spans.sort(key=lambda span: span["origin"][1])
+        column = []
+        for span in spans:
+            if column and span["origin"][1] - column[-1]["origin"][1] > 2 * span["size"]:
+                if len(column) > 1:
+                    yield column
+                column = []
+            column.append(span)
+        if len(column) > 1:
+            yield column
+
+
+def restore_numeric_columns(source_path, output_path, *, dual, alternating, translated_first, pages):
+    """Repair reflowed separators in columns consisting entirely of number lists."""
+    import pymupdf as pdf
+
+    if not pages:
+        return 0
+    output_path = os.fspath(output_path)
+    temporary = None
+    restored = 0
+    font = pdf.Font("tiro")
+    try:
+        with pdf.open(source_path) as source, pdf.open(output_path) as output:
+            for number in sorted(pages):
+                original = source[number - 1]
+                index = number - 1
+                if dual and alternating:
+                    index = index * 2 + int(not translated_first)
+                page = output[index]
+                dx = dy = 0
+                if dual and not alternating:
+                    dx = 0 if translated_first else page.rect.width - original.rect.width
+                    dy = (page.rect.height - original.rect.height) / 2
+                shift = (dx, dy, dx, dy)
+                columns = list(_numeric_columns(original))
+                if not columns:
+                    continue
+                edits = []
+                text_boxes = [
+                    (chr(char[0]), pdf.Rect(char[3]))
+                    for span in page.get_texttrace() for char in span["chars"]
+                ]
+                for spans in columns:
+                    original_box = pdf.Rect()
+                    for span in spans:
+                        original_box |= pdf.Rect(span["bbox"])
+                    original_box += (-0.75, -0.9, 0.75, 0.9)
+                    expected = [span["text"].strip() for span in spans]
+                    if any(not font.has_glyph(ord(char)) for line in expected for char in line):
+                        continue
+                    target = original_box + shift
+                    actual = page.get_text(clip=target)
+                    if "".join(normalize("NFKC", actual).split()) == "".join("".join(expected).split()):
+                        continue
+                    # A partially overlapping row or neighboring text makes
+                    # the region ambiguous. Preserve the engine's output.
+                    if _NON_NUMERIC.search(actual) or any(
+                        box.intersects(target) and _NON_NUMERIC.search(char) for char, box in text_boxes
+                    ):
+                        continue
+                    if Counter(_NUMERIC_TOKEN.findall(actual)) != Counter(_NUMERIC_TOKEN.findall(" ".join(expected))):
+                        continue
+                    spans_with_text = [(span, text) for span, text in zip(spans, expected, strict=True)]
+                    edits.append((target, spans_with_text))
+                if not edits:
+                    continue
+                annotations = output.xref_get_key(page.xref, "Annots")[1]
+                xref = page.xref
+                try:
+                    if annotations != "null":
+                        output.xref_set_key(xref, "Annots", "[]")
+                        page = output.reload_page(page)
+                    for bounds, _ in edits:
+                        page.add_redact_annot(bounds, fill=False, cross_out=False)
+                    page.apply_redactions(images=pdf.PDF_REDACT_IMAGE_NONE,
+                                          graphics=pdf.PDF_REDACT_LINE_ART_NONE)
+                finally:
+                    if annotations != "null":
+                        output.xref_set_key(xref, "Annots", annotations)
+                if annotations != "null":
+                    page = output.reload_page(page)
+                for _, spans in edits:
+                    for span, text in spans:
+                        anchor = pdf.Point(span["origin"]) + (dx, dy)
+                        scale = pdf.Rect(span["bbox"]).width / font.text_length(text, fontsize=span["size"])
+                        color = tuple((span["color"] >> n & 255) / 255 for n in (16, 8, 0))
+                        page.insert_text(anchor, text, fontname="tiro", fontsize=span["size"],
+                                         color=color, morph=(anchor, pdf.Matrix(scale, 1)))
+                    restored += 1
+            if restored:
+                with NamedTemporaryFile(dir=os.path.dirname(output_path), suffix=".pdf", delete=False) as f:
+                    temporary = f.name
+                output.save(temporary, garbage=3, deflate=True)
+        if temporary:
+            os.replace(temporary, output_path)
+        return restored
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def _inside_table(box, table):
