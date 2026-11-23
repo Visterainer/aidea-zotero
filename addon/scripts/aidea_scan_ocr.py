@@ -408,8 +408,8 @@ def _trim_cropped_text(page):
                   for _, _, _, bbox in span["chars"]]
     edges = [rect for rect in rectangles if not rect.is_empty and not rect.is_infinite
              and not visible.contains(rect)]
-    if not edges or next(page.annots(types=(fitz.PDF_ANNOT_REDACT,)), None):
-        return
+    if not edges:
+        return page
 
     # A Form's visual clipping does not stop PDF text extractors at the seam
     # of a bilingual spread. Keep the visible strokes of split glyphs as
@@ -430,17 +430,34 @@ def _trim_cropped_text(page):
     extent = fitz.Rect(visible)
     for rect in edges:
         extent |= rect
-    for margin in (
+    margins = (
         fitz.Rect(extent.x0, extent.y0, visible.x0, extent.y1),
         fitz.Rect(visible.x1, extent.y0, extent.x1, extent.y1),
         fitz.Rect(visible.x0, extent.y0, visible.x1, visible.y0),
         fitz.Rect(visible.x0, visible.y1, visible.x1, extent.y1),
-    ):
-        if not margin.is_empty:
-            page.add_redact_annot(margin, fill=False, cross_out=False)
-    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+    )
+    document, page_xref = page.parent, page.xref
+    pending = next(page.annots(types=(fitz.PDF_ANNOT_REDACT,)), None)
+    annotations = document.xref_get_key(page_xref, "Annots")[1] if pending else None
+    try:
+        if annotations is not None:
+            # MuPDF applies every redaction attached to a page. Keep the
+            # document's annotations detached while applying the crop margins.
+            document.xref_set_key(page_xref, "Annots", "[]")
+            page = document.reload_page(page)
+        for margin in margins:
+            if not margin.is_empty:
+                page.add_redact_annot(margin, fill=False, cross_out=False)
+        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                              graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+    finally:
+        if annotations is not None:
+            document.xref_set_key(page_xref, "Annots", annotations)
+    if annotations is not None:
+        page = document.reload_page(page)
     for patch in pixels:
         page.insert_image(fitz.Rect(patch.irect) * ~zoom, pixmap=patch)
+    return page
 
 
 def normalize_page_geometry(source, directory):
@@ -464,7 +481,7 @@ def normalize_page_geometry(source, directory):
                 page.delete_annot(page.load_annot(xref))
             page = _normalize_page_content(document, page)
             if cropped:
-                _trim_cropped_text(page)
+                page = _trim_cropped_text(page)
             for _, mark in marks:
                 mark.place(page, mark.project(matrix, page.rect), page.rect)
         destination = Path(directory) / source.name

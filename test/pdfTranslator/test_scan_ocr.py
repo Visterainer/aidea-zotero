@@ -135,6 +135,47 @@ class ScanOCRTest(unittest.TestCase):
             self.assertLess(min(left_ink.samples), 140)
             self.assertTrue(normalized[0].get_images())
 
+    def test_cropped_text_cleanup_does_not_apply_pending_redactions(self):
+        from babeldoc.pdfminer.high_level import extract_text
+
+        source = self.root / "crop-with-pending-redaction.pdf"
+        content = "Visible text under a pending mark"
+        with fitz.open() as pdf:
+            for indirect in (False, True):
+                page = pdf.new_page(width=310, height=220)
+                page.insert_text((35, 15), "OFF-TOP HEADER")
+                page.set_cropbox(fitz.Rect(20, 24, 260, 214))
+                page.insert_text((35, 66), content)
+                page.insert_text((226, 140), "Border ghost text", fontsize=12)
+                pending = page.add_redact_annot(fitz.Rect(20, 40, 226, 110))
+                pending.set_info(content="Awaiting review")
+                page.add_rect_annot(fitz.Rect(50, 112, 115, 147))
+                if indirect:
+                    annots_xref = pdf.get_new_xref()
+                    pdf.update_object(annots_xref, pdf.xref_get_key(page.xref, "Annots")[1])
+                    pdf.xref_set_key(page.xref, "Annots", f"{annots_xref} 0 R")
+            pdf.save(source)
+
+        original = source.read_bytes()
+        prepared = ocr.normalize_page_geometry(source, self.root / "stage")
+        self.assertEqual(source.read_bytes(), original)
+        output = self.root / "crop-with-pending-redaction-dual.pdf"
+        with fitz.open(prepared) as normalized, fitz.open() as dual:
+            for index, page in enumerate(normalized):
+                marks = list(page.annots())
+                self.assertEqual([mark.type[0] for mark in marks],
+                                 [fitz.PDF_ANNOT_REDACT, fitz.PDF_ANNOT_SQUARE])
+                self.assertEqual(marks[0].info["content"], "Awaiting review")
+                spread = dual.new_page(width=480, height=190)
+                spread.show_pdf_page(fitz.Rect(0, 0, 240, 190), normalized, index)
+                spread.insert_text((260, 45), "Translation panel")
+            dual.save(output)
+
+        text = extract_text(output)
+        self.assertEqual(text.count(content), 2)
+        self.assertNotIn("OFF-TOP HEADER", text)
+        self.assertNotIn("ghost text", text)
+
     def test_finds_an_isolated_ocr_page_number_without_consuming_numeric_body_text(self):
         with fitz.open() as pdf:
             page = pdf.new_page(width=240, height=300)
