@@ -161,7 +161,7 @@ export function deriveUvCandidatePaths(params: {
 }
 
 /** Find the uv binary in the locations its installer and package managers use. */
-async function findUvBinary(): Promise<string | null> {
+async function findUvBinary(checkExecutable = false): Promise<string | null> {
   const env: Record<string, string> = {};
   for (const name of ["UV_INSTALL_DIR", "XDG_BIN_HOME", "XDG_DATA_HOME"]) {
     env[name] = getEnvVar(name);
@@ -173,7 +173,11 @@ async function findUvBinary(): Promise<string | null> {
   });
   for (const p of candidates) {
     try {
-      if (await IOUtils.exists(p)) return p;
+      if (!(await IOUtils.exists(p))) continue;
+      // A stale or non-executable binary must not prevent the installer from
+      // using another candidate or downloading a working copy.
+      if (checkExecutable) await runCmd(p, ["--version"]);
+      return p;
     } catch {
       /* an unusable candidate path is simply skipped */
     }
@@ -549,10 +553,10 @@ export async function detectTranslationPlatform(): Promise<TranslationPlatformIn
 }
 
 export async function ensureUvBinary(): Promise<string> {
-  let uvPath = await findUvBinary();
+  let uvPath = await findUvBinary(true);
   if (!uvPath) {
     await installUv();
-    uvPath = await findUvBinary();
+    uvPath = await findUvBinary(true);
   }
   if (!uvPath) throw new Error("uv installer completed, but uv was not found");
   return uvPath;

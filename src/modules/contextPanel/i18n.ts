@@ -1666,8 +1666,9 @@ const PANEL_I18N_EXTRA_OVERRIDES: Partial<
       "使用較保守的 PDF 渲染方式以提升閱讀器相容性，可能略微降低排版品質。",
     trHintTranslateTable:
       "翻譯表格中的文字。預設關閉，因為複雜表格翻譯後容易錯位。",
-    trHintOcr: "強制所有頁面使用 OCR。適用於文字層損壞或掃描型 PDF。",
-    trHintAutoOcr: "自動偵測掃描型 PDF，必要時啟用 OCR。",
+    trHintOcr: "強制使用 OCR 相容排版，並在本機辨識沒有可用文字層的掃描頁。",
+    trHintAutoOcr:
+      "偵測掃描頁並在本機辨識文字。首次使用該語言時會下載辨識模型。",
     trHintSaveGlossary: "翻譯時自動擷取術語表並儲存，方便下次重用。",
     trHintDisableGlossary: "完全關閉術語自動擷取，可能降低翻譯一致性。",
     trHintFontFamily:
@@ -4483,11 +4484,11 @@ export function getPanelI18n(): PanelI18n {
       trHintEnhanceCompat:
         "Use conservative PDF rendering for broader reader compatibility. May slightly reduce layout quality.",
       trHintTranslateTable:
-        "Translate text inside tables. Off by default because complex tables may break after translation.",
+        "Translate tables with a text layer. Detected scanned tables are preserved as images.",
       trHintOcr:
-        "Force OCR on all pages. Use for PDFs with broken text layers or embedded images.",
+        "Force OCR-compatible rendering. Recognize scanned pages with no usable text layer locally.",
       trHintAutoOcr:
-        "Automatically detect scanned PDFs and enable OCR when needed.",
+        "Detect and recognize scanned pages locally. Downloads a language model on first use.",
       trHintSaveGlossary:
         "Auto-extract a terminology glossary (e.g. Transformer → 变换器) and save to the output folder.",
       trHintDisableGlossary:
@@ -4786,10 +4787,10 @@ export function getPanelI18n(): PanelI18n {
     trHintEnhanceCompat:
       "使用更保守的 PDF 渲染方式，兼容更多阅读器。可能略微降低排版质量。",
     trHintTranslateTable:
-      "翻译表格中的文字。默认关闭，因为复杂表格翻译后容易错位。",
-    trHintOcr:
-      "强制对所有页面使用 OCR 提取文字。用于文字层损坏或嵌入图片的 PDF。",
-    trHintAutoOcr: "自动检测是否为扫描件 PDF，如果是则自动启用 OCR。",
+      "翻译带文字层的表格。识别出的扫描表格保留原图，避免损坏表格线和数据。",
+    trHintOcr: "强制使用 OCR 兼容排版，并在本机识别没有可用文字层的扫描页。",
+    trHintAutoOcr:
+      "检测扫描页并在本机识别文字。首次使用该语言时会下载识别模型。",
     trHintSaveGlossary: "翻译时自动提取专业术语对照表并保存，下次可复用。",
     trHintDisableGlossary: "完全关闭术语自动提取。可能降低翻译一致性。",
     trHintFontFamily:

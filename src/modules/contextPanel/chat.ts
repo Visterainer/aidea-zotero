@@ -956,16 +956,16 @@ export async function switchConversationVariant(
 export async function copyTextToClipboard(
   body: Element,
   text: string,
-): Promise<void> {
+): Promise<boolean> {
   const safeText = sanitizeText(text).trim();
-  if (!safeText) return;
+  if (!safeText) return false;
 
   const win = body.ownerDocument?.defaultView as
     (Window & { navigator?: Navigator }) | undefined;
   if (win?.navigator?.clipboard?.writeText) {
     try {
       await win.navigator.clipboard.writeText(safeText);
-      return;
+      return true;
     } catch (err) {
       ztoolkit.log("Clipboard API copy failed:", err);
     }
@@ -984,10 +984,14 @@ export async function copyTextToClipboard(
       "@mozilla.org/widget/clipboardhelper;1"
     ]?.getService(helper.interfaces.nsIClipboardHelper) as
       { copyString: (value: string) => void } | undefined;
-    if (svc) svc.copyString(safeText);
+    if (svc) {
+      svc.copyString(safeText);
+      return true;
+    }
   } catch (err) {
     ztoolkit.log("Clipboard fallback copy failed:", err);
   }
+  return false;
 }
 
 /**

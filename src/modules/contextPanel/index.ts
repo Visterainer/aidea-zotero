@@ -59,6 +59,7 @@ import {
 import { resolvePaperContextRefFromAttachment } from "./paperAttribution";
 import {
   bootstrapSharedReaderPanel,
+  dismissReaderContextPreviews,
   getSharedReaderPanelHostForItem,
 } from "./readerPanel";
 import {
@@ -75,7 +76,10 @@ import {
   isSelectionTranslateEnabled,
   translateSelectedTextForReader,
 } from "./selectionTranslate";
-import { EPUB_CONTENT_TYPE, getReaderDocumentKind } from "./documentContext";
+import {
+  EPUB_CONTENT_TYPE,
+  getReaderDocumentKind,
+} from "./documentContext";
 import { appendSelectionTranslationToNote } from "./notes";
 import {
   applyPendingSelectionTranslationToAnnotation,
@@ -104,6 +108,7 @@ type ReaderSelectionPopupHandler =
   _ZoteroTypes.Reader.EventHandler<"renderTextSelectionPopup">;
 
 let readerContextPanelSectionKey: string | null = null;
+let readerContextTabObserverID: string | null = null;
 let readerSelectionPopupHandler: ReaderSelectionPopupHandler | null = null;
 
 function shouldEnablePanelSection(
@@ -306,9 +311,13 @@ export function registerReaderContextPanel() {
       await bootstrapSharedReaderPanel(win, host, readerItem);
     },
     onToggle: ({ body, event, item, tabType }) => {
-      if (tabType !== "library") return;
       const target = event?.target as { open?: boolean } | null | undefined;
-      if (target?.open === false) return;
+      if (target?.open === false) {
+        const win = body.ownerDocument?.defaultView;
+        if (tabType === "reader" && win) dismissReaderContextPreviews(win);
+        return;
+      }
+      if (tabType !== "library") return;
 
       try {
         const attached = attachLibraryManagedPanelHost(body, tabType, item);
@@ -328,10 +337,27 @@ export function registerReaderContextPanel() {
     return;
   }
   readerContextPanelSectionKey = sectionKey;
+  readerContextTabObserverID = Zotero.Notifier.registerObserver(
+    {
+      notify(event, type, ids) {
+        if (event !== "select" || type !== "tab") return;
+        for (const win of Zotero.getMainWindows()) {
+          if (ids.some((id) => id === win.Zotero_Tabs.selectedID))
+            dismissReaderContextPreviews(win);
+        }
+      },
+    },
+    ["tab"],
+    "aidea-reader-context-previews",
+  );
   setReaderContextPanelRegistered(true);
 }
 
 export function unregisterReaderContextPanel() {
+  if (readerContextTabObserverID) {
+    Zotero.Notifier.unregisterObserver(readerContextTabObserverID);
+    readerContextTabObserverID = null;
+  }
   const key = readerContextPanelSectionKey || PANE_ID;
   try {
     Zotero.ItemPaneManager.unregisterSection(key);
@@ -372,7 +398,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function getViewportRect(doc: Document): SelectionPopupRect {
+function getViewportRect(
+  doc: Document,
+  popup?: HTMLElement | null,
+): SelectionPopupRect {
   const win = doc.defaultView;
   const width =
     doc.documentElement?.clientWidth ||
@@ -384,7 +413,17 @@ function getViewportRect(doc: Document): SelectionPopupRect {
     doc.body?.clientHeight ||
     win?.innerHeight ||
     600;
-  return makeSelectionPopupRect(0, 0, width, height);
+  const view = popup
+    ?.closest(".primary-view, .secondary-view")
+    ?.getBoundingClientRect();
+  if (!view?.width || !view.height)
+    return makeSelectionPopupRect(0, 0, width, height);
+  return makeSelectionPopupRect(
+    Math.max(0, view.left),
+    Math.max(0, view.top),
+    Math.min(width, view.right),
+    Math.min(height, view.bottom),
+  );
 }
 
 function getReaderSelectionClientRect(
@@ -443,7 +482,7 @@ function clampSelectionPopupToViewport(
   margin: number = 10,
 ): void {
   if (!popup?.isConnected) return;
-  const viewport = getViewportRect(doc);
+  const viewport = getViewportRect(doc, popup);
   const rect = popup.getBoundingClientRect();
   const popupWidth = Math.min(rect.width, viewport.width - margin * 2);
   const popupHeight = Math.min(rect.height, viewport.height - margin * 2);
@@ -451,13 +490,13 @@ function clampSelectionPopupToViewport(
     popup,
     clamp(
       rect.left,
-      margin,
-      Math.max(margin, viewport.width - popupWidth - margin),
+      viewport.left + margin,
+      viewport.right - popupWidth - margin,
     ),
     clamp(
       rect.top,
-      margin,
-      Math.max(margin, viewport.height - popupHeight - margin),
+      viewport.top + margin,
+      viewport.bottom - popupHeight - margin,
     ),
   );
 }
@@ -550,11 +589,22 @@ function layoutSelectionTranslatePopup(params: {
   } = params;
   if (!popup?.isConnected || !wrap.isConnected) return;
 
-  const viewport = getViewportRect(doc);
+  const viewport = getViewportRect(doc, popup);
   const margin = 10;
   const gap = 8;
   const typography = getPanelTypographySettings();
-  const availableWidth = Math.max(180, viewport.width - margin * 2);
+  const style = doc.defaultView?.getComputedStyle(popup);
+  const horizontalChrome = [
+    style?.paddingLeft,
+    style?.paddingRight,
+    style?.borderLeftWidth,
+    style?.borderRightWidth,
+  ].reduce((total, value) => total + (Number.parseFloat(value || "") || 0), 0);
+  popup.style.maxWidth = `${Math.max(0, viewport.width - margin * 2)}px`;
+  const availableWidth = Math.max(
+    0,
+    viewport.width - margin * 2 - horizontalChrome,
+  );
   const width = clamp(
     preferredWidth,
     Math.min(184, availableWidth),
@@ -627,13 +677,13 @@ function layoutSelectionTranslatePopup(params: {
     );
     const left = clamp(
       candidate.left,
-      margin,
-      viewport.width - popupWidth - margin,
+      viewport.left + margin,
+      viewport.right - popupWidth - margin,
     );
     const top = clamp(
       candidate.top,
-      margin,
-      viewport.height - popupHeight - margin,
+      viewport.top + margin,
+      viewport.bottom - popupHeight - margin,
     );
     const rect = makeSelectionPopupRect(
       left,
@@ -642,10 +692,10 @@ function layoutSelectionTranslatePopup(params: {
       top + popupHeight,
     );
     const fits =
-      unclamped.left >= margin &&
-      unclamped.top >= margin &&
-      unclamped.right <= viewport.width - margin &&
-      unclamped.bottom <= viewport.height - margin;
+      unclamped.left >= viewport.left + margin &&
+      unclamped.top >= viewport.top + margin &&
+      unclamped.right <= viewport.right - margin &&
+      unclamped.bottom <= viewport.bottom - margin;
     const overlap = getRectOverlapArea(rect, selectionRect);
     const visible = getRectOverlapArea(rect, viewport);
     return {
@@ -1562,7 +1612,10 @@ export function registerReaderSelectionTracking() {
                 resultBox,
                 minimumHeight: minimumResultHeight,
               });
-              const viewerHeight = getViewportRect(event.doc).height;
+              const viewerHeight = getViewportRect(
+                event.doc,
+                selectionPopup,
+              ).height;
               currentPopupHeight = resolveSelectionTranslateContentHeight({
                 contentHeight: naturalHeight,
                 viewerHeight,

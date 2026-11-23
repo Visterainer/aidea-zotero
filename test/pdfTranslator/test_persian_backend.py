@@ -28,6 +28,22 @@ class PersianBackendTests(unittest.TestCase):
         except PackageNotFoundError:
             raise unittest.SkipTest("requires the pinned translation environment")
 
+    def test_contextual_persian_glyphs_remain_selectable(self):
+        import pymupdf as pdf
+        from aidea_persian_render import render_paragraph
+
+        # The embedded Noto font has contextual forms of lam in these words
+        # whose MuPDF text trace reports U+FFFD instead of a Unicode value.
+        text = (
+            "تیم پژوهشی نتایج آزمایش را در نشریه‌ای در دسترس عموم ثبت کرد. "
+            "این مقاله روشی را برای مقایسهٔ نسخه‌های مدل در مطالعات مختلف بررسی می‌کند."
+        )
+        with pdf.open() as document:
+            page = document.new_page(width=480, height=288)
+            rect = pdf.Rect(38.182, 95.666, 347.673, 163.775)
+            self.assertTrue(render_paragraph(page, rect, text, 13))
+            self.assertEqual(" ".join(page.get_text().split()), text)
+
     def test_native_writes_and_atomic_fallback(self):
         import pymupdf as pdf
         from babeldoc.format.pdf.document_il import il_version_1 as il

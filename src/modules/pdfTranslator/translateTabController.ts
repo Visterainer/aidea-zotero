@@ -485,8 +485,13 @@ const tabEngine = {
  * Call this once after buildUI completes and the DOM is ready.
  *
  * @param body  the panel body element (contains #llm-main)
+ * @param readerItem  the attachment owned by this reader panel, if any
  */
-export function initTranslateTab(body: Element, engine = tabEngine): void {
+export function initTranslateTab(
+  body: Element,
+  engine = tabEngine,
+  readerItem?: Zotero.Item | null,
+): void {
   const modelSelect = body.querySelector("#llm-tr-model") as HTMLElement | null;
   if (!modelSelect) return;
 
@@ -604,13 +609,13 @@ export function initTranslateTab(body: Element, engine = tabEngine): void {
   if (tabBtn) {
     tabBtn.addEventListener("click", () => {
       populateTranslateModelSelector(modelSelect);
-      updatePdfSourceFromItem(body);
+      void refreshTranslatePdfSource(body, readerItem ?? undefined);
       void refreshEnvironmentNotice();
     });
   }
   const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
   if (panelRoot?.dataset.activeTab === "translate") {
-    void updatePdfSourceFromItem(body);
+    void refreshTranslatePdfSource(body, readerItem ?? undefined);
   }
 
   // ── File picker button ──
@@ -625,6 +630,9 @@ export function initTranslateTab(body: Element, engine = tabEngine): void {
         if (!win) return;
         const path = await pickPdfFile(win);
         if (path) {
+          const session = getTranslationSession(body);
+          session.pdfSourceRevision++;
+          session.automaticSourceItem = undefined;
           setSelectedPdfPath(body, path);
         }
       } catch (err) {
@@ -797,7 +805,7 @@ export function initTranslateTab(body: Element, engine = tabEngine): void {
     startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       try {
-        await startTranslation(body, engine);
+        await startTranslation(body, engine, readerItem);
       } catch (err) {
         const i18n = getPanelI18n();
         consoleLog(body, `❌ ${i18n.trLogError(String(err))}`, "error");
@@ -818,7 +826,12 @@ export function initTranslateTab(body: Element, engine = tabEngine): void {
           // Keep the paused controller and original source until a restart is
           // admitted and prepared. A busy/failed attempt must remain resumable.
           if (session.activeRequest) {
-            await startTranslation(body, engine, session.activeRequest);
+            await startTranslation(
+              body,
+              engine,
+              readerItem,
+              session.activeRequest,
+            );
           }
         } else if (session.activeController.getState() === "running") {
           // Pause
@@ -896,6 +909,8 @@ interface TabRequest {
 
 interface TranslationSession {
   selectedPdfPath: string;
+  pdfSourceRevision: number;
+  automaticSourceItem: Zotero.Item | null | undefined;
   translationStartTime: number;
   isPaused: boolean;
   activeController: TabController | null;
@@ -917,6 +932,8 @@ const _translationSessions = new WeakMap<Element, TranslationSession>();
 function createTranslationSession(): TranslationSession {
   return {
     selectedPdfPath: "",
+    pdfSourceRevision: 0,
+    automaticSourceItem: undefined,
     translationStartTime: 0,
     isPaused: false,
     activeController: null,
@@ -966,7 +983,7 @@ function setSelectedPdfPath(body: Element, pdfPath: string): void {
   if (nameEl) {
     // Show just the filename
     const basename = pdfPath.split(/[\\/]/).pop() || pdfPath;
-    nameEl.textContent = basename;
+    nameEl.textContent = basename || getPanelI18n().trNoPdfFound;
     nameEl.title = pdfPath;
   }
 }
@@ -1364,22 +1381,27 @@ function copyConsole(body: Element): void {
   }
 }
 
-/**
- * Auto-detect PDF from the current Zotero item.
- */
-async function updatePdfSourceFromItem(body: Element): Promise<void> {
+function getSelectedPdfSourceItems(body: Element): Zotero.Item[] {
+  const win = body.ownerDocument?.defaultView as _ZoteroTypes.MainWindow | null;
+  const pane = win?.ZoteroPane ?? Zotero.getActiveZoteroPane?.();
+  return pane?.getSelectedItems?.() ?? [];
+}
+
+/** Follow the owning reader or the current selection in this library window. */
+export async function refreshTranslatePdfSource(
+  body: Element,
+  item: Zotero.Item | null = getSelectedPdfSourceItems(body)[0] ?? null,
+): Promise<void> {
+  const session = getTranslationSession(body);
+  const revision = ++session.pdfSourceRevision;
+  session.automaticSourceItem = item;
+  setSelectedPdfPath(body, "");
+  if (!item) return;
   try {
     const { resolveItemPdfPath } = await import("./pdfSourceResolver");
-    // Get current item from Zotero
-    const pane = (Zotero as any).getActiveZoteroPane?.();
-    const items = pane?.getSelectedItems?.() || [];
-    const item = items[0];
-    if (item) {
-      const path = await resolveItemPdfPath(item);
-      if (path) {
-        setSelectedPdfPath(body, path);
-        return;
-      }
+    const path = await resolveItemPdfPath(item);
+    if (path && revision === session.pdfSourceRevision) {
+      setSelectedPdfPath(body, path);
     }
   } catch {
     // ignore — user can always pick manually
@@ -1388,13 +1410,16 @@ async function updatePdfSourceFromItem(body: Element): Promise<void> {
 
 /**
  * The Zotero PDF attachment whose file is `pdfPath`, if the PDF being
- * translated belongs to the selected item rather than to a file picked from
- * disk.
+ * translated belongs to the reader or library selection. A manually picked
+ * path may also match one of those items.
  */
-async function findAttachmentForPdfPath(pdfPath: string): Promise<any | null> {
+async function findAttachmentForPdfPath(
+  pdfPath: string,
+  items: Array<Zotero.Item | null | undefined>,
+): Promise<Zotero.Item | null> {
   try {
-    const pane = (Zotero as any).getActiveZoteroPane?.();
-    for (const item of pane?.getSelectedItems?.() || []) {
+    for (const item of new Set(items)) {
+      if (!item) continue;
       const candidates = item.isAttachment?.()
         ? [item]
         : (item.getAttachments?.() || []).map((id: number) =>
@@ -1419,6 +1444,7 @@ async function findAttachmentForPdfPath(pdfPath: string): Promise<any | null> {
 async function startTranslation(
   body: Element,
   engine: typeof tabEngine,
+  readerItem?: Zotero.Item | null,
   resumeRequest?: TabRequest,
 ): Promise<void> {
   const release = tryReserveTranslation();
@@ -1431,7 +1457,8 @@ async function startTranslation(
     return;
   }
   try {
-    const request = resumeRequest ?? (await prepareTabRequest(body, engine));
+    const request =
+      resumeRequest ?? (await prepareTabRequest(body, engine, readerItem));
     if (request)
       await runTabTranslation(body, engine, request, !!resumeRequest);
   } finally {
@@ -1444,11 +1471,26 @@ async function startTranslation(
 async function prepareTabRequest(
   body: Element,
   engine: typeof tabEngine,
+  readerItem?: Zotero.Item | null,
 ): Promise<TabRequest | null> {
   const i18n = getPanelI18n();
   const copy = batchCopy();
   const overwrite = takeTabOverwrite(body);
-  const pdfPath = getTranslationSession(body).selectedPdfPath;
+  const session = getTranslationSession(body);
+  if (session.automaticSourceItem !== undefined) {
+    const item = readerItem ?? getSelectedPdfSourceItems(body)[0] ?? null;
+    if (item !== session.automaticSourceItem || !session.selectedPdfPath) {
+      const refresh = refreshTranslatePdfSource(body, item);
+      const revision = session.pdfSourceRevision;
+      await refresh;
+      if (revision !== session.pdfSourceRevision) return null;
+    }
+  }
+  const pdfPath = session.selectedPdfPath;
+  const sourceItems =
+    session.automaticSourceItem === undefined
+      ? [readerItem, ...getSelectedPdfSourceItems(body)]
+      : [session.automaticSourceItem];
   const model = body.querySelector<HTMLElement>("#llm-tr-model");
   const modelName = model?.dataset.value || "";
   const modelProviderId = model?.dataset.providerId || "";
@@ -1485,7 +1527,7 @@ async function prepareTabRequest(
     return null;
   }
   if (saveDir) setStringPref(TRANSLATE_PREFS.outputDir, saveDir);
-  const source = await findAttachmentForPdfPath(pdfPath);
+  const source = await findAttachmentForPdfPath(pdfPath, sourceItems);
   if (!source && !saveDir) {
     consoleLog(body, copy.needFolder, "error");
     return null;

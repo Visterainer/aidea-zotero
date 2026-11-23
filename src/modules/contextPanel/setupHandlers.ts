@@ -162,6 +162,7 @@ import {
 } from "../../utils/attachmentRefStore";
 import type { PaperContextRef } from "./types";
 import {
+  readPaperQuery,
   searchPaperCandidates,
   type PaperSearchAttachmentCandidate,
   type PaperSearchGroupCandidate,
@@ -231,7 +232,10 @@ import {
   resolveReasoningEffort,
   setChatReasoningEffort,
 } from "../../utils/reasoningEffort";
-import { bootstrapSettingTab } from "../preferenceScript";
+import {
+  bootstrapSettingTab,
+  getCustomEndpointMissingFields,
+} from "../preferenceScript";
 import { initTranslateTab } from "../pdfTranslator/translateTabController";
 import { createHeightSync, getPanelDisposeSignal } from "./heightSync";
 
@@ -420,7 +424,11 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   // ── Translate tab controller ──
   try {
-    initTranslateTab(body);
+    initTranslateTab(
+      body,
+      undefined,
+      tabType === "reader" ? initialItem : null,
+    );
   } catch (e) {
     ztoolkit.log("LLM: Failed to init translate tab", e);
   }
@@ -2523,6 +2531,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       return;
     const ownerDoc = body.ownerDocument;
     if (!ownerDoc) return;
+    const text = getPanelI18n();
     const { currentModel } = getSelectedModelInfo();
     const screenshotUnsupported = isScreenshotUnsupportedModel(currentModel);
     const screenshotDisabledHint = getScreenshotDisabledHint(currentModel);
@@ -2637,14 +2646,12 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         previewStrip.appendChild(thumbItem);
       }
       previewSelectedImg.src = selectedImages[activeIndex];
-      previewSelectedImg.alt = `Selected screenshot ${activeIndex + 1}`;
+      previewSelectedImg.alt = text.screenshotNth(activeIndex + 1);
       screenshotBtn.disabled =
         screenshotUnsupported || imageCount >= MAX_SELECTED_IMAGES;
       screenshotBtn.title = screenshotUnsupported
         ? screenshotDisabledHint
-        : imageCount >= MAX_SELECTED_IMAGES
-          ? `Max ${MAX_SELECTED_IMAGES} screenshots`
-          : `Add screenshot (${imageCount})`;
+        : `${text.selectFigureScreenshot} · ${text.figureCount(imageCount, MAX_SELECTED_IMAGES)}`;
     } else {
       imagePreview.style.display = "none";
       imagePreview.classList.remove(
@@ -2667,7 +2674,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       screenshotBtn.disabled = screenshotUnsupported;
       screenshotBtn.title = screenshotUnsupported
         ? screenshotDisabledHint
-        : "Select figure screenshot";
+        : text.selectFigureScreenshot;
     }
     applyResponsiveActionButtonsLayout();
     positionExpandedContextPanels();
@@ -4386,10 +4393,14 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         `#${config.addonRef}-custom-model`,
       ) as HTMLInputElement | null;
       if (!customApiBaseInput || !customModelInput) return null;
+      const missing = getCustomEndpointMissingFields(
+        customApiBaseInput.value,
+        customModelInput.value,
+      );
       return {
         primaryConnectionMode: "custom",
-        customMissingApiBase: !customApiBaseInput.value.trim(),
-        customMissingModel: !customModelInput.value.trim(),
+        customMissingApiBase: missing.includes("apiBase"),
+        customMissingModel: missing.includes("model"),
       };
     };
 
@@ -4430,7 +4441,12 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
         return "";
       }
       const primaryProfile = getApiProfiles().primary;
-      if (!primaryProfile.apiBase.trim() || !primaryProfile.model.trim()) {
+      if (
+        getCustomEndpointMissingFields(
+          primaryProfile.apiBase,
+          primaryProfile.model,
+        ).length
+      ) {
         return labels.chatReadinessCustomConfig;
       }
     }
@@ -5501,11 +5517,6 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     }
   };
 
-  type ActiveSlashToken = {
-    query: string;
-    slashStart: number;
-    caretEnd: number;
-  };
   type PaperPickerRow =
     | {
         kind: "paper";
@@ -5522,29 +5533,29 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
   let paperPickerActiveRowIndex = 0;
   let paperPickerRequestSeq = 0;
   let paperPickerDebounceTimer: number | null = null;
+  let explicitPaperQueryStart: number | null = null;
   const PAPER_PICKER_GAP_PX = 8;
   const PAPER_PICKER_MAX_HEIGHT_PX = 420;
   const PAPER_PICKER_MIN_HEIGHT_PX = 56;
-  const getActiveSlashToken = (): ActiveSlashToken | null => {
-    const caretEnd =
-      typeof inputBox.selectionStart === "number"
-        ? inputBox.selectionStart
-        : inputBox.value.length;
-    const prefix = inputBox.value.slice(0, caretEnd);
-    const match = prefix.match(/(?:^|\s)@([^\s@]*)$/);
-    if (!match) return null;
-    const raw = match[0] || "";
-    const fullStart = (match.index ?? prefix.length - raw.length) || 0;
-    const slashStart = raw.startsWith(" ") ? fullStart + 1 : fullStart;
-    return {
-      query: sanitizeText(match[1] || "").trim(),
-      slashStart,
-      caretEnd,
-    };
+  const getActivePaperQuery = () =>
+    readPaperQuery(
+      inputBox.value,
+      inputBox.selectionStart ?? inputBox.value.length,
+      explicitPaperQueryStart,
+    );
+  const cancelPaperPickerDebounce = () => {
+    if (paperPickerDebounceTimer === null) return;
+    (body.ownerDocument?.defaultView || globalThis).clearTimeout(
+      paperPickerDebounceTimer,
+    );
+    paperPickerDebounceTimer = null;
   };
   const isPaperPickerOpen = () =>
     Boolean(paperPicker && paperPicker.style.display !== "none");
   const closePaperPicker = () => {
+    cancelPaperPickerDebounce();
+    ++paperPickerRequestSeq;
+    explicitPaperQueryStart = null;
     if (!paperPicker || !paperPickerList) return;
     paperPicker.style.display = "none";
     paperPicker.style.left = "";
@@ -5746,10 +5757,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     }
     return true;
   };
-  const consumeActiveSlashToken = (): boolean => {
-    const token = getActiveSlashToken();
+  const consumeActivePaperQuery = (): boolean => {
+    const token = getActivePaperQuery();
     if (!token) return false;
-    const beforeSlash = inputBox.value.slice(0, token.slashStart);
+    const beforeSlash = inputBox.value.slice(0, token.start);
     const afterCaret = inputBox.value.slice(token.caretEnd);
     inputBox.value = `${beforeSlash}${afterCaret}`;
     const nextCaret = beforeSlash.length;
@@ -5765,7 +5776,7 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     if (!selectedGroup) return false;
     const selectedAttachment = selectedGroup.attachments[attachmentIndex];
     if (!selectedAttachment) return false;
-    consumeActiveSlashToken();
+    if (!consumeActivePaperQuery()) return false;
     ztoolkit.log("LLM: Paper picker selection", {
       selectionKind,
       itemId: selectedGroup.itemId,
@@ -6046,26 +6057,17 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       closePaperPicker();
       return;
     }
-    const slashToken = getActiveSlashToken();
-    if (!slashToken) {
+    if (!getActivePaperQuery()) {
       closePaperPicker();
       return;
     }
-    if (paperPickerDebounceTimer !== null) {
-      const win = body.ownerDocument?.defaultView;
-      if (win) {
-        win.clearTimeout(paperPickerDebounceTimer);
-      } else {
-        clearTimeout(paperPickerDebounceTimer);
-      }
-      paperPickerDebounceTimer = null;
-    }
+    cancelPaperPickerDebounce();
     const requestId = ++paperPickerRequestSeq;
     const runSearch = async () => {
       paperPickerDebounceTimer = null;
       if (!item) return;
-      const activeSlashToken = getActiveSlashToken();
-      if (!activeSlashToken) {
+      const activeQuery = getActivePaperQuery();
+      if (!activeQuery) {
         closePaperPicker();
         return;
       }
@@ -6076,18 +6078,18 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       }
       const results = await searchPaperCandidates(
         libraryID,
-        activeSlashToken.query,
+        activeQuery.query,
         null,
         20,
       );
       if (requestId !== paperPickerRequestSeq) return;
-      if (!getActiveSlashToken()) {
+      if (!getActivePaperQuery()) {
         closePaperPicker();
         return;
       }
       paperPickerGroups = results;
       paperPickerExpandedGroupKeys = new Set<number>();
-      if (activeSlashToken.query.trim()) {
+      if (activeQuery.query) {
         for (const group of paperPickerGroups) {
           if (
             group.attachments.length > 1 &&
@@ -6687,8 +6689,8 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
 
   const openReferenceSlashFromMenu = () => {
     if (!item) return;
-    const existingToken = getActiveSlashToken();
-    if (!existingToken) {
+    let start = getActivePaperQuery()?.start;
+    if (start === undefined) {
       const selectionStart =
         typeof inputBox.selectionStart === "number"
           ? inputBox.selectionStart
@@ -6703,8 +6705,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
       const insertion = `${needsLeadingSpace ? " " : ""}@`;
       inputBox.value = `${before}${insertion}${after}`;
       const nextCaret = before.length + insertion.length;
+      start = nextCaret - 1;
       inputBox.setSelectionRange(nextCaret, nextCaret);
     }
+    explicitPaperQueryStart = start;
     inputBox.focus({ preventScroll: true });
     schedulePaperPickerSearch();
     if (status) {
@@ -7771,6 +7775,10 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     )
       return;
 
+    closePinnedContextPanels();
+  };
+  const closePinnedContextPanels = () => {
+    if (!item) return;
     const textContextKey = getTextContextConversationKey();
     if (!textContextKey) return;
     const textPinned =
@@ -7803,6 +7811,13 @@ export function setupHandlers(body: Element, initialItem?: Zotero.Item | null) {
     updateImagePreviewPreservingScroll();
   };
   body.addEventListener("mousedown", dismissPinnedContextPanels, true);
+  body.addEventListener(
+    "aidea-dismiss-context-previews",
+    closePinnedContextPanels,
+    {
+      signal: panelDisposeSignal,
+    },
+  );
   bodyWithPinnedDismiss.__llmPinnedContextDismissHandler =
     dismissPinnedContextPanels;
 

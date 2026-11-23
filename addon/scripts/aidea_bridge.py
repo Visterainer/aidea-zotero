@@ -55,7 +55,7 @@ def _is_persian_layout_target(lang):
     return str(lang or "").strip().lower().replace("_", "-") in ("fa", "fa-ir")
 
 
-def _prepare_pdf2zh_runtime_env(target_lang=""):
+def _prepare_pdf2zh_runtime_env(target_lang="", scan_ocr=False, translate_table_text=False):
     """
     Build a subprocess env for pdf2zh_next that injects a sitecustomize patch.
 
@@ -138,6 +138,34 @@ def _prepare_pdf2zh_runtime_env(target_lang=""):
             "    raise SystemExit(f'AIdea Persian PDF layout initialization failed: {e}')\n"
             "if not _aidea_persian_ready:\n"
             "    raise SystemExit('AIdea Persian PDF layout requires the verified translation environment')\n"
+        )
+    name = "aidea_pdf_text.py"
+    shutil.copyfile(os.path.join(os.path.dirname(__file__), name), os.path.join(patch_dir, name))
+    patch_code += (
+        "\ntry:\n"
+        "    from aidea_pdf_text import install_data_paragraph_preservation, install_space_mapping\n"
+        "    install_space_mapping()\n"
+        "    install_data_paragraph_preservation()\n"
+        "except (ImportError, AttributeError) as e:\n"
+        "    print(f'[aidea_bridge] PDF space mapping unavailable: {e}', file=sys.stderr, flush=True)\n"
+    )
+    if translate_table_text:
+        patch_code += (
+            "\ntry:\n"
+            "    from aidea_pdf_text import install_table_cell_bounds\n"
+            "    install_table_cell_bounds()\n"
+            "except (ImportError, AttributeError) as e:\n"
+            "    print(f'[aidea_bridge] Table cell bounds unavailable: {e}', file=sys.stderr, flush=True)\n"
+        )
+    if scan_ocr:
+        name = "aidea_scan_ocr.py"
+        shutil.copyfile(os.path.join(os.path.dirname(__file__), name), os.path.join(patch_dir, name))
+        patch_code += (
+            "\ntry:\n"
+            "    from aidea_scan_ocr import install_page_overlay\n"
+            "    install_page_overlay()\n"
+            "except Exception as e:\n"
+            "    raise SystemExit(f'AIdea scan OCR layout initialization failed: {e}')\n"
         )
     with open(sitecustomize_path, "w", encoding="utf-8") as f:
         f.write(patch_code)
@@ -2747,6 +2775,20 @@ def _rewrite_openai_base_url(config_file, base_url):
         f.write(replaced)
 
 
+def _use_per_page_ocr(config_file):
+    # The engine otherwise re-enables its document-wide OCR detection even
+    # when --skip-scanned-detection was passed by the bridge.
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = f.read()
+    config = re.sub(
+        r"(?m)^(auto_enable_ocr_workaround|ocr_workaround)[ \t]*=[ \t]*true\b",
+        r"\1 = false",
+        config,
+    )
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(config)
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: aidea_bridge.py <task.json>", file=sys.stderr)
@@ -2823,11 +2865,47 @@ def main():
     proxy = None
     patch_dir = None
     proc = None
+    ocr_stage = os.path.join(os.path.dirname(os.path.abspath(task_file)), "ocr-input")
     try:
         log_line(f"Task file: {task_file}")
         log_line(f"PDF: {pdf_path}")
         log_line(f"Output: {output_dir}")
         log_line(f"Model config: {config_file}")
+
+        engine_input = pdf_path
+        scan_ocr = False
+        if fitz is not None:
+            from aidea_scan_ocr import ScanOCRError, normalize_page_geometry, prepare_input
+
+            normalized = normalize_page_geometry(pdf_path, os.path.join(ocr_stage, "geometry"))
+            if normalized is not None:
+                engine_input = str(normalized)
+                log_line("Normalized PDF page rotation and visible boxes for the translation engine.")
+
+            def ocr_progress(current, total):
+                message = (f"Recognizing scanned pages locally ({current}/{total})..."
+                           if current else "Preparing local OCR for scanned pages...")
+                write_progress(progress_file, make_progress(
+                    "running", 5, message, stage="initializing",
+                ))
+
+            try:
+                prepared = prepare_input(
+                    engine_input, os.path.dirname(ocr_stage), source_lang,
+                    ocr_workaround or auto_ocr_workaround, ocr_progress, log_line,
+                )
+                if prepared is not None:
+                    engine_input = str(prepared)
+                    scan_ocr = True
+            except ScanOCRError as err:
+                log_line(str(err))
+                write_progress(progress_file, make_progress(
+                    "error", 0, str(err), error="scan_ocr_failed", logFile=log_file,
+                    stage="error",
+                ))
+                sys.exit(1)
+        if scan_ocr and auto_ocr_workaround:
+            _use_per_page_ocr(config_file)
 
         if isinstance(oauth_proxy_cfg, dict):
             proxy = OAuthCompatProxyServer(
@@ -2847,7 +2925,7 @@ def main():
                 startTime=time.time(),
                 stage="author_block",
             ))
-            protected_terms = extract_author_block_terms(pdf_path)
+            protected_terms = extract_author_block_terms(engine_input)
             if protected_terms:
                 prompt = build_author_protection_prompt(protected_terms)
                 _rewrite_translation_custom_prompt(config_file, prompt)
@@ -2867,7 +2945,7 @@ def main():
                 stage="reference_detection",
             ))
             policy = classify_reference_and_appendix_pages(
-                pdf_path,
+                engine_input,
                 keep_appendix_translated=keep_appendix_translated,
             )
             total_pages = int(policy.get("total_pages") or 0)
@@ -2902,12 +2980,14 @@ def main():
                     f"refs={reference_pages}; appendix={appendix_pages}"
                 )
 
-        runtime_env, patch_dir = _prepare_pdf2zh_runtime_env(target_lang)
+        runtime_env, patch_dir = _prepare_pdf2zh_runtime_env(
+            target_lang, scan_ocr, translate_table_text,
+        )
         _log_runtime_package_versions(log_line)
 
         cmd = [
             pdf2zh_bin,
-            pdf_path,
+            engine_input,
             "--openaicompatible",
             "--qps", str(qps),
             "--output", output_dir,
@@ -2926,9 +3006,11 @@ def main():
             cmd.append("--enhance-compatibility")
         if translate_table_text:
             cmd.append("--translate-table-text")
-        if ocr_workaround:
+        if ocr_workaround and not (scan_ocr and auto_ocr_workaround):
             cmd.append("--ocr-workaround")
-        if auto_ocr_workaround:
+        if scan_ocr and auto_ocr_workaround:
+            cmd.append("--skip-scanned-detection")
+        elif auto_ocr_workaround:
             cmd.append("--auto-enable-ocr-workaround")
         if save_glossary and not disable_glossary:
             cmd.append("--save-auto-extracted-glossary")
@@ -3131,7 +3213,7 @@ def main():
                 try:
                     if not reference_pages and fitz is not None:
                         policy = classify_reference_and_appendix_pages(
-                            pdf_path,
+                            engine_input,
                             keep_appendix_translated=keep_appendix_translated,
                         )
                         reference_pages = [int(p) for p in policy.get("reference_pages", [])]
@@ -3152,6 +3234,31 @@ def main():
                         "Overlay postprocess skipped: "
                         f"{type(overlay_err).__name__}: {overlay_err}"
                     )
+            if fitz is not None:
+                from aidea_pdf_text import repair_math_delimiters
+                from aidea_scan_ocr import restore_dual_text_markup
+
+                for fn in output_files:
+                    output_path = os.path.join(output_dir, fn)
+                    if ".dual." in fn.lower():
+                        try:
+                            restored = restore_dual_text_markup(
+                                engine_input, output_path, dual_mode == "TB", trans_first,
+                            )
+                            if restored:
+                                log_line(f"Restored {restored} embedded text annotations to the original side in {fn}.")
+                        except (OSError, RuntimeError, ValueError) as err:
+                            detail = f"Could not restore embedded text annotations in {fn}: {err}"
+                            log_line(detail)
+                            error_lines = [*error_lines, detail]
+                            errors.count += 1
+                    try:
+                        updated = repair_math_delimiters(output_path)
+                    except (ImportError, OSError, RuntimeError, ValueError) as err:
+                        log_line(f"Could not restore TeX Unicode mappings in {fn}: {err}")
+                        continue
+                    if updated:
+                        log_line(f"Restored Unicode mappings for {updated} TeX delimiter font(s) in {fn}.")
             done_data = make_progress(
                 "done", 100, "Translation complete", outputFiles=output_files,
                 logFile=log_file,
@@ -3222,6 +3329,7 @@ def main():
                 shutil.rmtree(patch_dir, ignore_errors=True)
             except Exception:
                 pass
+        shutil.rmtree(ocr_stage, ignore_errors=True)
 
 
 if __name__ == "__main__":

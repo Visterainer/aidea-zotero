@@ -529,6 +529,15 @@ describe("custom endpoint settings UI", function () {
     );
   });
 
+  it("requires an HTTP(S) endpoint in custom mode even when a model is set", function () {
+    for (const apiBase of ["oauth://openai-codex", "localhost:11434", "https://"]) {
+      assert.deepEqual(
+        preferenceScript.getCustomEndpointMissingFields(apiBase, "a-model"),
+        ["apiBase"],
+      );
+    }
+  });
+
   it("renders the mode selector, preserves OAuth cards, and saves trimmed custom prefs", async function () {
     setPluginPref("primaryConnectionMode", "oauth");
     setPluginPref("apiBase", "");
@@ -584,7 +593,7 @@ describe("custom endpoint settings UI", function () {
     assert.equal(getPluginPref("primaryConnectionMode"), "custom");
     assert.equal(customFields.style.display, "flex");
     assert.equal((apiBaseInput as any).disabled, false);
-    assert.include(status.textContent, "requires API Base URL and Model");
+    assert.include(status.textContent, "requires a valid HTTP(S) API Base URL and model");
 
     apiBaseInput.value = "  http://localhost:11434/v1///  ";
     apiBaseInput.emit("change");
@@ -659,7 +668,7 @@ describe("custom endpoint settings UI", function () {
     apiBaseInput.emit("input");
     assert.equal(latestModelEvent().primaryConnectionMode, "custom");
     assert.equal(latestModelEvent().customMissingApiBase, true);
-    assert.include(status.textContent, "requires API Base URL");
+    assert.include(status.textContent, "requires a valid HTTP(S) API Base URL");
 
     apiBaseInput.value = "http://localhost:11434/v1/";
     modelInput.value = "";

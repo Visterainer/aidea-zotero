@@ -214,6 +214,7 @@ describe("Translate tab job ownership", function () {
     script: ConstructorParameters<typeof Controller>[1],
     overrides: Partial<Engine> = {},
     confirm = (_message: string) => false,
+    readerItem?: ReturnType<typeof attachment>,
   ) {
     const ids = [
       "model",
@@ -221,6 +222,7 @@ describe("Translate tab job ownership", function () {
       "clear",
       "pause",
       "pdf-name",
+      "pick-file",
       "console",
       "console-toggle",
       "console-body",
@@ -249,7 +251,7 @@ describe("Translate tab job ownership", function () {
     fields["output-attach"].checked =
       prefs.get("extensions.zotero.aidea.translate.outputAttach") !== false;
     const sources = new WeakMap<Plan, Zotero.Item | null>();
-    tab.initTranslateTab(body as unknown as Element, {
+    const engine: Engine = {
       inspectTranslationOutputs: async (...args) => {
         const plan = await planFor(...args);
         sources.set(plan, args[0]);
@@ -284,14 +286,24 @@ describe("Translate tab job ownership", function () {
       }),
       createController: async (emit) => new Controller(emit, script),
       ...overrides,
-    });
+    };
+    tab.initTranslateTab(
+      body as unknown as Element,
+      engine,
+      readerItem as unknown as Zotero.Item | undefined,
+    );
     return {
       fields,
+      refreshSource: (item: typeof selected | null) =>
+        tab.refreshTranslatePdfSource(
+          body as unknown as Element,
+          item as unknown as Zotero.Item | null,
+        ),
       async select(item: typeof selected) {
         selected = item;
         const refreshed = gate();
         fields["pdf-name"].onTitle = (path) => {
-          if (path === item.getFilePath()) refreshed.open();
+          if (path === (readerItem ?? item).getFilePath()) refreshed.open();
         };
         await show.click();
         await refreshed.wait;
@@ -302,6 +314,83 @@ describe("Translate tab job ownership", function () {
           .join("\n"),
     };
   }
+
+  it("keeps the newest library source when an older file lookup is still pending", async function () {
+    const a = selected;
+    const b = attachment("B.pdf", 22);
+    const held = gate();
+    const entered = gate();
+    const originalExists = globals.IOUtils.exists;
+    globals.IOUtils.exists = async (path: string) => {
+      if (path === a.getFilePath()) {
+        entered.open();
+        await held.wait;
+      }
+      return originalExists(path);
+    };
+    const p = panel(async () => assert.fail("must not launch"));
+    const oldLookup = p.refreshSource(a);
+    try {
+      await entered.wait;
+      await p.refreshSource(b);
+      assert.equal(p.fields["pdf-name"].textContent, "B.pdf");
+      held.open();
+      await oldLookup;
+      assert.equal(p.fields["pdf-name"].textContent, "B.pdf");
+      await p.refreshSource(null);
+      assert.equal(p.fields["pdf-name"].textContent, "No PDF attachment found");
+    } finally {
+      held.open();
+      await oldLookup;
+      globals.IOUtils.exists = originalExists;
+    }
+  });
+
+  it("refreshes the source at Start if the library selection changed before the panel", async function () {
+    let source: { path: string; parent?: number } | undefined;
+    const p = panel(async () => assert.fail("no outputs to generate"), {
+      inspectTranslationOutputs: async (...args) => {
+        source = { path: args[1], parent: args[0]?.parentItemID };
+        return { ...(await planFor(...args)), generateKinds: [] };
+      },
+    });
+    await p.select(selected);
+    selected = attachment("B.pdf", 22);
+    await p.fields.start.click();
+    assert.equal(p.fields["pdf-name"].textContent, "B.pdf");
+    assert.deepEqual(source, { path: selected.getFilePath(), parent: 22 });
+  });
+
+  it("uses the reader file and its parent while a different library item is selected", async function () {
+    const readerItem = attachment("B.pdf", 22);
+    const p = panel(
+      async (c, params) => {
+        assert.equal(params.pdfPath, readerItem.getFilePath());
+        await fs.writeFile(join(params.outputDir, "B.zh-CN.mono.pdf"), "B.pdf");
+        c.emit({
+          type: "progress",
+          data: {
+            status: "done",
+            progress: 100,
+            message: "",
+            outputFiles: ["B.zh-CN.mono.pdf"],
+          },
+        });
+        c.setState("done");
+      },
+      {},
+      undefined,
+      readerItem,
+    );
+    await p.select(selected);
+    assert.equal(p.fields["pdf-name"].textContent, "B.pdf");
+    p.fields.dual.checked = false;
+    await p.fields.start.click();
+    assert.deepEqual(
+      imported.map((item) => item.parentItemID),
+      [22],
+    );
+  });
 
   it("pins file and parent at Start; another tab and a queue job cannot enter during attachment lookup", async function () {
     const hold = gate(),
@@ -516,8 +605,21 @@ describe("Translate tab job ownership", function () {
       },
     );
     await p.select(selected);
-    // The chosen path has no matching Zotero attachment.
-    selected = attachment("B.pdf", 22);
+    // Pick a disk file while a different PDF is selected in Zotero.
+    const picker = await import("../../src/modules/pdfTranslator/nativePicker");
+    picker.setFilePickerHelperForTest(
+      class {
+        async open() {
+          return join(work, "B.pdf");
+        }
+      },
+    );
+    try {
+      await p.fields["pick-file"].click();
+    } finally {
+      picker.resetFilePickerHelperForTest();
+    }
+    assert.equal(p.fields["pdf-name"].textContent, "B.pdf");
     const folder = join(work, "picked");
     p.fields["output-dir"].value = folder;
     await p.fields.start.click();

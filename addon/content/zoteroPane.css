@@ -6825,6 +6825,10 @@ button.llm-paper-context-summary-trigger.llm-history-context-trigger {
   padding: 8px;
 }
 
+#llm-image-preview.llm-image-preview-large-thumbs .llm-preview-img {
+  object-fit: contain;
+}
+
 #llm-image-preview.llm-image-preview-large-thumbs .llm-preview-item {
   flex: 0 0 200px;
   width: 200px;

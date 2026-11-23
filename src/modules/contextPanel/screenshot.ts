@@ -251,7 +251,7 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
         ztoolkit.log("Screenshot: Ignoring mouseup - not ready yet");
         return;
       }
-      if (!isSelecting) {
+      if (!isSelecting || e.button !== 0) {
         ztoolkit.log("Screenshot: Ignoring mouseup - not selecting");
         return;
       }
@@ -317,7 +317,7 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
         ztoolkit.log("Screenshot: Ignoring mousedown - not ready yet");
         return;
       }
-      if (e.target === cancelBtn) return;
+      if (e.button !== 0 || e.target === cancelBtn) return;
       e.preventDefault();
       e.stopPropagation();
       isSelecting = true;
@@ -333,63 +333,109 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
   });
 }
 
+type CaptureBounds = Pick<DOMRect, "left" | "top" | "right" | "bottom">;
+type ReaderFrame = Element & {
+  contentDocument?: Document | null;
+  clientLeft: number;
+  clientTop: number;
+};
+
+function intersectBounds(
+  a: CaptureBounds,
+  b: CaptureBounds,
+): CaptureBounds | null {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+
 function findActiveReaderFrame(
   win: Window,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): HTMLIFrameElement | null {
-  try {
-    const selectedTabId = (
-      win as unknown as { Zotero_Tabs?: { selectedID?: string } }
-    ).Zotero_Tabs?.selectedID;
-    const activeReader = selectedTabId
-      ? (
-          Zotero as unknown as {
-            Reader?: {
-              getByTabID?: (tabId: string) => {
-                _iframeWindow?: { frameElement?: HTMLIFrameElement };
-              } | null;
-            };
-          }
-        ).Reader?.getByTabID?.(selectedTabId)
+  selection: CaptureBounds,
+): ReaderFrame | null {
+  const selectedTabId = win.Zotero_Tabs?.selectedID;
+  const reader = selectedTabId
+    ? Zotero.Reader.getByTabID?.(selectedTabId)
+    : Zotero.Reader._readers?.find((reader) => reader._window === win);
+  const activeFrame = (reader?._iframe ??
+    reader?._iframeWindow?.frameElement) as ReaderFrame | null | undefined;
+  if (activeFrame?.contentDocument)
+    return intersectBounds(activeFrame.getBoundingClientRect(), selection)
+      ? activeFrame
       : null;
-    const activeFrame = activeReader?._iframeWindow?.frameElement;
-    if (activeFrame?.contentDocument) {
-      const rect = activeFrame.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) return activeFrame;
-    }
-  } catch {
-    /* fall back to visible frame matching selection bounds */
-  }
 
-  const frames = Array.from(
-    win.document.querySelectorAll('iframe[src*="reader"]'),
-  ) as HTMLIFrameElement[];
-  const selRight = x + width;
-  const selBottom = y + height;
-  let bestFrame: HTMLIFrameElement | null = null;
-  let bestOverlap = 0;
-  for (const frame of frames) {
+  // Older Zotero versions and detached readers may not expose the reader
+  // instance. Use the frame containing the largest part of the selection.
+  let bestFrame: ReaderFrame | null = null;
+  let bestArea = 0;
+  for (const frame of win.document.querySelectorAll<ReaderFrame>(
+    'browser.reader, iframe[src*="reader"]',
+  )) {
     if (!frame.contentDocument) continue;
-    const rect = frame.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) continue;
-    const overlapW = Math.max(
-      0,
-      Math.min(selRight, rect.right) - Math.max(x, rect.left),
-    );
-    const overlapH = Math.max(
-      0,
-      Math.min(selBottom, rect.bottom) - Math.max(y, rect.top),
-    );
-    const overlap = overlapW * overlapH;
-    if (overlap > bestOverlap) {
-      bestOverlap = overlap;
-      bestFrame = frame;
-    }
+    const overlap = intersectBounds(frame.getBoundingClientRect(), selection);
+    if (!overlap) continue;
+    const area =
+      (overlap.right - overlap.left) * (overlap.bottom - overlap.top);
+    if (area <= bestArea) continue;
+    bestArea = area;
+    bestFrame = frame;
   }
   return bestFrame;
+}
+
+function collectPdfCanvases(
+  doc: Document,
+  offsetX: number,
+  offsetY: number,
+  clip: CaptureBounds,
+): Array<{
+  canvas: HTMLCanvasElement;
+  rect: CaptureBounds & { width: number; height: number };
+  clip: CaptureBounds;
+}> {
+  const canvases = Array.from<HTMLCanvasElement>(
+    doc.querySelectorAll<HTMLCanvasElement>(
+      ".pdfViewer canvas, .canvasWrapper canvas, canvas.pdfViewer",
+    ),
+  ).map((canvas) => {
+    const { left, top, right, bottom, width, height } =
+      canvas.getBoundingClientRect();
+    return {
+      canvas,
+      rect: {
+        left: left + offsetX,
+        top: top + offsetY,
+        right: right + offsetX,
+        bottom: bottom + offsetY,
+        width,
+        height,
+      },
+      clip,
+    };
+  });
+  // The outer Zotero reader contains one PDF.js iframe per visible view.
+  // Canvas coordinates in each view are local to that iframe.
+  for (const frame of doc.querySelectorAll<ReaderFrame>(
+    'iframe[src*="pdf/web/viewer.html"]',
+  )) {
+    if (!frame.contentDocument) continue;
+    const rect = frame.getBoundingClientRect();
+    const left = offsetX + rect.left + frame.clientLeft;
+    const top = offsetY + rect.top + frame.clientTop;
+    const frameClip = intersectBounds(clip, {
+      left,
+      top,
+      right: left + frame.clientWidth,
+      bottom: top + frame.clientHeight,
+    });
+    if (frameClip)
+      canvases.push(
+        ...collectPdfCanvases(frame.contentDocument, left, top, frameClip),
+      );
+  }
+  return canvases;
 }
 
 /**
@@ -403,53 +449,35 @@ async function captureRegion(
   height: number,
 ): Promise<string | null> {
   try {
-    const readerFrame = findActiveReaderFrame(win, x, y, width, height);
-    const targetDoc = readerFrame?.contentDocument || win.document;
-    const frameRect = readerFrame
-      ? readerFrame.getBoundingClientRect()
-      : { left: 0, top: 0 };
-    const selLeft = x - frameRect.left;
-    const selTop = y - frameRect.top;
-    const selRight = selLeft + width;
-    const selBottom = selTop + height;
-
-    const canvases = Array.from(
-      targetDoc.querySelectorAll(
-        ".pdfViewer canvas, .canvasWrapper canvas, canvas.pdfViewer",
-      ),
-    ) as HTMLCanvasElement[];
-
-    type CanvasOverlap = {
-      canvas: HTMLCanvasElement;
-      rect: DOMRect;
-      ix0: number;
-      iy0: number;
-      ix1: number;
-      iy1: number;
-      scaleX: number;
-      scaleY: number;
-    };
-    const overlaps: CanvasOverlap[] = [];
-    for (const pdfCanvas of canvases) {
-      if (pdfCanvas.width <= 0 || pdfCanvas.height <= 0) continue;
-      const rect = pdfCanvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) continue;
-      const ix0 = Math.max(selLeft, rect.left);
-      const iy0 = Math.max(selTop, rect.top);
-      const ix1 = Math.min(selRight, rect.right);
-      const iy1 = Math.min(selBottom, rect.bottom);
-      if (ix1 <= ix0 || iy1 <= iy0) continue;
-      overlaps.push({
-        canvas: pdfCanvas,
-        rect,
-        ix0,
-        iy0,
-        ix1,
-        iy1,
-        scaleX: pdfCanvas.width / rect.width,
-        scaleY: pdfCanvas.height / rect.height,
-      });
-    }
+    const selection = { left: x, top: y, right: x + width, bottom: y + height };
+    const frame = findActiveReaderFrame(win, selection);
+    const outer = frame?.getBoundingClientRect();
+    const offsetX = outer && frame ? outer.left + frame.clientLeft : 0;
+    const offsetY = outer && frame ? outer.top + frame.clientTop : 0;
+    const clip = outer ? intersectBounds(selection, outer) : selection;
+    const overlaps = clip
+      ? collectPdfCanvases(
+          frame?.contentDocument || win.document,
+          offsetX,
+          offsetY,
+          clip,
+        ).flatMap(({ canvas, rect, clip }) => {
+          if (!canvas.width || !canvas.height || !rect.width || !rect.height)
+            return [];
+          const area = intersectBounds(rect, clip);
+          return area
+            ? [
+                {
+                  canvas,
+                  rect,
+                  area,
+                  scaleX: canvas.width / rect.width,
+                  scaleY: canvas.height / rect.height,
+                },
+              ]
+            : [];
+        })
+      : [];
 
     if (overlaps.length) {
       const outScaleX = overlaps[0].scaleX;
@@ -469,21 +497,22 @@ async function captureRegion(
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, outWidth, outHeight);
           for (const hit of overlaps) {
-            const srcX = Math.max(0, (hit.ix0 - hit.rect.left) * hit.scaleX);
-            const srcY = Math.max(0, (hit.iy0 - hit.rect.top) * hit.scaleY);
+            const { left, top, right, bottom } = hit.area;
+            const srcX = Math.max(0, (left - hit.rect.left) * hit.scaleX);
+            const srcY = Math.max(0, (top - hit.rect.top) * hit.scaleY);
             const srcW = Math.min(
-              (hit.ix1 - hit.ix0) * hit.scaleX,
+              (right - left) * hit.scaleX,
               hit.canvas.width - srcX,
             );
             const srcH = Math.min(
-              (hit.iy1 - hit.iy0) * hit.scaleY,
+              (bottom - top) * hit.scaleY,
               hit.canvas.height - srcY,
             );
             if (srcW <= 0 || srcH <= 0) continue;
-            const dstX = (hit.ix0 - selLeft) * outScaleX;
-            const dstY = (hit.iy0 - selTop) * outScaleY;
-            const dstW = (hit.ix1 - hit.ix0) * outScaleX;
-            const dstH = (hit.iy1 - hit.iy0) * outScaleY;
+            const dstX = (left - x) * outScaleX;
+            const dstY = (top - y) * outScaleY;
+            const dstW = (right - left) * outScaleX;
+            const dstH = (bottom - top) * outScaleY;
             ctx.drawImage(
               hit.canvas,
               srcX,
@@ -504,37 +533,65 @@ async function captureRegion(
       }
     }
 
-    // Fallback: use Firefox's drawWindow if available
-    ztoolkit.log("No PDF canvas found, using fallback capture");
-
+    // EPUB content lives inside a srcdoc iframe. Snap each visible view
+    // directly so reader controls and the selection popup cannot cover it.
     const canvas = win.document.createElement("canvas") as HTMLCanvasElement;
     canvas.width = width;
     canvas.height = height;
     try {
-      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | null;
-      if (!ctx) return null;
-
-      if ("drawWindow" in ctx) {
-        try {
-          (
-            ctx as CanvasRenderingContext2D & {
-              drawWindow: (
-                win: Window,
-                x: number,
-                y: number,
-                w: number,
-                h: number,
-                bg: string,
-              ) => void;
-            }
-          ).drawWindow(win, x, y, width, height, "white");
-          return canvas.toDataURL("image/png");
-        } catch (err) {
-          ztoolkit.log("drawWindow failed:", err);
+      const ctx = canvas.getContext("2d") as
+        | (CanvasRenderingContext2D & {
+            drawWindow?: (
+              target: Window,
+              x: number,
+              y: number,
+              width: number,
+              height: number,
+              background: string,
+            ) => void;
+          })
+        | null;
+      if (!ctx?.drawWindow) return null;
+      const views =
+        frame?.contentDocument?.querySelectorAll<HTMLIFrameElement>(
+          "iframe[srcdoc]",
+        );
+      let drewView = false;
+      if (views && clip) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        for (const view of views) {
+          const target = view.contentWindow;
+          if (!target) continue;
+          const rect = view.getBoundingClientRect();
+          const left = offsetX + rect.left + view.clientLeft;
+          const top = offsetY + rect.top + view.clientTop;
+          const area = intersectBounds(clip, {
+            left,
+            top,
+            right: left + view.clientWidth,
+            bottom: top + view.clientHeight,
+          });
+          if (!area) continue;
+          ctx.save();
+          try {
+            ctx.translate(area.left - x, area.top - y);
+            ctx.drawWindow(
+              target,
+              area.left - left + target.scrollX,
+              area.top - top + target.scrollY,
+              area.right - area.left,
+              area.bottom - area.top,
+              "white",
+            );
+            drewView = true;
+          } finally {
+            ctx.restore();
+          }
         }
       }
-
-      return null;
+      if (!drewView) ctx.drawWindow(win, x, y, width, height, "white");
+      return canvas.toDataURL("image/png");
     } finally {
       canvas.width = 0;
       canvas.height = 0;

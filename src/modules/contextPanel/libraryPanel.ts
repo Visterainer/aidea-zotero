@@ -26,6 +26,8 @@ import {
   activeConversationModeByLibrary,
   activeGlobalConversationByLibrary,
 } from "./state";
+import { getZoteroItem } from "../../utils/zoteroItems";
+import { refreshTranslatePdfSource } from "../pdfTranslator/translateTabController";
 import {
   getLibrarySelectedItemIdsFromWindow,
   getLibrarySelectionState,
@@ -503,6 +505,15 @@ async function runLibraryPanelVisibilityUpdate(win: Window): Promise<void> {
   if (state && resolvedDisplayState.selectionChanged) {
     state.lastSelectionSignature = selectionSignature;
     state.lastSelectionState = selectionState;
+    if (
+      state.host.querySelector<HTMLElement>("#llm-main")?.dataset.activeTab ===
+      "translate"
+    ) {
+      void refreshTranslatePdfSource(
+        state.host,
+        selectedItemIds.length ? getZoteroItem(selectedItemIds[0]) : null,
+      );
+    }
   }
   if (state) {
     state.manualStandaloneActive = resolvedDisplayState.manualStandaloneActive;

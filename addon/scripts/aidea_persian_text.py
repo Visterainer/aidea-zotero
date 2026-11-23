@@ -2,6 +2,7 @@
 
 import re
 import unicodedata as ud
+from io import BytesIO
 from statistics import median
 import pymupdf as pdf
 
@@ -16,15 +17,55 @@ def _key(s):
     )
 
 
+_SHAPING_GLYPH = re.compile(r"uni([0-9A-Fa-f]{4})\.(?:init|medi|fina|isol)")
+
+
+def _font_name(name):
+    name = re.sub(r"^[A-Z]{6}\+", "", name)
+    return "".join(c for c in name.lower() if c.isalnum())
+
+
+def _unmapped_shaping_keys(page, font_name):
+    # HarfBuzz can select contextual variants whose ToUnicode entry is
+    # missing in MuPDF's Story output. Resolve only named shaping glyphs
+    # in the actual embedded font. The logical source still has to match.
+    from fontTools.ttLib import TTFont, TTLibError
+
+    xrefs = {
+        xref
+        for xref, _, _, basename, *_ in page.get_fonts()
+        if _font_name(basename) == _font_name(font_name)
+    }
+    if len(xrefs) != 1:
+        return {}
+    try:
+        _, _, _, data = page.parent.extract_font(next(iter(xrefs)))
+        with TTFont(BytesIO(data)) as font:
+            return {
+                gid: _key(chr(int(match[1], 16)))
+                for gid, name in enumerate(font.getGlyphOrder())
+                if (match := _SHAPING_GLYPH.fullmatch(name))
+            }
+    except (TTLibError, OSError, KeyError, ValueError):
+        return {}
+
+
 def _lines(page, source):
     keys = [(i, k) for i, c in enumerate(source) for k in _key(c)]
     cursor = 0
     lines = []
+    unmapped_keys = {}
     for sp in page.get_texttrace():
         if sp["dir"] != (1.0, 0.0):
             raise ValueError("only unrotated horizontal shaped text is supported")
         for cp, gid, (x, y), box in sp["chars"]:
-            key = _key(chr(cp))
+            if cp == 0xFFFD:
+                name = sp["font"]
+                if name not in unmapped_keys:
+                    unmapped_keys[name] = _unmapped_shaping_keys(page, name)
+                key = unmapped_keys[name].get(gid, "\ufffd")
+            else:
+                key = _key(chr(cp))
             if not key:
                 continue
             if "".join(k for _, k in keys[cursor : cursor + len(key)]) != key:

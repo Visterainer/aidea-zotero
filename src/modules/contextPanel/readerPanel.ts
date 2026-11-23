@@ -133,6 +133,13 @@ onChatHistoryCleared(() => {
   }
 });
 
+export function dismissReaderContextPreviews(win: Window): void {
+  const panels = panelStateByWindow.get(win);
+  if (!panels) return;
+  for (const { host } of panels.values())
+    host.dispatchEvent(new win.Event("aidea-dismiss-context-previews"));
+}
+
 export function getSharedReaderPanelHostForItem(
   win: Window,
   item: Zotero.Item,

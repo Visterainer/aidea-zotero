@@ -28,7 +28,7 @@ function assert(condition: boolean, msg: string) {
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "poller-test-"));
 const progressFile = path.join(tmpDir, "progress.json");
 
-(globalThis as any).IOUtils = {
+const mockIO = {
   async readUTF8(p: string): Promise<string> {
     return fs.readFileSync(p, "utf-8");
   },
@@ -36,6 +36,7 @@ const progressFile = path.join(tmpDir, "progress.json");
     return fs.existsSync(p);
   },
 };
+(globalThis as any).IOUtils = mockIO;
 
 // Import after mocks are set up
 const { ProgressPoller } =
@@ -137,6 +138,51 @@ console.log("\n=== ProgressPoller: start triggers immediate tick ===");
   assert(events.length >= 1, "callback fired before first interval boundary");
   assert(events[0].progress === 12, "immediate tick reads current progress");
   poller.stop();
+}
+
+console.log("\n=== ProgressPoller: final flush waits for a stale read ===");
+{
+  cleanup();
+  const events: ProgressData[] = [];
+  const poller = new ProgressPoller(progressFile, (d) => events.push(d), 1000);
+  writeProgress({ status: "running", progress: 95, message: "Saving output" });
+  const read = mockIO.readUTF8;
+  let releaseRead!: () => void;
+  let notifyReadStarted!: () => void;
+  const readStarted = new Promise<void>((resolve) => {
+    notifyReadStarted = resolve;
+  });
+  const readReleased = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  mockIO.readUTF8 = async (file) => {
+    const snapshot = await read(file);
+    notifyReadStarted();
+    await readReleased;
+    return snapshot;
+  };
+  try {
+    poller.start();
+    await readStarted;
+    writeProgress({
+      status: "done",
+      progress: 100,
+      message: "Translation complete",
+      outputFiles: ["paper.mono.pdf"],
+    });
+    const finalPoll = poller.flush();
+    releaseRead();
+    await finalPoll;
+    assert(events.length === 2, "reads the final update after the stale read");
+    assert(
+      events.at(-1)?.outputFiles?.[0] === "paper.mono.pdf",
+      "delivers the output manifest before the controller finishes",
+    );
+  } finally {
+    releaseRead();
+    poller.stop();
+    mockIO.readUTF8 = read;
+  }
 }
 
 console.log("\n=== ProgressPoller: error auto-stops ===");

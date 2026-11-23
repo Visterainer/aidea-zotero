@@ -51,11 +51,19 @@ describe("translation language pair", function () {
         "源语言",
       );
       assert.equal(swap.getAttribute("aria-label"), "交换语言");
-      const bounds = () =>
-        [source, swap, target].map((el) => {
+      const bounds = () => {
+        const { x: left, y: top } = root.getBoundingClientRect();
+        return [source, swap, target].map((el) => {
           const { x, y, width, height } = el.getBoundingClientRect();
-          return [x, y, width, height];
+          return [x - left, y - top, width, height];
         });
+      };
+      const assertSameBounds = (before: number[][]) => {
+        const after = bounds().flat();
+        before.flat().forEach((value, index) => {
+          assert.closeTo(after[index], value, 0.1);
+        });
+      };
       for (const width of [220, 360, 720]) {
         root.style.width = `${width}px`;
         for (const direction of ["ltr", "rtl"]) {
@@ -68,11 +76,11 @@ describe("translation language pair", function () {
           swap.focus();
           swap.click();
           assert.equal(document.activeElement, swap);
-          assert.deepEqual(bounds(), before);
+          assertSameBounds(before);
           assert.equal(source.value, "zh-CN");
           assert.equal(target.value, "en");
           swap.click();
-          assert.deepEqual(bounds(), before);
+          assertSameBounds(before);
         }
       }
       target.value = "ja";

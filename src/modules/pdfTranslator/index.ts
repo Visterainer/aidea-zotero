@@ -266,7 +266,7 @@ export class TranslateController {
       // status; reading it would flip a paused job to "error".
       if (this.poller === poller && this.state === "running") {
         try {
-          await poller.tick();
+          await poller.flush();
         } catch {
           /* ok */
         }
@@ -302,6 +302,10 @@ export class TranslateController {
       void IOUtils.remove(taskPath, { ignoreAbsent: true }).catch(
         () => undefined,
       );
+      void IOUtils.remove(PathUtils.join(tmpDir, "ocr-input"), {
+        recursive: true,
+        ignoreAbsent: true,
+      }).catch(() => undefined);
     }
   }
 
@@ -454,7 +458,11 @@ export class TranslateController {
       const jarRoot = String(jarUri.JAREntry || "")
         .replace(/^\/+/, "")
         .replace(/\/+$/, "");
-      const scripts = ["aidea_bridge.py"];
+      const scripts = [
+        "aidea_bridge.py",
+        "aidea_scan_ocr.py",
+        "aidea_pdf_text.py",
+      ];
       if (/^fa(?:[-_]|$)/i.test(targetLang)) {
         scripts.push(
           "aidea_persian_backend.py",

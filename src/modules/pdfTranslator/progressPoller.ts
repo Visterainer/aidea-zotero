@@ -37,7 +37,7 @@ export class ProgressPoller {
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
 
-  private inFlight = false;
+  private pendingTick: Promise<void> | null = null;
   private stopped = false;
 
   stop(): void {
@@ -52,10 +52,20 @@ export class ProgressPoller {
     return this.timer !== null;
   }
 
+  /** Read the bridge's final update after any earlier read has finished. */
+  async flush(): Promise<void> {
+    await this.pendingTick;
+    if (!this.stopped) await this.tick();
+  }
+
   /** Single poll cycle — public so tests can invoke it directly */
-  async tick(): Promise<void> {
-    if (this.inFlight) return;
-    this.inFlight = true;
+  tick(): Promise<void> {
+    return (this.pendingTick ??= this.readProgress().finally(() => {
+      this.pendingTick = null;
+    }));
+  }
+
+  private async readProgress(): Promise<void> {
     const wasStopped = this.stopped;
     try {
       const exists = await IOUtils.exists(this.filePath);
@@ -89,8 +99,6 @@ export class ProgressPoller {
     } catch {
       // File may be mid-write (atomic replace not yet visible).
       // Silently retry on next tick.
-    } finally {
-      this.inFlight = false;
     }
   }
 }

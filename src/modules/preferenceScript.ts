@@ -37,6 +37,7 @@ import { refreshTranslateTabI18n } from "./contextPanel/i18n";
 import { renderReasoningEffortDropdown } from "./contextPanel/reasoningDropdown";
 import {
   getSelectionTranslateReasoningEffort,
+  normalizeReasoningApiBase,
   setSelectionTranslateReasoningEffort,
 } from "../utils/reasoningEffort";
 import { clearSelectionTranslateColdStartFallbackState } from "./contextPanel/selectionTranslateColdStart";
@@ -282,7 +283,7 @@ const I18N = {
     customModeDisabled:
       "当前使用 OAuth 提供商模式；已保存的自定义值会保留，切回自定义模式即可继续使用。",
     customModeMissing:
-      "自定义模式下必须填写 API Base URL 和 Model；API Key 可选。",
+      "自定义模式需要有效的 HTTP(S) API Base URL 和模型；API Key 可选。",
     customModeReady:
       "自定义模式已就绪：将使用基础 prefs 中的 API Base URL / API Key / Model。",
     installEnv: "安装/更新环境",
@@ -391,7 +392,7 @@ const I18N = {
     customModeDisabled:
       "OAuth provider mode is active. Saved custom values are retained; switch back to custom mode to use them.",
     customModeMissing:
-      "Custom mode requires API Base URL and Model; API Key is optional.",
+      "Custom mode requires a valid HTTP(S) API Base URL and model; API Key is optional.",
     customModeReady:
       "Custom mode is ready: requests will use the base-pref API Base URL / API Key / Model.",
     installEnv: "Install/Update Env",
@@ -2760,7 +2761,7 @@ export function getCustomEndpointMissingFields(
   model: string,
 ): Array<"apiBase" | "model"> {
   const missing: Array<"apiBase" | "model"> = [];
-  if (!String(apiBase || "").trim()) missing.push("apiBase");
+  if (!normalizeReasoningApiBase(apiBase)) missing.push("apiBase");
   if (!String(model || "").trim()) missing.push("model");
   return missing;
 }
@@ -6991,7 +6992,7 @@ export async function bootstrapSettingTab(
   fetchModelsBtn.addEventListener("click", async () => {
     if (fetchModelsBusy) return;
     const apiBase = customApiBaseInput.value.trim().replace(/\/+$/, "");
-    if (!apiBase) {
+    if (!normalizeReasoningApiBase(apiBase)) {
       setFetchModelsStatus(
         L.fetchModelsFailed.replace("{msg}", "API Base URL"),
         "#dc2626",

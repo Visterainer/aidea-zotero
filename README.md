@@ -99,7 +99,7 @@ Sign in with your existing account through OAuth. AIdea supports multiple provid
 
 ### 📄 Full-Document Translation
 
-Translate full papers directly inside Zotero and export either a **bilingual PDF** (side-by-side or top-bottom layout) or a **single-language PDF**. The translation workflow supports model selection, output path configuration, and end-to-end execution in the side panel.
+Translate full papers directly inside Zotero and export a **side-by-side bilingual PDF** or a **single-language PDF**. Select the model and output path, then run the translation from the side panel.
 
 **Batch translation.** Select several library items and use the AIdea context-menu action, drop them onto the Translate tab, or use **Add selected** inside it. Adding papers prepares a list; it does not start model requests. Choose at least one format (translated-only or bilingual) and one destination (Zotero attachment or a folder), then review the counts and start. By default AIdea inspects the actual files and fills only the missing format/destination pairs. **Overwrite existing translations** is off for each new submission; replacing an annotated PDF can invalidate highlights. Folder filenames identify the source so different papers named `main.pdf` do not overwrite one another; older folder exports without a reliable source identity are not replaced. **Retry failed** does not rerun successful documents; if translation succeeded but filing failed, the queue retains the generated files and retries delivery. Restored queues wait for **Continue**.
 

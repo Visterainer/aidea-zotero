@@ -1,9 +1,35 @@
 import { assert } from "chai";
 import {
   __paperSearchTest,
+  readPaperQuery,
   searchPaperCandidates,
 } from "../src/modules/contextPanel/paperSearch";
 import { resolvePaperContextRefFromAttachment } from "../src/modules/contextPanel/paperAttribution";
+
+describe("reference paper query", function () {
+  it("keeps a multiword title entered from the reference menu", function () {
+    const value =
+      "Compare these sources:\n@Optical Calibration Study\nNext question";
+    const start = value.indexOf("@");
+    const caretEnd = value.indexOf("\nNext");
+    assert.deepEqual(readPaperQuery(value, caretEnd, start), {
+      query: "Optical Calibration Study",
+      start,
+      caretEnd,
+    });
+    assert.isNull(readPaperQuery(value, value.length, start));
+  });
+
+  it("preserves whitespace before an inline mention and ends it at a space", function () {
+    const value = "Compare:\n\t@Optical";
+    assert.deepEqual(readPaperQuery(value, value.length, null), {
+      query: "Optical",
+      start: value.indexOf("@"),
+      caretEnd: value.length,
+    });
+    assert.isNull(readPaperQuery(`${value} again`, value.length + 6, null));
+  });
+});
 
 describe("paperSearch normalization", function () {
   it("includes EPUB-only books and standalone EPUBs while excluding unsupported attachments", async function () {

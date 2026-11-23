@@ -1,4 +1,5 @@
 import { getDocumentAdapterForItem } from "./document/registry";
+import { sanitizeText } from "./textUtils";
 import type { PaperContextRef } from "./types";
 import { getZoteroItem } from "../../utils/zoteroItems";
 
@@ -17,6 +18,36 @@ export type PaperSearchGroupCandidate = Omit<
   score: number;
   modifiedAt: number;
 };
+
+export function readPaperQuery(
+  value: string,
+  caretEnd: number,
+  explicitStart: number | null,
+): { query: string; start: number; caretEnd: number } | null {
+  if (
+    explicitStart !== null &&
+    explicitStart < caretEnd &&
+    value[explicitStart] === "@" &&
+    (explicitStart === 0 || /\s/.test(value[explicitStart - 1]))
+  ) {
+    const query = value.slice(explicitStart + 1, caretEnd);
+    if (!/[@\r\n]/.test(query)) {
+      return {
+        query: sanitizeText(query).trim(),
+        start: explicitStart,
+        caretEnd,
+      };
+    }
+  }
+
+  const match = value.slice(0, caretEnd).match(/(?:^|\s)@([^\s@]*)$/);
+  if (!match) return null;
+  return {
+    query: sanitizeText(match[1]).trim(),
+    start: caretEnd - match[1].length - 1,
+    caretEnd,
+  };
+}
 
 function normalizeText(value: unknown): string {
   if (typeof value !== "string") return "";
