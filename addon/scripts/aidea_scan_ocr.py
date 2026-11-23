@@ -401,13 +401,13 @@ def _normalize_page_content(document, page):
     return document.reload_page(page)
 
 
-def _trim_cropped_edge_text(page):
-    """Remove text beyond the side of the crop, preserving any visible ink."""
+def _trim_cropped_text(page):
+    """Remove text beyond the crop, preserving any visible ink."""
     visible = page.rect
     rectangles = [fitz.Rect(bbox) for span in page.get_texttrace()
                   for _, _, _, bbox in span["chars"]]
-    edges = [rect for rect in rectangles if rect.y0 < visible.y1 and rect.y1 > visible.y0
-             and (rect.x0 < visible.x0 or rect.x1 > visible.x1)]
+    edges = [rect for rect in rectangles if not rect.is_empty and not rect.is_infinite
+             and not visible.contains(rect)]
     if not edges or next(page.annots(types=(fitz.PDF_ANNOT_REDACT,)), None):
         return
 
@@ -427,10 +427,15 @@ def _trim_cropped_edge_text(page):
     pixels = [page.get_pixmap(matrix=zoom, clip=rect, alpha=True, annots=False)
               for rect in regions]
 
-    left = min(rect.x0 for rect in edges)
-    right = max(rect.x1 for rect in edges)
-    for margin in (fitz.Rect(left, visible.y0, visible.x0, visible.y1),
-                   fitz.Rect(visible.x1, visible.y0, right, visible.y1)):
+    extent = fitz.Rect(visible)
+    for rect in edges:
+        extent |= rect
+    for margin in (
+        fitz.Rect(extent.x0, extent.y0, visible.x0, extent.y1),
+        fitz.Rect(visible.x1, extent.y0, extent.x1, extent.y1),
+        fitz.Rect(visible.x0, extent.y0, visible.x1, visible.y0),
+        fitz.Rect(visible.x0, visible.y1, visible.x1, extent.y1),
+    ):
         if not margin.is_empty:
             page.add_redact_annot(margin, fill=False, cross_out=False)
     page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
@@ -459,7 +464,7 @@ def normalize_page_geometry(source, directory):
                 page.delete_annot(page.load_annot(xref))
             page = _normalize_page_content(document, page)
             if cropped:
-                _trim_cropped_edge_text(page)
+                _trim_cropped_text(page)
             for _, mark in marks:
                 mark.place(page, mark.project(matrix, page.rect), page.rect)
         destination = Path(directory) / source.name

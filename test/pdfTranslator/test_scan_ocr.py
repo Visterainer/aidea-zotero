@@ -112,8 +112,9 @@ class ScanOCRTest(unittest.TestCase):
     def test_crop_edge_does_not_expose_hidden_text_in_the_other_panel(self):
         source = self.root / "crop-crossing-text.pdf"
         with fitz.open() as pdf:
-            page = pdf.new_page(width=310, height=190)
-            page.set_cropbox(fitz.Rect(20, 0, 260, 190))
+            page = pdf.new_page(width=310, height=220)
+            page.insert_text((35, 15), "OFF-TOP HEADER")
+            page.set_cropbox(fitz.Rect(20, 24, 260, 214))
             page.insert_text((30, 45), "Copyable text inside the original crop")
             page.insert_text((226, 140), "Border ghost text", fontsize=12)
             pdf.save(source)
@@ -125,6 +126,9 @@ class ScanOCRTest(unittest.TestCase):
             page.show_pdf_page(fitz.Rect(0, 0, 240, 190), normalized, 0)
             right = fitz.Rect(240, 0, 480, 190)
             self.assertNotIn("ghost", page.get_text())
+            glyphs = "".join(chr(char[0]) for span in page.get_texttrace() for char in span["chars"])
+            self.assertNotIn("OFF-TOP", glyphs)
+            self.assertNotIn("ghost", glyphs)
             self.assertEqual(page.get_text(clip=right), "")
             self.assertIn("Copyable text inside the original crop", page.get_text())
             left_ink = page.get_pixmap(clip=fitz.Rect(234, 127, 240, 145))
