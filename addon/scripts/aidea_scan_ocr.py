@@ -603,6 +603,26 @@ def _group_ocr_prose(characters, layout_for):
     return [char for group in ordered for char in group]
 
 
+def _background_segments(box, preserved):
+    segments = [fitz.Rect(box.x, box.y, box.x2, box.y2)]
+    for number in preserved:
+        protected = fitz.Rect(number.x, number.y, number.x2, number.y2) + (-1, -1, 1, 1)
+        remaining = []
+        for rect in segments:
+            cut = rect & protected
+            if cut.is_empty:
+                remaining.append(rect)
+                continue
+            remaining.extend(piece for piece in (
+                fitz.Rect(rect.x0, rect.y0, rect.x1, cut.y0),
+                fitz.Rect(rect.x0, cut.y1, rect.x1, rect.y1),
+                fitz.Rect(rect.x0, cut.y0, cut.x0, cut.y1),
+                fitz.Rect(cut.x1, cut.y0, rect.x1, cut.y1),
+            ) if not piece.is_empty)
+        segments = remaining
+    return segments
+
+
 def _paper_color(pixels, rect):
     """Sample around the text rectangle, where the paper is unobstructed."""
     bounds = (rect + (-1, -1, 1, 1)) & fitz.Rect(0, 0, pixels.width, pixels.height)
@@ -702,6 +722,22 @@ def install_page_overlay():
         return process_page(finder, page)
 
     def render_ocr_page(self, page, config):
+        original_text = original_text_by_page.get(id(page), ())
+        numbers = page_number_boxes.get(page.page_number, ())
+        if numbers:
+            # A translated footer may have a background wider than its text
+            # box. Preserve the printed numeral beneath that background.
+            page = copy(page)
+            rectangles = []
+            for rect in page.pdf_rectangle:
+                if rect.fill_background:
+                    for segment in _background_segments(rect.box, numbers):
+                        piece = copy(rect)
+                        piece.box = Box(segment.x0, segment.y0, segment.x1, segment.y1)
+                        rectangles.append(piece)
+                else:
+                    rectangles.append(rect)
+            page.pdf_rectangle = rectangles
         fills = [rect for rect in page.pdf_rectangle if rect.fill_background]
         if fills:
             config = copy(config)
@@ -719,7 +755,7 @@ def install_page_overlay():
         units = render_page(self, page, config)
         units.extend(
             CharacterRenderUnit(char, None, index)
-            for index, char in enumerate(original_text_by_page.get(id(page), ()))
+            for index, char in enumerate(original_text)
         )
         return units
 

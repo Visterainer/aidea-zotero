@@ -146,6 +146,18 @@ class ScanOCRTest(unittest.TestCase):
             self.assertEqual(page.get_text(clip=(boxes[0] * page.transformation_matrix)
                                            + (-0.1, -0.1, 0.1, 0.1)).strip(), "7")
 
+    def test_ocr_footer_background_preserves_the_printed_page_number(self):
+        from babeldoc.format.pdf.document_il.il_version_1 import Box
+
+        background = Box(40, 30, 380, 59)
+        number = Box(305, 49, 307, 56)
+        segments = ocr._background_segments(background, [number])
+        protected = fitz.Rect(304, 48, 308, 57)
+        self.assertEqual(len(segments), 4)
+        self.assertTrue(all(not segment.intersects(protected) for segment in segments))
+        self.assertEqual(sum(segment.get_area() for segment in segments) + protected.get_area(),
+                         fitz.Rect(40, 30, 380, 59).get_area())
+
     def test_preserves_multiline_text_markup_on_rotated_cropped_pages(self):
         source = self.root / "highlighted.pdf"
         with fitz.open() as pdf:
