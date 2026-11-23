@@ -491,15 +491,18 @@ def normalize_page_geometry(source, directory):
 
 
 def _scan_pixels(page, dpi, marks):
-    # Keep the appearance of other annotations. Rasterizing text markup would
-    # obscure the OCR input and make that markup impossible to edit afterward.
+    # Text markup is restored as editable annotations after OCR. Pending
+    # redaction previews should stay on the source, outside the scan image.
+    hidden = [(xref, mark.flags) for xref, mark in marks]
+    hidden.extend((annot.xref, annot.flags)
+                  for annot in page.annots(types=(fitz.PDF_ANNOT_REDACT,)))
     try:
-        for xref, mark in marks:
-            page.load_annot(xref).set_flags(mark.flags | fitz.PDF_ANNOT_IS_HIDDEN)
+        for xref, flags in hidden:
+            page.load_annot(xref).set_flags(flags | fitz.PDF_ANNOT_IS_HIDDEN)
         return page.get_pixmap(dpi=dpi, colorspace=fitz.csRGB, alpha=False)
     finally:
-        for xref, mark in marks:
-            page.load_annot(xref).set_flags(mark.flags)
+        for xref, flags in hidden:
+            page.load_annot(xref).set_flags(flags)
 
 
 def prepare_input(source, stage_dir, source_lang, enabled, on_progress, log):

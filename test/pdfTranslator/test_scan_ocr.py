@@ -401,6 +401,27 @@ class ScanOCRTest(unittest.TestCase):
                 self.assertAlmostEqual(actual[0], expected.x, places=3)
                 self.assertAlmostEqual(actual[1], expected.y, places=3)
 
+    def test_ocr_raster_does_not_include_pending_redaction_previews(self):
+        source = self.root / "cropped-scan.pdf"
+        with fitz.open() as pdf:
+            self.create_scan(pdf)
+            page = pdf[0]
+            page.set_cropbox(fitz.Rect(12, 18, 225, 148))
+            page.add_redact_annot(fitz.Rect(22, 20, 110, 40), cross_out=True)
+            pdf.save(source)
+
+        before = source.read_bytes()
+        normalized = ocr.normalize_page_geometry(source, self.root / "stage")
+        with fitz.open(normalized) as pdf:
+            page = pdf[0]
+            visible = page.get_pixmap(dpi=216).samples
+            unannotated = page.get_pixmap(dpi=216, annots=False).samples
+            self.assertNotEqual(visible, unannotated)
+            pixels = ocr._scan_pixels(page, 216, list(ocr._page_text_markup(page)))
+            self.assertEqual(pixels.samples, unannotated)
+            self.assertEqual(page.get_pixmap(dpi=216).samples, visible)
+        self.assertEqual(source.read_bytes(), before)
+
     def test_corrects_scan_orientation_before_full_size_recognition(self):
         with fitz.open() as pdf:
             page = pdf.new_page(width=240, height=160)
