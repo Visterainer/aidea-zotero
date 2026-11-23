@@ -8,6 +8,7 @@ import unicodedata
 
 import pymupdf as pdf
 
+from aidea_pdf_text import redact_only_page_text
 from aidea_persian_render import render_paragraph
 
 
@@ -86,21 +87,7 @@ def _replace_paragraphs(page, panel, scanned):
         if not layers:
             return replaced, skipped
 
-        document, xref = page.parent, page.xref
-        annotations = document.xref_get_key(xref, "Annots")[1]
-        try:
-            if annotations != "null":
-                document.xref_set_key(xref, "Annots", "[]")
-                page = document.reload_page(page)
-            for box, _ in layers:
-                page.add_redact_annot(box, fill=False, cross_out=False)
-            page.apply_redactions(images=pdf.PDF_REDACT_IMAGE_NONE,
-                                  graphics=pdf.PDF_REDACT_LINE_ART_NONE)
-        finally:
-            if annotations != "null":
-                document.xref_set_key(xref, "Annots", annotations)
-        if annotations != "null":
-            page = document.reload_page(page)
+        page = redact_only_page_text(page, (box for box, _ in layers))
         for box, layer in layers:
             page.show_pdf_page(box, layer, 0, keep_proportion=False)
             replaced += 1

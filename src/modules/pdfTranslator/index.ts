@@ -463,6 +463,7 @@ export class TranslateController {
         "aidea_scan_ocr.py",
         "aidea_pdf_text.py",
         "aidea_pdf_pipeline.py",
+        "aidea_pdf_tables.py",
       ];
       if (/^fa(?:[-_]|$)/i.test(targetLang)) {
         scripts.push(

@@ -3330,6 +3330,14 @@ def main():
                         )
                         if restored_columns:
                             log_line(f"Restored {restored_columns} numeric list column(s) in {fn}.")
+                    if rust and translate_table_text and not rust_persian:
+                        from aidea_pdf_tables import fit_translated_table_cells
+                        fitted_cells = fit_translated_table_cells(
+                            engine_input, output_path, dual=".dual." in fn.lower(),
+                            alternating=dual_mode == "TB", translated_first=trans_first, pages=digital,
+                        )
+                        if fitted_cells:
+                            log_line(f"Reflowed {fitted_cells} overflowing table cell(s) in {fn}.")
                     if ".dual." in fn.lower():
                         try:
                             restored = restore_dual_text_markup(

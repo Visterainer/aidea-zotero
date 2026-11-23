@@ -156,6 +156,26 @@ def _numeric_columns(page):
             yield column
 
 
+def redact_only_page_text(page, rectangles):
+    """Remove glyphs from a working page while keeping existing annotations."""
+    import pymupdf as pdf
+
+    document, xref = page.parent, page.xref
+    annotations = document.xref_get_key(xref, "Annots")[1]
+    try:
+        if annotations != "null":
+            document.xref_set_key(xref, "Annots", "[]")
+            page = document.reload_page(page)
+        for bounds in rectangles:
+            page.add_redact_annot(bounds, fill=False, cross_out=False)
+        page.apply_redactions(images=pdf.PDF_REDACT_IMAGE_NONE,
+                              graphics=pdf.PDF_REDACT_LINE_ART_NONE)
+    finally:
+        if annotations != "null":
+            document.xref_set_key(xref, "Annots", annotations)
+    return document.reload_page(page) if annotations != "null" else page
+
+
 def restore_numeric_columns(source_path, output_path, *, dual, alternating, translated_first, pages):
     """Repair reflowed separators in columns consisting entirely of number lists."""
     import pymupdf as pdf
@@ -211,21 +231,7 @@ def restore_numeric_columns(source_path, output_path, *, dual, alternating, tran
                     edits.append((target, spans_with_text))
                 if not edits:
                     continue
-                annotations = output.xref_get_key(page.xref, "Annots")[1]
-                xref = page.xref
-                try:
-                    if annotations != "null":
-                        output.xref_set_key(xref, "Annots", "[]")
-                        page = output.reload_page(page)
-                    for bounds, _ in edits:
-                        page.add_redact_annot(bounds, fill=False, cross_out=False)
-                    page.apply_redactions(images=pdf.PDF_REDACT_IMAGE_NONE,
-                                          graphics=pdf.PDF_REDACT_LINE_ART_NONE)
-                finally:
-                    if annotations != "null":
-                        output.xref_set_key(xref, "Annots", annotations)
-                if annotations != "null":
-                    page = output.reload_page(page)
+                page = redact_only_page_text(page, (bounds for bounds, _ in edits))
                 for _, spans in edits:
                     for span, text in spans:
                         anchor = pdf.Point(span["origin"]) + (dx, dy)

@@ -7,6 +7,7 @@ import pymupdf as pdf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "addon" / "scripts"))
 from aidea_pdf_pipeline import assemble_outputs, translation_partitions
+from aidea_pdf_tables import fit_translated_table_cells
 
 
 class PDFPipelineTest(unittest.TestCase):
@@ -43,6 +44,31 @@ class PDFPipelineTest(unittest.TestCase):
                                  ["first"] * 4 + ["second"] * 2)
                 self.assertEqual(result[0].get_links()[0]["page"], 5)
                 self.assertEqual(result.get_toc(), [[1, "End", 6]])
+
+    def test_reflows_only_the_overflowing_cell_above_the_last_rule(self):
+        with TemporaryDirectory() as directory:
+            source, translated = (Path(directory) / name for name in ("source.pdf", "target.pdf"))
+            for path in (source, translated):
+                with pdf.open() as document:
+                    page = document.new_page(width=320, height=160)
+                    page.draw_line((20, 27), (290, 27))
+                    page.draw_line((20, 110), (290, 110))
+                    page.insert_text((24, 90), "Row one", fontsize=8)
+                    page.insert_text((104, 90), "Unchanged", fontsize=8)
+                    page.insert_text((24, 102), "Row two", fontsize=8)
+                    for baseline, text in ((102, "Preserve the text"), (109, "inside the last"),
+                                           (116, "cell")) if path == translated else ((102, "Short cell"),):
+                        page.insert_text((104, baseline), text, fontsize=8)
+                    document.save(path)
+            arguments = dict(dual=False, alternating=False, translated_first=False, pages={1})
+            self.assertEqual(fit_translated_table_cells(source, translated, **arguments), 1)
+            with pdf.open(translated) as document:
+                page = document[0]
+                self.assertIn("Unchanged", page.get_text())
+                self.assertIn("Row two", page.get_text())
+                self.assertIn("Preserve the text inside the last cell",
+                              " ".join(page.get_text(clip=pdf.Rect(99, 94, 290, 110)).split()))
+                self.assertEqual(page.get_text(clip=pdf.Rect(99, 111, 290, 130)), "")
 
 
 if __name__ == "__main__":
