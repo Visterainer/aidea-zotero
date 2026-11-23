@@ -3318,12 +3318,19 @@ def main():
                     )
             if fitz is not None:
                 from aidea_pdf_text import repair_math_delimiters, restore_numeric_columns
-                from aidea_scan_ocr import restore_dual_text_markup
+                from aidea_scan_ocr import recolor_rust_ocr_covers, restore_dual_text_markup
 
                 digital = {page for _, pages in finished_passes for page in pages} - scanned_pages
                 for fn in output_files:
                     output_path = os.path.join(result_dir, fn)
                     if rust:
+                        if scanned_pages:
+                            recolored = recolor_rust_ocr_covers(
+                                engine_input, output_path, pages=scanned_pages, dual=".dual." in fn.lower(),
+                                alternating=dual_mode == "TB", translated_first=trans_first,
+                            )
+                            if recolored:
+                                log_line(f"Matched OCR cover colors to the scanned background in {fn}.")
                         restored_columns = restore_numeric_columns(
                             engine_input, output_path, dual=".dual." in fn.lower(),
                             alternating=dual_mode == "TB", translated_first=trans_first, pages=digital,

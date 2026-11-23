@@ -56,6 +56,53 @@ class ScanOCRTest(unittest.TestCase):
             self.assertEqual(pdf[0].get_text().strip(), "Digital reference")
             self.assertEqual(pdf[1].get_text().strip(), "Telescope sample")
 
+    def test_rust_ocr_covers_match_uniform_color_on_the_translation_only(self):
+        source = self.root / "scan.pdf"
+        colored = (.8, .9, .95)
+        with fitz.open() as document:
+            page = document.new_page(width=240, height=160)
+            page.draw_rect(fitz.Rect(20, 30, 220, 70), color=None, fill=colored)
+            document.save(source)
+
+        with fitz.open(source) as original:
+            page = original[0]
+            stream = page.get_contents()[0]
+            covers = b"\nq n 1 g .1 w 40 110 155 10 re f Q q n 1 g .1 w 40 45 155 10 re f Q"
+            original.update_stream(stream, original.xref_stream(stream) + covers)
+            page.insert_text((45, 49), "42.50")
+            translated = original.tobytes()
+
+        for mode in ("mono", "alternating", "side-by-side", "translated-first"):
+            with self.subTest(mode=mode):
+                output = self.root / f"{mode}.pdf"
+                first = mode == "translated-first"
+                with fitz.open(stream=translated) as art, fitz.open(stream=translated) as other, fitz.open() as document:
+                    if mode == "mono":
+                        document.insert_pdf(art)
+                    elif mode == "alternating":
+                        document.insert_pdf(art)
+                        document.insert_pdf(art)
+                    else:
+                        page = document.new_page(width=480, height=160)
+                        for x in (0, 240):
+                            page.show_pdf_page(fitz.Rect(x, 0, x + 240, 160), art if x == 0 else other, 0)
+                    document.save(output)
+                self.assertGreater(ocr.recolor_rust_ocr_covers(
+                    source, output, pages={1}, dual=mode != "mono",
+                    alternating=mode == "alternating", translated_first=first,
+                ), 0)
+                with fitz.open(output) as document:
+                    page = document[int(mode == "alternating")]
+                    rendered = page.get_pixmap()
+                    dx = 240 if mode == "side-by-side" else 0
+                    self.assertEqual(rendered.pixel(dx + 150, 45), rendered.pixel(dx + 205, 45))
+                    self.assertEqual(rendered.pixel(dx + 150, 110), (255, 255, 255))
+                    self.assertIn("42.50", page.get_text())
+                    if mode in ("side-by-side", "translated-first"):
+                        self.assertEqual(rendered.pixel(240 - dx + 150, 45), (255, 255, 255))
+                    elif mode == "alternating":
+                        self.assertEqual(document[0].get_pixmap().pixel(150, 45), (255, 255, 255))
+
     def test_explains_how_to_enable_recognition_for_an_image_only_pdf(self):
         source = self.root / "scan.pdf"
         with fitz.open() as doc:

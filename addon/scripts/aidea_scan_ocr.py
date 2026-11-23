@@ -672,6 +672,67 @@ def _paper_color(pixels, rect):
     return None
 
 
+# BabelDOC's Rust OCR writer wraps each white text cover in its own
+# graphics state. Recolor only this drawing sequence, before any text runs.
+_PDF_NUMBER = rb"(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))"
+_RUST_OCR_COVER = re.compile(
+    rb"(?<!\S)q n 1 g \.1 w " + rb" ".join([_PDF_NUMBER] * 4) + rb" re f Q(?=\s|$)"
+)
+_PDF_TEXT_START = re.compile(rb"(?<!\S)BT(?!\S)")
+
+
+def recolor_rust_ocr_covers(source_path, output_path, *, pages, dual, alternating, translated_first):
+    """Match solid scan backgrounds on staged outputs, leaving the source side alone."""
+    updated = 0
+    with fitz.open(source_path) as source, fitz.open(output_path) as output:
+        for number in sorted(pages):
+            original = source[number - 1]
+            index = number - 1
+            if dual and alternating:
+                index = index * 2 + int(not translated_first)
+            page = output[index]
+            if dual and not alternating:
+                objects = page.get_xobjects()
+                # The two full-page forms are wrapped in separate frame forms.
+                # Choose the translated frame by position, independent of order.
+                frames = [
+                    xref for xref, _, parent, bounds in objects if parent == 0
+                    and ((bounds[0] + bounds[2]) / 2 < page.rect.width / 2) == translated_first
+                ]
+                if len(frames) != 1:
+                    continue
+                frame = frames[0]
+                shared = {xref for xref, _, parent, _ in objects if parent != frame}
+                xrefs = [xref for xref, _, parent, _ in objects if parent == frame and xref not in shared]
+            else:
+                xrefs = page.get_contents()
+
+            scale = fitz.Matrix(0.5, 0.5)
+            transform = original.transformation_matrix * scale
+            pixels = None
+
+            def recolor(match):
+                nonlocal pixels
+                x, y, width, height = (float(value) for value in match.groups())
+                bounds = fitz.Rect(x, y, x + width, y + height) * transform
+                if pixels is None:
+                    pixels = original.get_pixmap(matrix=scale, colorspace=fitz.csRGB, alpha=False)
+                color = _paper_color(pixels, bounds)
+                return match[0].replace(b"1 g", color.encode("ascii") + b" rg", 1) if color else match[0]
+
+            for xref in xrefs:
+                stream = output.xref_stream(xref)
+                text_start = _PDF_TEXT_START.search(stream)
+                end = text_start.start() if text_start else len(stream)
+                contents = _RUST_OCR_COVER.sub(recolor, stream[:end]) + stream[end:]
+                if contents != stream:
+                    output.update_stream(xref, contents)
+                    updated += 1
+        if updated:
+            output.saveIncr()
+    return updated
+
+
 def install_page_overlay():
     """Use BabelDOC's OCR overlay per recognized page, including mixed PDFs."""
     from babeldoc.format.pdf.document_il.backend.pdf_creater import CharacterRenderUnit, PDFCreater
