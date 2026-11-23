@@ -3,6 +3,7 @@
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import urllib.request
 
@@ -10,7 +11,7 @@ from packaging.version import Version
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "site" / "public" / "translate-env"
-manifest_path = CATALOG / "manifest.json"
+manifest_path = CATALOG / "manifest-v2.json"
 manifest = json.loads(manifest_path.read_text())
 requirements_path = CATALOG / "requirements.in"
 requirements = requirements_path.read_text().splitlines()
@@ -63,5 +64,8 @@ manifest["requirementsUrl"] = (
 )
 manifest["requirementsSha256"] = hashlib.sha256(contents).hexdigest()
 manifest["versions"].update(updates)
+manifest["versions"]["pymupdf"] = re.search(
+    rb"(?m)^pymupdf==([^\s;]+)", contents,
+).group(1).decode()
 manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 print(f"Created candidate translation environment revision {revision}")

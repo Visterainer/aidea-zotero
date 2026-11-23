@@ -1,14 +1,19 @@
 """Validate the static translation environment catalog before publishing."""
 
 import hashlib
+import argparse
 import json
 import pathlib
 import re
-import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "site" / "public" / "translate-env"
-MANIFEST = json.loads((CATALOG / "manifest.json").read_text())
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--bridge", type=int, choices=(1, 2), default=2)
+parser.add_argument("--print-lock-path", action="store_true")
+args = parser.parse_args()
+manifest_name = "manifest.json" if args.bridge == 1 else "manifest-v2.json"
+MANIFEST = json.loads((CATALOG / manifest_name).read_text())
 REVISION = MANIFEST["revision"]
 LOCK = CATALOG / f"requirements-{REVISION}.lock"
 URL = (
@@ -17,7 +22,7 @@ URL = (
 )
 
 assert MANIFEST["schemaVersion"] == 1
-assert MANIFEST["bridgeApi"] == 1
+assert MANIFEST["bridgeApi"] == args.bridge
 assert MANIFEST["python"] == "3.12"
 assert isinstance(REVISION, int) and REVISION >= 1
 assert MANIFEST["requirementsUrl"] == URL
@@ -49,5 +54,5 @@ for name, version in MANIFEST["versions"].items():
     assert packages[name] == {version}, f"{name} not pinned to {version}"
 
 print(f"Validated translation environment revision {REVISION}: {len(packages)} packages")
-if len(sys.argv) > 1 and sys.argv[1] == "--print-lock-path":
+if args.print_lock_path:
     print(LOCK)

@@ -13,6 +13,7 @@ import type { EnvStatus } from "./types";
 import { config } from "../../../package.json";
 
 const ACTIVE_ENV_PREF = `${config.prefsPrefix}.translate.envActive`;
+const ACTIVE_ENV_V2_PREF = `${ACTIVE_ENV_PREF}V2`;
 
 export interface ActiveTranslationEnvironment {
   dir: string;
@@ -21,24 +22,44 @@ export interface ActiveTranslationEnvironment {
   previous?: { dir: string; revision: number; sha256: string };
 }
 
-export function getActiveTranslationEnvironment(): ActiveTranslationEnvironment | null {
+function readActiveEnvironment(
+  preference: string,
+  prefix: string,
+): ActiveTranslationEnvironment | null {
   try {
-    const raw = Zotero.Prefs.get(ACTIVE_ENV_PREF, true);
+    const raw = Zotero.Prefs.get(preference, true);
     const value = JSON.parse(
       typeof raw === "string" ? raw : "",
     ) as ActiveTranslationEnvironment;
     const root = getRequiredEnvBaseDir();
-    if (
-      !value ||
-      !value.dir.startsWith(PathUtils.join(root, "aidea-translate-env-r")) ||
-      !Number.isSafeInteger(value.revision) ||
-      !/^[a-f0-9]{64}$/.test(value.sha256)
-    )
-      return null;
+    const valid = (entry?: ActiveTranslationEnvironment["previous"]) =>
+      !!entry &&
+      typeof entry.dir === "string" &&
+      entry.dir.startsWith(PathUtils.join(root, prefix)) &&
+      !/[\\/]/.test(entry.dir.slice(PathUtils.join(root, prefix).length)) &&
+      Number.isSafeInteger(entry.revision) &&
+      /^[a-f0-9]{64}$/.test(entry.sha256);
+    if (!valid(value)) return null;
+    if (!valid(value.previous)) delete value.previous;
     return value;
   } catch {
     return null;
   }
+}
+
+export function getActiveTranslationEnvironment(): ActiveTranslationEnvironment | null {
+  return readActiveEnvironment(ACTIVE_ENV_V2_PREF, "aidea-translate-env-v2-r");
+}
+
+export function getRecordedTranslationEnvironments() {
+  const active = getActiveTranslationEnvironment();
+  const legacy = readActiveEnvironment(
+    ACTIVE_ENV_PREF,
+    "aidea-translate-env-r",
+  );
+  return [active, active?.previous, legacy, legacy?.previous].filter(
+    (item): item is NonNullable<typeof item> => !!item,
+  );
 }
 
 export function activateTranslationEnvironment(
@@ -52,7 +73,7 @@ export function activateTranslationEnvironment(
       ? { dir: current.dir, revision: current.revision, sha256: current.sha256 }
       : current?.previous;
   Zotero.Prefs.set(
-    ACTIVE_ENV_PREF,
+    ACTIVE_ENV_V2_PREF,
     JSON.stringify({ dir, revision, sha256, previous }),
     true,
   );
@@ -199,9 +220,7 @@ export async function checkEnvironment(): Promise<EnvStatus> {
 
   // New, validated environments are selected by a single preference write.
   // Keep the previous revision available for rollback and running jobs.
-  const active = getActiveTranslationEnvironment();
-  for (const candidate of [active, active?.previous]) {
-    if (!candidate) continue;
+  for (const candidate of getRecordedTranslationEnvironments()) {
     const pythonBin = getPythonBin(candidate.dir);
     const pdf2zhBin = getPdf2zhBin(candidate.dir);
     if (

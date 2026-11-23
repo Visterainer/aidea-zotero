@@ -1,5 +1,5 @@
-pdf2zh-next==2.9.0
-babeldoc==0.6.2
+pdf2zh-next==2.10.2
+babeldoc==0.7.1
 bitstring==4.4.0
 onnxruntime==1.23.2
 cryptography==48.0.1

@@ -16,7 +16,7 @@ describe("translation environment updater", function () {
   let failingSource = "";
   let probeOutput = "";
   const scripts: string[] = [];
-  const oldDir = "/tmp/aidea-test-profile/aidea-translate-env-r0-old";
+  const oldDir = "/tmp/aidea-test-profile/aidea-translate-env-v2-r0-old";
 
   before(async function () {
     for (const name of [
@@ -168,7 +168,7 @@ describe("translation environment updater", function () {
   });
 
   it("keeps the active environment when staged installation fails", async function () {
-    const key = "extensions.zotero.aidea.translate.envActive";
+    const key = "extensions.zotero.aidea.translate.envActiveV2";
     const current = JSON.stringify({
       dir: oldDir,
       revision: 0,
@@ -188,15 +188,17 @@ describe("translation environment updater", function () {
     assert.equal(prefs.get(key), current);
     assert.isTrue(
       removed.some((path) =>
-        path.includes(`aidea-translate-env-r${BUNDLED_ENV_MANIFEST.revision}-`),
+        path.includes(
+          `aidea-translate-env-v2-r${BUNDLED_ENV_MANIFEST.revision}-`,
+        ),
       ),
     );
   });
 
   it("removes leftover environments after activation but keeps the rollback one", async function () {
-    const key = "extensions.zotero.aidea.translate.envActive";
+    const key = "extensions.zotero.aidea.translate.envActiveV2";
     const profile = "/tmp/aidea-test-profile";
-    const previousDir = `${profile}/aidea-translate-env-r0-0123abcd-prev0000`;
+    const previousDir = `${profile}/aidea-translate-env-v2-r0-0123abcd-prev0000`;
     prefs.set(
       key,
       JSON.stringify({
@@ -207,7 +209,7 @@ describe("translation environment updater", function () {
     );
     files.set(`${previousDir}/requirements.lock`, BUNDLED_ENV_REQUIREMENTS);
     installSucceeds = true;
-    const stale = `${profile}/aidea-translate-env-r0-0123abcd-stale000`;
+    const stale = `${profile}/aidea-translate-env-v2-r0-0123abcd-stale000`;
     (globalThis as any).IOUtils.getChildren = async () => {
       const activeDir = JSON.parse(prefs.get(key) || "{}").dir;
       return [
@@ -225,7 +227,7 @@ describe("translation environment updater", function () {
     assert.equal(active.previous.dir, previousDir);
     assert.sameMembers(
       removed.filter((path) => !path.startsWith("/tmp/aidea-cmd-")),
-      [stale, `${profile}/aidea-translate-env`],
+      [stale],
     );
   });
 
@@ -288,7 +290,7 @@ describe("translation environment updater", function () {
   });
 
   it("does not reinstall an already healthy current environment", async function () {
-    const key = "extensions.zotero.aidea.translate.envActive";
+    const key = "extensions.zotero.aidea.translate.envActiveV2";
     const current = JSON.stringify({
       dir: oldDir,
       revision: BUNDLED_ENV_MANIFEST.revision,
@@ -303,41 +305,44 @@ describe("translation environment updater", function () {
     assert.equal(prefs.get(key), current);
     assert.isFalse(
       removed.some((path) =>
-        path.includes(`aidea-translate-env-r${BUNDLED_ENV_MANIFEST.revision}-`),
+        path.includes(
+          `aidea-translate-env-v2-r${BUNDLED_ENV_MANIFEST.revision}-`,
+        ),
       ),
     );
   });
 
   it("uses the last validated online catalog when offline", async function () {
+    const revision = BUNDLED_ENV_MANIFEST.revision + 1;
     const remote = {
       ...BUNDLED_ENV_MANIFEST,
-      revision: 2,
-      requirementsUrl:
-        "https://visterainer.github.io/aidea-zotero/translate-env/requirements-2.lock",
+      revision,
+      requirementsUrl: `https://visterainer.github.io/aidea-zotero/translate-env/requirements-${revision}.lock`,
     };
     (globalThis as any).fetch = async (url: string) => ({
       ok: true,
       text: async () =>
-        url.endsWith("manifest.json")
+        url.endsWith("manifest-v2.json")
           ? JSON.stringify(remote)
           : BUNDLED_ENV_REQUIREMENTS,
     });
     const online = await inspect(true);
-    assert.equal(online.targetRevision, 2);
+    assert.equal(online.targetRevision, revision);
     (globalThis as any).fetch = async () => {
       throw new Error("offline");
     };
     const offline = await inspect(false);
-    assert.equal(offline.targetRevision, 2);
+    assert.equal(offline.targetRevision, revision);
   });
 
   it("does not downgrade a healthy environment when only an older offline catalog is available", async function () {
-    const key = "extensions.zotero.aidea.translate.envActive";
+    const revision = BUNDLED_ENV_MANIFEST.revision + 1;
+    const key = "extensions.zotero.aidea.translate.envActiveV2";
     prefs.set(
       key,
       JSON.stringify({
         dir: oldDir,
-        revision: 2,
+        revision,
         sha256: BUNDLED_ENV_MANIFEST.requirementsSha256,
       }),
     );
@@ -346,6 +351,6 @@ describe("translation environment updater", function () {
     files.set(`${oldDir}/requirements.lock`, BUNDLED_ENV_REQUIREMENTS);
     const result = await installOrUpdate(() => undefined);
     assert.equal(result.action, "current");
-    assert.equal(JSON.parse(prefs.get(key) || "{}").revision, 2);
+    assert.equal(JSON.parse(prefs.get(key) || "{}").revision, revision);
   });
 });

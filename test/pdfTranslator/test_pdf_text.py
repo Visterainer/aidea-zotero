@@ -1,21 +1,25 @@
 """Run with the verified translation environment's Python."""
 
 from pathlib import Path
+import json
 import sys
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from babeldoc.format.pdf.document_il.backend import pdf_creater
 from babeldoc.format.pdf.document_il.il_version_1 import Box
-from babeldoc.format.pdf.document_il.midend import il_translator, il_translator_llm_only
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "addon" / "scripts"))
+from aidea_pdf_pipeline import uses_rust_engine
 from aidea_pdf_text import (
     _complete_tex_delimiter_cmap,
     _join_table_line_wraps,
     install_data_paragraph_preservation,
+    install_rust_data_preservation,
     install_space_mapping,
+    restore_numeric_columns,
 )
 
 
@@ -44,7 +48,10 @@ class CMapTest(unittest.TestCase):
         )
         self.assertEqual(_complete_tex_delimiter_cmap(result, encoding), result)
 
+    @unittest.skipIf(uses_rust_engine(), "legacy Python translator")
     def test_keeps_numeric_table_lists_for_both_translation_paths(self):
+        from babeldoc.format.pdf.document_il.midend import il_translator, il_translator_llm_only
+
         modules = (il_translator, il_translator_llm_only)
         with (
             patch.object(modules[0], "is_pure_numeric_paragraph", modules[0].is_pure_numeric_paragraph),
@@ -67,6 +74,35 @@ class CMapTest(unittest.TestCase):
                     unicode="The analysis uses Delta($returns, 3) as its reference."
                 )))
 
+    @unittest.skipUnless(uses_rust_engine(), "Rust translator callbacks are unavailable")
+    def test_keeps_numeric_lists_and_code_in_rust_batches_and_retries(self):
+        from babeldoc.rust_translation_service import RustTranslatorService
+
+        values = "−1.20%, 1.18%"
+        code = "015 Mul(Neg(Delta($returns, 3)), Std($returns, 12))"
+        model = SimpleNamespace(
+            translate=lambda text, **_: "wrong",
+            llm_translate=lambda prompt, **_: json.dumps(
+                [{"id": 0, "output": "wrong"}, {"id": 1, "output": "翻译"}]
+            ),
+        )
+        with (
+            patch.object(RustTranslatorService, "translate", RustTranslatorService.translate),
+            patch.object(RustTranslatorService, "llm_translate", RustTranslatorService.llm_translate),
+        ):
+            install_rust_data_preservation()
+            translator = RustTranslatorService(model)
+            mixed = [{"id": 0, "input": code}, {"id": 1, "input": "Sample"}]
+            self.assertEqual(
+                json.loads(translator.llm_translate(json.dumps(mixed))),
+                [{"id": 0, "output": code}, {"id": 1, "output": "翻译"}],
+            )
+            self.assertEqual(translator.translate(values), values)
+            self.assertEqual(
+                translator.llm_translate(f"Instructions\nNow translate the following text:\n{code}"),
+                code,
+            )
+
     def test_joins_wrapped_words_inside_one_table_cell_without_changing_source_glyphs(self):
         def cell(x, y, x2, y2, text):
             return SimpleNamespace(
@@ -84,6 +120,32 @@ class CMapTest(unittest.TestCase):
         self.assertEqual(upper.unicode, "Compare previous features.")
         self.assertEqual(upper.pdf_paragraph_composition, ["Compare previous fea-", "tures."])
         self.assertEqual(upper.box.y, 12)
+
+    def test_restores_separators_that_reflow_between_numeric_table_rows(self):
+        import pymupdf as pdf
+
+        rows = ["006, 009, 012, 013, 016", "001, 002"]
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "original.pdf"
+            translated = Path(directory) / "translated.pdf"
+            for path, malformed in ((source, False), (translated, True)):
+                with pdf.open() as document:
+                    page = document.new_page(width=320, height=200)
+                    page.insert_text((20, 40), "Row one", fontsize=8)
+                    page.insert_text((20, 52), "Row two", fontsize=8)
+                    page.insert_text((85, 40), "006 009 012 013 016" if malformed else rows[0], fontsize=8)
+                    page.insert_text((85, 52), rows[1], fontsize=8)
+                    if malformed:
+                        page.insert_text((118, 52), ",,,,", fontsize=8)
+                    document.save(path)
+            self.assertEqual(
+                restore_numeric_columns(source, translated, dual=False, alternating=False,
+                                        translated_first=False, pages={1}), 1,
+            )
+            with pdf.open(translated) as output:
+                page = output[0]
+                self.assertEqual(page.get_text(clip=pdf.Rect(75, 28, 210, 60)).strip().splitlines(), rows)
+                self.assertEqual(page.get_text(clip=pdf.Rect(0, 28, 75, 60)).strip(), "Row one\nRow two")
 
 
 if __name__ == "__main__":

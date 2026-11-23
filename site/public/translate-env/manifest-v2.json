@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "revision": 3,
+  "bridgeApi": 2,
+  "python": "3.12",
+  "requirementsUrl": "https://visterainer.github.io/aidea-zotero/translate-env/requirements-3.lock",
+  "requirementsSha256": "ea4dcf92d22012fec0dc9d3b17b30d38afc875fafc505826360a10cf51832e0c",
+  "versions": {
+    "pdf2zh-next": "2.10.2",
+    "babeldoc": "0.7.1",
+    "bitstring": "4.4.0",
+    "pymupdf": "1.28.2"
+  }
+}

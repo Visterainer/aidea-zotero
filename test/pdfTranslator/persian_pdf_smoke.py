@@ -7,6 +7,7 @@ provider is contacted. Only the translator's model responses are substituted.
 """
 
 import argparse
+from importlib.metadata import version
 import json
 import os
 from pathlib import Path
@@ -199,9 +200,23 @@ openai_compatible_timeout = "20"
         "skipped": 0,
     }, report
     assert len(report["outputFiles"]) == 2, report
+    rust = tuple(map(int, version("babeldoc").split(".")[:2])) >= (0, 7)
     for name in report["outputFiles"]:
         with pdf.open(dest / name) as doc:
             txt = doc[0].get_text()
+            if rust:
+                # Check the actual marked logical PDF text, independently of
+                # MuPDF's plain text bidi heuristics. Zotero's reader also uses
+                # the glyph-level ToUnicode mappings on the same copy layer.
+                parts = [
+                    bytes.fromhex(token.decode()).decode("utf-16be")
+                    for xref in range(1, doc.xref_length())
+                    if doc.xref_is_stream(xref)
+                    for token in re.findall(rb"/ActualText\s*<FEFF([a-fA-F0-9]+)>", doc.xref_stream(xref))
+                ]
+                logical = "".join(parts)
+            else:
+                logical = txt
             for needle in [
                 "پژوهشگران",
                 "می‌نویسند",
@@ -209,8 +224,8 @@ openai_compatible_timeout = "20"
                 "۱۲۳",
                 "10.1000/test",
             ]:
-                assert needle in txt, (name, needle, txt)
-            assert PERSIAN_BODY in " ".join(txt.split()), (name, txt)
+                assert needle in logical, (name, needle, logical)
+            assert PERSIAN_BODY in " ".join(logical.split()), (name, logical)
             assert (TITLE in txt) == (".dual." in name), (name, txt)
             doc[0].get_pixmap(matrix=pdf.Matrix(2, 2)).save(
                 run / (Path(name).stem + ".png")

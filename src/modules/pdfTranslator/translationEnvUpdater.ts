@@ -23,6 +23,7 @@ import {
   detectTranslationPlatform,
   ensureUvBinary,
   getActiveTranslationEnvironment,
+  getRecordedTranslationEnvironments,
   getCondaEnvDir,
   getEnvRoot,
   getPdf2zhBin,
@@ -38,9 +39,22 @@ const REMOTE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RUNTIME_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_MANIFEST_BYTES = 8_192;
 const MAX_LOCK_BYTES = MAX_TRANSLATION_LOCK_BYTES;
-const LAST_REMOTE_ATTEMPT_PREF = `${config.prefsPrefix}.translate.envLastRemoteAttempt`;
+const LAST_REMOTE_ATTEMPT_PREF = `${config.prefsPrefix}.translate.envLastRemoteAttemptV2`;
 /** "auto" (default), "official" or "mirror". */
 const DOWNLOAD_SOURCE_PREF = `${config.prefsPrefix}.translate.envDownloadSource`;
+const VERIFY_RUST_LAYOUT = `
+from babeldoc.rust_translation_service import RustTranslatorService
+import pymupdf as pdf
+from unicodedata import normalize
+with pdf.open() as doc:
+    page = doc.new_page(width=180, height=72)
+    sample = "روش پژوهش"
+    spare, _ = page.insert_htmlbox(page.rect, f'<p dir="rtl" lang="fa">{sample}</p>')
+    glyphs = [char for span in page.get_texttrace() for char in span["chars"]]
+    expected = "".join(c for c in sample if not c.isspace())
+    actual = normalize("NFKC", "".join(chr(char[0]) for char in glyphs if not chr(char[0]).isspace()))
+    assert spare >= 0 and actual == expected and glyphs[0][2][0] > glyphs[2][2][0], "Persian layout probe failed"
+`;
 
 function getDownloadSources(): TranslationDownloadSource[] {
   let preference = "";
@@ -91,7 +105,7 @@ function bundledCatalog(): Catalog {
 }
 
 function cachePath(): string {
-  return `${getEnvRoot()}-catalog.json`;
+  return `${getEnvRoot()}-v2-catalog.json`;
 }
 
 async function sha256(contents: string): Promise<string> {
@@ -242,13 +256,9 @@ export async function verifyTranslationEnvironmentRuntime(
   }
   try {
     const code = "from pdf2zh_next.main import cli";
-    const active = getActiveTranslationEnvironment();
-    const selected =
-      active?.dir === env.venvDir
-        ? active
-        : active?.previous?.dir === env.venvDir
-          ? active.previous
-          : null;
+    const selected = getRecordedTranslationEnvironments().find(
+      (candidate) => candidate.dir === env.venvDir,
+    );
     if (selected) {
       const lockPath = PathUtils.join(env.venvDir, "requirements.lock");
       const lock = await IOUtils.readUTF8(lockPath);
@@ -258,6 +268,12 @@ export async function verifyTranslationEnvironmentRuntime(
       await verifyLockedPackages(env.pythonBin, lockPath);
     }
     await runCmd(env.pythonBin, ["-c", code]);
+    if (
+      selected &&
+      baseName(selected.dir).startsWith("aidea-translate-env-v2-")
+    ) {
+      await runCmd(env.pythonBin, ["-c", VERIFY_RUST_LAYOUT]);
+    }
     verifiedRuntime.set(env.venvDir, Date.now());
     return { ok: true };
   } catch (err) {
@@ -285,18 +301,14 @@ async function inspectWithCatalog(
     env.status === "ready"
       ? await verifyTranslationEnvironmentRuntime(env, forceRuntime)
       : { ok: false };
-  const installedRevision =
-    env.status === "ready" && active?.dir === env.venvDir
-      ? active.revision
-      : env.status === "ready" && active?.previous?.dir === env.venvDir
-        ? active.previous.revision
-        : null;
-  const installedHash =
-    env.status === "ready" && active?.dir === env.venvDir
-      ? active.sha256
-      : env.status === "ready" && active?.previous?.dir === env.venvDir
-        ? active.previous.sha256
-        : null;
+  const selected =
+    env.status === "ready"
+      ? getRecordedTranslationEnvironments().find(
+          ({ dir }) => dir === env.venvDir,
+        )
+      : undefined;
+  const installedRevision = selected?.revision ?? null;
+  const installedHash = selected?.sha256;
   const action = chooseTranslationEnvAction(
     installed,
     health.ok,
@@ -393,7 +405,7 @@ async function installWithCatalog(
   const uv = await ensureUvBinary();
   const { manifest, requirements } = catalog;
   const nonce = Math.random().toString(36).slice(2, 10);
-  const dir = `${getEnvRoot()}-r${manifest.revision}-${manifest.requirementsSha256.slice(0, 8)}-${nonce}`;
+  const dir = `${getEnvRoot()}-v2-r${manifest.revision}-${manifest.requirementsSha256.slice(0, 8)}-${nonce}`;
   const pythonBin = getPythonBin(dir);
   const pdf2zhBin = getPdf2zhBin(dir);
   const lockPath = PathUtils.join(dir, "requirements.lock");
@@ -463,6 +475,7 @@ async function installWithCatalog(
     await verifyLockedPackages(pythonBin, lockPath);
     await runCmd(pythonBin, ["-c", verifyCode]);
     await runCmd(pdf2zhBin, ["--help"]);
+    await runCmd(pythonBin, ["-c", VERIFY_RUST_LAYOUT]);
     if (
       !(await IOUtils.exists(pythonBin)) ||
       !(await IOUtils.exists(pdf2zhBin))
