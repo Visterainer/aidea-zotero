@@ -22,40 +22,23 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/en/">https://visterainer.github.io/aidea-zotero/en/</a>
 </p>
 
-<p align="center">
-  <strong>A free, open-source AI assistant for Zotero</strong><br/>
-  💬 Chat with your papers · ✍️ Translate selected text · 📄 Translate full PDFs into bilingual documents
-</p>
+**Free, open-source AI assistant for Zotero 7–10**
 
-<p align="center">
-  <strong>Connect any way you like:</strong><br/>
-  🔐 Your existing subscription — ChatGPT or GitHub Copilot via OAuth, no API key needed<br/>
-  🔑 Any OpenAI-compatible API — OpenAI, DeepSeek, OpenRouter, and more<br/>
-  💻 Local models — Ollama, LM Studio, vLLM, your data stays on your machine
-</p>
+Read PDFs and EPUBs with AIdea in the side panel. Ask about a passage, follow a page or chapter citation back to its source, or save an answer as a Zotero note. For full papers, translate one PDF or queue several and export translated-only or bilingual copies.
 
-<p align="center">
-  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
-  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
-  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
-</p>
+## Install AIdea
 
-<p align="center">
-  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
-  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
-  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
-  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
-</p>
+1. Download the **AIdea .xpi** from the [latest release](https://github.com/Visterainer/aidea-zotero/releases/latest).
+2. In Zotero, open **Tools → Plugins**, click the gear, and choose **Install Plugin From File**. Select the download and restart Zotero.
+3. Open **Zotero Settings → AIdea** and connect a model. Then open a PDF or EPUB and ask a question in the AIdea side panel.
 
-<p align="center">
-  <a href="#-features">Features</a> &nbsp;|&nbsp;
-  <a href="#-installation">Installation</a> &nbsp;|&nbsp;
-  <a href="#-getting-started">Getting Started</a> &nbsp;|&nbsp;
-  <a href="#-configuration">Configuration</a> &nbsp;|&nbsp;
-  <a href="#-license">License</a>
-</p>
+## Connect a model
 
----
+- **ChatGPT** — On the OpenAI card, install the standalone Codex CLI with **Install/Update Env**, sign in with **OAuth Login**, then **Refresh Models**.
+- **GitHub Copilot** — On the Copilot card, start **OAuth Login**, authorize the device code in your browser, then refresh the model list.
+- **Compatible API or local model** — Enter the API base URL and model ID. Supply a key if the service requires one. For Ollama running locally, the usual base URL is `http://localhost:11434/v1`.
+
+Full-PDF translation uses a separate environment. Open **Translate → Install/Update Translation Environment** before the first job. Chat and selection translation only need a connected model.
 
 ## ✨ Features
 
@@ -93,15 +76,11 @@ Use one-click shortcuts for common tasks such as **Summarize**, **Explain**, and
 
 Attach screenshots, figures, and charts to your messages. AIdea supports drag and drop, clipboard paste, and screenshot capture directly from PDF content.
 
-### 🔐 OAuth Login Without an API Key
-
-Sign in with your existing account through OAuth. AIdea supports multiple providers with provider-specific OAuth flows, so you can start without managing an API key manually.
-
 ### 📄 Full-Document Translation
 
 Translate full papers directly inside Zotero and export a **side-by-side bilingual PDF** or a **single-language PDF**. Select the model and output path, then run the translation from the side panel.
 
-**Batch translation.** Select several library items and use the AIdea context-menu action, drop them onto the Translate tab, or use **Add selected** inside it. Adding papers prepares a list; it does not start model requests. Choose at least one format (translated-only or bilingual) and one destination (Zotero attachment or a folder), then review the counts and start. By default AIdea inspects the actual files and fills only the missing format/destination pairs. **Overwrite existing translations** is off for each new submission; replacing an annotated PDF can invalidate highlights. Folder filenames identify the source so different papers named `main.pdf` do not overwrite one another; older folder exports without a reliable source identity are not replaced. **Retry failed** does not rerun successful documents; if translation succeeded but filing failed, the queue retains the generated files and retries delivery. Restored queues wait for **Continue**.
+**Batch translation.** Select several library items, add them to the Translate tab, and review the formats and destinations before starting. The queue fills missing outputs by default. After a restart, choose **Continue**. If filing fails, retry delivery from the queue to reuse the translated file.
 
 <p align="center">
   <img src="doc/screenshots/translate_panel_en.png" alt="Full-document translation panel" width="800" />
@@ -120,13 +99,6 @@ Example outputs:
 <p align="center">
   <img src="doc/screenshots/translate_example_table.png" alt="Table and prose translation example" width="800" />
 </p>
-
-### 🌐 Multi-Provider Support
-
-| Provider             | Auth Method                   | Extra Setup                           |
-| -------------------- | ----------------------------- | ------------------------------------- |
-| **OpenAI (ChatGPT)** | OAuth via Codex CLI           | Codex CLI (auto-installed)            |
-| **GitHub Copilot**   | In-plugin OAuth (Device Code) | None; GPT and Claude models available |
 
 ### 📝 Note Export
 
@@ -164,92 +136,13 @@ The plugin interface supports **13 UI languages**: **English**, **简体中文**
 
 **Persian (فارسی):** Selection translations and ordinary horizontal paragraphs in translated-only and bilingual PDFs support right-to-left text. With the verified translation environment, AIdea shapes these PDF paragraphs and preserves their logical text for selection and search in Zotero. Rotated text, overlapping elements, inline formulas and mixed-style paragraphs may retain the engine’s native layout; review the completion warnings for those pages. This correction does not modify the original side of a bilingual PDF.
 
----
+### Corresponding author profiles
 
-## 📦 Installation
+In AIdea settings, enable **Right-click author profile generation** under **Online Author Lookup**. Right-click a library item and choose **AIdea: Generate Corresponding Author Profile** to save a profile as a Zotero note.
 
-### Requirements
+### Reasoning effort
 
-- **Zotero 7 or later**
-- The standalone **Codex CLI**, required for OpenAI OAuth, is installed by the plugin when needed (no Node.js required; `curl` or `wget` must be available on macOS/Linux)
-- **Python environment** running `pdf2zh_next`, required only for full-document translation. The **Install/Update Translation Environment** button installs a tested dependency set with `uv`; existing Miniconda environments remain usable. Installation needs an internet connection unless the packages are cached.
-
-> **Note:** The Translate tab checks AIdea's independently published, tested environment catalog once per day and shows an inline notice when an update is available. **Install/Update Translation Environment** checks again when clicked and changes the environment only if installation, repair, or an update is needed. An update is installed in a new directory and activated only after validation; an upstream PyPI release alone is not treated as a verified update. The provider-card **Install/Update Env** button manages its separate OAuth CLI environment.
-
-### Install the Plugin
-
-1. Download the latest `AIdea-x.x.x.xpi` from [Releases](https://github.com/Visterainer/aidea-zotero/releases)
-2. In Zotero, go to **Tools → Add-ons**
-3. Click the gear icon ⚙️ and choose **Install Add-on From File...**
-4. Select the downloaded `.xpi` file
-5. Restart Zotero
-
-### Upgrade
-
-Install the newer `.xpi` package over the existing one. Chat history, stored memory, and local settings are preserved.
-
----
-
-## 🚀 Getting Started
-
-### 1. Open Settings
-
-Go to **Tools → Add-ons → AIdea → Settings**. On older Zotero builds, the path may appear under **Edit → Settings → AIdea**.
-
-### 2. Choose a Connection Mode
-
-AIdea supports two connection modes. You can use either one or combine both.
-
-#### Option A: OAuth Login
-
-For each provider card, the typical setup order is:
-
-> **① `Install/Update Env`** → **② `OAuth Login`** → **③ `Refresh Models`**
-
-| Button                   | What it does                                                                                                                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`Install/Update Env`** | Installs or updates the official standalone Codex CLI using OpenAI's install script. GitHub Copilot does not require this step. Run it again whenever the provider's CLI is updated upstream; this is independent of plugin updates. |
-| **`OAuth Login`**        | Starts the provider-specific login flow. OpenAI opens the browser directly. GitHub Copilot shows a device code, copies it, and opens the browser for authorization.                                                                  |
-| **`Refresh Models`**     | Loads the list of available models for the provider after login.                                                                                                                                                                     |
-| **`Remove Auth`**        | Clears the locally stored OAuth token for that provider.                                                                                                                                                                             |
-
-<p align="center">
-  <img src="doc/screenshots/settings_oauth_models_en.png" alt="OAuth providers and model management" width="700" />
-</p>
-
-> 💡 **Tip:** Each provider only needs to be configured once. The login session is stored locally and remains available after Zotero restarts.
-
-For Codex OAuth and API Key connections with explicit model capability metadata, **Reasoning effort** has its own lightbulb icon beside the chat model selector, and is also available on the **Translate** tab for full-PDF translation and in **Settings → Selection Translation**. The three choices are saved separately. The chat choice stays fixed when you switch models; the icon color indicates the effective level. If the new model does not support that level, requests use the nearest weaker supported level while the saved choice remains unchanged. Menus contain explicit levels only. An empty legacy choice is initialized once to the catalog default, or the weakest non-none supported level if no default is supplied, and saved. If no weaker compatible level exists, the request uses that same explicit fallback. Refresh the Codex model list to load each model’s supported levels, including Ultra when available. If capability data is missing, the plugin does not assume three levels: the lamp is gray with a refresh hint. For unsupported models or connection types, the gray lamp explains that effort adjustment is unavailable; chat continues without an explicit effort. For API Key connections, use **Auto Fetch Models** or refresh the saved provider list. The plugin reads explicit per-model `supported_reasoning_levels` or `reasoning.supported_efforts`; a model name or a reasoning-support flag alone is insufficient. API capability caches are isolated by endpoint and credentials, expire after 24 hours, and are cleared on a failed refresh. Requests use the declared Chat Completions field (`reasoning_effort` or `reasoning`) or Responses `reasoning.effort`. Confirmed adaptive Anthropic routes on OpenRouter use `verbosity` only when the catalog advertises it. Chat and selection translation disable the control for that connection after an explicit parameter rejection and retry without it; refreshing capabilities enables another attempt. The full-PDF proxy also removes a rejected effort and remembers that decision for the remaining translation batches.
-
-#### Option B: OpenAI-Compatible API Endpoint
-
-AIdea can also connect to any **OpenAI-compatible chat endpoint**, including local, self-hosted, or third-party services such as Ollama, LM Studio, vLLM, DeepSeek, OpenRouter, or Groq.
-
-In **Settings**, switch to **API Mode** and fill in:
-
-| Field            | Required | Description                                                                                                 |
-| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
-| **API Base URL** | Yes      | The base URL of the compatible endpoint, such as `https://api.openai.com/v1` or `http://localhost:11434/v1` |
-| **API Key**      | No       | Required only when the endpoint expects authentication                                                      |
-| **Model**        | Yes      | Enter the model manually or click **Auto Fetch Models** to detect available models                          |
-
-<p align="center">
-  <img src="doc/screenshots/settings_api_en.png" alt="API mode custom endpoint" width="700" />
-</p>
-
-> **Note:** API mode targets compatible `/chat/completions` endpoints. It does not guarantee support for provider-specific features beyond standard chat completion.
-
-### 3. Start Chatting
-
-- In the **Library Panel**, select an item and use the AIdea panel in the right sidebar
-- In the **PDF or EPUB Reader**, open a document and use the AIdea panel in the reader sidebar
-- Type your question and press **Send** or hit `Enter`
-
-### 4. Use Quick Actions
-
-Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for one-click actions. Right-click a shortcut to edit or remove it.
-
----
+For models that publish supported reasoning levels, set **Reasoning effort** separately for chat, selection translation, and full-PDF translation. Refresh the model list if the control is unavailable.
 
 ## ⚙️ Configuration
 
@@ -261,7 +154,7 @@ Click shortcut buttons such as **Summarize**, **Explain**, or **Translate** for 
 | **Selection Translation**       | Translate selected reader text with automatic bounded document context | On                                   |
 | **Selection Translation Model** | Dedicated model for reader selection translation                       | First available model unless changed |
 | **Show All Models**             | Show all available models instead of a curated subset                  | Off                                  |
-| **Tab Bar**                     | Show or hide the tab navigation bar                                    | Hidden                               |
+| **Tab Bar**                     | Show or hide the tab navigation bar                                    | Visible                               |
 
 ---
 

@@ -22,24 +22,23 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/fr/">https://visterainer.github.io/aidea-zotero/fr/</a>
 </p>
 
-AIdea est un assistant IA gratuit et open source pour Zotero : 💬 dialoguez avec vos articles · ✍️ traduisez le texte sélectionné · 📄 traduisez des PDF entiers en documents bilingues. Trois façons de se connecter, au choix : 🔐 votre abonnement existant (ChatGPT ou GitHub Copilot) via OAuth, sans clé API ; 🔑 n'importe quelle API compatible OpenAI (OpenAI, DeepSeek, OpenRouter, etc.) avec une clé API ; 💻 des modèles locaux (Ollama, LM Studio, vLLM), vos données restent sur votre machine.
+**Assistant IA libre et gratuit pour Zotero 7 à 10**
 
-<p align="center">
-  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
-  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
-  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
-</p>
+Interrogez un passage de PDF ou d’EPUB dans le panneau latéral de Zotero. Une référence de page ou de chapitre permet de revenir à la source, puis d’enregistrer la réponse dans une note Zotero. Traduisez un PDF ou préparez un lot pour exporter des copies traduites ou bilingues.
 
-<p align="center">
-  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
-  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
-  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
-  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
-</p>
+## Installer AIdea
 
-## Vue d'ensemble
+1. Téléchargez le **fichier .xpi d’AIdea** depuis la [dernière version](https://github.com/Visterainer/aidea-zotero/releases/latest).
+2. Dans **Outils → Extensions** de Zotero, ouvrez la roue dentée et installez l’extension depuis le fichier téléchargé. Redémarrez Zotero.
+3. Ouvrez **Paramètres de Zotero → AIdea** et connectez un modèle. Ouvrez ensuite un PDF ou un EPUB et posez une question dans le panneau AIdea.
 
-AIdea s'adresse aux chercheurs qui souhaitent conserver dans Zotero la lecture d'articles et de livres numériques, les questions de suivi, l'extraction de passages, l'organisation des notes et la traduction intégrale. Le plugin ajoute un espace de travail IA cohérent et durable à la vue Bibliothèque ainsi qu'aux lecteurs PDF et EPUB, afin d'éviter les allers-retours entre Zotero et plusieurs outils externes.
+## Connecter un modèle
+
+- **ChatGPT** — Dans la carte OpenAI, installez la version autonome de Codex CLI avec le bouton de mise à jour de l’environnement. Connectez-vous par OAuth, puis actualisez la liste des modèles.
+- **GitHub Copilot** — Lancez la connexion OAuth depuis la carte Copilot, confirmez le code de l’appareil dans votre navigateur, puis actualisez les modèles dans Zotero.
+- **API compatible ou modèle local** — Renseignez l’URL de base de l’API et l’identifiant du modèle. Ajoutez une clé si le service la demande. Pour Ollama en local, l’adresse habituelle est `http://localhost:11434/v1`.
+
+Avant la première traduction intégrale de PDF, installez ou mettez à jour l’environnement depuis l’onglet **Traduire**. La discussion et la traduction de passages demandent seulement une connexion à un modèle.
 
 ## Capacités principales
 
@@ -81,51 +80,6 @@ AIdea s'adresse aux chercheurs qui souhaitent conserver dans Zotero la lecture d
 <p align="center">
   <img src="../../doc/screenshots/settings_oauth_models_en.png" alt="Paramètres des fournisseurs et des modèles AIdea" width="900" />
 </p>
-
-## Connexions prises en charge
-
-| Option                                 | Authentification                               | Remarques                                                                      |
-| -------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
-| OpenAI (ChatGPT)                       | OAuth via Codex CLI                            | Le plugin peut installer automatiquement l'environnement Node.js si nécessaire |
-| GitHub Copilot                         | OAuth intégré au plugin (Device Code)          | Aucun bootstrap Node.js supplémentaire n'est requis                            |
-| Point de terminaison compatible OpenAI | URL de base API, modèle et clé API facultative | Convient aux services locaux, auto-hébergés ou tiers compatibles               |
-
-> **Remarque :** ces environnements sont des outils tiers dont le rythme de mise à jour est fixé par leurs propres mainteneurs, indépendamment du calendrier de publication d'AIdea. **Installer/mettre à jour l'environnement**, sur la carte d'un fournisseur, installe et met à jour le CLI de ce fournisseur (Codex CLI). **Installer l'environnement**, dans l'onglet Traduction, installe et met à jour l'environnement Python et `pdf2zh_next` requis pour la traduction intégrale ; une connexion Internet est alors nécessaire. Si un outil en amont a changé, relancez simplement le bouton correspondant ; une nouvelle version du plugin n'est pas nécessaire, et une mise à jour du plugin ne met pas ces environnements à jour par elle-même.
-
-## Installation
-
-### Prérequis
-
-- Zotero 7 ou version ultérieure
-- Node.js uniquement si le fournisseur choisi en a besoin ; AIdea peut l'installer automatiquement pour les flux pris en charge
-
-### Installer le plugin
-
-1. Téléchargez le dernier paquet `.xpi` depuis [Releases](https://github.com/Visterainer/aidea-zotero/releases).
-2. Dans Zotero, ouvrez `Tools` -> `Add-ons`.
-3. Dans le menu engrenage, choisissez `Install Add-on From File...`.
-4. Sélectionnez le fichier `.xpi` téléchargé.
-5. Redémarrez Zotero.
-
-### Mise à niveau
-
-Installez simplement le nouveau paquet `.xpi` par-dessus l'ancien. AIdea conserve les paramètres locaux, l'historique des conversations et les données de mémoire.
-
-## Démarrage rapide
-
-1. Ouvrez `Tools` -> `Add-ons` -> `AIdea` -> `Settings`.
-2. Choisissez soit la connexion OAuth, soit le mode API.
-3. Actualisez les modèles disponibles et sélectionnez celui à utiliser.
-4. Ouvrez un élément Zotero, un PDF ou un EPUB, puis commencez depuis le panneau latéral AIdea.
-
-Pour la traduction intégrale, passez à l'onglet de traduction, définissez le modèle et le chemin de sortie, puis lancez la tâche directement dans Zotero.
-
-Pour la traduction par sélection, activez l'option dans les paramètres, choisissez un modèle et sélectionnez du texte dans le lecteur PDF ou EPUB ; AIdea détecte automatiquement le format actif. Pour un PDF, la première utilisation crée un cache local avec un résumé compact et les termes importants. Pour un EPUB, AIdea utilise directement un contexte de livre borné et ancré sur la sélection, sans requête de préchauffage séparée.
-
-## Prise en charge des langues
-
-- **Interface du plugin :** English, 简体中文, 繁體中文, 日本語, 한국어, Français, Deutsch, Español, Русский, Português, العربية, हिन्दी
-- **Documentation et site du projet :** English, 简体中文, 繁體中文, 日本語, 한국어, Français
 
 ## Confidentialité et traitement des données
 

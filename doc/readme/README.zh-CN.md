@@ -22,40 +22,23 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/">https://visterainer.github.io/aidea-zotero/</a>
 </p>
 
-<p align="center">
-  <strong>免费开源的 Zotero AI 助手</strong><br/>
-  💬 与论文对话 · ✍️ 划词翻译 · 📄 全文翻译并导出双语 PDF
-</p>
+**适用于 Zotero 7–10 的免费开源 AI 助手**
 
-<p align="center">
-  <strong>三种接入方式，任选其一：</strong><br/>
-  🔐 用现有订阅账号登录：ChatGPT、GitHub Copilot，OAuth 授权，无需 API Key<br/>
-  🔑 用 API Key 接入：OpenAI、DeepSeek、OpenRouter 等任意 OpenAI 兼容接口<br/>
-  💻 用本地模型：Ollama、LM Studio、vLLM，数据不出本机
-</p>
+在 Zotero 侧栏阅读 PDF 和 EPUB。你可以针对选段提问，点击回答中的页码或章节引用返回原文，再把回答存为 Zotero 笔记。需要通读译文时，可以翻译一篇 PDF，也可以批量导出单语译本或双语对照版。
 
-<p align="center">
-  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
-  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
-  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
-</p>
+## 安装 AIdea
 
-<p align="center">
-  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
-  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
-  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
-  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
-</p>
+1. 从[最新发行版](https://github.com/Visterainer/aidea-zotero/releases/latest)下载 **AIdea 的 .xpi 安装包**。
+2. 在 Zotero 打开 **工具 → 插件**，点击齿轮，选择 **从文件安装插件**，选中下载的文件后重启 Zotero。
+3. 打开 **Zotero 设置 → AIdea**，按下方说明连接模型。打开一篇 PDF 或 EPUB，即可在 AIdea 侧栏提问。
 
-<p align="center">
-  <a href="#-功能特性">功能特性</a> &nbsp;|&nbsp;
-  <a href="#-安装">安装</a> &nbsp;|&nbsp;
-  <a href="#-快速开始">快速开始</a> &nbsp;|&nbsp;
-  <a href="#-配置选项">配置选项</a> &nbsp;|&nbsp;
-  <a href="#-许可证">许可证</a>
-</p>
+## 连接模型
 
----
+- **ChatGPT** — 在 OpenAI 卡片点击 **安装/更新环境** 安装独立的 Codex CLI，然后点击 **OAuth 登录**，完成授权后 **刷新模型**。
+- **GitHub Copilot** — 在 Copilot 卡片点击 **OAuth 登录**，按提示在浏览器确认设备码，返回 Zotero 刷新模型列表。
+- **兼容 API 或本地模型** — 填写 API 基础地址和模型 ID，按服务要求填写密钥。本机运行 Ollama 时，常用地址为 `http://localhost:11434/v1`。
+
+首次翻译整篇 PDF 前，在 **全文翻译** 标签页点击 **安装/更新翻译环境**。对话和划词翻译只需连接模型。
 
 ## ✨ 功能特性
 
@@ -69,7 +52,7 @@
 
 ### 📄 论文感知上下文
 
-在 PDF 或 EPUB 阅读器中选中文本，点击 **Add Text** 即可将选中内容添加到上下文区域。AI 在回答时会优先结合这些原文内容，而不是只给出泛化总结。
+在 PDF 或 EPUB 阅读器中选中文本，点击 **添加文本** 即可将选中内容添加到上下文区域。AI 在回答时会优先结合这些原文内容，而不是只给出泛化总结。
 
 ### 📝 划词翻译
 
@@ -93,13 +76,11 @@ PDF 首次使用划词翻译时，AIdea 会在本地生成包含精简概述和�
 
 可在消息中附加截图、图表、示意图等图片内容。支持拖拽、从剪贴板粘贴，以及直接从 PDF 中截图。
 
-### 🔐 OAuth 账号登录（无需 API Key）
-
-使用已有账号通过 OAuth 登录，无需手动管理 API Key。AIdea 针对不同服务商提供各自的授权流程，以便更直接地开始使用。
-
 ### 📄 全文翻译
 
 可直接在 Zotero 侧边栏选择模型和输出路径，翻译整篇论文并导出 **左右并排的双语对照 PDF** 或 **单语言 PDF**。
+
+在文库多选条目后，通过右键菜单加入翻译列表。确认输出格式和保存位置后再启动队列。默认只补齐缺少的译文。重启 Zotero 后可以继续，归档失败时可重试保存已生成的文件。
 
 <p align="center">
   <img src="../screenshots/translate_panel_cn.png" alt="全文翻译面板" width="800" />
@@ -118,13 +99,6 @@ PDF 首次使用划词翻译时，AIdea 会在本地生成包含精简概述和�
 <p align="center">
   <img src="../screenshots/translate_example_table.png" alt="表格与正文翻译示例" width="800" />
 </p>
-
-### 🌐 多服务商支持
-
-| 服务商                | 认证方式                    | 额外安装                                    |
-| --------------------- | --------------------------- | ------------------------------------------- |
-| **OpenAI（ChatGPT）** | Codex CLI OAuth             | Node.js（插件自动安装）                     |
-| **GitHub Copilot**    | 插件内 OAuth（Device Code） | 无需额外安装；可使用 GPT 与 Claude 系列模型 |
 
 ### 📝 笔记导出
 
@@ -158,94 +132,15 @@ AIdea 会在多轮对话中捕捉和回忆有价值的信息，以便后续回�
 
 ### 🌍 语言支持
 
-插件界面当前支持 **12 种界面语言**：**English**、**简体中文**、**繁體中文**、**日本語**、**한국어**、**Français**、**Deutsch**、**Español**、**Русский**、**Português**、**العربية** 和 **हिन्दी**。全文翻译保留独立的目标语言列表，不受界面语言列表限制。
+插件界面当前支持 **13 种界面语言**：**English**、**简体中文**、**繁體中文**、**日本語**、**한국어**、**Français**、**Deutsch**、**Español**、**Русский**、**Português**、**العربية**、**فارسی** 和 **हिन्दी**。全文翻译保留独立的目标语言列表，不受界面语言列表限制。
 
----
+### 通讯作者介绍
 
-## 📦 安装
+在 AIdea 设置里启用 **右键生成通讯作者介绍**，然后在文库中右键点击文献，选择 **AIdea: 生成通讯作者介绍**，即可将结果保存为 Zotero 笔记。
 
-### 环境要求
+### 思考强度
 
-- **Zotero 7 及以上**
-- **Node.js**，OpenAI（Codex CLI）需要时可由插件自动安装
-- **Python 环境**（运行 `pdf2zh_next`），仅全文翻译需要。翻译标签页的「安装/更新翻译环境」按钮使用 `uv` 安装经过验证的依赖组合；已有 Miniconda 环境仍可使用。安装时需要联网，除非所需软件包已缓存。
-
-> **说明：** 翻译标签页每天最多检查一次独立发布的兼容环境清单，发现更新时在页面内提示。点击「安装/更新翻译环境」会立即检查；只有环境缺失、损坏或有经过验证的更新时才执行安装。新环境验证成功后才会启用，旧环境保留作回退。PyPI 发布新版并不等于它已通过插件兼容性验证。服务商卡片上的「安装/更新环境」管理独立的 OAuth CLI 环境。
-
-### 安装插件
-
-1. 从 [Releases](https://github.com/Visterainer/aidea-zotero/releases) 下载最新的 `AIdea-x.x.x.xpi`
-2. 在 Zotero 中进入 **工具 → 附加组件**
-3. 点击齿轮图标 ⚙️，选择 **从文件安装附加组件...**
-4. 选择下载的 `.xpi` 文件
-5. 重启 Zotero
-
-### 升级
-
-直接安装新版 `.xpi` 文件即可覆盖旧版本。聊天记录、记忆数据和本地设置都会保留。
-
----
-
-## 🚀 快速开始
-
-### 1. 打开设置
-
-进入 **工具 → 附加组件 → AIdea → 设置**。在较旧的 Zotero 版本中，也可能出现在 **编辑 → 首选项 → AIdea**。
-
-### 2. 选择连接方式
-
-AIdea 提供两种连接方式，可以只用其中一种，也可以同时使用。
-
-#### 方式一：OAuth 登录
-
-在每个服务商卡片中，通常按以下顺序完成设置：
-
-> **① `安装/更新环境`** → **② `OAuth 登录`** → **③ `刷新模型`**
-
-| 按钮                | 功能说明                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`安装/更新环境`** | 安装并配置所需 CLI 工具及运行环境，包括 Node.js 和 npm。GitHub Copilot 无需此步骤。服务商 CLI 在上游更新后可随时重新执行，与插件更新无关。 |
-| **`OAuth 登录`**    | 启动服务商对应的授权流程。OpenAI 会直接打开浏览器。GitHub Copilot 会显示 device code，并打开浏览器完成授权。                               |
-| **`刷新模型`**      | 登录成功后加载当前服务商可用的模型列表。                                                                                                   |
-| **`删除授权`**      | 清除本地保存的 OAuth 令牌。                                                                                                                |
-
-<p align="center">
-  <img src="../screenshots/settings_oauth_models_cn.png" alt="OAuth 提供商与模型管理" width="700" />
-</p>
-
-> 💡 **提示：** 每个服务商通常只需配置一次。登录状态保存在本地，重启 Zotero 后仍然有效。
-
-Codex OAuth 及提供明确模型能力信息的 API Key 连接，其**思考强度**在聊天模型选择旁的灯泡图标、全文翻译的**翻译**标签页，以及**设置 → 划词翻译**中分别调整，三处设置独立保存。聊天设置在切换模型后保持不变，图标颜色表示实际生效档位；若新模型不支持该档位，请求会使用不高于所选值的兼容档位，但保存的选择不变。菜单只显示明确档位，不再提供“默认”。旧的空白选择首次按模型目录的默认档位初始化并保存；目录没有默认值时使用支持的最低非 None 档位。若没有更低的兼容档位，也会使用这一明确的回退档位。刷新 Codex 模型列表后，选项会按各模型实际支持的档位显示，包括支持时的 Ultra。缺少能力信息时不会假定只有三档，灯泡变灰并提示刷新模型列表；模型或调用方式不支持调节时，灰色灯泡会说明原因，聊天仍可正常使用且不发送显式强度参数。API Key 方式可通过**自动获取模型列表**或刷新已保存的提供商列表获取能力；只接受模型目录中明确的 `supported_reasoning_levels` 或 `reasoning.supported_efforts`，仅有模型名称或“支持推理”标记不会猜测档位。API 能力缓存按地址和凭据隔离，24 小时后过期，刷新失败时清除旧能力。Chat Completions 按目录使用 `reasoning_effort` 或 `reasoning`，Responses 使用 `reasoning.effort`；OpenRouter 的自适应 Anthropic 路由仅在目录明确声明时使用 `verbosity`。聊天和划词翻译遇到服务端明确拒绝参数后，该连接的控制置灰，并移除参数重试；重新刷新能力后可再次启用。全文翻译代理也会移除被拒绝的强度参数，并在本次翻译剩余批次中保持这一处理。
-
-#### 方式二：OpenAI 兼容 API 端点
-
-AIdea 也支持连接任意 **OpenAI 兼容聊天端点**，适合本地、自托管或第三方兼容服务，例如 Ollama、LM Studio、vLLM、DeepSeek、OpenRouter 或 Groq。
-
-在 **设置** 中切换到 **API Mode**，填写以下字段：
-
-| 字段             | 必填 | 说明                                                                                |
-| ---------------- | ---- | ----------------------------------------------------------------------------------- |
-| **API Base URL** | 是   | 兼容端点的基础地址，例如 `https://api.openai.com/v1` 或 `http://localhost:11434/v1` |
-| **API Key**      | 否   | 仅当端点需要认证时填写                                                              |
-| **Model**        | 是   | 可手动输入模型 ID，或点击 **自动获取模型** 获取可用模型                             |
-
-<p align="center">
-  <img src="../screenshots/settings_api_cn.png" alt="API 模式自定义端点" width="700" />
-</p>
-
-> **注意：** API 模式面向兼容 `/chat/completions` 的端点，不保证对服务商特有能力的完全兼容。
-
-### 3. 开始对话
-
-- 在 **文库面板** 中选择条目，并使用右侧 AIdea 面板
-- 在 **PDF 或 EPUB 阅读器** 中打开文档，并使用阅读器侧边栏中的 AIdea 面板
-- 输入问题并点击 **发送**，或按 `Enter`
-
-### 4. 使用快捷操作
-
-点击 **总结**、**解释**、**翻译** 等快捷按钮即可一键执行常见操作。右键点击快捷按钮可编辑或删除。
-
----
+如果服务商提供模型支持的强度档位，可以分别为对话、划词翻译和全文翻译设置思考强度。控件不可用时，先刷新模型列表。
 
 ## ⚙️ 配置选项
 
@@ -257,7 +152,7 @@ AIdea 也支持连接任意 **OpenAI 兼容聊天端点**，适合本地、自�
 | **划词翻译**        | 在阅读器划词弹窗中翻译选中文本，并自动使用有界文档上下文 | 开启             |
 | **划词翻译模型**    | 用于阅读器划词翻译的独立模型                             | 默认使用可用模型 |
 | **显示所有模型**    | 显示全部模型而非精选模型                                 | 关闭             |
-| **标签栏**          | 显示或隐藏标签导航栏                                     | 隐藏             |
+| **标签栏**          | 显示或隐藏标签导航栏                                     | 显示             |
 
 ---
 

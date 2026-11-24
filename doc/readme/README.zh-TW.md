@@ -22,24 +22,23 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/zh-tw/">https://visterainer.github.io/aidea-zotero/zh-tw/</a>
 </p>
 
-AIdea 是一款免費開源的 Zotero AI 助手：💬 與論文對話 · ✍️ 劃詞翻譯 · 📄 全文翻譯並匯出雙語 PDF。三種接入方式任選其一：🔐 用現有訂閱帳號登入（ChatGPT、GitHub Copilot，OAuth 授權，無需 API Key）；🔑 用 API Key 接入 OpenAI、DeepSeek、OpenRouter 等任意 OpenAI 相容介面；💻 用本地模型（Ollama、LM Studio、vLLM），資料不出本機。
+**適用於 Zotero 7–10 的免費開源 AI 助手**
 
-<p align="center">
-  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
-  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
-  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
-</p>
+在 Zotero 側邊欄閱讀 PDF 與 EPUB。針對選取段落提問，點選回答中的頁碼或章節引用回到原文，再將回答存為 Zotero 筆記。需要整篇譯文時，可翻譯單一 PDF，也可批次匯出單語譯本或雙語對照版。
 
-<p align="center">
-  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
-  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
-  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
-  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
-</p>
+## 安裝 AIdea
 
-## 專案概覽
+1. 從[最新版本](https://github.com/Visterainer/aidea-zotero/releases/latest)下載 **AIdea 的 .xpi 安裝檔**。
+2. 在 Zotero 開啟 **工具 → 外掛程式**，點選齒輪，選擇從檔案安裝，選取下載的檔案後重新啟動 Zotero。
+3. 在 **Zotero 設定 → AIdea** 連接模型，再開啟 PDF 或 EPUB，從 AIdea 側邊欄提問。
 
-AIdea 面向需要在 Zotero 內完成論文與電子書閱讀、追問、摘錄、筆記整理、劃詞翻譯與全文翻譯的研究型工作流程。它為 Zotero 的資料庫檢視、PDF 閱讀器與 EPUB 閱讀器提供一致且可持續的 AI 工作區，減少在多個外部工具之間切換的成本。
+## 連接模型
+
+- **ChatGPT** — 在 OpenAI 卡片按下安裝或更新環境，安裝獨立的 Codex CLI。選擇 OAuth 登入，授權後重新整理模型清單。
+- **GitHub Copilot** — 在 Copilot 卡片選擇 OAuth 登入，依提示在瀏覽器確認裝置代碼，再重新整理模型清單。
+- **相容 API 或本機模型** — 填入 API 基底網址與模型 ID，並依服務要求輸入金鑰。本機 Ollama 常用的位址為 `http://localhost:11434/v1`。
+
+首次翻譯整份 PDF 前，請在 **翻譯** 分頁安裝或更新翻譯環境。對話與選取文字翻譯只需連接模型。
 
 ## 核心能力
 
@@ -81,51 +80,6 @@ AIdea 面向需要在 Zotero 內完成論文與電子書閱讀、追問、摘錄
 <p align="center">
   <img src="../../doc/screenshots/settings_oauth_models_cn.png" alt="AIdea 提供商與模型設定" width="900" />
 </p>
-
-## 支援的連線方式
-
-| 方式              | 驗證方式                         | 說明                                    |
-| ----------------- | -------------------------------- | --------------------------------------- |
-| OpenAI（ChatGPT） | 透過 Codex CLI 完成 OAuth        | 外掛可在需要時自動安裝 Node.js 執行環境 |
-| GitHub Copilot    | 外掛內 OAuth（Device Code）      | 無需額外的 Node.js 啟動步驟             |
-| OpenAI 相容端點   | API Base URL、模型與可選 API Key | 適用於本地、自託管或第三方相容服務      |
-
-> **說明：** 這些環境都是第三方工具，更新節奏由各自維護方決定，與 AIdea 外掛的版本發佈無關。服務商卡片上的「安裝/更新環境」負責安裝和更新該服務商的 CLI（Codex CLI）；翻譯分頁中的「安裝環境」負責安裝和更新全文翻譯所需的 Python 環境與 `pdf2zh_next`，安裝過程需要連網。上游工具有更新時重新執行對應按鈕即可，不必等待外掛更新；外掛更新也不會自動更新這些環境。
-
-## 安裝
-
-### 環境需求
-
-- Zotero 7 或更新版本
-- 僅在所選服務商需要時使用 Node.js；對支援的流程，AIdea 可自動安裝
-
-### 安裝外掛
-
-1. 從 [Releases](https://github.com/Visterainer/aidea-zotero/releases) 下載最新的 `.xpi` 安裝包。
-2. 在 Zotero 中開啟 `工具` -> `附加元件`。
-3. 點擊齒輪選單，選擇 `從檔案安裝附加元件...`。
-4. 選取下載好的 `.xpi` 檔案。
-5. 重新啟動 Zotero。
-
-### 升級
-
-直接安裝新的 `.xpi` 即可覆蓋舊版本。AIdea 會保留本地設定、聊天記錄與記憶資料。
-
-## 快速開始
-
-1. 開啟 `工具` -> `附加元件` -> `AIdea` -> `設定`。
-2. 選擇 OAuth 登入或 API 模式。
-3. 重新整理可用模型並選擇要使用的模型。
-4. 開啟 Zotero 條目、PDF 或 EPUB，從 AIdea 側邊欄開始使用。
-
-如需執行全文翻譯，可切換到翻譯分頁，設定模型與輸出路徑後直接在 Zotero 內執行任務。
-
-如需使用劃詞翻譯，可在設定中啟用此功能並選擇模型，之後在 PDF 或 EPUB 閱讀器選取文字即可，無需手動切換格式。PDF 首次使用時會建立包含精簡概述與專業詞摘要的本地冷啟動快取；EPUB 則直接使用以選取文字為錨點的有界圖書上下文，不會額外執行暖機請求。
-
-## 語言支援
-
-- **外掛介面：** English、简体中文、繁體中文、日本語、한국어、Français、Deutsch、Español、Русский、Português、العربية、हिन्दी
-- **文件與專案網站：** English、简体中文、繁體中文、日本語、한국어、Français
 
 ## 隱私與資料處理
 

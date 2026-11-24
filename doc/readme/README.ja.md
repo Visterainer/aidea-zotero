@@ -22,24 +22,23 @@
   <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/ja/">https://visterainer.github.io/aidea-zotero/ja/</a>
 </p>
 
-AIdea は Zotero 向けの無料オープンソース AI アシスタントです：💬 論文と対話 · ✍️ 選択テキストの翻訳 · 📄 全文翻訳と対訳 PDF の書き出し。接続方法は 3 つから選べます：🔐 お手持ちのサブスクリプション（ChatGPT、GitHub Copilot）で OAuth ログイン、API キー不要；🔑 OpenAI、DeepSeek、OpenRouter など任意の OpenAI 互換 API に API キーで接続；💻 ローカルモデル（Ollama、LM Studio、vLLM）を使用し、データは手元の環境から出ません。
+**Zotero 7–10 対応の無料オープンソース AI アシスタント**
 
-<p align="center">
-  <img alt="OpenAI ChatGPT" src="https://img.shields.io/badge/OpenAI-ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white" />
-  <img alt="Google Gemini" src="https://img.shields.io/badge/Google-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white" />
-  <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub-Copilot-111111?style=for-the-badge&logo=github&logoColor=white" />
-</p>
+Zotero のサイドパネルで PDF や EPUB を読みながら、選択した段落について質問できます。回答のページ番号や章の引用から原文を開き、回答を Zotero のノートに保存できます。PDF は個別または一括で翻訳し、訳文のみの版や対訳版を書き出せます。
 
-<p align="center">
-  <img alt="OpenAI Compatible API" src="https://img.shields.io/badge/OpenAI-Compatible%20API-4B5563?style=flat-square&logo=openai&logoColor=white" />
-  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-1F2937?style=flat-square&logoColor=white" />
-  <img alt="LM Studio" src="https://img.shields.io/badge/LM%20Studio-2563EB?style=flat-square&logoColor=white" />
-  <img alt="vLLM" src="https://img.shields.io/badge/vLLM-7C3AED?style=flat-square&logoColor=white" />
-</p>
+## AIdea をインストールする
 
-## 概要
+1. [最新リリース](https://github.com/Visterainer/aidea-zotero/releases/latest)から **AIdea の .xpi ファイル**をダウンロードします。
+2. Zotero の **ツール → プラグイン** を開き、歯車メニューからファイルを指定してインストールします。ダウンロードしたファイルを選び、Zotero を再起動します。
+3. **Zotero の設定 → AIdea** でモデルに接続します。PDF または EPUB を開き、AIdea のサイドパネルで質問します。
 
-AIdea は、論文や電子書籍の読解、追質問、抜粋、ノート整理、選択範囲の翻訳、全文翻訳を Zotero の中で完結させたい研究者向けに設計されています。ライブラリ画面、PDF リーダー、EPUB リーダーに継続利用しやすい AI ワークスペースを追加します。
+## モデルに接続する
+
+- **ChatGPT** — OpenAI カードの環境インストールボタンでスタンドアロン版 Codex CLI を導入します。OAuth でログインし、モデル一覧を更新します。
+- **GitHub Copilot** — Copilot カードから OAuth ログインを開始し、ブラウザーでデバイスコードを確認して認証します。Zotero に戻り、モデル一覧を更新します。
+- **互換 API またはローカルモデル** — API のベース URL とモデル ID を入力します。サービスが認証を求める場合は API キーも入力します。ローカルの Ollama では通常 `http://localhost:11434/v1` を使います。
+
+PDF 全文翻訳を初めて使うときは、**翻訳** タブで翻訳環境をインストールまたは更新してください。チャットと選択範囲の翻訳はモデルに接続すれば使えます。
 
 ## 主な機能
 
@@ -81,51 +80,6 @@ AIdea は、論文や電子書籍の読解、追質問、抜粋、ノート整�
 <p align="center">
   <img src="../../doc/screenshots/settings_oauth_models_en.png" alt="AIdea のプロバイダとモデル設定" width="900" />
 </p>
-
-## 対応する接続方式
-
-| 方式                      | 認証                                 | 補足                                                     |
-| ------------------------- | ------------------------------------ | -------------------------------------------------------- |
-| OpenAI（ChatGPT）         | Codex CLI 経由の OAuth               | 必要な場合はプラグインが Node.js 実行環境を自動導入      |
-| GitHub Copilot            | プラグイン内 OAuth（Device Code）    | Node.js の追加導入は不要                                 |
-| OpenAI 互換エンドポイント | API Base URL、モデル、任意の API Key | ローカル、自前運用、またはサードパーティ互換サービス向け |
-
-> **注記：** これらの環境はサードパーティ製ツールであり、更新頻度は各ツールの開発元が決めるもので、AIdea のリリース周期とは無関係です。プロバイダカードの「環境をインストール/更新」はそのプロバイダの CLI（Codex CLI）を導入・更新します。翻訳タブの「環境をインストール」は全文翻訳に必要な Python 環境と `pdf2zh_next` を導入・更新し、その際はインターネット接続が必要です。上流のツールが更新されたら該当するボタンを再実行してください。プラグインの更新を待つ必要はなく、プラグインを更新してもこれらの環境は自動更新されません。
-
-## インストール
-
-### 動作条件
-
-- Zotero 7 以降
-- Node.js は選択したプロバイダで必要な場合のみ使用し、対応フローでは AIdea が自動導入可能
-
-### プラグインの導入
-
-1. [Releases](https://github.com/Visterainer/aidea-zotero/releases) から最新の `.xpi` パッケージを取得します。
-2. Zotero で `Tools` -> `Add-ons` を開きます。
-3. 歯車メニューから `Install Add-on From File...` を選びます。
-4. ダウンロードした `.xpi` ファイルを指定します。
-5. Zotero を再起動します。
-
-### 更新
-
-新しい `.xpi` を上書きインストールするだけで更新できます。AIdea はローカル設定、チャット履歴、記憶データを保持します。
-
-## クイックスタート
-
-1. `Tools` -> `Add-ons` -> `AIdea` -> `Settings` を開きます。
-2. OAuth ログインまたは API モードを選択します。
-3. 利用可能なモデルを更新し、使用するモデルを選びます。
-4. Zotero のアイテム、PDF、または EPUB を開き、AIdea サイドパネルから利用を開始します。
-
-全文翻訳を行う場合は翻訳タブに切り替え、モデルと出力先を設定して Zotero 内で実行します。
-
-選択範囲の翻訳を使う場合は、設定で機能を有効にしてモデルを選び、PDF または EPUB リーダーでテキストを選択します。文書形式は AIdea が自動判別します。PDF の初回利用時には要約と重要用語を含むローカルのコールドスタートキャッシュを作成します。EPUB では選択箇所を基準に範囲を制限した書籍コンテキストを直接利用し、別のウォームアップ要求は行いません。
-
-## 言語対応
-
-- **プラグイン UI：** English、简体中文、繁體中文、日本語、한국어、Français、Deutsch、Español、Русский、Português、العربية、हिन्दी
-- **ドキュメントとウェブサイト：** English、简体中文、繁體中文、日本語、한국어、Français
 
 ## プライバシーとデータ処理
 

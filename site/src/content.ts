@@ -496,14 +496,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "给长期读论文、做笔记、写综述的人",
       heading: "在 Zotero 里读论文、提问和整理笔记。",
       subheading:
-        "AIdea 是一个免费开源项目。不离开 Zotero 就能与论文对话、划词翻译、把整篇 PDF 翻译成双语文档。接入方式任选：现有的 ChatGPT、GitHub Copilot 订阅账号，任意 OpenAI 兼容 API，或本地模型。",
+        "在 Zotero 侧栏对 PDF 和 EPUB 提问，点击回答中的页码或章节引用回到原文，并把回答保存为笔记。可通过 ChatGPT 或 GitHub Copilot 登录，也可连接兼容 API 或本地模型。",
       primaryCta: "安装插件",
       secondaryCta: "查看源码",
       tertiaryCta: "阅读文档",
       metrics: [
         { label: "价格", value: "免费开源" },
         { label: "存储方式", value: "本地优先" },
-        { label: "使用界面", value: "文库 + PDF 阅读器" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -585,18 +585,18 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "全文翻译",
       heading: "整篇翻译也能留在 Zotero 内完成。",
-      body: "翻译面板面向论文中的真实页面，包括结构图、公式和表格。这里展示的是仓库里已有的实际输出截图，不是营销示意图。",
+      body: "在文库中选中多篇论文，确认输出格式和保存位置，再启动翻译队列。可生成单语或双语 PDF，保存为 Zotero 附件或导出到文件夹。默认只补齐缺少的译文。",
       captions: ["架构图页面", "公式密集页面", "表格与正文混排"],
       panelAlt: "全文翻译面板",
     },
     install: {
       kicker: "安装方式",
       heading: "几步安装，直接开始使用。",
-      body: "AIdea 通过 GitHub Releases 分发 `.xpi` 安装包。下载后在 Zotero 中从文件安装即可使用，整个项目免费开源。",
+      body: "AIdea 通过 GitHub Releases 分发 .xpi 安装包。下载后在 Zotero 中从文件安装即可使用，整个项目免费开源。",
       steps: [
-        "从 GitHub Releases 下载最新 `.xpi` 文件。",
-        "在 Zotero 的附加组件界面中选择“从文件安装”。",
-        "重启 Zotero 后，在 Library 或 PDF Reader 侧栏中启用 AIdea。",
+        "从 GitHub Releases 下载最新 .xpi 文件。",
+        "在 Zotero 的工具 → 插件的齿轮菜单中选择“从文件安装”。",
+        "重启 Zotero，在设置中打开 AIdea 并连接模型，然后在文库或阅读器侧栏提问。",
       ],
       note: "如果你想了解实现方式、提交问题或参与改进，可以直接在 GitHub 仓库查看源码、Issue 和发布记录。",
     },
@@ -624,14 +624,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "For people who read papers, take notes, and write reviews",
       heading: "Read, ask, and organize notes inside Zotero.",
       subheading:
-        "AIdea is a free and open-source project. Chat with your papers, translate selected text, and translate full PDFs into bilingual documents without leaving Zotero. Connect with your existing ChatGPT or GitHub Copilot subscription, any OpenAI-compatible API, or local models.",
+        "Ask questions about PDFs and EPUBs in Zotero’s side panel. Follow a page or chapter citation to the source, then save the answer as a note. Connect through ChatGPT, GitHub Copilot, a compatible API, or a local model.",
       primaryCta: "Install from Releases",
       secondaryCta: "View Source",
       tertiaryCta: "Read Docs",
       metrics: [
         { label: "Pricing", value: "Free & open" },
         { label: "Storage", value: "Local-first" },
-        { label: "Surfaces", value: "Library + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -714,7 +714,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "Translation",
       heading: "Full-paper translation can stay inside Zotero.",
-      body: "The translation panel is aimed at the pages that are actually difficult in academic papers, including diagrams, formulas, and tables. The gallery below shows real outputs already present in the repository, not marketing mockups.",
+      body: "Select several papers in your library and review the output formats and destinations before starting the queue. Save translated-only or bilingual PDFs as Zotero attachments or export them to a folder. By default, AIdea fills in missing outputs.",
       captions: [
         "Architecture page",
         "Formula-heavy page",
@@ -725,11 +725,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "Install",
       heading: "Install it in a few steps and start using it.",
-      body: "AIdea is distributed through GitHub Releases as an `.xpi`. Download it, install it from file in Zotero, and start using it. The project is free and open source.",
+      body: "AIdea is distributed through GitHub Releases as an .xpi. Download it, install it from file in Zotero, and start using it. The project is free and open source.",
       steps: [
-        "Download the latest `.xpi` from GitHub Releases.",
-        "Choose “Install Add-on From File” in Zotero's add-on interface.",
-        "Restart Zotero and open AIdea from the Library or PDF Reader side panel.",
+        "Download the latest .xpi from GitHub Releases.",
+        "Choose “Install Plugin From File” under Tools → Plugins → ⚙ in Zotero.",
+        "Restart Zotero, connect a model in Zotero Settings → AIdea, then ask a question in the library or reader side panel.",
       ],
       note: "If you want to inspect the implementation, report a problem, or contribute improvements, everything is available in the GitHub repository.",
     },
@@ -757,14 +757,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "論文を読み、メモを取り、レビューを書く人のために",
       heading: "Zotero の中で論文を読み、質問し、ノートを整理する。",
       subheading:
-        "AIdea は無料のオープンソースプロジェクトです。Zotero を離れずに論文と対話し、選択テキストを翻訳し、PDF 全体を対訳文書に翻訳できます。接続方法は、お手持ちの ChatGPT、GitHub Copilot のサブスクリプション、任意の OpenAI 互換 API、ローカルモデルから選べます。",
+        "Zotero のサイドパネルで PDF や EPUB について質問できます。回答に付いたページや章の引用から原文を開き、回答をノートに保存できます。ChatGPT、GitHub Copilot、互換 API、ローカルモデルに対応しています。",
       primaryCta: "Releases からインストール",
       secondaryCta: "ソースコードを見る",
       tertiaryCta: "ドキュメントを読む",
       metrics: [
         { label: "料金", value: "無料・オープン" },
         { label: "保存方式", value: "ローカル優先" },
-        { label: "利用画面", value: "Library + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -847,7 +847,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "全文翻訳",
       heading: "論文全体の翻訳も Zotero の中で続けられます。",
-      body: "翻訳パネルは、図、数式、表のような学術論文で扱いにくいページを想定しています。下のギャラリーはマーケティング用画像ではなく、実際の出力例です。",
+      body: "ライブラリで複数の論文を選び、出力形式と保存先を確認して翻訳を開始します。訳文のみの PDF や対訳 PDF を Zotero に添付するか、フォルダーに保存できます。既定では不足している出力だけを作成します。",
       captions: [
         "構成図のページ",
         "数式が多いページ",
@@ -858,11 +858,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "インストール",
       heading: "数ステップで導入してすぐ使えます。",
-      body: "AIdea は GitHub Releases で `.xpi` として配布されています。ダウンロードして Zotero でファイルからインストールすれば使い始められます。プロジェクトは無料のオープンソースです。",
+      body: "AIdea は GitHub Releases で .xpi として配布されています。ダウンロードして Zotero でファイルからインストールすれば使い始められます。プロジェクトは無料のオープンソースです。",
       steps: [
-        "GitHub Releases から最新の `.xpi` をダウンロードします。",
+        "GitHub Releases から最新の .xpi をダウンロードします。",
         "Zotero のアドオン画面で「ファイルからアドオンをインストール」を選びます。",
-        "Zotero を再起動し、Library または PDF Reader のサイドパネルから AIdea を開きます。",
+        "Zotero を再起動し、設定の AIdea でモデルに接続して、ライブラリまたはリーダーのサイドパネルから質問します。",
       ],
       note: "実装の確認、問題報告、改善への参加は GitHub リポジトリから行えます。",
     },
@@ -890,14 +890,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "Fuer Menschen, die Papers lesen, markieren und zusammenfassen",
       heading: "In Zotero lesen, fragen und Notizen organisieren.",
       subheading:
-        "AIdea ist ein kostenloses Open-Source-Projekt. Mit Papern chatten, markierten Text uebersetzen und ganze PDFs als zweisprachige Dokumente uebersetzen, ohne Zotero zu verlassen. Verbindung ueber das vorhandene ChatGPT- oder GitHub-Copilot-Abo, jede OpenAI-kompatible API oder lokale Modelle.",
+        "Stellen Sie in der Zotero-Seitenleiste Fragen zu PDFs und EPUBs. Seiten- und Kapitelverweise führen zurück zur Quelle. Antworten können Sie als Notiz speichern. Verbinden Sie ChatGPT, GitHub Copilot, eine kompatible API oder ein lokales Modell.",
       primaryCta: "Aus Releases installieren",
       secondaryCta: "Quellcode ansehen",
       tertiaryCta: "Dokumentation lesen",
       metrics: [
         { label: "Preis", value: "Kostenlos & offen" },
         { label: "Speicherung", value: "Local-first" },
-        { label: "Oberflaechen", value: "Library + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -981,7 +981,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "Uebersetzung",
       heading: "Auch Volltext-Uebersetzungen bleiben in Zotero.",
-      body: "Das Uebersetzungsfenster richtet sich an schwierige Paper-Seiten mit Diagrammen, Formeln und Tabellen. Die Galerie unten zeigt echte Ausgaben aus dem Repository, keine Marketing-Mockups.",
+      body: "Wählen Sie mehrere Artikel aus und prüfen Sie Ausgabeformate und Speicherorte. Die Warteschlange speichert übersetzte oder zweisprachige PDFs als Zotero-Anhänge oder in einem Ordner. Standardmäßig werden nur fehlende Dateien erstellt.",
       captions: [
         "Architektur-Seite",
         "Formellastige Seite",
@@ -992,11 +992,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "Installation",
       heading: "In wenigen Schritten installiert und einsatzbereit.",
-      body: "AIdea wird ueber GitHub Releases als `.xpi` verteilt. Herunterladen, in Zotero aus einer Datei installieren und direkt verwenden. Das Projekt ist kostenlos und Open Source.",
+      body: "AIdea wird ueber GitHub Releases als .xpi verteilt. Herunterladen, in Zotero aus einer Datei installieren und direkt verwenden. Das Projekt ist kostenlos und Open Source.",
       steps: [
-        "Die neueste `.xpi` aus GitHub Releases herunterladen.",
+        "Die neueste .xpi aus GitHub Releases herunterladen.",
         "In Zotero „Add-on aus Datei installieren“ waehlen.",
-        "Zotero neu starten und AIdea in der Library oder im PDF-Reader oeffnen.",
+        "Starten Sie Zotero neu, verbinden Sie in den AIdea-Einstellungen ein Modell und stellen Sie eine Frage in der Seitenleiste.",
       ],
       note: "Implementierung, Fehlermeldungen und Verbesserungen sind direkt ueber das GitHub-Repository zugaenglich.",
     },
@@ -1025,14 +1025,14 @@ export const pageContent: Record<Locale, PageData> = {
         "Pour celles et ceux qui lisent des articles, annotent et synthetisent",
       heading: "Lire, questionner et organiser ses notes dans Zotero.",
       subheading:
-        "AIdea est un projet gratuit et open source. Dialoguez avec vos articles, traduisez le texte selectionne et traduisez des PDF entiers en documents bilingues sans quitter Zotero. Connectez-vous avec votre abonnement ChatGPT ou GitHub Copilot existant, n'importe quelle API compatible OpenAI ou des modeles locaux.",
+        "Interrogez vos PDF et EPUB dans le panneau latéral de Zotero. Suivez une référence de page ou de chapitre pour relire la source, puis enregistrez la réponse dans une note. Connectez ChatGPT, GitHub Copilot, une API compatible ou un modèle local.",
       primaryCta: "Installer depuis Releases",
       secondaryCta: "Voir le code source",
       tertiaryCta: "Lire la documentation",
       metrics: [
         { label: "Prix", value: "Gratuit & ouvert" },
         { label: "Stockage", value: "Local-first" },
-        { label: "Interfaces", value: "Library + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1117,7 +1117,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "Traduction",
       heading: "La traduction integrale peut rester dans Zotero.",
-      body: "Le panneau de traduction vise les pages les plus difficiles des articles scientifiques : schemas, formules et tableaux. La galerie ci-dessous montre de vraies sorties deja presentes dans le depot.",
+      body: "Sélectionnez plusieurs articles, vérifiez les formats et les destinations, puis lancez la traduction. Joignez les PDF traduits ou bilingues aux notices Zotero ou enregistrez-les dans un dossier. Par défaut, seuls les fichiers manquants sont produits.",
       captions: [
         "Page d'architecture",
         "Page riche en formules",
@@ -1128,11 +1128,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "Installation",
       heading: "Quelques etapes suffisent pour commencer.",
-      body: "AIdea est distribue via GitHub Releases au format `.xpi`. Il suffit de le telecharger, de l'installer depuis un fichier dans Zotero et de commencer a l'utiliser. Le projet est gratuit et open source.",
+      body: "AIdea est distribue via GitHub Releases au format .xpi. Il suffit de le telecharger, de l'installer depuis un fichier dans Zotero et de commencer a l'utiliser. Le projet est gratuit et open source.",
       steps: [
-        "Telecharger le dernier `.xpi` depuis GitHub Releases.",
+        "Telecharger le dernier .xpi depuis GitHub Releases.",
         "Choisir « Installer un module depuis un fichier » dans l'interface des modules de Zotero.",
-        "Redemarrer Zotero puis ouvrir AIdea depuis la bibliotheque ou le lecteur PDF.",
+        "Redémarrez Zotero, connectez un modèle dans les paramètres d’AIdea, puis posez une question dans le panneau latéral.",
       ],
       note: "Le depot GitHub permet de consulter l'implementation, signaler un probleme et contribuer a l'amelioration du projet.",
     },
@@ -1160,14 +1160,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "給長期讀論文、做筆記、寫綜述的人",
       heading: "在 Zotero 裡讀論文、提問和整理筆記。",
       subheading:
-        "AIdea 是一個免費開源專案。不離開 Zotero 就能與論文對話、劃詞翻譯、把整篇 PDF 翻譯成雙語文件。接入方式任選：現有的 ChatGPT、GitHub Copilot 訂閱帳號，任意 OpenAI 相容 API，或本地模型。",
+        "在 Zotero 側邊欄針對 PDF 與 EPUB 提問，點選頁碼或章節引用回到原文，並將回答存為筆記。可透過 ChatGPT 或 GitHub Copilot 登入，也可連接相容 API 或本機模型。",
       primaryCta: "安裝外掛",
       secondaryCta: "查看原始碼",
       tertiaryCta: "閱讀文件",
       metrics: [
         { label: "價格", value: "免費開源" },
         { label: "儲存方式", value: "本地優先" },
-        { label: "使用介面", value: "資料庫 + PDF 閱讀器" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1249,18 +1249,18 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "全文翻譯",
       heading: "整篇翻譯也能留在 Zotero 內完成。",
-      body: "翻譯面板面向論文中的真實頁面，包括結構圖、公式與表格。這裡展示的是倉庫裡已有的實際輸出截圖，不是行銷示意圖。",
+      body: "在文獻庫中選取多篇論文，確認格式與儲存位置後啟動佇列。可將單語或雙語 PDF 存為 Zotero 附件或匯出至資料夾。預設只補齊缺少的譯本。",
       captions: ["架構圖頁面", "公式密集頁面", "表格與正文混排"],
       panelAlt: "全文翻譯面板",
     },
     install: {
       kicker: "安裝方式",
       heading: "幾步安裝，直接開始使用。",
-      body: "AIdea 透過 GitHub Releases 分發 `.xpi` 安裝包。下載後在 Zotero 中從檔案安裝即可使用，整個專案免費開源。",
+      body: "AIdea 透過 GitHub Releases 分發 .xpi 安裝包。下載後在 Zotero 中從檔案安裝即可使用，整個專案免費開源。",
       steps: [
-        "從 GitHub Releases 下載最新 `.xpi` 檔案。",
-        "在 Zotero 的附加元件介面中選擇「從檔案安裝」。",
-        "重新啟動 Zotero 後，在 Library 或 PDF Reader 側欄中啟用 AIdea。",
+        "從 GitHub Releases 下載最新 .xpi 檔案。",
+        "在 Zotero 的外掛程式的齒輪選單中選擇「從檔案安裝」。",
+        "重新啟動 Zotero，在設定中開啟 AIdea 並連接模型，然後到文獻庫或閱讀器側邊欄提問。",
       ],
       note: "如果你想了解實作方式、回報問題或參與改進，可以直接在 GitHub 倉庫查看原始碼、Issue 與發布記錄。",
     },
@@ -1288,14 +1288,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "논문을 읽고, 메모하고, 리뷰를 쓰는 사람들을 위해",
       heading: "Zotero 안에서 읽고, 묻고, 노트를 정리하세요.",
       subheading:
-        "AIdea는 무료 오픈소스 프로젝트입니다. Zotero를 벗어나지 않고 논문과 대화하고, 선택한 텍스트를 번역하고, PDF 전체를 이중 언어 문서로 번역할 수 있습니다. 기존 ChatGPT, GitHub Copilot 구독, 모든 OpenAI 호환 API, 로컬 모델 중 원하는 방식으로 연결하세요.",
+        "Zotero 사이드 패널에서 PDF와 EPUB에 관해 질문하세요. 답변에 표시된 페이지나 장을 눌러 원문을 확인하고 답변을 노트로 저장할 수 있습니다. ChatGPT, GitHub Copilot, 호환 API 또는 로컬 모델을 연결할 수 있습니다.",
       primaryCta: "Releases에서 설치",
       secondaryCta: "소스 코드 보기",
       tertiaryCta: "문서 읽기",
       metrics: [
         { label: "가격", value: "무료 오픈소스" },
         { label: "저장 방식", value: "로컬 우선" },
-        { label: "사용 위치", value: "라이브러리 + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1378,7 +1378,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "전체 번역",
       heading: "논문 전체 번역도 Zotero 안에서 이어갈 수 있습니다.",
-      body: "번역 패널은 도표, 수식, 표처럼 학술 논문에서 특히 까다로운 페이지를 염두에 두고 있습니다. 아래 갤러리는 저장소에 이미 있는 실제 출력 예시입니다.",
+      body: "라이브러리에서 여러 논문을 선택한 뒤 출력 형식과 저장 위치를 확인하고 번역을 시작합니다. 번역문 전용 또는 원문 대조 PDF를 Zotero에 첨부하거나 폴더에 저장할 수 있습니다. 기본값으로는 누락된 결과만 생성합니다.",
       captions: [
         "구조도 페이지",
         "수식이 많은 페이지",
@@ -1389,11 +1389,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "설치 방법",
       heading: "몇 단계만으로 바로 사용할 수 있습니다.",
-      body: "AIdea는 GitHub Releases를 통해 `.xpi`로 배포됩니다. 파일을 내려받아 Zotero에서 설치하면 바로 사용할 수 있습니다. 프로젝트는 무료 오픈소스입니다.",
+      body: "AIdea는 GitHub Releases를 통해 .xpi로 배포됩니다. 파일을 내려받아 Zotero에서 설치하면 바로 사용할 수 있습니다. 프로젝트는 무료 오픈소스입니다.",
       steps: [
-        "GitHub Releases에서 최신 `.xpi` 파일을 다운로드합니다.",
+        "GitHub Releases에서 최신 .xpi 파일을 다운로드합니다.",
         "Zotero의 부가 기능 화면에서 '파일에서 설치'를 선택합니다.",
-        "Zotero를 다시 시작한 뒤 라이브러리나 PDF 리더에서 AIdea를 엽니다.",
+        "Zotero를 다시 시작하고 설정의 AIdea에서 모델을 연결한 뒤 라이브러리나 리더의 사이드 패널에서 질문합니다.",
       ],
       note: "구현을 확인하거나 문제를 제보하거나 개선에 참여하고 싶다면 GitHub 저장소에서 코드, 이슈, 릴리스를 바로 확인할 수 있습니다.",
     },
@@ -1421,14 +1421,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "Para quienes leen artículos, toman notas y escriben revisiones",
       heading: "Lee, pregunta y organiza tus notas dentro de Zotero.",
       subheading:
-        "AIdea es un proyecto gratuito y de código abierto. Chatea con tus artículos, traduce el texto seleccionado y traduce PDF completos a documentos bilingües sin salir de Zotero. Conéctate con tu suscripción existente de ChatGPT o GitHub Copilot, cualquier API compatible con OpenAI o modelos locales.",
+        "Haz preguntas sobre PDF y EPUB desde el panel lateral de Zotero. Sigue una cita hasta la página o el capítulo original y guarda la respuesta en una nota. Conecta ChatGPT, GitHub Copilot, una API compatible o un modelo local.",
       primaryCta: "Instalar desde Releases",
       secondaryCta: "Ver el código",
       tertiaryCta: "Leer la documentación",
       metrics: [
         { label: "Precio", value: "Gratis y abierto" },
         { label: "Almacenamiento", value: "Local primero" },
-        { label: "Superficie", value: "Biblioteca + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1512,7 +1512,7 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Traducción",
       heading:
         "La traducción completa también puede quedarse dentro de Zotero.",
-      body: "El panel de traducción está pensado para las páginas realmente difíciles de los artículos académicos, incluidas diagramas, fórmulas y tablas. La galería inferior muestra salidas reales del repositorio.",
+      body: "Selecciona varios artículos y revisa los formatos y destinos antes de iniciar la cola. Guarda los PDF traducidos o bilingües como adjuntos de Zotero o en una carpeta. Por defecto, solo se generan los archivos que faltan.",
       captions: [
         "Página de arquitectura",
         "Página cargada de fórmulas",
@@ -1523,11 +1523,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "Instalación",
       heading: "Bastan unos pocos pasos para empezar.",
-      body: "AIdea se distribuye como archivo `.xpi` a través de GitHub Releases. Descárgalo, instálalo desde archivo en Zotero y empieza a usarlo. El proyecto es gratuito y de código abierto.",
+      body: "AIdea se distribuye como archivo .xpi a través de GitHub Releases. Descárgalo, instálalo desde archivo en Zotero y empieza a usarlo. El proyecto es gratuito y de código abierto.",
       steps: [
-        "Descarga el archivo `.xpi` más reciente desde GitHub Releases.",
+        "Descarga el archivo .xpi más reciente desde GitHub Releases.",
         "Elige 'Instalar complemento desde archivo' en la interfaz de complementos de Zotero.",
-        "Reinicia Zotero y abre AIdea desde la biblioteca o el lector PDF.",
+        "Reinicia Zotero, conecta un modelo en los ajustes de AIdea y haz una pregunta desde el panel lateral.",
       ],
       note: "Si quieres revisar la implementación, reportar un problema o contribuir, puedes hacerlo directamente desde el repositorio en GitHub.",
     },
@@ -1555,14 +1555,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "Для тех, кто читает статьи, делает заметки и пишет обзоры",
       heading: "Читайте статьи, задавайте вопросы и ведите заметки в Zotero.",
       subheading:
-        "AIdea — это бесплатный проект с открытым исходным кодом. Общайтесь со статьями, переводите выделенный текст и переводите целые PDF в двуязычные документы, не покидая Zotero. Подключайтесь через существующую подписку ChatGPT или GitHub Copilot, любой OpenAI-совместимый API или локальные модели.",
+        "Задавайте вопросы по PDF и EPUB в боковой панели Zotero. По ссылке в ответе можно перейти к странице или главе, а сам ответ сохранить в заметку. Подключите ChatGPT, GitHub Copilot, совместимый API или локальную модель.",
       primaryCta: "Установить из Releases",
       secondaryCta: "Посмотреть код",
       tertiaryCta: "Читать документацию",
       metrics: [
         { label: "Стоимость", value: "Бесплатно и открыто" },
         { label: "Хранение", value: "Сначала локально" },
-        { label: "Где работает", value: "Библиотека + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1647,7 +1647,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "Перевод",
       heading: "Полный перевод статьи тоже может оставаться внутри Zotero.",
-      body: "Панель перевода рассчитана на действительно сложные страницы научных статей: схемы, формулы и таблицы. Галерея ниже показывает реальные результаты из репозитория.",
+      body: "Выберите несколько статей и проверьте форматы и места сохранения перед запуском очереди. PDF с переводом или с параллельным текстом можно прикрепить к записям Zotero или сохранить в папку. По умолчанию создаются только недостающие файлы.",
       captions: [
         "Страница со схемой",
         "Страница с большим количеством формул",
@@ -1658,11 +1658,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "Установка",
       heading: "Несколько шагов — и можно начинать работу.",
-      body: "AIdea распространяется через GitHub Releases в виде файла `.xpi`. Скачайте его, установите из файла в Zotero и сразу начинайте пользоваться. Проект бесплатный и с открытым кодом.",
+      body: "AIdea распространяется через GitHub Releases в виде файла .xpi. Скачайте его, установите из файла в Zotero и сразу начинайте пользоваться. Проект бесплатный и с открытым кодом.",
       steps: [
-        "Скачайте последний файл `.xpi` из GitHub Releases.",
+        "Скачайте последний файл .xpi из GitHub Releases.",
         "В интерфейсе дополнений Zotero выберите «Установить дополнение из файла».",
-        "Перезапустите Zotero и откройте AIdea из библиотеки или PDF-ридера.",
+        "Перезапустите Zotero, подключите модель в настройках AIdea и задайте вопрос в боковой панели.",
       ],
       note: "Если хотите изучить реализацию, сообщить о проблеме или помочь проекту, всё это можно сделать прямо в репозитории GitHub.",
     },
@@ -1690,14 +1690,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "Para quem lê artigos, faz anotações e escreve revisões",
       heading: "Leia, pergunte e organize notas dentro do Zotero.",
       subheading:
-        "AIdea é um projeto gratuito e de código aberto. Converse com seus artigos, traduza o texto selecionado e traduza PDFs inteiros em documentos bilíngues sem sair do Zotero. Conecte-se com sua assinatura existente do ChatGPT ou GitHub Copilot, qualquer API compatível com OpenAI ou modelos locais.",
+        "Faça perguntas sobre PDFs e EPUBs na barra lateral do Zotero. Siga uma referência até a página ou o capítulo original e salve a resposta em uma nota. Conecte o ChatGPT, o GitHub Copilot, uma API compatível ou um modelo local.",
       primaryCta: "Instalar via Releases",
       secondaryCta: "Ver o código",
       tertiaryCta: "Ler a documentação",
       metrics: [
         { label: "Preço", value: "Gratuito e aberto" },
         { label: "Armazenamento", value: "Local primeiro" },
-        { label: "Superfícies", value: "Biblioteca + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1782,7 +1782,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "Tradução",
       heading: "A tradução integral também pode permanecer dentro do Zotero.",
-      body: "O painel de tradução mira nas páginas realmente difíceis de artigos académicos, incluindo diagramas, fórmulas e tabelas. A galeria abaixo mostra saídas reais já presentes no repositório.",
+      body: "Selecione vários artigos e confira os formatos e destinos antes de iniciar a fila. Salve PDFs traduzidos ou bilíngues como anexos do Zotero ou em uma pasta. Por padrão, só são gerados os arquivos que faltam.",
       captions: [
         "Página de arquitetura",
         "Página com muitas fórmulas",
@@ -1793,11 +1793,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "Instalação",
       heading: "Bastam alguns passos para começar.",
-      body: "AIdea é distribuído pelo GitHub Releases como arquivo `.xpi`. Basta baixar, instalar a partir de um arquivo no Zotero e começar a usar. O projeto é gratuito e de código aberto.",
+      body: "AIdea é distribuído pelo GitHub Releases como arquivo .xpi. Basta baixar, instalar a partir de um arquivo no Zotero e começar a usar. O projeto é gratuito e de código aberto.",
       steps: [
-        "Baixe o arquivo `.xpi` mais recente em GitHub Releases.",
+        "Baixe o arquivo .xpi mais recente em GitHub Releases.",
         "Escolha 'Instalar complemento a partir de arquivo' na interface de complementos do Zotero.",
-        "Reinicie o Zotero e abra o AIdea na biblioteca ou no leitor de PDF.",
+        "Reinicie o Zotero, conecte um modelo nas configurações do AIdea e faça uma pergunta na barra lateral.",
       ],
       note: "Se quiser revisar a implementação, relatar um problema ou contribuir, tudo isso pode ser feito diretamente no repositório do GitHub.",
     },
@@ -1825,14 +1825,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "لمن يقرؤون الأوراق العلمية ويكتبون الملاحظات والمراجعات",
       heading: "اقرأ واسأل ونظّم ملاحظاتك داخل Zotero.",
       subheading:
-        "AIdea مشروع مجاني ومفتوح المصدر. تحدث مع مقالاتك، وترجم النص المحدد، وترجم ملفات PDF كاملة إلى مستندات ثنائية اللغة دون مغادرة Zotero. اتصل عبر اشتراكك الحالي في ChatGPT أو GitHub Copilot، أو أي واجهة API متوافقة مع OpenAI، أو النماذج المحلية.",
+        "اطرح أسئلة حول ملفات PDF وEPUB من الشريط الجانبي في Zotero. اتبع الإحالة إلى الصفحة أو الفصل ثم احفظ الإجابة في ملاحظة. يمكنك الاتصال عبر ChatGPT أو GitHub Copilot أو واجهة API متوافقة أو نموذج محلي.",
       primaryCta: "التثبيت من Releases",
       secondaryCta: "عرض الشفرة المصدرية",
       tertiaryCta: "قراءة التوثيق",
       metrics: [
         { label: "السعر", value: "مجاني ومفتوح" },
         { label: "التخزين", value: "محلي أولاً" },
-        { label: "أماكن الاستخدام", value: "المكتبة + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -1914,18 +1914,18 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "الترجمة",
       heading: "حتى ترجمة المقال كاملاً يمكن أن تبقى داخل Zotero.",
-      body: "لوحة الترجمة موجهة للصفحات الصعبة فعلاً في الأوراق الأكاديمية، بما في ذلك المخططات والصيغ والجداول. المعرض في الأسفل يعرض مخرجات حقيقية موجودة بالفعل في المستودع.",
+      body: "حدد عدة أوراق وراجع صيغ الإخراج ووجهات الحفظ قبل بدء قائمة الانتظار. يمكنك إرفاق ملفات PDF المترجمة أو الثنائية اللغة بعناصر Zotero أو حفظها في مجلد. تُنشأ الملفات الناقصة فقط بشكل افتراضي.",
       captions: ["صفحة مخطط", "صفحة مليئة بالمعادلات", "جداول ممزوجة بالنص"],
       panelAlt: "لوحة الترجمة الكاملة",
     },
     install: {
       kicker: "التثبيت",
       heading: "بضع خطوات فقط للبدء.",
-      body: "يتم توزيع AIdea عبر GitHub Releases كملف `.xpi`. قم بتنزيله، وثبّته من ملف داخل Zotero، وابدأ الاستخدام مباشرة. المشروع مجاني ومفتوح المصدر.",
+      body: "يتم توزيع AIdea عبر GitHub Releases كملف .xpi. قم بتنزيله، وثبّته من ملف داخل Zotero، وابدأ الاستخدام مباشرة. المشروع مجاني ومفتوح المصدر.",
       steps: [
-        "نزّل أحدث ملف `.xpi` من GitHub Releases.",
+        "نزّل أحدث ملف .xpi من GitHub Releases.",
         "اختر 'تثبيت إضافة من ملف' من واجهة إضافات Zotero.",
-        "أعد تشغيل Zotero ثم افتح AIdea من المكتبة أو قارئ PDF.",
+        "أعد تشغيل Zotero واربط نموذجاً في إعدادات AIdea ثم اطرح سؤالاً من الشريط الجانبي.",
       ],
       note: "إذا أردت مراجعة التنفيذ أو الإبلاغ عن مشكلة أو المساهمة في التطوير، فيمكنك فعل ذلك مباشرة من مستودع GitHub.",
     },
@@ -1953,14 +1953,14 @@ export const pageContent: Record<Locale, PageData> = {
       eyebrow: "उन लोगों के लिए जो शोध-पत्र पढ़ते हैं, नोट्स बनाते हैं और समीक्षाएँ लिखते हैं",
       heading: "Zotero के भीतर पढ़ें, पूछें और नोट्स व्यवस्थित करें।",
       subheading:
-        "AIdea एक मुफ्त और मुक्त-स्रोत परियोजना है। Zotero छोड़े बिना अपने शोध-पत्रों से चैट करें, चुने हुए टेक्स्ट का अनुवाद करें और पूरी PDF को द्विभाषी दस्तावेज़ में बदलें। अपनी मौजूदा ChatGPT या GitHub Copilot सदस्यता, किसी भी OpenAI-संगत API, या स्थानीय मॉडल से जुड़ें।",
+        "Zotero के साइड पैनल में PDF और EPUB के बारे में सवाल पूछें। उत्तर में दिए पृष्ठ या अध्याय के संदर्भ से मूल पाठ खोलें और उत्तर को नोट में सहेजें। ChatGPT, GitHub Copilot, संगत API या स्थानीय मॉडल से जुड़ें।",
       primaryCta: "Releases से इंस्टॉल करें",
       secondaryCta: "सोर्स कोड देखें",
       tertiaryCta: "दस्तावेज़ पढ़ें",
       metrics: [
         { label: "कीमत", value: "मुफ्त और खुला" },
         { label: "संग्रहण", value: "लोकल-फर्स्ट" },
-        { label: "उपयोग स्थान", value: "लाइब्रेरी + PDF" },
+        { label: "Zotero", value: "7–10" },
       ],
     },
     nav: {
@@ -2042,7 +2042,7 @@ export const pageContent: Record<Locale, PageData> = {
     translation: {
       kicker: "अनुवाद",
       heading: "पूरे शोध-पत्र का अनुवाद भी Zotero के भीतर रह सकता है।",
-      body: "अनुवाद पैनल उन अकादमिक पृष्ठों के लिए बना है जो सच में कठिन होते हैं, जैसे डायग्राम, सूत्र और तालिकाएँ। नीचे की गैलरी रिपॉज़िटरी में मौजूद वास्तविक आउटपुट दिखाती है।",
+      body: "लाइब्रेरी में कई शोध-पत्र चुनें और कतार शुरू करने से पहले आउटपुट का प्रारूप और स्थान जाँचें। केवल अनुवाद वाले या द्विभाषी PDF को Zotero में संलग्न करें या फ़ोल्डर में सहेजें। डिफ़ॉल्ट रूप से केवल छूटी हुई फ़ाइलें बनती हैं।",
       captions: [
         "आर्किटेक्चर पृष्ठ",
         "सूत्रों से भरा पृष्ठ",
@@ -2053,11 +2053,11 @@ export const pageContent: Record<Locale, PageData> = {
     install: {
       kicker: "इंस्टॉल करें",
       heading: "कुछ ही चरणों में शुरू करें।",
-      body: "AIdea GitHub Releases के ज़रिए `.xpi` के रूप में मिलता है। फ़ाइल डाउनलोड कीजिए, Zotero में फ़ाइल से इंस्टॉल कीजिए और उपयोग शुरू कीजिए। परियोजना मुफ्त और मुक्त-स्रोत है।",
+      body: "AIdea GitHub Releases के ज़रिए .xpi के रूप में मिलता है। फ़ाइल डाउनलोड कीजिए, Zotero में फ़ाइल से इंस्टॉल कीजिए और उपयोग शुरू कीजिए। परियोजना मुफ्त और मुक्त-स्रोत है।",
       steps: [
-        "GitHub Releases से नवीनतम `.xpi` फ़ाइल डाउनलोड कीजिए।",
-        "Zotero के ऐड-ऑन इंटरफ़ेस में 'Install Add-on From File' चुनिए।",
-        "Zotero पुनः शुरू करके लाइब्रेरी या PDF रीडर से AIdea खोलिए।",
+        "GitHub Releases से नवीनतम .xpi फ़ाइल डाउनलोड कीजिए।",
+        "Zotero के ऐड-ऑन इंटरफ़ेस में 'Install Plugin From File' चुनिए।",
+        "Zotero फिर से खोलें, AIdea की सेटिंग में मॉडल जोड़ें और साइड पैनल में सवाल पूछें।",
       ],
       note: "अगर आप कार्यान्वयन देखना, समस्या रिपोर्ट करना या योगदान देना चाहते हैं, तो GitHub रिपॉज़िटरी में कोड, issues और releases सब मिल जाएँगे।",
     },
