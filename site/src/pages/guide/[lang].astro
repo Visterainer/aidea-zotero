@@ -1,0 +1,198 @@
+---
+import { createMarkdownProcessor } from "@astrojs/markdown-remark";
+import { getLocaleDefinition, type Locale } from "../../i18n";
+import "../../styles/global.css";
+
+export function getStaticPaths() {
+  const sources = import.meta.glob<string>("../../../../doc/user-guide/{en,fr,ja,ko,zh-CN,zh-TW}.md", {
+    eager: true, query: "?raw", import: "default",
+  });
+  return Object.entries(sources).map(([file, source]) => ({
+    params: { lang: file.split("/").pop()!.replace(/\.md$/, "") },
+    props: { source },
+  }));
+}
+const locale = getLocaleDefinition(Astro.params.lang as Locale);
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const toolbarIcons = import.meta.glob<string>("../../../../addon/content/icons/action-*.svg", {
+  eager: true, query: "?url&no-inline", import: "default",
+});
+const source = Astro.props.source
+  .replace(/src="\.\.\/\.\.\/addon\/content\/icons\/(action-[\w-]+\.svg)"/g, (_, file) => {
+    const url = toolbarIcons[`../../../../addon/content/icons/${file}`];
+    if (!url) throw new Error(`Unknown toolbar icon in the user guide: ${file}`);
+    return `class="guide-icon" src="${url}"`;
+  })
+  .replaceAll("(../../site/public/media/", `(${base}/media/`)
+  .replace(/\(\.\/([\w-]+)\.md\)/g, `(${base}/guide/$1/)`);
+// The Markdown edition keeps its own language row and contents for GitHub.
+const [opening, contents, ...chapters] = source.split(/(?=^## )/m);
+const [titleLine, languages, ...introduction] = opening.trim().split(/\n\s*\n/);
+const title = titleLine.replace(/^# /, "");
+const processor = await createMarkdownProcessor({ syntaxHighlight: false });
+const [titleBlock, languageRow, lead, directory, article] = await Promise.all([
+  processor.render(titleLine),
+  processor.render(languages),
+  processor.render(introduction.join("\n\n")),
+  processor.render(contents),
+  processor.render(chapters.join("")),
+]);
+const contentsHeading = directory.metadata.headings[0];
+type Heading = (typeof article.metadata.headings)[number];
+const sections: { heading: Heading; children: Heading[] }[] = [];
+for (const heading of article.metadata.headings) {
+  if (heading.depth === 2) sections.push({ heading, children: [] });
+  else if (heading.depth === 3) sections.at(-1)?.children.push(heading);
+}
+---
+<!doctype html>
+<html lang={locale.code} dir={locale.dir}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href={`${base}/media/icon-96.png`} />
+    <title>{title}</title>
+  </head>
+  <body data-locale={locale.code}>
+    <header class="guide-header">
+      <div class="guide-bar">
+        <a class="guide-brand" href={`${base}${locale.href}`}>
+          <img src={`${base}/media/icon-96.png`} width="32" height="32" alt="" /> AIdea
+        </a>
+        <nav class="guide-languages" aria-label="简体中文 · 繁體中文 · English · 日本語 · 한국어 · Français" set:html={languageRow.code} />
+      </div>
+    </header>
+    <div class="guide-layout">
+      <aside class="guide-sidebar">
+        <details id="guide-menu" open>
+          <summary id={contentsHeading.slug}>{contentsHeading.text}</summary>
+          <nav aria-labelledby={contentsHeading.slug} class="guide-toc">
+            <ol>
+              {sections.map(({ heading, children }) => (
+                <li>
+                  <a href={`#${heading.slug}`}>{heading.text}</a>
+                  {children.length > 0 && (
+                    <ul>{children.map((child) => <li><a href={`#${child.slug}`}>{child.text}</a></li>)}</ul>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </details>
+      </aside>
+      <main class="guide-article">
+        <header class="guide-intro">
+          <h1 id={titleBlock.metadata.headings[0].slug}>{title}</h1>
+          <div set:html={lead.code} />
+        </header>
+        <article set:html={article.code} />
+      </main>
+    </div>
+    <script is:inline>
+      const menu = document.getElementById("guide-menu");
+      const compact = window.matchMedia("(max-width: 800px)");
+      const links = [...menu.querySelectorAll("nav a")];
+      const headings = links.map(link => document.getElementById(decodeURIComponent(link.hash.slice(1))));
+      let current = -1;
+      let scheduled = false;
+
+      function updateCurrent() {
+        scheduled = false;
+        const top = compact.matches ? menu.querySelector("summary").offsetHeight + 24 : 32;
+        let index = headings.length - 1;
+        while (index >= 0 && headings[index].getBoundingClientRect().top > top) index--;
+        if (index === current) return;
+        if (current >= 0) links[current].removeAttribute("aria-current");
+        if (index >= 0) links[index].setAttribute("aria-current", "location");
+        current = index;
+      }
+
+      function scheduleUpdate() {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(updateCurrent);
+      }
+
+      function syncLayout() {
+        menu.open = !compact.matches;
+        scheduleUpdate();
+      }
+      menu.addEventListener("click", event => {
+        if (compact.matches && event.target.closest("nav a")) menu.open = false;
+      });
+      menu.addEventListener("keydown", event => {
+        if (compact.matches && event.key === "Escape" && menu.open) {
+          menu.open = false;
+          menu.querySelector("summary").focus();
+        }
+      });
+      compact.addEventListener("change", syncLayout);
+      window.addEventListener("scroll", scheduleUpdate, { passive: true });
+      window.addEventListener("resize", scheduleUpdate);
+      window.addEventListener("load", scheduleUpdate);
+      syncLayout();
+    </script>
+  </body>
+</html>
+<style is:global>
+  html { scroll-behavior: auto; }
+  body { background: #fff; }
+  .guide-bar, .guide-layout {
+    max-width: 108rem;
+    margin-inline: auto;
+    padding-inline: clamp(1rem, 3.2vw, 3.5rem);
+  }
+  .guide-header { background: #faf8f4; border-bottom: 1px solid #e3ddd5; }
+  .guide-bar { min-height: 4.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+  .guide-brand { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.35rem; font-weight: 700; }
+  .guide-languages p { margin: 0; color: #62584f; font-size: .9rem; line-height: 2; }
+  .guide-languages a { padding: .25rem .15rem; }
+  .guide-languages strong { color: #47372d; }
+  .guide-languages a:hover, .guide-brand:hover { text-decoration: underline; }
+  .guide-layout { display: grid; grid-template-columns: clamp(14rem, 18vw, 18rem) minmax(0, 1fr); gap: clamp(1.5rem, 3vw, 3.5rem); align-items: start; }
+  .guide-sidebar { position: sticky; top: 0; padding-block: 2rem; max-height: 100vh; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .guide-sidebar summary { cursor: pointer; font-weight: 700; color: #44372d; padding: .4rem .6rem; }
+  .guide-toc ol, .guide-toc ul { list-style: none; margin: 0; padding: 0; }
+  .guide-toc ol { margin-top: .6rem; }
+  .guide-toc ul { margin: .1rem 0 .5rem .8rem; padding-left: .55rem; border-left: 1px solid #ded8d0; }
+  .guide-toc a { display: block; padding: .32rem .6rem; border-radius: .3rem; line-height: 1.5; overflow-wrap: anywhere; }
+  .guide-toc ol > li > a { font-weight: 600; }
+  .guide-toc ul a { font-size: .88rem; color: #5e574e; }
+  .guide-toc a:hover { background: #f7f4ef; }
+  .guide-toc a[aria-current] { background: #f4ebe2; color: #763e21; box-shadow: inset 3px 0 #96532d; }
+  .guide-article { min-width: 0; padding: 2rem 0 5rem clamp(1rem, 2.7vw, 3rem); border-left: 1px solid #e3ddd5; }
+  .guide-article h1, .guide-article h2 { max-width: none; }
+  .guide-intro h1 { font-size: clamp(2.15rem, 3.7vw, 3.6rem); margin: .25rem 0 .75rem; line-height: 1.16; }
+  .guide-intro p { color: #585048; }
+  .guide-article h2 { font-size: clamp(1.5rem, 2.2vw, 2rem); margin: 2.2rem 0 .85rem; padding-top: 1.6rem; border-top: 1px solid #e3ddd5; }
+  .guide-article h3 { margin: 1.5rem 0 .5rem; font-size: 1.2rem; }
+  .guide-article :is(h1, h2, h3) { scroll-margin-top: 1.25rem; }
+  .guide-article p, .guide-article li { max-width: 84ch; line-height: 1.75; overflow-wrap: anywhere; }
+  .guide-article p:has(> a > img) { max-width: none; }
+  .guide-article a > img { display: block; width: 100%; height: auto; border: 1px solid #ded8d0; border-radius: .45rem; cursor: zoom-in; }
+  .guide-article .guide-icon { display: inline-block; width: 1.1em; height: 1.1em; vertical-align: -.16em; }
+  .guide-article p:has(img[src*="/detail-line-height"]) {
+    display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: .8rem; align-items: center;
+  }
+  @media (max-width: 640px) {
+    .guide-article p:has(img[src*="/detail-line-height"]) { grid-template-columns: 1fr; }
+  }
+  .guide-article a { color: #775039; text-decoration: underline; text-underline-offset: .18em; }
+  .guide-article table { width: 100%; border-collapse: collapse; }
+  .guide-article th, .guide-article td { border-bottom: 1px solid #ddd; padding: .65rem; text-align: start; vertical-align: top; overflow-wrap: anywhere; }
+  .guide-article blockquote { margin: 1rem 0; padding: .2rem 1.2rem; border-inline-start: .2rem solid #947159; background: #faf8f5; }
+  @media (max-width: 800px) {
+    .guide-bar { flex-wrap: wrap; gap: .25rem 1rem; padding-block: .65rem; }
+    .guide-layout { display: block; }
+    .guide-sidebar { z-index: 2; overflow: visible; margin-inline: -1rem; padding: 0 1rem; background: #fff; border-bottom: 1px solid #e3ddd5; }
+    .guide-sidebar summary { padding: .7rem 0; }
+    .guide-toc { position: absolute; inset: 100% 0 auto; max-height: 65vh; max-height: 65dvh; overflow: auto; overscroll-behavior: contain; padding: .25rem 1rem .8rem; border-bottom: 1px solid #ded8d0; background: #fff; box-shadow: 0 .6rem 1rem #3b291215; }
+    .guide-article { border: 0; padding: 1.4rem 0 3rem; }
+    .guide-article :is(h1, h2, h3) { scroll-margin-top: 3.4rem; }
+  }
+  @media print {
+    .guide-header, .guide-sidebar { display: none; }
+    .guide-layout { display: block; }
+    .guide-article { border: none; padding: 0; }
+  }
+</style>

@@ -14,7 +14,7 @@
   --radius-xl: 32px;
   --radius-lg: 24px;
   --radius-md: 18px;
-  --content: 1200px;
+  --content: 1440px;
   --display-font:
     "Noto Sans", "Noto Sans SC", "Noto Sans TC", "Noto Sans JP", "Noto Sans KR",
     "Noto Sans Arabic", "Noto Sans Devanagari", "Segoe UI Variable Display",
@@ -386,7 +386,7 @@ body[data-dir="rtl"] .language-list-item {
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
   padding-top: 4.5rem;
 }
@@ -936,7 +936,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 
 .story-section {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.4rem;
   align-items: start;
 }
@@ -982,7 +982,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 
 .showcase-panel.small {
   display: grid;
-  grid-template-columns: minmax(0, 0.38fr) minmax(0, 0.62fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 1rem;
   padding: 1rem;
@@ -1024,7 +1024,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 
 .selection-showcase {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -1053,7 +1053,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 }
 
 .gallery-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .gallery-card {
@@ -1192,8 +1192,7 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
 
   .trust-grid,
   .feature-grid,
-  .selection-point-grid,
-  .gallery-grid {
+  .selection-point-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1275,3 +1274,13 @@ body[data-locale="hi"] .translation-copy h2 .heading-fragment.is-accent::after {
     transition: none !important;
   }
 }
+
+
+.hero .hero-copy h1 { max-width: 23ch; }
+.hero .lede { max-width: 65ch; }
+.hero-frame a, .showcase-panel a, .gallery-card a, .translation-panel a {
+  display: block;
+  cursor: zoom-in;
+}
+.screenshot-caption { margin: .7rem .25rem 0; color: var(--muted); }
+.gallery-card { margin: 0; }

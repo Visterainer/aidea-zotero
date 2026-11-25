@@ -19,96 +19,69 @@
 </p>
 
 <p align="center">
-  <strong>🌐 Website:</strong> <a href="https://visterainer.github.io/aidea-zotero/fr/">https://visterainer.github.io/aidea-zotero/fr/</a>
+  <a href="https://visterainer.github.io/aidea-zotero/fr/">Site du projet</a> · <a href="../../doc/user-guide/fr.md">Guide d’utilisation</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">Télécharger</a>
 </p>
 
-**Assistant IA libre et gratuit pour Zotero 7 à 10**
+**AIdea est un assistant de lecture libre et gratuit pour Zotero 7 à 10.** Interrogez un passage de PDF ou d’EPUB, retrouvez la source citée et conservez l’explication dans une note rattachée à l’article.
 
-Interrogez un passage de PDF ou d’EPUB dans le panneau latéral de Zotero. Une référence de page ou de chapitre permet de revenir à la source, puis d’enregistrer la réponse dans une note Zotero. Traduisez un PDF ou préparez un lot pour exporter des copies traduites ou bilingues.
+## Lire des PDF et des EPUB
 
-## Installer AIdea
-
-1. Téléchargez le **fichier .xpi d’AIdea** depuis la [dernière version](https://github.com/Visterainer/aidea-zotero/releases/latest).
-2. Dans **Outils → Extensions** de Zotero, ouvrez la roue dentée et installez l’extension depuis le fichier téléchargé. Redémarrez Zotero.
-3. Ouvrez **Paramètres de Zotero → AIdea** et connectez un modèle. Ouvrez ensuite un PDF ou un EPUB et posez une question dans le panneau AIdea.
-
-## Connecter un modèle
-
-- **ChatGPT** — Dans la carte OpenAI, installez la version autonome de Codex CLI avec le bouton de mise à jour de l’environnement. Connectez-vous par OAuth, puis actualisez la liste des modèles.
-- **GitHub Copilot** — Lancez la connexion OAuth depuis la carte Copilot, confirmez le code de l’appareil dans votre navigateur, puis actualisez les modèles dans Zotero.
-- **API compatible ou modèle local** — Renseignez l’URL de base de l’API et l’identifiant du modèle. Ajoutez une clé si le service la demande. Pour Ollama en local, l’adresse habituelle est `http://localhost:11434/v1`.
-
-Avant la première traduction intégrale de PDF, installez ou mettez à jour l’environnement depuis l’onglet **Traduire**. La discussion et la traduction de passages demandent seulement une connexion à un modèle.
-
-## Capacités principales
-
-- **Dialogue IA dans le panneau latéral** de la vue Bibliothèque et des lecteurs PDF et EPUB
-- **Contexte centré sur le document** à partir de texte PDF sélectionné, de la structure éditoriale EPUB 2/3, de captures, de figures et de pièces jointes
-- **Actions rapides** pour résumer, expliquer, traduire et exécuter d'autres tâches fréquentes
-- **Plusieurs modes de connexion**, avec OAuth ou API compatible OpenAI
-- **Traduction intégrale** exécutée dans Zotero avec export PDF
-- **Traduction par sélection** dans les lecteurs PDF et EPUB, avec détection automatique du format, contexte documentaire borné et ajout possible aux notes Zotero
-- **Historique et mémoire locale**, avec isolation par bibliothèque et export des réponses vers les notes Zotero
-- **Rendu enrichi** pour Markdown, blocs de code, tableaux, LaTeX et réponses en flux
-
-## Captures d'écran
-
-### Dialogue dans le panneau latéral
+Dans [Attention Is All You Need](https://arxiv.org/html/1706.03762v7#S3.SS2.SSS1) de Vaswani et ses collègues, on peut demander « Pourquoi la section 3.2.1 divise-t-elle les produits scalaires par √dₖ ? » La figure 2 et l’équation (1) situent cette opération. Le texte explique comment elle évite des gradients très faibles dans le softmax. Une référence localisée dans la réponse ouvre la page du PDF ou le chapitre de l’EPUB. Ajoutez un second article avec `@` pour comparer deux méthodes ou deux résultats dans la même discussion. Les raccourcis permettent de résumer les points clés, les méthodes ou les limites. Une capture d’écran permet aussi de poser une question sur une figure. Les réponses prennent en charge Markdown, les tableaux, le code et les formules LaTeX et peuvent être enregistrées dans une note Zotero.
 
 <p align="center">
-  <img src="../../doc/screenshots/chat_panel_en.png" alt="Dialogue AIdea dans le panneau latéral de Zotero" width="900" />
+  <a href="../../site/public/media/reader/chat-en-US.jpg"><img src="../../site/public/media/reader/chat-en-US.jpg" alt="La figure 2 et l’équation (1) à côté d’une question sur le facteur d’échelle. Les réponses et la traduction de la sélection utilisent des exemples locaux en chinois simplifié." width="1400" /></a>
+  <br/><em>La figure 2 et l’équation (1) à côté d’une question sur le facteur d’échelle. Les réponses et la traduction de la sélection utilisent des exemples locaux en chinois simplifié.</em>
 </p>
 
-### Traduction intégrale
+## Traduire et annoter un passage
+
+La traduction d’un terme ou d’un paragraphe sélectionné dans un PDF ou un EPUB s’affiche près du texte source. Elle peut rejoindre une note ou devenir le commentaire d’un nouveau surlignage. Il suffit de rouvrir le surlignage pour la relire.
 
 <p align="center">
-  <img src="../../doc/screenshots/translate_panel_en.png" alt="Panneau de traduction intégrale AIdea" width="900" />
+  <a href="../../site/public/media/reader/selection-en-US.jpg"><img src="../../site/public/media/reader/selection-en-US.jpg" alt="Le terme anglais « Scaled Dot-Product Attention » est traduit en chinois simplifié par « 缩放点积注意力 ». La traduction peut rejoindre une note ou un surlignage." width="1400" /></a>
+  <br/><em>Le terme anglais « Scaled Dot-Product Attention » est traduit en chinois simplifié par « 缩放点积注意力 ». La traduction peut rejoindre une note ou un surlignage.</em>
 </p>
 
-### Traduction par sélection
+## Traduire un PDF ou un lot d’articles
+
+Un **PDF traduit** ou une **édition bilingue en vis-à-vis** peut être joint à la notice Zotero ou enregistré dans un dossier. Les pages numérisées sont réorientées avant la reconnaissance de caractères. La mise en page du texte traduit dans les tableaux et la copie des valeurs numériques ont également été améliorées.
+
+Pour un lot, la liste des articles peut être vérifiée avant le lancement. Par défaut, seuls les fichiers manquants aux formats et emplacements choisis sont produits, ce qui préserve les traductions déjà annotées. La file peut reprendre après un redémarrage de Zotero. Si le classement échoue après la traduction, une nouvelle tentative réutilise le fichier déjà produit.
 
 <p align="center">
-  <img src="../../doc/screenshots/selection_translation_popup.png" alt="Fenêtre de traduction par sélection dans le lecteur PDF" width="900" />
+  <a href="../../site/public/media/reader/translation-en-US.jpg"><img src="../../site/public/media/reader/translation-en-US.jpg" alt="Les versions NeurIPS et arXiv du même article dans la liste du lot." width="1400" /></a>
+  <br/><em>Les versions NeurIPS et arXiv du même article dans la liste du lot.</em>
 </p>
 
 <p align="center">
-  <img src="../../doc/screenshots/selection_translation_settings.png" alt="Paramètres de traduction par sélection AIdea" width="900" />
+  <a href="../../doc/screenshots/translate_example_table.png"><img src="../../doc/screenshots/translate_example_table.png" alt="Page 6 en anglais à gauche et en chinois simplifié à droite. Le tableau 1 compare la complexité de calcul de plusieurs types de couches." width="1400" /></a>
+  <br/><em>Page 6 en anglais à gauche et en chinois simplifié à droite. Le tableau 1 compare la complexité de calcul de plusieurs types de couches.</em>
 </p>
-
-### Paramètres des fournisseurs et des modèles
 
 <p align="center">
-  <img src="../../doc/screenshots/settings_oauth_models_en.png" alt="Paramètres des fournisseurs et des modèles AIdea" width="900" />
+  <a href="../../site/public/media/factorminer-figure-1-en-zh.png"><img src="../../site/public/media/factorminer-figure-1-en-zh.png" alt="Figure 1 de FactorMiner, avec le schéma en anglais à gauche et en chinois simplifié à droite" width="1400" /></a>
+  <br/><em>La traduction intégrale peut aussi traduire les libellés des schémas d’architecture. Dans la figure 1 de FactorMiner, suivez les flèches bleues entre « Memory Retrieval » et « Library Update » dans l’original anglais à gauche. Dans la version en chinois simplifié à droite, ces étapes portent les noms « 记忆检索 » et « 库更新 ».</em>
 </p>
 
-## Confidentialité et traitement des données
+## Conserver et transférer les discussions
 
-- Les jetons OAuth sont conservés localement sur votre machine.
-- Les requêtes API sont envoyées directement au fournisseur choisi ou au point de terminaison configuré.
-- L'historique des conversations et la mémoire sont stockés dans la base SQLite locale de Zotero.
-- Le projet n'exploite aucun service relais et ne collecte pas de télémétrie d'usage.
+L’exportation peut porter sur **une discussion, toutes celles d’un article ou celles d’une bibliothèque entière**. Le format JSON conserve le texte et les références. Une archive ZIP peut aussi inclure les captures d’écran et les fichiers ajoutés. L’importation fusionne les nouveaux messages et préserve les branches des conversations. Les documents originaux sont synchronisés séparément par Zotero. Sur un autre appareil, les références retrouvent les notices et les fichiers correspondants.
 
-## Développement
+<p align="center">
+  <a href="../../site/public/media/reader/export-en-US.jpg"><img src="../../site/public/media/reader/export-en-US.jpg" alt="Menu d’importation et trois périmètres d’exportation des discussions" width="1400" /></a>
+  <br/><em>Menu d’importation et trois périmètres d’exportation des discussions</em>
+</p>
 
-```bash
-npm install
-npm start
-npm run build
-npm run test:unit
-```
+## Profils des auteurs correspondants
 
-## Licence et attribution
+AIdea peut produire des profils pour un ou plusieurs articles à partir du texte et de sources scientifiques publiques. Chaque profil cite ses sources et est enregistré dans une note Zotero sous la notice concernée. Une nouvelle génération actualise la note de profil AIdea existante.
 
-AIdea est distribué sous licence [AGPL-3.0-or-later](../../LICENSE).
+## Modèles et langues
 
-Le projet est dérivé de [llm-for-zotero](https://github.com/yilewang/llm-for-zotero). Consultez [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) pour les mentions tierces.
+AIdea accepte les comptes ChatGPT et GitHub Copilot, les API compatibles OpenAI et les modèles locaux servis par Ollama ou LM Studio. Les modèles compatibles peuvent utiliser des niveaux de raisonnement distincts pour la discussion, la traduction de passages et celle de PDF entiers. L’historique et la mémoire propre à chaque bibliothèque restent sur l’appareil. Le service de modèle choisi traite les extraits nécessaires à chaque demande.
 
-## ⭐ Star History
+L’interface existe en 13 langues. La langue de traduction se choisit indépendamment.
 
-<a href="https://star-history.com/#Visterainer/aidea-zotero&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Visterainer/aidea-zotero&type=Date" />
- </picture>
-</a>
+---
+
+[AGPL-3.0-or-later](../../LICENSE) · Projet dérivé de [llm-for-zotero](https://github.com/yilewang/llm-for-zotero) (Yile Wang) · [Mentions des tiers](../../THIRD_PARTY_NOTICES.md)

@@ -45,7 +45,8 @@ export type PageData = {
     kicker: string;
     heading: string;
     body: string;
-    captions: string[];
+    tableCaption: string;
+    diagramCaption: string;
     panelAlt: string;
   };
   install: {
@@ -586,7 +587,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "全文翻译",
       heading: "整篇翻译也能留在 Zotero 内完成。",
       body: "在文库中选中多篇论文，确认输出格式和保存位置，再启动翻译队列。可生成单语或双语 PDF，保存为 Zotero 附件或导出到文件夹。默认只补齐缺少的译文。",
-      captions: ["架构图页面", "公式密集页面", "表格与正文混排"],
+      tableCaption: "表 1 的英中对照译本。对照左右两页，可以逐行核对各层的计算复杂度。",
+      diagramCaption: "全文翻译也能翻译框架图里的文字。FactorMiner 图 1 的左侧是英文原图，右侧是简体中文译图。沿蓝色箭头对照两侧，可以看到 “Memory Retrieval” 译为「记忆检索」，“Library Update” 译为「库更新」。",
       panelAlt: "全文翻译面板",
     },
     install: {
@@ -596,7 +598,7 @@ export const pageContent: Record<Locale, PageData> = {
       steps: [
         "从 GitHub Releases 下载最新 .xpi 文件。",
         "在 Zotero 的工具 → 插件的齿轮菜单中选择“从文件安装”。",
-        "重启 Zotero，在设置中打开 AIdea 并连接模型，然后在文库或阅读器侧栏提问。",
+        "重启 Zotero，打开右侧 AIdea 面板，在「设置 → 模型配置」中连接模型，然后在文库或阅读器侧栏提问。",
       ],
       note: "如果你想了解实现方式、提交问题或参与改进，可以直接在 GitHub 仓库查看源码、Issue 和发布记录。",
     },
@@ -715,11 +717,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Translation",
       heading: "Full-paper translation can stay inside Zotero.",
       body: "Select several papers in your library and review the output formats and destinations before starting the queue. Save translated-only or bilingual PDFs as Zotero attachments or export them to a folder. By default, AIdea fills in missing outputs.",
-      captions: [
-        "Architecture page",
-        "Formula-heavy page",
-        "Tables mixed with prose",
-      ],
+      tableCaption: "English and Simplified Chinese side by side. Compare the computational complexity of each layer in Table 1.",
+      diagramCaption: "Full-text translation also covers labels inside architecture diagrams. In Figure 1 of FactorMiner, follow the blue arrows from “Memory Retrieval” to “Library Update” in the English original on the left. The same steps are labeled “记忆检索” and “库更新” in the Simplified Chinese translation on the right.",
       panelAlt: "Full document translation panel",
     },
     install: {
@@ -729,7 +728,7 @@ export const pageContent: Record<Locale, PageData> = {
       steps: [
         "Download the latest .xpi from GitHub Releases.",
         "Choose “Install Plugin From File” under Tools → Plugins → ⚙ in Zotero.",
-        "Restart Zotero, connect a model in Zotero Settings → AIdea, then ask a question in the library or reader side panel.",
+        "Restart Zotero, connect a model under Settings → Model Config in the AIdea side panel, then ask a question in the library or reader side panel.",
       ],
       note: "If you want to inspect the implementation, report a problem, or contribute improvements, everything is available in the GitHub repository.",
     },
@@ -848,11 +847,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "全文翻訳",
       heading: "論文全体の翻訳も Zotero の中で続けられます。",
       body: "ライブラリで複数の論文を選び、出力形式と保存先を確認して翻訳を開始します。訳文のみの PDF や対訳 PDF を Zotero に添付するか、フォルダーに保存できます。既定では不足している出力だけを作成します。",
-      captions: [
-        "構成図のページ",
-        "数式が多いページ",
-        "表と本文が混在するページ",
-      ],
+      tableCaption: "表 1 の英語・簡体字中国語の対訳。左右のページで各層の計算量を比較できます。",
+      diagramCaption: "全文翻訳では、構成図の中のラベルも翻訳できます。FactorMiner の図 1 で青い矢印をたどると、左の英語原図にある「Memory Retrieval」と「Library Update」が、右の簡体字中国語版では「记忆检索」と「库更新」になっています。",
       panelAlt: "全文翻訳パネル",
     },
     install: {
@@ -862,7 +858,7 @@ export const pageContent: Record<Locale, PageData> = {
       steps: [
         "GitHub Releases から最新の .xpi をダウンロードします。",
         "Zotero のアドオン画面で「ファイルからアドオンをインストール」を選びます。",
-        "Zotero を再起動し、設定の AIdea でモデルに接続して、ライブラリまたはリーダーのサイドパネルから質問します。",
+        "Zotero を再起動し、AIdea サイドパネルの「設定 → モデル設定」で接続して、ライブラリまたはリーダーのサイドパネルから質問します。",
       ],
       note: "実装の確認、問題報告、改善への参加は GitHub リポジトリから行えます。",
     },
@@ -982,11 +978,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Uebersetzung",
       heading: "Auch Volltext-Uebersetzungen bleiben in Zotero.",
       body: "Wählen Sie mehrere Artikel aus und prüfen Sie Ausgabeformate und Speicherorte. Die Warteschlange speichert übersetzte oder zweisprachige PDFs als Zotero-Anhänge oder in einem Ordner. Standardmäßig werden nur fehlende Dateien erstellt.",
-      captions: [
-        "Architektur-Seite",
-        "Formellastige Seite",
-        "Tabellen mit Fliesstext",
-      ],
+      tableCaption: "Tabelle 1 auf Englisch und in vereinfachtem Chinesisch. Vergleichen Sie den Rechenaufwand der Schichten auf beiden Seiten.",
+      diagramCaption: "Die Volltextübersetzung kann auch Beschriftungen in Architekturdiagrammen übersetzen. In Abbildung 1 von FactorMiner stehen links im englischen Original „Memory Retrieval“ und „Library Update“. An denselben blauen Pfeilen finden Sie rechts die chinesischen Übersetzungen „记忆检索“ und „库更新“.",
       panelAlt: "Panel fuer Volltext-Uebersetzung",
     },
     install: {
@@ -1118,11 +1111,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Traduction",
       heading: "La traduction integrale peut rester dans Zotero.",
       body: "Sélectionnez plusieurs articles, vérifiez les formats et les destinations, puis lancez la traduction. Joignez les PDF traduits ou bilingues aux notices Zotero ou enregistrez-les dans un dossier. Par défaut, seuls les fichiers manquants sont produits.",
-      captions: [
-        "Page d'architecture",
-        "Page riche en formules",
-        "Tableaux melanges au texte",
-      ],
+      tableCaption: "Le tableau 1 en anglais et en chinois simplifié. Comparez la complexité de calcul de chaque couche sur les deux pages.",
+      diagramCaption: "La traduction intégrale peut aussi traduire les libellés des schémas d’architecture. Dans la figure 1 de FactorMiner, suivez les flèches bleues entre « Memory Retrieval » et « Library Update » dans l’original anglais à gauche. Dans la version en chinois simplifié à droite, ces étapes portent les noms « 记忆检索 » et « 库更新 ».",
       panelAlt: "Panneau de traduction integrale",
     },
     install: {
@@ -1250,7 +1240,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "全文翻譯",
       heading: "整篇翻譯也能留在 Zotero 內完成。",
       body: "在文獻庫中選取多篇論文，確認格式與儲存位置後啟動佇列。可將單語或雙語 PDF 存為 Zotero 附件或匯出至資料夾。預設只補齊缺少的譯本。",
-      captions: ["架構圖頁面", "公式密集頁面", "表格與正文混排"],
+      tableCaption: "表 1 的英文與簡體中文對照譯本。可逐行核對各層的計算複雜度。",
+      diagramCaption: "全文翻譯也能翻譯架構圖中的文字。FactorMiner 圖 1 左側是英文原圖，右側是簡體中文譯圖。沿著藍色箭頭對照兩側，可以看到「Memory Retrieval」譯為「记忆检索」，「Library Update」譯為「库更新」。",
       panelAlt: "全文翻譯面板",
     },
     install: {
@@ -1260,7 +1251,7 @@ export const pageContent: Record<Locale, PageData> = {
       steps: [
         "從 GitHub Releases 下載最新 .xpi 檔案。",
         "在 Zotero 的外掛程式的齒輪選單中選擇「從檔案安裝」。",
-        "重新啟動 Zotero，在設定中開啟 AIdea 並連接模型，然後到文獻庫或閱讀器側邊欄提問。",
+        "重新啟動 Zotero，開啟右側 AIdea 面板，在「設定 → 模型設定」中連接模型，然後到文獻庫或閱讀器側邊欄提問。",
       ],
       note: "如果你想了解實作方式、回報問題或參與改進，可以直接在 GitHub 倉庫查看原始碼、Issue 與發布記錄。",
     },
@@ -1379,11 +1370,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "전체 번역",
       heading: "논문 전체 번역도 Zotero 안에서 이어갈 수 있습니다.",
       body: "라이브러리에서 여러 논문을 선택한 뒤 출력 형식과 저장 위치를 확인하고 번역을 시작합니다. 번역문 전용 또는 원문 대조 PDF를 Zotero에 첨부하거나 폴더에 저장할 수 있습니다. 기본값으로는 누락된 결과만 생성합니다.",
-      captions: [
-        "구조도 페이지",
-        "수식이 많은 페이지",
-        "표와 본문이 섞인 페이지",
-      ],
+      tableCaption: "표 1의 영어 원문과 중국어 간체 번역을 나란히 놓고 각 층의 계산 복잡도를 비교할 수 있습니다.",
+      diagramCaption: "전문 번역은 구조도 안의 문구도 번역할 수 있습니다. FactorMiner의 그림 1에서 파란색 화살표를 따라가면 왼쪽 영어 원문의 “Memory Retrieval”과 “Library Update”가 오른쪽 중국어 간체 번역에서는 각각 “记忆检索”와 “库更新”으로 표시됩니다.",
       panelAlt: "전체 번역 패널",
     },
     install: {
@@ -1393,7 +1381,7 @@ export const pageContent: Record<Locale, PageData> = {
       steps: [
         "GitHub Releases에서 최신 .xpi 파일을 다운로드합니다.",
         "Zotero의 부가 기능 화면에서 '파일에서 설치'를 선택합니다.",
-        "Zotero를 다시 시작하고 설정의 AIdea에서 모델을 연결한 뒤 라이브러리나 리더의 사이드 패널에서 질문합니다.",
+        "Zotero를 다시 시작하고 AIdea 사이드 패널의 설정 → 모델 설정에서 연결한 뒤 라이브러리나 리더의 사이드 패널에서 질문합니다.",
       ],
       note: "구현을 확인하거나 문제를 제보하거나 개선에 참여하고 싶다면 GitHub 저장소에서 코드, 이슈, 릴리스를 바로 확인할 수 있습니다.",
     },
@@ -1513,11 +1501,8 @@ export const pageContent: Record<Locale, PageData> = {
       heading:
         "La traducción completa también puede quedarse dentro de Zotero.",
       body: "Selecciona varios artículos y revisa los formatos y destinos antes de iniciar la cola. Guarda los PDF traducidos o bilingües como adjuntos de Zotero o en una carpeta. Por defecto, solo se generan los archivos que faltan.",
-      captions: [
-        "Página de arquitectura",
-        "Página cargada de fórmulas",
-        "Tablas mezcladas con texto",
-      ],
+      tableCaption: "La tabla 1 en inglés y chino simplificado permite comparar la complejidad de cálculo de cada capa en ambas páginas.",
+      diagramCaption: "La traducción del documento completo también puede traducir las etiquetas de los diagramas de arquitectura. En la figura 1 de FactorMiner, las flechas azules conectan «Memory Retrieval» y «Library Update» en el original inglés de la izquierda. A la derecha, las mismas etapas aparecen como «记忆检索» y «库更新» en chino simplificado.",
       panelAlt: "Panel de traducción completa",
     },
     install: {
@@ -1648,11 +1633,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Перевод",
       heading: "Полный перевод статьи тоже может оставаться внутри Zotero.",
       body: "Выберите несколько статей и проверьте форматы и места сохранения перед запуском очереди. PDF с переводом или с параллельным текстом можно прикрепить к записям Zotero или сохранить в папку. По умолчанию создаются только недостающие файлы.",
-      captions: [
-        "Страница со схемой",
-        "Страница с большим количеством формул",
-        "Таблицы вперемешку с текстом",
-      ],
+      tableCaption: "Таблица 1 на английском и упрощённом китайском. Сопоставьте вычислительную сложность слоёв на двух страницах.",
+      diagramCaption: "При переводе полного текста можно перевести и подписи внутри схемы. На рисунке 1 из статьи FactorMiner синие стрелки связывают этапы «Memory Retrieval» и «Library Update» в английском оригинале слева. Справа те же этапы подписаны на упрощённом китайском как «记忆检索» и «库更新».",
       panelAlt: "Панель полного перевода",
     },
     install: {
@@ -1783,11 +1765,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "Tradução",
       heading: "A tradução integral também pode permanecer dentro do Zotero.",
       body: "Selecione vários artigos e confira os formatos e destinos antes de iniciar a fila. Salve PDFs traduzidos ou bilíngues como anexos do Zotero ou em uma pasta. Por padrão, só são gerados os arquivos que faltam.",
-      captions: [
-        "Página de arquitetura",
-        "Página com muitas fórmulas",
-        "Tabelas misturadas ao texto",
-      ],
+      tableCaption: "A tabela 1 em inglês e chinês simplificado permite comparar a complexidade computacional de cada camada nas duas páginas.",
+      diagramCaption: "A tradução do documento completo também pode traduzir os rótulos de diagramas de arquitetura. Na figura 1 do FactorMiner, siga as setas azuis entre “Memory Retrieval” e “Library Update” no original em inglês, à esquerda. À direita, as mesmas etapas aparecem em chinês simplificado como “记忆检索” e “库更新”.",
       panelAlt: "Painel de tradução integral",
     },
     install: {
@@ -1915,7 +1894,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "الترجمة",
       heading: "حتى ترجمة المقال كاملاً يمكن أن تبقى داخل Zotero.",
       body: "حدد عدة أوراق وراجع صيغ الإخراج ووجهات الحفظ قبل بدء قائمة الانتظار. يمكنك إرفاق ملفات PDF المترجمة أو الثنائية اللغة بعناصر Zotero أو حفظها في مجلد. تُنشأ الملفات الناقصة فقط بشكل افتراضي.",
-      captions: ["صفحة مخطط", "صفحة مليئة بالمعادلات", "جداول ممزوجة بالنص"],
+      tableCaption: "الجدول 1 بالإنجليزية والصينية المبسطة جنبًا إلى جنب لمقارنة التعقيد الحسابي لكل طبقة.",
+      diagramCaption: "يمكن لترجمة النص الكامل أن تترجم أيضًا تسميات مخططات البنية. تتبّع الأسهم الزرقاء في الشكل 1 من ورقة FactorMiner. تظهر المرحلتان «Memory Retrieval» و«Library Update» في الأصل الإنجليزي على اليسار، وتقابلهما «记忆检索» و«库更新» في الترجمة الصينية المبسطة على اليمين.",
       panelAlt: "لوحة الترجمة الكاملة",
     },
     install: {
@@ -2043,11 +2023,8 @@ export const pageContent: Record<Locale, PageData> = {
       kicker: "अनुवाद",
       heading: "पूरे शोध-पत्र का अनुवाद भी Zotero के भीतर रह सकता है।",
       body: "लाइब्रेरी में कई शोध-पत्र चुनें और कतार शुरू करने से पहले आउटपुट का प्रारूप और स्थान जाँचें। केवल अनुवाद वाले या द्विभाषी PDF को Zotero में संलग्न करें या फ़ोल्डर में सहेजें। डिफ़ॉल्ट रूप से केवल छूटी हुई फ़ाइलें बनती हैं।",
-      captions: [
-        "आर्किटेक्चर पृष्ठ",
-        "सूत्रों से भरा पृष्ठ",
-        "पाठ के साथ मिली-जुली तालिकाएँ",
-      ],
+      tableCaption: "तालिका 1 में अंग्रेज़ी और सरलीकृत चीनी साथ-साथ हैं। दोनों पन्नों पर हर परत की गणनात्मक जटिलता की तुलना करें।",
+      diagramCaption: "पूरे दस्तावेज़ का अनुवाद करते समय संरचना आरेख के लेबल भी अनूदित हो सकते हैं। FactorMiner के चित्र 1 में नीले तीरों को देखें। बाईं ओर अंग्रेज़ी मूल में “Memory Retrieval” और “Library Update” हैं। दाईं ओर सरलीकृत चीनी में इन्हीं चरणों के नाम “记忆检索” और “库更新” हैं।",
       panelAlt: "पूर्ण-दस्तावेज़ अनुवाद पैनल",
     },
     install: {

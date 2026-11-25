@@ -12,30 +12,24 @@ const basePath = import.meta.env.BASE_URL;
 const baseRoot = basePath.endsWith("/") ? basePath : `${basePath}/`;
 const withBase = (value: string) => `${baseRoot}${value.replace(/^\//, "")}`;
 const locale = getLocaleDefinition(page.locale);
-const docsHref = {
-  en: "https://github.com/Visterainer/aidea-zotero/blob/master/README.md",
-  "zh-CN":
-    "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.zh-CN.md",
-  "zh-TW":
-    "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.zh-TW.md",
-  ja: "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.ja.md",
-  ko: "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.ko.md",
-  fr: "https://github.com/Visterainer/aidea-zotero/blob/master/doc/readme/README.fr.md",
-}[page.locale] ?? "https://github.com/Visterainer/aidea-zotero/blob/master/README.md";
-const heroImage = locale.usesChineseMedia
-  ? withBase("/media/chat-panel-cn.png")
-  : withBase("/media/chat-panel-en.png");
-const storyImage = locale.usesChineseMedia
-  ? withBase("/media/story-chat-cn.png")
-  : withBase("/media/story-chat-en.png");
-const settingsImage = locale.usesChineseMedia
-  ? withBase("/media/settings-oauth-models-cn.png")
-  : withBase("/media/settings-oauth-models-en.png");
-const translationImage = locale.usesChineseMedia
-  ? withBase("/media/translate-panel-cn.png")
-  : withBase("/media/translate-panel-en.png");
-const selectionTranslationPopupImage = withBase("/media/selection-translation-popup.png");
-const selectionTranslationSettingsImage = withBase("/media/selection-translation-settings.png");
+const guideLanguage = ["zh-CN", "zh-TW", "ja", "ko", "fr"].includes(page.locale) ? page.locale : "en";
+const docsHref = withBase(`guide/${guideLanguage}/`);
+const readerImage = (name: string) =>
+  withBase(`media/reader/${name}-${locale.usesChineseMedia ? "zh-CN" : "en-US"}.jpg`);
+const demoCaption = {
+  "zh-CN": "《Attention Is All You Need》图 2 与公式（1）。右侧对话和划词译文使用本地演示内容。",
+  "zh-TW": "《Attention Is All You Need》圖 2 與公式（1）。右側對話與選段譯文使用本機示範內容。",
+  en: "Attention Is All You Need, Figure 2 and equation (1). Chat and selection translation use local demo responses.",
+  ja: "『Attention Is All You Need』の図 2 と式（1）。会話と選択範囲の訳文はローカルのデモ応答です。",
+  ko: "Attention Is All You Need의 그림 2와 식 (1). 대화와 선택 영역 번역은 로컬 데모 응답입니다.",
+  fr: "Attention Is All You Need, figure 2 et équation (1). La discussion et la traduction de la sélection utilisent des réponses de démonstration locales.",
+  de: "Attention Is All You Need, Abbildung 2 und Gleichung (1). Chat und Auswahlübersetzung verwenden lokale Demo-Antworten.",
+  es: "Attention Is All You Need, figura 2 y ecuación (1). El chat y la traducción de la selección usan respuestas de demostración locales.",
+  ru: "Attention Is All You Need, рисунок 2 и формула (1). В чате и переводе выделения показаны локальные демонстрационные ответы.",
+  pt: "Attention Is All You Need, figura 2 e equação (1). A conversa e a tradução do trecho usam respostas de demonstração locais.",
+  ar: "الشكل 2 والمعادلة (1) من Attention Is All You Need. تعرض المحادثة وترجمة النص المحدد إجابات توضيحية محلية.",
+  hi: "Attention Is All You Need का चित्र 2 और समीकरण (1)। चैट और चयनित पाठ के अनुवाद में स्थानीय डेमो उत्तर दिखाए गए हैं।",
+}[page.locale];
 const releaseHref = "https://github.com/Visterainer/aidea-zotero/releases/latest";
 const githubHref = "https://github.com/Visterainer/aidea-zotero";
 const issuesHref = "https://github.com/Visterainer/aidea-zotero/issues";
@@ -511,7 +505,8 @@ const renderHeading = (key: HeadingKey, fallback: string) => {
       <div class="hero-visual">
         <div class="hero-frame">
           <div class="frame-topline"></div>
-          <img src={heroImage} alt={page.story.panelCaption} loading="eager" />
+          <a href={readerImage("chat")}><img src={readerImage("chat")} alt={page.story.panelCaption} loading="eager" /></a>
+          <p class="screenshot-caption">{demoCaption}</p>
         </div>
 
         <div class="metrics-grid">
@@ -579,20 +574,12 @@ const renderHeading = (key: HeadingKey, fallback: string) => {
       </div>
 
       <div class="stacked-showcase">
-        <article class="showcase-panel large">
-          <div class="panel-meta">
-            <span>{page.story.panelLabel}</span>
-            <p>{page.story.panelCaption}</p>
-          </div>
-          <img src={storyImage} alt={page.story.panelCaption} loading="lazy" />
-        </article>
-
         <article class="showcase-panel small">
           <div class="panel-meta">
             <span>{page.story.secondaryPanelLabel}</span>
             <p>{page.story.secondaryPanelCaption}</p>
           </div>
-          <img src={settingsImage} alt={page.story.secondaryPanelLabel} loading="lazy" />
+          <a href={readerImage("settings")}><img src={readerImage("settings")} alt={page.story.secondaryPanelLabel} loading="lazy" /></a>
         </article>
       </div>
     </section>
@@ -634,19 +621,19 @@ const renderHeading = (key: HeadingKey, fallback: string) => {
 
       <div class="selection-showcase">
         <figure class="showcase-panel selection-shot">
-          <img
-            src={selectionTranslationPopupImage}
+          <a href={readerImage("selection")}><img
+            src={readerImage("selection")}
             alt={selectionTranslation.screenshots.popup}
             loading="lazy"
-          />
+          /></a>
           <figcaption>{selectionTranslation.screenshots.popup}</figcaption>
         </figure>
         <figure class="showcase-panel selection-shot">
-          <img
-            src={selectionTranslationSettingsImage}
+          <a href={readerImage("selection-settings")}><img
+            src={readerImage("selection-settings")}
             alt={selectionTranslation.screenshots.settings}
             loading="lazy"
-          />
+          /></a>
           <figcaption>{selectionTranslation.screenshots.settings}</figcaption>
         </figure>
       </div>
@@ -660,33 +647,25 @@ const renderHeading = (key: HeadingKey, fallback: string) => {
       </div>
 
       <article class="translation-panel">
-        <img src={translationImage} alt={page.translation.panelAlt} loading="lazy" />
+        <a href={readerImage("translation")}><img src={readerImage("translation")} alt={page.translation.panelAlt} loading="lazy" /></a>
       </article>
 
       <div class="gallery-grid">
         <figure class="gallery-card">
-          <img
-            src={withBase("/media/translate-example-architecture.png")}
-            alt={page.translation.captions[0]}
-            loading="lazy"
-          />
-          <figcaption>{page.translation.captions[0]}</figcaption>
-        </figure>
-        <figure class="gallery-card">
-          <img
-            src={withBase("/media/translate-example-formula.png")}
-            alt={page.translation.captions[1]}
-            loading="lazy"
-          />
-          <figcaption>{page.translation.captions[1]}</figcaption>
-        </figure>
-        <figure class="gallery-card">
-          <img
+          <a href={withBase("/media/translate-example-table.png")}><img
             src={withBase("/media/translate-example-table.png")}
-            alt={page.translation.captions[2]}
+            alt={page.translation.tableCaption}
             loading="lazy"
-          />
-          <figcaption>{page.translation.captions[2]}</figcaption>
+          /></a>
+          <figcaption>{page.translation.tableCaption}</figcaption>
+        </figure>
+        <figure class="gallery-card" id="factorminer-figure-1">
+          <a href={withBase("/media/factorminer-figure-1-en-zh.png")}><img
+            src={withBase("/media/factorminer-figure-1-en-zh.png")}
+            alt={page.translation.diagramCaption}
+            loading="lazy"
+          /></a>
+          <figcaption>{page.translation.diagramCaption}</figcaption>
         </figure>
       </div>
     </section>

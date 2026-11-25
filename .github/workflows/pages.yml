@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - "site/**"
+      - "doc/user-guide/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
