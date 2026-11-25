@@ -1,0 +1,45 @@
+---
+import { languageOptions, type Surface } from "../i18n";
+import "../styles/global.css";
+const { surface } = Astro.props as { surface: Surface };
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const options = languageOptions(surface);
+const routes = Object.fromEntries(options.map(({code, href}) => [code, base + href]));
+const description = surface === "guide"
+  ? "The AIdea user guide for Zotero: installation, paper chat, translation and troubleshooting."
+  : "Read papers, follow citations and translate PDFs with AIdea, the open-source reading assistant for Zotero.";
+const title = surface === "guide" ? "AIdea · User guide" : "AIdea for Zotero";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(base + "/media/reader/window-chat-en-US.jpg", Astro.site)} />
+    <link rel="icon" href={base + "/media/icon-96.png"} />
+    {options.map(({code}) => <link rel="alternate" hreflang={code} href={new URL(routes[code], Astro.site)} />)}
+    <link rel="alternate" hreflang="x-default" href={Astro.url.href} />
+    <script define:vars={{ routes }}>
+      let saved;
+      try { saved = localStorage.getItem("aidea-zotero.language"); } catch {}
+      function match(tag) {
+        try {
+          const locale = new Intl.Locale(tag);
+          return locale.language === "zh"
+            ? (locale.maximize().script === "Hant" ? "zh-TW" : "zh-CN")
+            : locale.language;
+        } catch { return ""; }
+      }
+      const browser = (navigator.languages?.length ? navigator.languages : [navigator.language]).map(match);
+      const code = [saved, ...browser, "en"].find(code => Object.hasOwn(routes, code));
+      location.replace(routes[code] + location.search + location.hash);
+    </script>
+  </head>
+  <body><main class="entry"><img src={base + "/media/icon-96.png"} width="48" height="48" alt="" /><h1>{title}</h1>
+    <nav aria-label="Language">{options.map(({code,label}) => <a lang={code} hreflang={code} href={routes[code]}>{label}</a>)}</nav>
+  </main></body>
+</html>
+<style>.entry{max-width:40rem;margin:12vh auto;padding:2rem}.entry nav{display:flex;gap:1rem;flex-wrap:wrap}.entry a{text-decoration:underline}</style>

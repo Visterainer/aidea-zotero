@@ -1,2055 +1,268 @@
 import type { Locale } from "./i18n";
 
-export type PageData = {
-  locale: Locale;
-  title: string;
-  description: string;
-  badge: string;
-  hero: {
-    eyebrow: string;
-    heading: string;
-    subheading: string;
-    primaryCta: string;
-    secondaryCta: string;
-    tertiaryCta: string;
-    metrics: { label: string; value: string }[];
-  };
-  nav: {
-    story: string;
-    features: string;
-    install: string;
-    github: string;
-  };
-  trust: {
-    kicker: string;
-    heading: string;
-    items: { title: string; body: string }[];
-  };
-  story: {
-    kicker: string;
-    heading: string;
-    body: string;
-    bullets: string[];
-    panelLabel: string;
-    panelCaption: string;
-    secondaryPanelLabel: string;
-    secondaryPanelCaption: string;
-  };
-  featureSection: {
-    kicker: string;
-    heading: string;
-    body: string;
-    cards: { title: string; body: string; meta: string }[];
-  };
-  translation: {
-    kicker: string;
-    heading: string;
-    body: string;
-    tableCaption: string;
-    diagramCaption: string;
-    panelAlt: string;
-  };
-  install: {
-    kicker: string;
-    heading: string;
-    body: string;
-    steps: string[];
-    note: string;
-  };
-  footer: {
-    summary: string;
-    releaseLabel: string;
-    docsLabel: string;
-    githubLabel: string;
-    issuesLabel: string;
-    licenseLabel: string;
-    projectTitle: string;
-    communityTitle: string;
-    communityBody: string;
-  };
-};
-
-export type HeadingKey =
-  "hero" | "trust" | "story" | "feature" | "translation" | "install";
-
-export type HeadingFragment = {
-  text: string;
-  accent?: boolean;
-  keep?: boolean;
-};
-
-const plain = (text: string): HeadingFragment => ({ text });
-const accent = (text: string): HeadingFragment => ({ text, accent: true });
-const accentKeep = (text: string): HeadingFragment => ({
-  text,
-  accent: true,
-  keep: true,
-});
-
-export const headingFragments: Record<
-  Locale,
-  Record<HeadingKey, HeadingFragment[]>
-> = {
+export const pageContent = {
   "zh-CN": {
-    hero: [
-      plain("在 Zotero 里"),
-      accentKeep("读论文"),
-      plain("、"),
-      accentKeep("提问"),
-      plain("和"),
-      accentKeep("整理笔记"),
-      plain("。"),
-    ],
-    trust: [plain("一个适合长期使用的"), accentKeep("研究插件"), plain("。")],
-    story: [
-      plain("围绕"),
-      accentKeep("阅读"),
-      plain("、"),
-      accentKeep("摘录"),
-      plain("和"),
-      accentKeep("整理"),
-      plain("的实际流程设计。"),
-    ],
-    feature: [plain("覆盖"), accentKeep("论文阅读"), plain("中最常见的任务。")],
-    translation: [accentKeep("整篇翻译"), plain("也能留在 Zotero 内完成。")],
-    install: [accentKeep("几步安装"), plain("，直接开始使用。")],
+    language: "语言",
+    auto: "跟随浏览器",
+    guide: "使用手册",
+    download: "下载插件",
+    title: "在 Zotero 里读论文，",
+    accent: "让回答回到原文。",
+    lead: "在 PDF 或 EPUB 旁提问，点引用核对原文，再把有用的解释存成 Zotero 笔记。",
+    chat: "论文问答",
+    selection: "划词翻译",
+    translation: "全文翻译",
+    chatHeading: "为什么要除以 √dₖ？",
+    chatText: "阅读《Attention Is All You Need》时，选中公式旁的段落提问。对照图 2 和第 3.2.1 节，核对侧栏里的解释。图中为演示回答。",
+    selectionHeading: "把译文留在原文旁",
+    selectionText: "选中术语或段落即可查看译文。可以单独保存为笔记，也可以把译文写入新高亮的评论。",
+    translationHeading: "在双语 PDF 里对照框架图",
+    translationText: "一次加入多篇论文，输出译文或双语 PDF。图中左侧是英文原图，右侧是中文译图，可对照模块名称和图注。",
+    table: "查看双语表格",
+    setup: "安装与模型接入",
+    setupText: "安装插件并重启 Zotero，然后登录 ChatGPT 或 GitHub Copilot。也可以使用兼容 OpenAI 的 API 或连接本地模型。",
+    openSource: "免费开源",
   },
   "zh-TW": {
-    hero: [
-      plain("在 Zotero 裡"),
-      accentKeep("讀論文"),
-      plain("、"),
-      accentKeep("提問"),
-      plain("和"),
-      accentKeep("整理筆記"),
-      plain("。"),
-    ],
-    trust: [plain("一個適合長期使用的"), accentKeep("研究外掛"), plain("。")],
-    story: [
-      plain("圍繞"),
-      accentKeep("閱讀"),
-      plain("、"),
-      accentKeep("摘錄"),
-      plain("與"),
-      accentKeep("整理"),
-      plain("的實際流程設計。"),
-    ],
-    feature: [plain("涵蓋"), accentKeep("論文閱讀"), plain("中最常見的任務。")],
-    translation: [accentKeep("整篇翻譯"), plain("也能留在 Zotero 內完成。")],
-    install: [accentKeep("幾步安裝"), plain("，直接開始使用。")],
+    language: "語言",
+    auto: "跟隨瀏覽器",
+    guide: "使用手冊",
+    download: "下載外掛",
+    title: "在 Zotero 裡讀論文，",
+    accent: "從回答回到原文。",
+    lead: "在 PDF 或 EPUB 旁提問，點選引用核對原文，再把有用的解釋存成 Zotero 筆記。",
+    chat: "論文問答",
+    selection: "選取文字翻譯",
+    translation: "全文翻譯",
+    chatHeading: "為什麼要除以 √dₖ？",
+    chatText: "閱讀《Attention Is All You Need》時，選取公式旁的段落提問。對照圖 2 和第 3.2.1 節，核對側欄裡的解釋。圖中為示範回答。",
+    selectionHeading: "讓譯文跟著原文",
+    selectionText: "選取術語或段落即可查看譯文。可單獨儲存成筆記，也可將譯文寫入新螢光標記的註解。",
+    translationHeading: "在雙語 PDF 中對照架構圖",
+    translationText: "一次加入多篇論文，輸出譯文或雙語 PDF。左側是英文原圖，右側是中文譯圖，可對照模組名稱和圖說。",
+    table: "查看雙語表格",
+    setup: "安裝與模型連線",
+    setupText: "安裝外掛並重新啟動 Zotero，再登入 ChatGPT 或 GitHub Copilot。也可使用相容 OpenAI 的 API 或連接本機模型。",
+    openSource: "免費開源",
   },
-  en: {
-    hero: [
-      accent("Read"),
-      plain(", "),
-      accent("ask"),
-      plain(", and "),
-      accent("organize notes"),
-      plain(" inside Zotero."),
-    ],
-    trust: [
-      plain("A "),
-      accent("research plugin"),
-      plain(" built for ongoing use."),
-    ],
-    story: [
-      plain("Built around real "),
-      accent("reading"),
-      plain(", "),
-      accent("excerpting"),
-      plain(", and "),
-      accent("organizing"),
-      plain(" work."),
-    ],
-    feature: [
-      plain("Covers the tasks that come up most often while "),
-      accent("reading papers"),
-      plain("."),
-    ],
-    translation: [
-      accent("Full-paper translation"),
-      plain(" can stay inside Zotero."),
-    ],
-    install: [
-      accent("Install it in a few steps"),
-      plain(" and start using it."),
-    ],
+  "en": {
+    language: "Language",
+    auto: "Use browser language",
+    guide: "User guide",
+    download: "Download plugin",
+    title: "Read a paper in Zotero.",
+    accent: "Follow answers to the source.",
+    lead: "Ask about a PDF or EPUB, open a cited passage to check an answer, and save the explanation to your Zotero notes.",
+    chat: "Paper chat",
+    selection: "Passage translation",
+    translation: "Full-paper translation",
+    chatHeading: "Why divide by √dₖ?",
+    chatText: "Ask about the paragraph beside the equation in Attention Is All You Need. Compare the demo answer in the sidebar with Figure 2 and Section 3.2.1.",
+    selectionHeading: "Keep the translation with the passage",
+    selectionText: "Select a term or paragraph to see its translation. Save it to a note or attach it as a comment on a new highlight.",
+    translationHeading: "Read a diagram in two languages",
+    translationText: "Queue several PDFs and export translated or bilingual copies. Compare the English labels and caption on the left with their Chinese translation on the right.",
+    table: "View a bilingual table",
+    setup: "Installation and model access",
+    setupText: "Install the plugin, restart Zotero, then sign in with ChatGPT or GitHub Copilot. You can also connect an OpenAI-compatible API or a local model.",
+    openSource: "Free and open source",
   },
-  ja: {
-    hero: [
-      plain("Zotero の中で"),
-      accentKeep("論文を読み"),
-      plain("、"),
-      accentKeep("質問し"),
-      plain("、"),
-      accentKeep("ノートを整理する"),
-      plain("。"),
-    ],
-    trust: [
-      plain("継続的な利用に向いた"),
-      accentKeep("研究プラグイン"),
-      plain("です。"),
-    ],
-    story: [
-      plain(""),
-      accentKeep("読む"),
-      plain("、"),
-      accentKeep("抜き出す"),
-      plain("、"),
-      accentKeep("整理する"),
-      plain("流れに合わせて設計。"),
-    ],
-    feature: [
-      plain("論文読解で頻繁に発生する"),
-      accentKeep("作業"),
-      plain("をまとめて扱えます。"),
-    ],
-    translation: [
-      accentKeep("論文全体の翻訳"),
-      plain("も Zotero の中で続けられます。"),
-    ],
-    install: [accentKeep("数ステップで導入"), plain("してすぐ使えます。")],
+  "fr": {
+    language: "Langue",
+    auto: "Suivre la langue du navigateur",
+    guide: "Guide d’utilisation",
+    download: "Télécharger l’extension",
+    title: "Lisez dans Zotero.",
+    accent: "Retrouvez le passage cité.",
+    lead: "Interrogez un PDF ou un EPUB, vérifiez la réponse dans le passage cité et conservez l’explication dans une note Zotero.",
+    chat: "Questions sur l’article",
+    selection: "Traduction d’un passage",
+    translation: "Traduction intégrale",
+    chatHeading: "Pourquoi diviser par √dₖ ?",
+    chatText: "Dans Attention Is All You Need, interrogez le paragraphe qui accompagne l’équation. Comparez la réponse de démonstration avec la figure 2 et la section 3.2.1.",
+    selectionHeading: "Gardez la traduction près du texte",
+    selectionText: "Sélectionnez un terme ou un paragraphe. Enregistrez sa traduction dans une note ou dans le commentaire d’un nouveau surlignage.",
+    translationHeading: "Comparez les légendes d’un schéma",
+    translationText: "Ajoutez plusieurs PDF à la file et exportez des copies traduites ou bilingues. À gauche figurent les libellés anglais, à droite leur traduction chinoise.",
+    table: "Voir un tableau bilingue",
+    setup: "Installation et choix du modèle",
+    setupText: "Installez l’extension, redémarrez Zotero et connectez-vous avec ChatGPT ou GitHub Copilot. Une API compatible OpenAI ou un modèle local convient également.",
+    openSource: "Libre et gratuit",
   },
-  ko: {
-    hero: [
-      plain("Zotero 안에서 "),
-      accent("읽고"),
-      plain(", "),
-      accent("묻고"),
-      plain(", 노트를 "),
-      accent("정리하세요"),
-      plain("."),
-    ],
-    trust: [plain("오랫동안 쓰기 좋은 "), accent("연구 플러그인"), plain(".")],
-    story: [
-      plain(""),
-      accent("읽기"),
-      plain(", "),
-      accent("발췌"),
-      plain(", "),
-      accent("정리"),
-      plain("의 실제 흐름에 맞춰 설계했습니다."),
-    ],
-    feature: [
-      plain("논문을 읽을 때 자주 마주치는 "),
-      accent("작업"),
-      plain("을 다룹니다."),
-    ],
-    translation: [
-      accent("논문 전체 번역"),
-      plain("도 Zotero 안에서 이어갈 수 있습니다."),
-    ],
-    install: [accent("몇 단계만으로"), plain(" 바로 사용할 수 있습니다.")],
+  "ja": {
+    language: "言語",
+    auto: "ブラウザーの言語を使う",
+    guide: "使い方ガイド",
+    download: "プラグインをダウンロード",
+    title: "Zotero で論文を読み、",
+    accent: "回答から原文に戻る。",
+    lead: "PDF や EPUB を開いたまま質問し、引用箇所で回答を確かめて、解説を Zotero のノートに保存できます。",
+    chat: "論文に質問",
+    selection: "選択範囲の翻訳",
+    translation: "全文翻訳",
+    chatHeading: "なぜ √dₖ で割るのか？",
+    chatText: "『Attention Is All You Need』の数式の横にある段落を選んで質問します。サイドバーのデモ回答を図 2 と第 3.2.1 節に照らして確認できます。",
+    selectionHeading: "訳文を原文のそばに残す",
+    selectionText: "用語や段落を選ぶと訳文が表示されます。ノートに保存するか、新しいハイライトのコメントに書き込めます。",
+    translationHeading: "構成図を二つの言語で読む",
+    translationText: "複数の PDF を一括で翻訳し、訳文のみ、または対訳で出力できます。左の英語の図と右の中国語訳で、ラベルと説明文を見比べられます。",
+    table: "対訳表を見る",
+    setup: "インストールとモデル接続",
+    setupText: "プラグインを導入し、Zotero を再起動して ChatGPT または GitHub Copilot でログインします。OpenAI 互換 API やローカルモデルにも接続できます。",
+    openSource: "無料・オープンソース",
   },
-  fr: {
-    hero: [
-      accent("Lire"),
-      plain(", "),
-      accent("questionner"),
-      plain(" et "),
-      accent("organiser ses notes"),
-      plain(" dans Zotero."),
-    ],
-    trust: [
-      plain("Un "),
-      accent("plugin de recherche"),
-      plain(" pensé pour durer."),
-    ],
-    story: [
-      plain("Conçu pour les vrais gestes de "),
-      accent("lecture"),
-      plain(", d'"),
-      accent("extrait"),
-      plain(" et d'"),
-      accent("organisation"),
-      plain("."),
-    ],
-    feature: [
-      plain("Couvre les tâches qui reviennent le plus souvent pendant la "),
-      accent("lecture d'articles"),
-      plain("."),
-    ],
-    translation: [
-      accent("La traduction intégrale"),
-      plain(" peut rester dans Zotero."),
-    ],
-    install: [accent("Quelques étapes suffisent"), plain(" pour commencer.")],
+  "ko": {
+    language: "언어",
+    auto: "브라우저 언어 사용",
+    guide: "사용 설명서",
+    download: "플러그인 다운로드",
+    title: "Zotero에서 논문을 읽고",
+    accent: "답변의 근거를 확인하세요.",
+    lead: "PDF나 EPUB를 보며 질문하고, 인용된 구절을 열어 답변을 확인한 뒤 유용한 설명을 Zotero 노트에 저장하세요.",
+    chat: "논문 질의응답",
+    selection: "선택 영역 번역",
+    translation: "논문 전체 번역",
+    chatHeading: "왜 √dₖ로 나눌까요?",
+    chatText: "Attention Is All You Need에서 수식 옆 문단을 선택해 질문합니다. 사이드바의 예시 답변을 그림 2 및 3.2.1절과 비교해 보세요.",
+    selectionHeading: "번역문을 원문 옆에 저장",
+    selectionText: "용어나 문단을 선택해 번역을 확인하세요. 번역문을 노트로 저장하거나 새 하이라이트의 주석에 남길 수 있습니다.",
+    translationHeading: "구조도를 두 언어로 비교",
+    translationText: "여러 PDF를 대기열에 넣고 번역본이나 이중 언어 PDF로 내보내세요. 왼쪽 영어 원본과 오른쪽 중국어 번역에서 그림의 레이블과 설명을 비교할 수 있습니다.",
+    table: "이중 언어 표 보기",
+    setup: "설치 및 모델 연결",
+    setupText: "플러그인을 설치하고 Zotero를 재시작한 뒤 ChatGPT나 GitHub Copilot으로 로그인하세요. OpenAI 호환 API와 로컬 모델도 연결할 수 있습니다.",
+    openSource: "무료 오픈 소스",
   },
-  de: {
-    hero: [
-      plain("In Zotero "),
-      accent("lesen"),
-      plain(", "),
-      accent("fragen"),
-      plain(" und Notizen "),
-      accent("organisieren"),
-      plain("."),
-    ],
-    trust: [
-      plain("Ein "),
-      accent("Forschungs-Plugin"),
-      plain(" für den laufenden Alltag."),
-    ],
-    story: [
-      plain("Entwickelt für "),
-      accent("Lesen"),
-      plain(", "),
-      accent("Exzerpieren"),
-      plain(" und "),
-      accent("Ordnen"),
-      plain(" in Zotero."),
-    ],
-    feature: [
-      plain("Deckt die Aufgaben ab, die beim "),
-      accent("Lesen von Papers"),
-      plain(" ständig auftauchen."),
-    ],
-    translation: [
-      accent("Auch Volltext-Übersetzungen"),
-      plain(" bleiben in Zotero."),
-    ],
-    install: [
-      accent("In wenigen Schritten"),
-      plain(" installiert und einsatzbereit."),
-    ],
+  "de": {
+    language: "Sprache",
+    auto: "Browsersprache verwenden",
+    guide: "Handbuch",
+    download: "Plugin herunterladen",
+    title: "In Zotero lesen.",
+    accent: "Antworten an der Quelle prüfen.",
+    lead: "Stellen Sie Fragen zu PDFs und EPUBs, öffnen Sie zitierte Stellen und speichern Sie Erklärungen als Zotero-Notizen.",
+    chat: "Fragen zum Artikel",
+    selection: "Textstellen übersetzen",
+    translation: "PDF übersetzen",
+    chatHeading: "Warum durch √dₖ teilen?",
+    chatText: "Markieren Sie in Attention Is All You Need den Absatz zur Gleichung. Vergleichen Sie die Beispielantwort mit Abbildung 2 und Abschnitt 3.2.1.",
+    selectionHeading: "Übersetzung am Text speichern",
+    selectionText: "Markieren Sie einen Begriff oder Absatz. Speichern Sie die Übersetzung als Notiz oder als Kommentar einer neuen Hervorhebung.",
+    translationHeading: "Ein Schaubild zweisprachig lesen",
+    translationText: "Übersetzen Sie mehrere PDFs als Stapel. Vergleichen Sie in der zweisprachigen Ausgabe links die englische Beschriftung und rechts die chinesische Übersetzung.",
+    table: "Zweisprachige Tabelle ansehen",
+    setup: "Installation und Modellzugang",
+    setupText: "Installieren Sie das Plugin, starten Sie Zotero neu und melden Sie sich mit ChatGPT oder GitHub Copilot an. Auch OpenAI-kompatible APIs und lokale Modelle werden unterstützt.",
+    openSource: "Kostenlos und quelloffen",
   },
-  es: {
-    hero: [
-      accent("Lee"),
-      plain(", "),
-      accent("pregunta"),
-      plain(" y "),
-      accent("organiza tus notas"),
-      plain(" dentro de Zotero."),
-    ],
-    trust: [
-      plain("Un "),
-      accent("complemento de investigación"),
-      plain(" pensado para el uso continuo."),
-    ],
-    story: [
-      plain("Pensado para "),
-      accent("leer"),
-      plain(", "),
-      accent("extraer"),
-      plain(" y "),
-      accent("organizar"),
-      plain(" en el trabajo real."),
-    ],
-    feature: [
-      plain("Cubre las tareas que más se repiten al "),
-      accent("leer artículos"),
-      plain("."),
-    ],
-    translation: [
-      accent("La traducción completa"),
-      plain(" también puede quedarse dentro de Zotero."),
-    ],
-    install: [accent("Bastan unos pocos pasos"), plain(" para empezar.")],
+  "es": {
+    language: "Idioma",
+    auto: "Usar el idioma del navegador",
+    guide: "Manual de uso",
+    download: "Descargar el complemento",
+    title: "Lee en Zotero.",
+    accent: "Vuelve al pasaje citado.",
+    lead: "Pregunta sobre un PDF o EPUB, comprueba la respuesta en el texto citado y guarda la explicación en tus notas de Zotero.",
+    chat: "Preguntas sobre el artículo",
+    selection: "Traducir un pasaje",
+    translation: "Traducir el PDF",
+    chatHeading: "¿Por qué dividir por √dₖ?",
+    chatText: "Selecciona el párrafo junto a la ecuación de Attention Is All You Need. Compara la respuesta de ejemplo con la figura 2 y la sección 3.2.1.",
+    selectionHeading: "Guarda la traducción junto al texto",
+    selectionText: "Selecciona un término o un párrafo. Puedes guardar la traducción en una nota o en el comentario de un nuevo resaltado.",
+    translationHeading: "Compara un diagrama en dos idiomas",
+    translationText: "Pon varios PDF en cola y expórtalos traducidos o bilingües. A la izquierda están los rótulos en inglés y a la derecha su traducción al chino.",
+    table: "Ver una tabla bilingüe",
+    setup: "Instalación y acceso a modelos",
+    setupText: "Instala el complemento, reinicia Zotero e inicia sesión con ChatGPT o GitHub Copilot. También puedes conectar una API compatible con OpenAI o un modelo local.",
+    openSource: "Gratis y de código abierto",
   },
-  ru: {
-    hero: [
-      accent("Читайте статьи"),
-      plain(", "),
-      accent("задавайте вопросы"),
-      plain(" и "),
-      accent("ведите заметки"),
-      plain(" в Zotero."),
-    ],
-    trust: [
-      plain(""),
-      accent("Исследовательский плагин"),
-      plain(" для длительной работы."),
-    ],
-    story: [
-      plain("Спроектирован под реальный процесс "),
-      accent("чтения"),
-      plain(", "),
-      accent("выписок"),
-      plain(" и "),
-      accent("организации"),
-      plain(" материалов."),
-    ],
-    feature: [
-      plain("Закрывает задачи, которые чаще всего возникают при "),
-      accent("чтении статей"),
-      plain("."),
-    ],
-    translation: [
-      accent("Полный перевод статьи"),
-      plain(" тоже может оставаться внутри Zotero."),
-    ],
-    install: [accent("Несколько шагов"), plain(" — и можно начинать работу.")],
+  "ru": {
+    language: "Язык",
+    auto: "Использовать язык браузера",
+    guide: "Руководство",
+    download: "Скачать плагин",
+    title: "Читайте в Zotero.",
+    accent: "Сверяйте ответы с оригиналом.",
+    lead: "Задавайте вопросы по PDF и EPUB, открывайте цитируемые фрагменты и сохраняйте пояснения в заметках Zotero.",
+    chat: "Вопросы по статье",
+    selection: "Перевод фрагмента",
+    translation: "Перевод статьи",
+    chatHeading: "Зачем делить на √dₖ?",
+    chatText: "Выделите абзац рядом с формулой в Attention Is All You Need. Сравните пример ответа на боковой панели с рисунком 2 и разделом 3.2.1.",
+    selectionHeading: "Сохраните перевод рядом с текстом",
+    selectionText: "Выделите термин или абзац. Сохраните перевод в заметке или добавьте его в комментарий к новому выделению.",
+    translationHeading: "Сравните схему на двух языках",
+    translationText: "Добавьте несколько PDF в очередь и экспортируйте переведённые или двуязычные копии. Слева показаны английские подписи, справа — их перевод на китайский.",
+    table: "Открыть двуязычную таблицу",
+    setup: "Установка и подключение модели",
+    setupText: "Установите плагин, перезапустите Zotero и войдите через ChatGPT или GitHub Copilot. Можно также подключить совместимый с OpenAI API или локальную модель.",
+    openSource: "Бесплатно, с открытым кодом",
   },
-  pt: {
-    hero: [
-      accent("Leia"),
-      plain(", "),
-      accent("pergunte"),
-      plain(" e "),
-      accent("organize notas"),
-      plain(" dentro do Zotero."),
-    ],
-    trust: [
-      plain("Um "),
-      accent("plugin de pesquisa"),
-      plain(" pensado para uso contínuo."),
-    ],
-    story: [
-      plain("Projetado para o trabalho real de "),
-      accent("leitura"),
-      plain(", "),
-      accent("extração"),
-      plain(" e "),
-      accent("organização"),
-      plain("."),
-    ],
-    feature: [
-      plain("Cobre as tarefas que aparecem com mais frequência na "),
-      accent("leitura de artigos"),
-      plain("."),
-    ],
-    translation: [
-      accent("A tradução integral"),
-      plain(" também pode permanecer dentro do Zotero."),
-    ],
-    install: [accent("Bastam alguns passos"), plain(" para começar.")],
+  "pt": {
+    language: "Idioma",
+    auto: "Usar o idioma do navegador",
+    guide: "Guia de utilização",
+    download: "Descarregar o plugin",
+    title: "Leia no Zotero.",
+    accent: "Consulte a passagem citada.",
+    lead: "Faça perguntas sobre um PDF ou EPUB, confira a resposta na passagem citada e guarde a explicação nas notas do Zotero.",
+    chat: "Perguntas sobre o artigo",
+    selection: "Traduzir uma passagem",
+    translation: "Traduzir o artigo",
+    chatHeading: "Porquê dividir por √dₖ?",
+    chatText: "Selecione o parágrafo junto à equação em Attention Is All You Need. Compare a resposta de exemplo com a figura 2 e a secção 3.2.1.",
+    selectionHeading: "Guarde a tradução junto ao texto",
+    selectionText: "Selecione um termo ou parágrafo. Guarde a tradução numa nota ou no comentário de um novo destaque.",
+    translationHeading: "Leia um diagrama em duas línguas",
+    translationText: "Ponha vários PDFs na fila e exporte cópias traduzidas ou bilingues. Compare os rótulos em inglês à esquerda com a tradução chinesa à direita.",
+    table: "Ver uma tabela bilingue",
+    setup: "Instalação e acesso aos modelos",
+    setupText: "Instale o plugin, reinicie o Zotero e entre com ChatGPT ou GitHub Copilot. Também pode ligar uma API compatível com OpenAI ou um modelo local.",
+    openSource: "Gratuito e de código aberto",
   },
-  ar: {
-    hero: [
-      accent("اقرأ"),
-      plain(" و"),
-      accent("اسأل"),
-      plain(" و"),
-      accent("نظّم ملاحظاتك"),
-      plain(" داخل Zotero."),
-    ],
-    trust: [
-      plain("إضافة "),
-      accent("بحثية"),
-      plain(" مناسبة للاستخدام المستمر."),
-    ],
-    story: [
-      plain("مصمم لسير العمل الحقيقي في "),
-      accent("القراءة"),
-      plain(" و"),
-      accent("الاقتباس"),
-      plain(" و"),
-      accent("التنظيم"),
-      plain("."),
-    ],
-    feature: [
-      plain("يغطي المهام التي تتكرر كثيراً أثناء "),
-      accent("قراءة الأوراق العلمية"),
-      plain("."),
-    ],
-    translation: [
-      accent("ترجمة المقال كاملاً"),
-      plain(" يمكن أن تبقى داخل Zotero."),
-    ],
-    install: [accent("بضع خطوات فقط"), plain(" للبدء.")],
+  "ar": {
+    language: "اللغة",
+    auto: "استخدام لغة المتصفح",
+    guide: "دليل الاستخدام",
+    download: "تنزيل الإضافة",
+    title: "اقرأ البحث في Zotero.",
+    accent: "وارجع إلى موضع الاستشهاد.",
+    lead: "اطرح أسئلة عن ملفات PDF وEPUB، ثم افتح المقطع المستشهد به للتحقق من الإجابة واحفظ الشرح في ملاحظات Zotero.",
+    chat: "أسئلة عن البحث",
+    selection: "ترجمة مقطع",
+    translation: "ترجمة البحث كاملاً",
+    chatHeading: "لماذا نقسم على √dₖ؟",
+    chatText: "حدّد الفقرة المجاورة للمعادلة في بحث Attention Is All You Need. قارن الإجابة التوضيحية في اللوحة الجانبية بالشكل 2 والقسم 3.2.1.",
+    selectionHeading: "احتفظ بالترجمة بجانب النص",
+    selectionText: "حدّد مصطلحًا أو فقرة لعرض الترجمة. احفظها في ملاحظة أو أضفها تعليقًا إلى تظليل جديد.",
+    translationHeading: "اقرأ المخطط بلغتين",
+    translationText: "أضف عدة ملفات PDF إلى قائمة الانتظار وصدّر نسخًا مترجمة أو ثنائية اللغة. قارن التسميات الإنجليزية على اليسار بترجمتها الصينية على اليمين.",
+    table: "عرض جدول ثنائي اللغة",
+    setup: "التثبيت وربط النموذج",
+    setupText: "ثبّت الإضافة وأعد تشغيل Zotero، ثم سجّل الدخول عبر ChatGPT أو GitHub Copilot. يمكنك أيضًا ربط واجهة متوافقة مع OpenAI أو نموذج محلي.",
+    openSource: "مجاني ومفتوح المصدر",
   },
-  hi: {
-    hero: [
-      plain("Zotero के भीतर "),
-      accent("पढ़ें"),
-      plain(", "),
-      accent("पूछें"),
-      plain(" और नोट्स "),
-      accent("व्यवस्थित करें"),
-      plain("।"),
-    ],
-    trust: [
-      plain("लंबे समय की शोध-प्रक्रिया के लिए बना "),
-      accent("शोध प्लगइन"),
-      plain("।"),
-    ],
-    story: [
-      plain(""),
-      accent("पढ़ने"),
-      plain(", "),
-      accent("अंश निकालने"),
-      plain(" और "),
-      accent("व्यवस्थित करने"),
-      plain(" के असली प्रवाह के लिए बना।"),
-    ],
-    feature: [
-      plain("शोध-पत्र पढ़ते समय बार-बार आने वाले "),
-      accent("काम"),
-      plain(" सँभालता है।"),
-    ],
-    translation: [
-      accent("पूरे शोध-पत्र का अनुवाद"),
-      plain(" भी Zotero के भीतर रह सकता है।"),
-    ],
-    install: [accent("कुछ ही चरणों में"), plain(" शुरू करें।")],
+  "hi": {
+    language: "भाषा",
+    auto: "ब्राउज़र की भाषा अपनाएँ",
+    guide: "उपयोग मार्गदर्शिका",
+    download: "प्लगइन डाउनलोड करें",
+    title: "Zotero में शोधपत्र पढ़ें।",
+    accent: "जवाब का स्रोत देखें।",
+    lead: "PDF या EPUB के बारे में सवाल पूछें, उद्धृत अंश खोलकर जवाब जाँचें और व्याख्या को Zotero नोट में सहेजें।",
+    chat: "शोधपत्र से सवाल",
+    selection: "अंश का अनुवाद",
+    translation: "पूरे शोधपत्र का अनुवाद",
+    chatHeading: "√dₖ से भाग क्यों देते हैं?",
+    chatText: "Attention Is All You Need में समीकरण के पास का अनुच्छेद चुनकर सवाल पूछें। साइडबार में दिए उदाहरण की तुलना चित्र 2 और खंड 3.2.1 से करें।",
+    selectionHeading: "अनुवाद को मूल अंश के साथ रखें",
+    selectionText: "शब्द या अनुच्छेद चुनकर उसका अनुवाद देखें। इसे नोट में सहेजें या नए हाइलाइट की टिप्पणी में जोड़ें।",
+    translationHeading: "दो भाषाओं में आरेख पढ़ें",
+    translationText: "कई PDF एक साथ कतार में डालें और अनूदित या द्विभाषी प्रतियाँ बनाएँ। बाईं ओर के अंग्रेज़ी लेबल की तुलना दाईं ओर के चीनी अनुवाद से करें।",
+    table: "द्विभाषी तालिका देखें",
+    setup: "स्थापना और मॉडल कनेक्शन",
+    setupText: "प्लगइन स्थापित करके Zotero पुनः शुरू करें। ChatGPT या GitHub Copilot से साइन इन करें, या OpenAI-संगत API अथवा स्थानीय मॉडल से जुड़ें।",
+    openSource: "मुफ़्त और ओपन सोर्स",
   },
-};
-
-export const pageContent: Record<Locale, PageData> = {
-  "zh-CN": {
-    locale: "zh-CN",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea 是免费开源的 Zotero AI 助手：论文对话、划词翻译、全文翻译。支持用现有的 ChatGPT、GitHub Copilot 订阅账号登录（OAuth，无需 API Key），也支持任意 OpenAI 兼容 API 和 Ollama、LM Studio 等本地模型。",
-    badge: "免费开源 Zotero 插件",
-    hero: {
-      eyebrow: "给长期读论文、做笔记、写综述的人",
-      heading: "在 Zotero 里读论文、提问和整理笔记。",
-      subheading:
-        "在 Zotero 侧栏对 PDF 和 EPUB 提问，点击回答中的页码或章节引用回到原文，并把回答保存为笔记。可通过 ChatGPT 或 GitHub Copilot 登录，也可连接兼容 API 或本地模型。",
-      primaryCta: "安装插件",
-      secondaryCta: "查看源码",
-      tertiaryCta: "阅读文档",
-      metrics: [
-        { label: "价格", value: "免费开源" },
-        { label: "存储方式", value: "本地优先" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "适用场景",
-      features: "主要能力",
-      install: "如何安装",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "开源项目",
-      heading: "一个适合长期使用的研究插件。",
-      items: [
-        {
-          title: "免费开源，可直接看源码",
-          body: "插件代码、文档和发布版本都在公开仓库中，适合自己安装、检查、反馈和持续改进。",
-        },
-        {
-          title: "尽量不打断论文阅读流",
-          body: "提问、总结、解释、翻译和笔记整理都留在 Zotero 侧栏，不需要在多个网页之间来回切换。",
-        },
-        {
-          title: "数据和记忆本地优先",
-          body: "聊天记录、记忆和授权状态优先保存在本地，插件本身不做平台式用户数据收集。",
-        },
-      ],
-    },
-    story: {
-      kicker: "适用场景",
-      heading: "围绕阅读、摘录和整理的实际流程设计。",
-      body: "AIdea 面向的是正在阅读、摘录、比对和整理论文的人。你可以在 Zotero 侧栏里提问，把 PDF 选段直接带进上下文，把结果写回笔记，必要时继续做全文翻译。",
-      bullets: [
-        "同一套侧栏在文库视图和 PDF 阅读器里都可用。",
-        "选段可直接进入上下文，回答更贴近原文而不是泛泛总结。",
-        "有用的结果可以继续沉淀到 Zotero 笔记里，而不是停在一次性聊天记录中。",
-      ],
-      panelLabel: "侧栏问答",
-      panelCaption: "围绕当前条目和论文正文继续提问、整理和记录。",
-      secondaryPanelLabel: "模型与提供商",
-      secondaryPanelCaption:
-        "登录、切换模型和配置兼容接口都在同一个设置面板里。",
-    },
-    featureSection: {
-      kicker: "主要能力",
-      heading: "覆盖论文阅读中最常见的任务。",
-      body: "AIdea 重点覆盖 Zotero 用户最常见的几类任务：围绕原文提问、切换模型、全文翻译，以及把结果沉淀回笔记。",
-      cards: [
-        {
-          title: "先用起来，再慢慢配置",
-          body: "用现有的 ChatGPT、GitHub Copilot 订阅账号通过 OAuth 登录即可开始，无需 API Key。",
-          meta: "先用起来",
-        },
-        {
-          title: "围绕原文提问",
-          body: "PDF 选段可以显式加入上下文，让回答尽量贴近论文具体段落，而不是脱离原文泛泛总结。",
-          meta: "更贴近论文",
-        },
-        {
-          title: "需要整篇翻译时也能继续做",
-          body: "支持双语或单语 PDF 输出，适合需要通读外文论文、保留排版结构的场景。",
-          meta: "适合长文",
-        },
-        {
-          title: "多模型入口",
-          body: "支持 OpenAI、DeepSeek、OpenRouter 等任意 OpenAI 兼容 API，也支持通过 Ollama、LM Studio、vLLM 使用本地模型，数据不出本机。",
-          meta: "保持选择自由",
-        },
-        {
-          title: "本地聊天与记忆",
-          body: "聊天记录和长期记忆保存在 Zotero 本地数据库中，更适合持续几周或几个月的研究项目。",
-          meta: "适合长期积累",
-        },
-        {
-          title: "把结果沉淀回 Zotero",
-          body: "Markdown、代码块、表格和 LaTeX 数学公式都能较完整地回写到 Zotero 笔记中。",
-          meta: "结果能留下来",
-        },
-      ],
-    },
-    translation: {
-      kicker: "全文翻译",
-      heading: "整篇翻译也能留在 Zotero 内完成。",
-      body: "在文库中选中多篇论文，确认输出格式和保存位置，再启动翻译队列。可生成单语或双语 PDF，保存为 Zotero 附件或导出到文件夹。默认只补齐缺少的译文。",
-      tableCaption: "表 1 的英中对照译本。对照左右两页，可以逐行核对各层的计算复杂度。",
-      diagramCaption: "全文翻译也能翻译框架图里的文字。FactorMiner 图 1 的左侧是英文原图，右侧是简体中文译图。沿蓝色箭头对照两侧，可以看到 “Memory Retrieval” 译为「记忆检索」，“Library Update” 译为「库更新」。",
-      panelAlt: "全文翻译面板",
-    },
-    install: {
-      kicker: "安装方式",
-      heading: "几步安装，直接开始使用。",
-      body: "AIdea 通过 GitHub Releases 分发 .xpi 安装包。下载后在 Zotero 中从文件安装即可使用，整个项目免费开源。",
-      steps: [
-        "从 GitHub Releases 下载最新 .xpi 文件。",
-        "在 Zotero 的工具 → 插件的齿轮菜单中选择“从文件安装”。",
-        "重启 Zotero，打开右侧 AIdea 面板，在「设置 → 模型配置」中连接模型，然后在文库或阅读器侧栏提问。",
-      ],
-      note: "如果你想了解实现方式、提交问题或参与改进，可以直接在 GitHub 仓库查看源码、Issue 和发布记录。",
-    },
-    footer: {
-      summary:
-        "AIdea 是一个免费开源的 Zotero 插件，服务对象是希望在论文阅读现场使用 AI 的研究者、学生和知识工作者。",
-      releaseLabel: "安装插件",
-      docsLabel: "项目文档",
-      githubLabel: "GitHub 仓库",
-      issuesLabel: "问题反馈",
-      licenseLabel: "AGPL-3.0 许可证",
-      projectTitle: "项目入口",
-      communityTitle: "参与改进",
-      communityBody:
-        "欢迎通过 Issue 反馈问题、查看发布记录，或直接在仓库中了解实现细节。",
-    },
-  },
-  en: {
-    locale: "en",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea is a free, open-source AI assistant for Zotero: chat with papers, translate selections, and translate full PDFs. Use your existing ChatGPT or GitHub Copilot subscription (OAuth, no API key), any OpenAI-compatible API, or local models via Ollama and LM Studio.",
-    badge: "Free & Open Source",
-    hero: {
-      eyebrow: "For people who read papers, take notes, and write reviews",
-      heading: "Read, ask, and organize notes inside Zotero.",
-      subheading:
-        "Ask questions about PDFs and EPUBs in Zotero’s side panel. Follow a page or chapter citation to the source, then save the answer as a note. Connect through ChatGPT, GitHub Copilot, a compatible API, or a local model.",
-      primaryCta: "Install from Releases",
-      secondaryCta: "View Source",
-      tertiaryCta: "Read Docs",
-      metrics: [
-        { label: "Pricing", value: "Free & open" },
-        { label: "Storage", value: "Local-first" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "Use Cases",
-      features: "What It Does",
-      install: "Install",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Open Source",
-      heading: "A research plugin built for ongoing use.",
-      items: [
-        {
-          title: "Free, open, and easy to inspect",
-          body: "The code, docs, and releases live in a public repository, so people can install it, inspect it, report issues, and improve it over time.",
-        },
-        {
-          title: "Designed around the reading flow",
-          body: "Asking, summarizing, translating, and note export stay in Zotero's side panel instead of bouncing across external chat tabs.",
-        },
-        {
-          title: "Local-first for data and memory",
-          body: "Chat history, memory, and auth state are stored locally first, and the plugin is not built around collecting platform user data.",
-        },
-      ],
-    },
-    story: {
-      kicker: "Use Cases",
-      heading: "Built around real reading, excerpting, and organizing work.",
-      body: "AIdea is for people who read closely, excerpt passages, compare sources, and keep notes as they go. Ask in the side panel, attach exact PDF passages, write useful results back into notes, and move into full-document translation when needed.",
-      bullets: [
-        "The same side panel works in both the library view and the PDF reader.",
-        "Selected PDF text can become explicit context for answers that stay closer to the source.",
-        "Useful output can be saved back into Zotero instead of disappearing into one-off chat history.",
-      ],
-      panelLabel: "Side-panel workflow",
-      panelCaption:
-        "Ask, capture context, and keep notes attached to the current item.",
-      secondaryPanelLabel: "Models and providers",
-      secondaryPanelCaption:
-        "Sign in, switch models, or configure compatible endpoints in one place.",
-    },
-    featureSection: {
-      kicker: "Common Tasks",
-      heading: "Covers the tasks that come up most often while reading papers.",
-      body: "AIdea focuses on the parts of the workflow Zotero users come back to most often: asking against the source text, switching models, translating full papers, and saving useful output back into notes.",
-      cards: [
-        {
-          title: "Get started before doing heavy setup",
-          body: "Sign in with your existing ChatGPT or GitHub Copilot subscription through OAuth. No API key is needed to start.",
-          meta: "Get started quickly",
-        },
-        {
-          title: "Ask against the paper itself",
-          body: "Selected PDF passages can be attached directly to the context so answers stay grounded in the source instead of drifting into vague summaries.",
-          meta: "Stay grounded in the paper",
-        },
-        {
-          title: "Keep going when the task becomes a full translation",
-          body: "Export bilingual or mono-language PDFs when you need to read through an entire paper without losing layout structure.",
-          meta: "Useful for whole papers",
-        },
-        {
-          title: "Multi-provider routing",
-          body: "Any OpenAI-compatible API works, including OpenAI, DeepSeek, and OpenRouter, as do local models through Ollama, LM Studio, and vLLM, so your data can stay on your machine.",
-          meta: "Keep provider choice open",
-        },
-        {
-          title: "Local chat history and memory",
-          body: "Conversations and long-lived memory stay in Zotero's local database, which fits ongoing research projects better.",
-          meta: "Better for ongoing projects",
-        },
-        {
-          title: "Save useful output back into Zotero",
-          body: "Markdown, code blocks, tables, and LaTeX math can be written back into Zotero with much of their structure intact.",
-          meta: "Save useful output",
-        },
-      ],
-    },
-    translation: {
-      kicker: "Translation",
-      heading: "Full-paper translation can stay inside Zotero.",
-      body: "Select several papers in your library and review the output formats and destinations before starting the queue. Save translated-only or bilingual PDFs as Zotero attachments or export them to a folder. By default, AIdea fills in missing outputs.",
-      tableCaption: "English and Simplified Chinese side by side. Compare the computational complexity of each layer in Table 1.",
-      diagramCaption: "Full-text translation also covers labels inside architecture diagrams. In Figure 1 of FactorMiner, follow the blue arrows from “Memory Retrieval” to “Library Update” in the English original on the left. The same steps are labeled “记忆检索” and “库更新” in the Simplified Chinese translation on the right.",
-      panelAlt: "Full document translation panel",
-    },
-    install: {
-      kicker: "Install",
-      heading: "Install it in a few steps and start using it.",
-      body: "AIdea is distributed through GitHub Releases as an .xpi. Download it, install it from file in Zotero, and start using it. The project is free and open source.",
-      steps: [
-        "Download the latest .xpi from GitHub Releases.",
-        "Choose “Install Plugin From File” under Tools → Plugins → ⚙ in Zotero.",
-        "Restart Zotero, connect a model under Settings → Model Config in the AIdea side panel, then ask a question in the library or reader side panel.",
-      ],
-      note: "If you want to inspect the implementation, report a problem, or contribute improvements, everything is available in the GitHub repository.",
-    },
-    footer: {
-      summary:
-        "AIdea is a free and open-source Zotero plugin for researchers, students, and knowledge workers who want AI support to stay close to the reading surface.",
-      releaseLabel: "Install Plugin",
-      docsLabel: "Project Docs",
-      githubLabel: "GitHub Repository",
-      issuesLabel: "Report Issues",
-      licenseLabel: "AGPL-3.0 License",
-      projectTitle: "Project Links",
-      communityTitle: "Contribute",
-      communityBody:
-        "You can follow releases, report problems, and inspect the implementation directly in the repository.",
-    },
-  },
-  ja: {
-    locale: "ja",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea は Zotero 向けの無料オープンソース AI アシスタントです。論文との対話、選択テキストの翻訳、PDF 全文翻訳に対応。お手持ちの ChatGPT、GitHub Copilot のサブスクリプション（OAuth、API キー不要）、任意の OpenAI 互換 API、Ollama や LM Studio などのローカルモデルを利用できます。",
-    badge: "無料・オープンソース",
-    hero: {
-      eyebrow: "論文を読み、メモを取り、レビューを書く人のために",
-      heading: "Zotero の中で論文を読み、質問し、ノートを整理する。",
-      subheading:
-        "Zotero のサイドパネルで PDF や EPUB について質問できます。回答に付いたページや章の引用から原文を開き、回答をノートに保存できます。ChatGPT、GitHub Copilot、互換 API、ローカルモデルに対応しています。",
-      primaryCta: "Releases からインストール",
-      secondaryCta: "ソースコードを見る",
-      tertiaryCta: "ドキュメントを読む",
-      metrics: [
-        { label: "料金", value: "無料・オープン" },
-        { label: "保存方式", value: "ローカル優先" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "利用シーン",
-      features: "できること",
-      install: "インストール",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Open Source",
-      heading: "継続的な研究作業に向けたプラグインです。",
-      items: [
-        {
-          title: "無料で公開、実装も確認しやすい",
-          body: "コード、ドキュメント、リリースは公開リポジトリにあり、導入、確認、報告、改善を続けやすくなっています。",
-        },
-        {
-          title: "読む流れを崩しにくい設計",
-          body: "質問、要約、翻訳、ノート保存を Zotero のサイドパネルで完結でき、外部チャット画面を行き来しません。",
-        },
-        {
-          title: "データと記憶はローカル優先",
-          body: "チャット履歴、記憶、認証状態はまずローカルに保存され、ユーザーデータ収集を前提にした設計ではありません。",
-        },
-      ],
-    },
-    story: {
-      kicker: "利用シーン",
-      heading: "読む、抜き出す、整理する流れに合わせて設計。",
-      body: "AIdea は、論文を精読し、引用箇所を抜き出し、比較しながらノートを残す人向けです。サイドパネルで質問し、PDF の該当箇所をそのまま文脈に渡し、役立つ結果をノートへ戻し、必要なら全文翻訳へ進めます。",
-      bullets: [
-        "同じサイドパネルを Library と PDF Reader の両方で使えます。",
-        "選択した PDF テキストを明示的な文脈として追加でき、回答が本文に寄りやすくなります。",
-        "有用な出力を一時的なチャットで終わらせず、Zotero に保存できます。",
-      ],
-      panelLabel: "サイドパネル",
-      panelCaption:
-        "現在のアイテムに紐づいたまま質問し、文脈を集め、ノートを整理できます。",
-      secondaryPanelLabel: "モデルとプロバイダー",
-      secondaryPanelCaption:
-        "サインイン、モデル切替、互換エンドポイント設定を 1 か所で行えます。",
-    },
-    featureSection: {
-      kicker: "主な機能",
-      heading: "論文読解で頻繁に発生する作業をまとめて扱えます。",
-      body: "AIdea は、原文に基づく質問、モデル切替、全文翻訳、そして有用な出力のノート保存といった、Zotero ユーザーが繰り返し使う部分に焦点を当てています。",
-      cards: [
-        {
-          title: "まず使い始めてから細かく調整",
-          body: "お手持ちの ChatGPT、GitHub Copilot のサブスクリプションで OAuth ログインするだけで始められます。API キーは不要です。",
-          meta: "導入しやすい",
-        },
-        {
-          title: "論文本文を前提に質問できる",
-          body: "PDF の選択箇所を直接文脈へ加えられるため、回答が原文から離れにくくなります。",
-          meta: "本文に寄せる",
-        },
-        {
-          title: "必要になれば全文翻訳も続けられる",
-          body: "レイアウトを保ったまま、対訳または単一言語の PDF を書き出せます。",
-          meta: "長文向け",
-        },
-        {
-          title: "複数モデルを接続",
-          body: "OpenAI、DeepSeek、OpenRouter など任意の OpenAI 互換 API に加え、Ollama、LM Studio、vLLM 経由のローカルモデルも利用でき、データを手元に置いたまま使えます。",
-          meta: "選択肢を保つ",
-        },
-        {
-          title: "ローカルの履歴と記憶",
-          body: "会話履歴と長期記憶は Zotero のローカルデータベースに保存され、継続的な研究プロジェクトに向いています。",
-          meta: "継続利用向け",
-        },
-        {
-          title: "役立つ結果を Zotero に戻す",
-          body: "Markdown、コードブロック、表、LaTeX 数式をできるだけ保ったまま Zotero に保存できます。",
-          meta: "結果を残せる",
-        },
-      ],
-    },
-    translation: {
-      kicker: "全文翻訳",
-      heading: "論文全体の翻訳も Zotero の中で続けられます。",
-      body: "ライブラリで複数の論文を選び、出力形式と保存先を確認して翻訳を開始します。訳文のみの PDF や対訳 PDF を Zotero に添付するか、フォルダーに保存できます。既定では不足している出力だけを作成します。",
-      tableCaption: "表 1 の英語・簡体字中国語の対訳。左右のページで各層の計算量を比較できます。",
-      diagramCaption: "全文翻訳では、構成図の中のラベルも翻訳できます。FactorMiner の図 1 で青い矢印をたどると、左の英語原図にある「Memory Retrieval」と「Library Update」が、右の簡体字中国語版では「记忆检索」と「库更新」になっています。",
-      panelAlt: "全文翻訳パネル",
-    },
-    install: {
-      kicker: "インストール",
-      heading: "数ステップで導入してすぐ使えます。",
-      body: "AIdea は GitHub Releases で .xpi として配布されています。ダウンロードして Zotero でファイルからインストールすれば使い始められます。プロジェクトは無料のオープンソースです。",
-      steps: [
-        "GitHub Releases から最新の .xpi をダウンロードします。",
-        "Zotero のアドオン画面で「ファイルからアドオンをインストール」を選びます。",
-        "Zotero を再起動し、AIdea サイドパネルの「設定 → モデル設定」で接続して、ライブラリまたはリーダーのサイドパネルから質問します。",
-      ],
-      note: "実装の確認、問題報告、改善への参加は GitHub リポジトリから行えます。",
-    },
-    footer: {
-      summary:
-        "AIdea は、AI を読書面の近くに置いたまま研究したい研究者、学生、知識労働者向けの無料・オープンソース Zotero プラグインです。",
-      releaseLabel: "プラグインを入手",
-      docsLabel: "ドキュメント",
-      githubLabel: "GitHub リポジトリ",
-      issuesLabel: "Issue を報告",
-      licenseLabel: "AGPL-3.0 ライセンス",
-      projectTitle: "プロジェクト情報",
-      communityTitle: "改善に参加",
-      communityBody:
-        "リリースの確認、問題報告、実装の確認をリポジトリ上で行えます。",
-    },
-  },
-  de: {
-    locale: "de",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea ist ein kostenloser Open-Source-KI-Assistent fuer Zotero: mit Papern chatten, markierten Text uebersetzen, ganze PDFs uebersetzen. Nutzbar mit dem vorhandenen ChatGPT- oder GitHub-Copilot-Abo (OAuth, kein API-Key), jeder OpenAI-kompatiblen API oder lokalen Modellen ueber Ollama und LM Studio.",
-    badge: "Kostenlos & Open Source",
-    hero: {
-      eyebrow: "Fuer Menschen, die Papers lesen, markieren und zusammenfassen",
-      heading: "In Zotero lesen, fragen und Notizen organisieren.",
-      subheading:
-        "Stellen Sie in der Zotero-Seitenleiste Fragen zu PDFs und EPUBs. Seiten- und Kapitelverweise führen zurück zur Quelle. Antworten können Sie als Notiz speichern. Verbinden Sie ChatGPT, GitHub Copilot, eine kompatible API oder ein lokales Modell.",
-      primaryCta: "Aus Releases installieren",
-      secondaryCta: "Quellcode ansehen",
-      tertiaryCta: "Dokumentation lesen",
-      metrics: [
-        { label: "Preis", value: "Kostenlos & offen" },
-        { label: "Speicherung", value: "Local-first" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "Einsatzfaelle",
-      features: "Funktionen",
-      install: "Installation",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Open Source",
-      heading: "Ein Plugin fuer den laufenden Forschungsalltag.",
-      items: [
-        {
-          title: "Kostenlos, offen und nachvollziehbar",
-          body: "Code, Dokumentation und Releases liegen in einem oeffentlichen Repository und lassen sich direkt pruefen und weiterentwickeln.",
-        },
-        {
-          title: "Auf den Leseprozess zugeschnitten",
-          body: "Fragen, Zusammenfassen, Uebersetzen und Notizexport bleiben in der Zotero-Seitenleiste statt in externen Chat-Fenstern.",
-        },
-        {
-          title: "Daten und Erinnerung lokal zuerst",
-          body: "Chatverlauf, Erinnerung und Auth-Status werden zuerst lokal gespeichert. Das Projekt basiert nicht auf Plattform-Datensammlung.",
-        },
-      ],
-    },
-    story: {
-      kicker: "Einsatzfaelle",
-      heading: "Entwickelt fuer Lesen, Exzerpieren und Ordnen in Zotero.",
-      body: "AIdea richtet sich an Menschen, die Papers genau lesen, Stellen markieren, Quellen vergleichen und ihre Notizen fortlaufend pflegen. Fragen in der Seitenleiste, Passagen aus dem PDF als Kontext hinzufuegen, Ergebnisse in Notizen zurueckschreiben und bei Bedarf in die Volltext-Uebersetzung wechseln.",
-      bullets: [
-        "Dieselbe Seitenleiste funktioniert in der Bibliothek und im PDF-Reader.",
-        "Markierter PDF-Text kann als expliziter Kontext hinzugefuegt werden, damit Antworten naeher am Original bleiben.",
-        "Nuetzliche Ergebnisse lassen sich in Zotero sichern statt in Einmal-Chatverlaeufen zu verschwinden.",
-      ],
-      panelLabel: "Seitenleisten-Workflow",
-      panelCaption:
-        "Fragen stellen, Kontext sammeln und Notizen direkt am aktuellen Eintrag halten.",
-      secondaryPanelLabel: "Modelle und Anbieter",
-      secondaryPanelCaption:
-        "Anmelden, Modelle wechseln und kompatible Endpunkte an einem Ort konfigurieren.",
-    },
-    featureSection: {
-      kicker: "Haeufige Aufgaben",
-      heading:
-        "Deckt die Aufgaben ab, die beim Lesen von Papers staendig auftauchen.",
-      body: "AIdea konzentriert sich auf die Teile des Workflows, zu denen Zotero-Nutzer immer wieder zurueckkehren: Fragen am Quelltext, Modellwechsel, Volltext-Uebersetzung und das Rueckspeichern nuetzlicher Ergebnisse in Notizen.",
-      cards: [
-        {
-          title: "Schnell starten und spaeter feiner einstellen",
-          body: "Mit dem vorhandenen ChatGPT- oder GitHub-Copilot-Abo per OAuth anmelden. Zum Start ist kein API-Key noetig.",
-          meta: "Schneller Einstieg",
-        },
-        {
-          title: "Fragen direkt am Paper",
-          body: "Ausgewaehlte PDF-Passagen lassen sich direkt in den Kontext legen, damit Antworten enger am Originaltext bleiben.",
-          meta: "Nah am Original",
-        },
-        {
-          title: "Auch fuer komplette Uebersetzungen geeignet",
-          body: "Zweisprachige oder einsprachige PDFs koennen exportiert werden, ohne das Layout der Arbeit zu verlieren.",
-          meta: "Gut fuer lange Texte",
-        },
-        {
-          title: "Mehrere Modellanbieter",
-          body: "Jede OpenAI-kompatible API funktioniert, etwa OpenAI, DeepSeek und OpenRouter, ebenso lokale Modelle ueber Ollama, LM Studio und vLLM, sodass die Daten auf dem eigenen Rechner bleiben koennen.",
-          meta: "Wahlfreiheit behalten",
-        },
-        {
-          title: "Lokaler Verlauf und Erinnerung",
-          body: "Gespräche und langfristige Erinnerung bleiben in Zotero's lokaler Datenbank und passen gut zu laenger laufenden Projekten.",
-          meta: "Fuer kontinuierliche Arbeit",
-        },
-        {
-          title: "Nuetzliche Ergebnisse in Zotero sichern",
-          body: "Markdown, Code, Tabellen und LaTeX koennen mit moeglichst viel Struktur nach Zotero zurueckgeschrieben werden.",
-          meta: "Ergebnisse behalten",
-        },
-      ],
-    },
-    translation: {
-      kicker: "Uebersetzung",
-      heading: "Auch Volltext-Uebersetzungen bleiben in Zotero.",
-      body: "Wählen Sie mehrere Artikel aus und prüfen Sie Ausgabeformate und Speicherorte. Die Warteschlange speichert übersetzte oder zweisprachige PDFs als Zotero-Anhänge oder in einem Ordner. Standardmäßig werden nur fehlende Dateien erstellt.",
-      tableCaption: "Tabelle 1 auf Englisch und in vereinfachtem Chinesisch. Vergleichen Sie den Rechenaufwand der Schichten auf beiden Seiten.",
-      diagramCaption: "Die Volltextübersetzung kann auch Beschriftungen in Architekturdiagrammen übersetzen. In Abbildung 1 von FactorMiner stehen links im englischen Original „Memory Retrieval“ und „Library Update“. An denselben blauen Pfeilen finden Sie rechts die chinesischen Übersetzungen „记忆检索“ und „库更新“.",
-      panelAlt: "Panel fuer Volltext-Uebersetzung",
-    },
-    install: {
-      kicker: "Installation",
-      heading: "In wenigen Schritten installiert und einsatzbereit.",
-      body: "AIdea wird ueber GitHub Releases als .xpi verteilt. Herunterladen, in Zotero aus einer Datei installieren und direkt verwenden. Das Projekt ist kostenlos und Open Source.",
-      steps: [
-        "Die neueste .xpi aus GitHub Releases herunterladen.",
-        "In Zotero „Add-on aus Datei installieren“ waehlen.",
-        "Starten Sie Zotero neu, verbinden Sie in den AIdea-Einstellungen ein Modell und stellen Sie eine Frage in der Seitenleiste.",
-      ],
-      note: "Implementierung, Fehlermeldungen und Verbesserungen sind direkt ueber das GitHub-Repository zugaenglich.",
-    },
-    footer: {
-      summary:
-        "AIdea ist ein kostenloses Open-Source-Zotero-Plugin fuer Forschende, Studierende und Wissensarbeiter, die KI moeglichst nah an der Leseflaeche nutzen moechten.",
-      releaseLabel: "Plugin installieren",
-      docsLabel: "Dokumentation",
-      githubLabel: "GitHub-Repository",
-      issuesLabel: "Issues melden",
-      licenseLabel: "AGPL-3.0 Lizenz",
-      projectTitle: "Projektlinks",
-      communityTitle: "Mitwirken",
-      communityBody:
-        "Releases verfolgen, Probleme melden und die Implementierung direkt im Repository nachvollziehen.",
-    },
-  },
-  fr: {
-    locale: "fr",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea est un assistant IA gratuit et open source pour Zotero : dialoguer avec les articles, traduire le texte selectionne, traduire des PDF entiers. Utilisable avec votre abonnement ChatGPT ou GitHub Copilot existant (OAuth, sans cle API), n'importe quelle API compatible OpenAI ou des modeles locaux via Ollama et LM Studio.",
-    badge: "Gratuit & Open Source",
-    hero: {
-      eyebrow:
-        "Pour celles et ceux qui lisent des articles, annotent et synthetisent",
-      heading: "Lire, questionner et organiser ses notes dans Zotero.",
-      subheading:
-        "Interrogez vos PDF et EPUB dans le panneau latéral de Zotero. Suivez une référence de page ou de chapitre pour relire la source, puis enregistrez la réponse dans une note. Connectez ChatGPT, GitHub Copilot, une API compatible ou un modèle local.",
-      primaryCta: "Installer depuis Releases",
-      secondaryCta: "Voir le code source",
-      tertiaryCta: "Lire la documentation",
-      metrics: [
-        { label: "Prix", value: "Gratuit & ouvert" },
-        { label: "Stockage", value: "Local-first" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "Usages",
-      features: "Fonctions",
-      install: "Installation",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Open Source",
-      heading: "Un plugin concu pour un usage de recherche durable.",
-      items: [
-        {
-          title: "Gratuit, ouvert et verifiable",
-          body: "Le code, la documentation et les versions publiees sont disponibles dans un depot public, ce qui facilite l'installation, la verification et l'amelioration continue.",
-        },
-        {
-          title: "Pense pour le flux de lecture",
-          body: "Questions, syntheses, traductions et export de notes restent dans le panneau lateral de Zotero au lieu de passer par des onglets externes.",
-        },
-        {
-          title: "Donnees et memoire d'abord en local",
-          body: "L'historique, la memoire et l'etat d'authentification sont stockes en priorite en local. Le projet n'est pas construit autour de la collecte de donnees plateforme.",
-        },
-      ],
-    },
-    story: {
-      kicker: "Usages",
-      heading:
-        "Concu pour les vrais gestes de lecture, d'extrait et d'organisation.",
-      body: "AIdea s'adresse aux personnes qui lisent attentivement, extraient des passages, comparent des sources et maintiennent leurs notes au fil du travail. On pose la question dans le panneau lateral, on joint un passage PDF comme contexte, on renvoie le resultat dans les notes et on peut poursuivre avec une traduction integrale.",
-      bullets: [
-        "Le meme panneau lateral fonctionne dans la bibliotheque et dans le lecteur PDF.",
-        "Le texte selectionne dans le PDF peut devenir un contexte explicite pour garder la reponse proche de la source.",
-        "Les sorties utiles peuvent etre enregistrees dans Zotero au lieu de disparaitre dans un chat temporaire.",
-      ],
-      panelLabel: "Flux lateral",
-      panelCaption:
-        "Poser une question, rattacher le contexte et garder les notes liees a l'item courant.",
-      secondaryPanelLabel: "Modeles et fournisseurs",
-      secondaryPanelCaption:
-        "Connexion, changement de modele et configuration d'endpoints compatibles au meme endroit.",
-    },
-    featureSection: {
-      kicker: "Taches courantes",
-      heading:
-        "Couvre les taches qui reviennent le plus souvent pendant la lecture d'articles.",
-      body: "AIdea se concentre sur les parties du flux auxquelles les utilisateurs de Zotero reviennent sans cesse : poser une question sur le texte source, changer de modele, traduire un article entier et enregistrer les sorties utiles dans les notes.",
-      cards: [
-        {
-          title: "Commencer vite, regler ensuite",
-          body: "Connectez-vous via OAuth avec votre abonnement ChatGPT ou GitHub Copilot existant. Aucune cle API n'est necessaire pour commencer.",
-          meta: "Demarrage rapide",
-        },
-        {
-          title: "Interroger le texte source",
-          body: "Les passages PDF selectionnes peuvent etre ajoutes directement au contexte afin que les reponses restent ancrees dans le document.",
-          meta: "Rester proche de la source",
-        },
-        {
-          title: "Poursuivre jusqu'a la traduction integrale",
-          body: "Des PDF bilingues ou monolingues peuvent etre exportes lorsque la tache devient la lecture complete d'un article.",
-          meta: "Utile pour les articles longs",
-        },
-        {
-          title: "Acces a plusieurs fournisseurs",
-          body: "Toute API compatible OpenAI fonctionne, dont OpenAI, DeepSeek et OpenRouter, ainsi que les modeles locaux via Ollama, LM Studio et vLLM, pour que vos donnees restent sur votre machine.",
-          meta: "Garder le choix",
-        },
-        {
-          title: "Historique et memoire locaux",
-          body: "Les conversations et la memoire longue duree restent dans la base locale de Zotero, ce qui convient mieux aux projets suivis sur plusieurs semaines.",
-          meta: "Bon pour la continuite",
-        },
-        {
-          title: "Renvoyer les sorties utiles dans Zotero",
-          body: "Markdown, blocs de code, tableaux et LaTeX peuvent etre reinjectes dans Zotero en preservant au mieux leur structure.",
-          meta: "Conserver le resultat",
-        },
-      ],
-    },
-    translation: {
-      kicker: "Traduction",
-      heading: "La traduction integrale peut rester dans Zotero.",
-      body: "Sélectionnez plusieurs articles, vérifiez les formats et les destinations, puis lancez la traduction. Joignez les PDF traduits ou bilingues aux notices Zotero ou enregistrez-les dans un dossier. Par défaut, seuls les fichiers manquants sont produits.",
-      tableCaption: "Le tableau 1 en anglais et en chinois simplifié. Comparez la complexité de calcul de chaque couche sur les deux pages.",
-      diagramCaption: "La traduction intégrale peut aussi traduire les libellés des schémas d’architecture. Dans la figure 1 de FactorMiner, suivez les flèches bleues entre « Memory Retrieval » et « Library Update » dans l’original anglais à gauche. Dans la version en chinois simplifié à droite, ces étapes portent les noms « 记忆检索 » et « 库更新 ».",
-      panelAlt: "Panneau de traduction integrale",
-    },
-    install: {
-      kicker: "Installation",
-      heading: "Quelques etapes suffisent pour commencer.",
-      body: "AIdea est distribue via GitHub Releases au format .xpi. Il suffit de le telecharger, de l'installer depuis un fichier dans Zotero et de commencer a l'utiliser. Le projet est gratuit et open source.",
-      steps: [
-        "Telecharger le dernier .xpi depuis GitHub Releases.",
-        "Choisir « Installer un module depuis un fichier » dans l'interface des modules de Zotero.",
-        "Redémarrez Zotero, connectez un modèle dans les paramètres d’AIdea, puis posez une question dans le panneau latéral.",
-      ],
-      note: "Le depot GitHub permet de consulter l'implementation, signaler un probleme et contribuer a l'amelioration du projet.",
-    },
-    footer: {
-      summary:
-        "AIdea est un plugin Zotero gratuit et open source pour les chercheurs, etudiants et travailleurs du savoir qui veulent garder l'assistance IA au plus pres de la surface de lecture.",
-      releaseLabel: "Installer le plugin",
-      docsLabel: "Documentation",
-      githubLabel: "Depot GitHub",
-      issuesLabel: "Signaler un probleme",
-      licenseLabel: "Licence AGPL-3.0",
-      projectTitle: "Liens du projet",
-      communityTitle: "Contribuer",
-      communityBody:
-        "Suivez les releases, remontez les problemes et examinez l'implementation directement dans le depot.",
-    },
-  },
-  "zh-TW": {
-    locale: "zh-TW",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea 是免費開源的 Zotero AI 助手：論文對話、劃詞翻譯、全文翻譯。支援用現有的 ChatGPT、GitHub Copilot 訂閱帳號登入（OAuth，無需 API Key），也支援任意 OpenAI 相容 API 與 Ollama、LM Studio 等本地模型。",
-    badge: "免費開源 Zotero 外掛",
-    hero: {
-      eyebrow: "給長期讀論文、做筆記、寫綜述的人",
-      heading: "在 Zotero 裡讀論文、提問和整理筆記。",
-      subheading:
-        "在 Zotero 側邊欄針對 PDF 與 EPUB 提問，點選頁碼或章節引用回到原文，並將回答存為筆記。可透過 ChatGPT 或 GitHub Copilot 登入，也可連接相容 API 或本機模型。",
-      primaryCta: "安裝外掛",
-      secondaryCta: "查看原始碼",
-      tertiaryCta: "閱讀文件",
-      metrics: [
-        { label: "價格", value: "免費開源" },
-        { label: "儲存方式", value: "本地優先" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "適用場景",
-      features: "主要能力",
-      install: "如何安裝",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "開源專案",
-      heading: "一個適合長期使用的研究外掛。",
-      items: [
-        {
-          title: "免費開源，可直接查看原始碼",
-          body: "外掛程式碼、文件與發布版本都在公開倉庫中，適合自行安裝、檢查、回報與持續改進。",
-        },
-        {
-          title: "盡量不打斷論文閱讀流程",
-          body: "提問、總結、解釋、翻譯與筆記整理都留在 Zotero 側欄，不需要在多個網頁之間來回切換。",
-        },
-        {
-          title: "資料與記憶本地優先",
-          body: "聊天記錄、記憶與授權狀態優先保存在本地，外掛本身不做平台式使用者資料蒐集。",
-        },
-      ],
-    },
-    story: {
-      kicker: "適用場景",
-      heading: "圍繞閱讀、摘錄與整理的實際流程設計。",
-      body: "AIdea 面向的是正在閱讀、摘錄、比對與整理論文的人。你可以在 Zotero 側欄裡提問，把 PDF 選段直接帶進上下文，把結果寫回筆記，必要時再繼續做全文翻譯。",
-      bullets: [
-        "同一套側欄在資料庫檢視和 PDF 閱讀器裡都可使用。",
-        "選段可直接進入上下文，讓回答更貼近原文而不是泛泛總結。",
-        "有用的結果可以持續沉澱到 Zotero 筆記裡，而不是停在一次性聊天記錄中。",
-      ],
-      panelLabel: "側欄問答",
-      panelCaption: "圍繞目前條目與論文正文繼續提問、整理和記錄。",
-      secondaryPanelLabel: "模型與提供商",
-      secondaryPanelCaption:
-        "登入、切換模型與設定相容介面都在同一個面板中完成。",
-    },
-    featureSection: {
-      kicker: "主要能力",
-      heading: "涵蓋論文閱讀中最常見的任務。",
-      body: "AIdea 主要覆蓋 Zotero 使用者最常回到的幾類任務：圍繞原文提問、切換模型、全文翻譯，以及把結果沉澱回筆記。",
-      cards: [
-        {
-          title: "先用起來，再慢慢調整設定",
-          body: "用現有的 ChatGPT、GitHub Copilot 訂閱帳號透過 OAuth 登入即可開始，無需 API Key。",
-          meta: "先用起來",
-        },
-        {
-          title: "圍繞原文提問",
-          body: "PDF 選段可以明確加入上下文，讓回答盡量貼近論文具體段落，而不是脫離原文泛泛總結。",
-          meta: "更貼近論文",
-        },
-        {
-          title: "需要整篇翻譯時也能繼續做",
-          body: "支援雙語或單語 PDF 輸出，適合需要通讀外文論文並保留版面結構的場景。",
-          meta: "適合長文",
-        },
-        {
-          title: "多模型入口",
-          body: "支援 OpenAI、DeepSeek、OpenRouter 等任意 OpenAI 相容 API，也支援透過 Ollama、LM Studio、vLLM 使用本地模型，資料不出本機。",
-          meta: "保留選擇自由",
-        },
-        {
-          title: "本地聊天與記憶",
-          body: "聊天記錄與長期記憶保存在 Zotero 本地資料庫中，更適合持續幾週或幾個月的研究專案。",
-          meta: "適合長期累積",
-        },
-        {
-          title: "把結果沉澱回 Zotero",
-          body: "Markdown、程式碼區塊、表格與 LaTeX 數學公式都能較完整地回寫到 Zotero 筆記中。",
-          meta: "結果能留下來",
-        },
-      ],
-    },
-    translation: {
-      kicker: "全文翻譯",
-      heading: "整篇翻譯也能留在 Zotero 內完成。",
-      body: "在文獻庫中選取多篇論文，確認格式與儲存位置後啟動佇列。可將單語或雙語 PDF 存為 Zotero 附件或匯出至資料夾。預設只補齊缺少的譯本。",
-      tableCaption: "表 1 的英文與簡體中文對照譯本。可逐行核對各層的計算複雜度。",
-      diagramCaption: "全文翻譯也能翻譯架構圖中的文字。FactorMiner 圖 1 左側是英文原圖，右側是簡體中文譯圖。沿著藍色箭頭對照兩側，可以看到「Memory Retrieval」譯為「记忆检索」，「Library Update」譯為「库更新」。",
-      panelAlt: "全文翻譯面板",
-    },
-    install: {
-      kicker: "安裝方式",
-      heading: "幾步安裝，直接開始使用。",
-      body: "AIdea 透過 GitHub Releases 分發 .xpi 安裝包。下載後在 Zotero 中從檔案安裝即可使用，整個專案免費開源。",
-      steps: [
-        "從 GitHub Releases 下載最新 .xpi 檔案。",
-        "在 Zotero 的外掛程式的齒輪選單中選擇「從檔案安裝」。",
-        "重新啟動 Zotero，開啟右側 AIdea 面板，在「設定 → 模型設定」中連接模型，然後到文獻庫或閱讀器側邊欄提問。",
-      ],
-      note: "如果你想了解實作方式、回報問題或參與改進，可以直接在 GitHub 倉庫查看原始碼、Issue 與發布記錄。",
-    },
-    footer: {
-      summary:
-        "AIdea 是一個免費開源的 Zotero 外掛，服務對象是希望在論文閱讀現場使用 AI 的研究者、學生與知識工作者。",
-      releaseLabel: "安裝外掛",
-      docsLabel: "專案文件",
-      githubLabel: "GitHub 倉庫",
-      issuesLabel: "問題回報",
-      licenseLabel: "AGPL-3.0 授權",
-      projectTitle: "專案入口",
-      communityTitle: "參與改進",
-      communityBody:
-        "歡迎透過 Issue 回報問題、查看發布記錄，或直接在倉庫中了解實作細節。",
-    },
-  },
-  ko: {
-    locale: "ko",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea는 Zotero를 위한 무료 오픈소스 AI 어시스턴트입니다. 논문과 대화, 선택 텍스트 번역, PDF 전체 번역을 지원합니다. 기존 ChatGPT, GitHub Copilot 구독(OAuth, API 키 불필요), 모든 OpenAI 호환 API, Ollama와 LM Studio 같은 로컬 모델을 사용할 수 있습니다.",
-    badge: "무료 오픈소스",
-    hero: {
-      eyebrow: "논문을 읽고, 메모하고, 리뷰를 쓰는 사람들을 위해",
-      heading: "Zotero 안에서 읽고, 묻고, 노트를 정리하세요.",
-      subheading:
-        "Zotero 사이드 패널에서 PDF와 EPUB에 관해 질문하세요. 답변에 표시된 페이지나 장을 눌러 원문을 확인하고 답변을 노트로 저장할 수 있습니다. ChatGPT, GitHub Copilot, 호환 API 또는 로컬 모델을 연결할 수 있습니다.",
-      primaryCta: "Releases에서 설치",
-      secondaryCta: "소스 코드 보기",
-      tertiaryCta: "문서 읽기",
-      metrics: [
-        { label: "가격", value: "무료 오픈소스" },
-        { label: "저장 방식", value: "로컬 우선" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "활용 장면",
-      features: "주요 기능",
-      install: "설치 방법",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "오픈소스 프로젝트",
-      heading: "오랫동안 쓰기 좋은 연구 플러그인.",
-      items: [
-        {
-          title: "무료이고 공개되어 바로 확인 가능",
-          body: "코드, 문서, 릴리스가 모두 공개 저장소에 있어 직접 설치하고 검토하고 이슈를 남기며 계속 개선할 수 있습니다.",
-        },
-        {
-          title: "읽는 흐름을 최대한 끊지 않음",
-          body: "질문, 요약, 번역, 노트 정리가 Zotero 사이드 패널 안에 남아 있어 외부 채팅 탭을 오갈 필요가 없습니다.",
-        },
-        {
-          title: "데이터와 메모리는 로컬 우선",
-          body: "대화 기록, 메모리, 인증 상태는 우선 로컬에 저장되며 플랫폼형 사용자 데이터 수집을 전제로 하지 않습니다.",
-        },
-      ],
-    },
-    story: {
-      kicker: "활용 장면",
-      heading: "읽기, 발췌, 정리의 실제 흐름에 맞춰 설계했습니다.",
-      body: "AIdea는 논문을 읽고, 필요한 부분을 발췌하고, 자료를 비교하며 노트를 쌓아 가는 사람을 위한 도구입니다. 사이드 패널에서 질문하고, PDF 구절을 그대로 문맥에 넣고, 유용한 결과를 노트로 돌려보내고, 필요하면 전체 문서 번역으로 이어갈 수 있습니다.",
-      bullets: [
-        "같은 사이드 패널이 라이브러리 보기와 PDF 리더 양쪽에서 동작합니다.",
-        "선택한 PDF 텍스트를 직접 문맥에 넣어 답변이 원문에 더 가깝게 유지됩니다.",
-        "유용한 출력은 일회성 채팅 기록에 머물지 않고 Zotero로 다시 저장할 수 있습니다.",
-      ],
-      panelLabel: "사이드 패널 흐름",
-      panelCaption:
-        "현재 항목에 연결된 상태로 질문하고, 문맥을 붙이고, 노트를 남깁니다.",
-      secondaryPanelLabel: "모델과 제공자",
-      secondaryPanelCaption:
-        "로그인, 모델 전환, 호환 엔드포인트 설정을 한곳에서 처리합니다.",
-    },
-    featureSection: {
-      kicker: "주요 기능",
-      heading: "논문을 읽을 때 자주 마주치는 작업을 다룹니다.",
-      body: "AIdea는 Zotero 사용자가 반복해서 하게 되는 핵심 흐름에 집중합니다. 원문 기반 질문, 모델 전환, 논문 전체 번역, 그리고 유용한 결과를 노트에 남기는 작업입니다.",
-      cards: [
-        {
-          title: "복잡한 설정 전에 먼저 써볼 수 있음",
-          body: "기존 ChatGPT, GitHub Copilot 구독으로 OAuth 로그인하면 바로 시작할 수 있습니다. API 키가 필요 없습니다.",
-          meta: "빠르게 시작",
-        },
-        {
-          title: "논문 본문을 기준으로 질문",
-          body: "선택한 PDF 구절을 직접 문맥에 붙여 답변이 원문에서 멀어지지 않도록 돕습니다.",
-          meta: "원문에 밀착",
-        },
-        {
-          title: "전체 번역이 필요해져도 계속 이어짐",
-          body: "레이아웃을 유지한 이중 언어 또는 단일 언어 PDF를 내보낼 수 있어 긴 논문을 끝까지 읽는 데 유용합니다.",
-          meta: "긴 문서에 적합",
-        },
-        {
-          title: "여러 제공자 연결",
-          body: "OpenAI, DeepSeek, OpenRouter 등 모든 OpenAI 호환 API를 쓸 수 있고, Ollama, LM Studio, vLLM을 통한 로컬 모델도 지원하므로 데이터를 내 컴퓨터에 둘 수 있습니다.",
-          meta: "선택권 유지",
-        },
-        {
-          title: "로컬 대화 기록과 메모리",
-          body: "대화와 장기 메모리가 Zotero의 로컬 데이터베이스에 남아 장기 연구 프로젝트와 잘 맞습니다.",
-          meta: "지속적인 연구에 적합",
-        },
-        {
-          title: "유용한 결과를 Zotero로 다시 저장",
-          body: "Markdown, 코드 블록, 표, LaTeX 수식을 구조를 최대한 유지한 채 Zotero로 되돌릴 수 있습니다.",
-          meta: "결과를 남김",
-        },
-      ],
-    },
-    translation: {
-      kicker: "전체 번역",
-      heading: "논문 전체 번역도 Zotero 안에서 이어갈 수 있습니다.",
-      body: "라이브러리에서 여러 논문을 선택한 뒤 출력 형식과 저장 위치를 확인하고 번역을 시작합니다. 번역문 전용 또는 원문 대조 PDF를 Zotero에 첨부하거나 폴더에 저장할 수 있습니다. 기본값으로는 누락된 결과만 생성합니다.",
-      tableCaption: "표 1의 영어 원문과 중국어 간체 번역을 나란히 놓고 각 층의 계산 복잡도를 비교할 수 있습니다.",
-      diagramCaption: "전문 번역은 구조도 안의 문구도 번역할 수 있습니다. FactorMiner의 그림 1에서 파란색 화살표를 따라가면 왼쪽 영어 원문의 “Memory Retrieval”과 “Library Update”가 오른쪽 중국어 간체 번역에서는 각각 “记忆检索”와 “库更新”으로 표시됩니다.",
-      panelAlt: "전체 번역 패널",
-    },
-    install: {
-      kicker: "설치 방법",
-      heading: "몇 단계만으로 바로 사용할 수 있습니다.",
-      body: "AIdea는 GitHub Releases를 통해 .xpi로 배포됩니다. 파일을 내려받아 Zotero에서 설치하면 바로 사용할 수 있습니다. 프로젝트는 무료 오픈소스입니다.",
-      steps: [
-        "GitHub Releases에서 최신 .xpi 파일을 다운로드합니다.",
-        "Zotero의 부가 기능 화면에서 '파일에서 설치'를 선택합니다.",
-        "Zotero를 다시 시작하고 AIdea 사이드 패널의 설정 → 모델 설정에서 연결한 뒤 라이브러리나 리더의 사이드 패널에서 질문합니다.",
-      ],
-      note: "구현을 확인하거나 문제를 제보하거나 개선에 참여하고 싶다면 GitHub 저장소에서 코드, 이슈, 릴리스를 바로 확인할 수 있습니다.",
-    },
-    footer: {
-      summary:
-        "AIdea는 논문을 읽는 자리 가까이에서 AI를 쓰고 싶은 연구자, 학생, 지식 노동자를 위한 무료 오픈소스 Zotero 플러그인입니다.",
-      releaseLabel: "플러그인 설치",
-      docsLabel: "문서",
-      githubLabel: "GitHub 저장소",
-      issuesLabel: "문제 제보",
-      licenseLabel: "AGPL-3.0 라이선스",
-      projectTitle: "프로젝트 링크",
-      communityTitle: "기여하기",
-      communityBody:
-        "릴리스를 확인하고 문제를 제보하며 구현을 직접 살펴볼 수 있습니다.",
-    },
-  },
-  es: {
-    locale: "es",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea es un asistente de IA gratuito y de código abierto para Zotero: chatea con los artículos, traduce el texto seleccionado y traduce PDF completos. Usa tu suscripción existente de ChatGPT o GitHub Copilot (OAuth, sin clave API), cualquier API compatible con OpenAI o modelos locales mediante Ollama y LM Studio.",
-    badge: "Gratis y de código abierto",
-    hero: {
-      eyebrow: "Para quienes leen artículos, toman notas y escriben revisiones",
-      heading: "Lee, pregunta y organiza tus notas dentro de Zotero.",
-      subheading:
-        "Haz preguntas sobre PDF y EPUB desde el panel lateral de Zotero. Sigue una cita hasta la página o el capítulo original y guarda la respuesta en una nota. Conecta ChatGPT, GitHub Copilot, una API compatible o un modelo local.",
-      primaryCta: "Instalar desde Releases",
-      secondaryCta: "Ver el código",
-      tertiaryCta: "Leer la documentación",
-      metrics: [
-        { label: "Precio", value: "Gratis y abierto" },
-        { label: "Almacenamiento", value: "Local primero" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "Casos de uso",
-      features: "Funciones",
-      install: "Instalación",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Código abierto",
-      heading: "Un complemento de investigación pensado para el uso continuo.",
-      items: [
-        {
-          title: "Gratis, abierto y fácil de inspeccionar",
-          body: "El código, la documentación y las versiones publicadas viven en un repositorio público para que cualquiera pueda instalarlo, revisarlo, reportar problemas y mejorarlo con el tiempo.",
-        },
-        {
-          title: "Diseñado para no romper el flujo de lectura",
-          body: "Preguntar, resumir, traducir y exportar notas sucede dentro del panel lateral de Zotero en lugar de depender de pestañas externas.",
-        },
-        {
-          title: "Datos y memoria, primero en local",
-          body: "El historial, la memoria y el estado de autenticación se guardan primero en local; el proyecto no gira alrededor de recolectar datos de usuarios.",
-        },
-      ],
-    },
-    story: {
-      kicker: "Casos de uso",
-      heading: "Pensado para el trabajo real de leer, extraer y organizar.",
-      body: "AIdea está hecho para quienes leen con atención, extraen pasajes, comparan fuentes y mantienen notas mientras avanzan. Puedes preguntar en el panel lateral, adjuntar fragmentos exactos del PDF, devolver resultados útiles a tus notas y pasar a la traducción completa cuando haga falta.",
-      bullets: [
-        "El mismo panel lateral funciona tanto en la biblioteca como en el lector PDF.",
-        "El texto seleccionado del PDF puede entrar directamente en el contexto para que la respuesta se mantenga cerca de la fuente.",
-        "Los resultados útiles pueden guardarse de nuevo en Zotero en lugar de perderse en un chat temporal.",
-      ],
-      panelLabel: "Flujo en panel lateral",
-      panelCaption:
-        "Pregunta, añade contexto y conserva las notas ligadas al elemento actual.",
-      secondaryPanelLabel: "Modelos y proveedores",
-      secondaryPanelCaption:
-        "Inicia sesión, cambia de modelo o configura endpoints compatibles en un solo lugar.",
-    },
-    featureSection: {
-      kicker: "Tareas comunes",
-      heading: "Cubre las tareas que más se repiten al leer artículos.",
-      body: "AIdea se centra en la parte del flujo a la que los usuarios de Zotero vuelven una y otra vez: preguntar sobre el texto fuente, cambiar de modelo, traducir artículos completos y guardar resultados útiles en las notas.",
-      cards: [
-        {
-          title: "Empieza a usarlo antes de una configuración pesada",
-          body: "Inicia sesión mediante OAuth con tu suscripción existente de ChatGPT o GitHub Copilot. No necesitas una clave API para empezar.",
-          meta: "Inicio rápido",
-        },
-        {
-          title: "Pregunta sobre el propio artículo",
-          body: "Los pasajes seleccionados del PDF pueden adjuntarse directamente al contexto para que la respuesta no se aparte del texto original.",
-          meta: "Cerca del texto",
-        },
-        {
-          title: "Sigue cuando la tarea pasa a ser traducción completa",
-          body: "Puedes exportar PDF bilingües o monolingües cuando necesites leer un artículo entero sin perder la estructura de la maquetación.",
-          meta: "Útil para textos largos",
-        },
-        {
-          title: "Conexión con varios proveedores",
-          body: "Funciona con cualquier API compatible con OpenAI, como OpenAI, DeepSeek y OpenRouter, y con modelos locales mediante Ollama, LM Studio y vLLM, para que tus datos se queden en tu equipo.",
-          meta: "Mantener la libertad de elegir",
-        },
-        {
-          title: "Historial y memoria locales",
-          body: "Las conversaciones y la memoria de largo plazo permanecen en la base de datos local de Zotero, algo más adecuado para proyectos de investigación prolongados.",
-          meta: "Mejor para la continuidad",
-        },
-        {
-          title: "Guarda la salida útil en Zotero",
-          body: "Markdown, bloques de código, tablas y fórmulas LaTeX pueden volver a Zotero conservando gran parte de su estructura.",
-          meta: "Conservar resultados",
-        },
-      ],
-    },
-    translation: {
-      kicker: "Traducción",
-      heading:
-        "La traducción completa también puede quedarse dentro de Zotero.",
-      body: "Selecciona varios artículos y revisa los formatos y destinos antes de iniciar la cola. Guarda los PDF traducidos o bilingües como adjuntos de Zotero o en una carpeta. Por defecto, solo se generan los archivos que faltan.",
-      tableCaption: "La tabla 1 en inglés y chino simplificado permite comparar la complejidad de cálculo de cada capa en ambas páginas.",
-      diagramCaption: "La traducción del documento completo también puede traducir las etiquetas de los diagramas de arquitectura. En la figura 1 de FactorMiner, las flechas azules conectan «Memory Retrieval» y «Library Update» en el original inglés de la izquierda. A la derecha, las mismas etapas aparecen como «记忆检索» y «库更新» en chino simplificado.",
-      panelAlt: "Panel de traducción completa",
-    },
-    install: {
-      kicker: "Instalación",
-      heading: "Bastan unos pocos pasos para empezar.",
-      body: "AIdea se distribuye como archivo .xpi a través de GitHub Releases. Descárgalo, instálalo desde archivo en Zotero y empieza a usarlo. El proyecto es gratuito y de código abierto.",
-      steps: [
-        "Descarga el archivo .xpi más reciente desde GitHub Releases.",
-        "Elige 'Instalar complemento desde archivo' en la interfaz de complementos de Zotero.",
-        "Reinicia Zotero, conecta un modelo en los ajustes de AIdea y haz una pregunta desde el panel lateral.",
-      ],
-      note: "Si quieres revisar la implementación, reportar un problema o contribuir, puedes hacerlo directamente desde el repositorio en GitHub.",
-    },
-    footer: {
-      summary:
-        "AIdea es un complemento gratuito y de código abierto para Zotero dirigido a investigadores, estudiantes y profesionales del conocimiento que quieren usar IA cerca de la superficie de lectura.",
-      releaseLabel: "Instalar complemento",
-      docsLabel: "Documentación",
-      githubLabel: "Repositorio en GitHub",
-      issuesLabel: "Reportar problema",
-      licenseLabel: "Licencia AGPL-3.0",
-      projectTitle: "Enlaces del proyecto",
-      communityTitle: "Contribuir",
-      communityBody:
-        "Sigue las releases, reporta problemas y revisa la implementación directamente en el repositorio.",
-    },
-  },
-  ru: {
-    locale: "ru",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea — бесплатный ИИ-ассистент с открытым кодом для Zotero: диалог со статьями, перевод выделенного текста, перевод целых PDF. Используйте существующую подписку ChatGPT или GitHub Copilot (OAuth, без API-ключа), любой OpenAI-совместимый API или локальные модели через Ollama и LM Studio.",
-    badge: "Бесплатно и с открытым кодом",
-    hero: {
-      eyebrow: "Для тех, кто читает статьи, делает заметки и пишет обзоры",
-      heading: "Читайте статьи, задавайте вопросы и ведите заметки в Zotero.",
-      subheading:
-        "Задавайте вопросы по PDF и EPUB в боковой панели Zotero. По ссылке в ответе можно перейти к странице или главе, а сам ответ сохранить в заметку. Подключите ChatGPT, GitHub Copilot, совместимый API или локальную модель.",
-      primaryCta: "Установить из Releases",
-      secondaryCta: "Посмотреть код",
-      tertiaryCta: "Читать документацию",
-      metrics: [
-        { label: "Стоимость", value: "Бесплатно и открыто" },
-        { label: "Хранение", value: "Сначала локально" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "Сценарии",
-      features: "Возможности",
-      install: "Установка",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Открытый код",
-      heading: "Исследовательский плагин для длительной работы.",
-      items: [
-        {
-          title: "Бесплатный, открытый и легко проверяемый",
-          body: "Код, документация и релизы находятся в публичном репозитории, поэтому плагин можно установить, проверить, сообщить о проблеме и постепенно улучшать.",
-        },
-        {
-          title: "Не ломает поток чтения",
-          body: "Вопросы, сводки, перевод и экспорт заметок остаются в боковой панели Zotero вместо внешних вкладок и чатов.",
-        },
-        {
-          title: "Данные и память прежде всего локально",
-          body: "История чатов, память и состояние авторизации сначала сохраняются локально; проект не построен вокруг сбора пользовательских данных.",
-        },
-      ],
-    },
-    story: {
-      kicker: "Сценарии",
-      heading:
-        "Спроектирован под реальный процесс чтения, выписок и организации материалов.",
-      body: "AIdea рассчитан на тех, кто внимательно читает статьи, выделяет фрагменты, сравнивает источники и параллельно ведет заметки. Можно задавать вопросы в боковой панели, прикреплять точные фрагменты PDF, возвращать полезные результаты в заметки и при необходимости переходить к переводу всей статьи.",
-      bullets: [
-        "Одна и та же боковая панель работает и в библиотеке, и в PDF-ридере.",
-        "Выделенный текст PDF можно напрямую добавлять в контекст, чтобы ответы оставались ближе к источнику.",
-        "Полезные результаты можно сохранять обратно в Zotero, а не терять в разовом чате.",
-      ],
-      panelLabel: "Рабочий процесс в боковой панели",
-      panelCaption:
-        "Задавайте вопросы, прикрепляйте контекст и сохраняйте заметки рядом с текущим источником.",
-      secondaryPanelLabel: "Модели и провайдеры",
-      secondaryPanelCaption:
-        "Вход, переключение моделей и настройка совместимых эндпоинтов в одном месте.",
-    },
-    featureSection: {
-      kicker: "Типовые задачи",
-      heading:
-        "Закрывает задачи, которые чаще всего возникают при чтении статей.",
-      body: "AIdea сосредоточен на частях рабочего процесса, к которым пользователи Zotero возвращаются постоянно: вопросы по исходному тексту, переключение моделей, перевод всей статьи и сохранение полезного вывода в заметки.",
-      cards: [
-        {
-          title: "Можно начать до сложной настройки",
-          body: "Войдите через OAuth с существующей подпиской ChatGPT или GitHub Copilot. Для начала API-ключ не нужен.",
-          meta: "Быстрый старт",
-        },
-        {
-          title: "Вопросы по самому тексту статьи",
-          body: "Выделенные фрагменты PDF можно прикреплять прямо в контекст, чтобы ответы не уходили в сторону от исходного текста.",
-          meta: "Ближе к источнику",
-        },
-        {
-          title: "Можно продолжить, когда задача превращается в полный перевод",
-          body: "Поддерживается экспорт двуязычных и одноязычных PDF, если нужно читать статью целиком и сохранить верстку.",
-          meta: "Полезно для длинных текстов",
-        },
-        {
-          title: "Подключение разных провайдеров",
-          body: "Подходит любой OpenAI-совместимый API, включая OpenAI, DeepSeek и OpenRouter, а также локальные модели через Ollama, LM Studio и vLLM, чтобы данные оставались на вашем компьютере.",
-          meta: "Сохраняет свободу выбора",
-        },
-        {
-          title: "Локальная история и память",
-          body: "Диалоги и долговременная память остаются в локальной базе Zotero, что лучше подходит для длительных исследовательских проектов.",
-          meta: "Подходит для длительной работы",
-        },
-        {
-          title: "Возвращайте полезные результаты в Zotero",
-          body: "Markdown, блоки кода, таблицы и формулы LaTeX можно записывать обратно в Zotero с сохранением значительной части структуры.",
-          meta: "Сохраняет результат",
-        },
-      ],
-    },
-    translation: {
-      kicker: "Перевод",
-      heading: "Полный перевод статьи тоже может оставаться внутри Zotero.",
-      body: "Выберите несколько статей и проверьте форматы и места сохранения перед запуском очереди. PDF с переводом или с параллельным текстом можно прикрепить к записям Zotero или сохранить в папку. По умолчанию создаются только недостающие файлы.",
-      tableCaption: "Таблица 1 на английском и упрощённом китайском. Сопоставьте вычислительную сложность слоёв на двух страницах.",
-      diagramCaption: "При переводе полного текста можно перевести и подписи внутри схемы. На рисунке 1 из статьи FactorMiner синие стрелки связывают этапы «Memory Retrieval» и «Library Update» в английском оригинале слева. Справа те же этапы подписаны на упрощённом китайском как «记忆检索» и «库更新».",
-      panelAlt: "Панель полного перевода",
-    },
-    install: {
-      kicker: "Установка",
-      heading: "Несколько шагов — и можно начинать работу.",
-      body: "AIdea распространяется через GitHub Releases в виде файла .xpi. Скачайте его, установите из файла в Zotero и сразу начинайте пользоваться. Проект бесплатный и с открытым кодом.",
-      steps: [
-        "Скачайте последний файл .xpi из GitHub Releases.",
-        "В интерфейсе дополнений Zotero выберите «Установить дополнение из файла».",
-        "Перезапустите Zotero, подключите модель в настройках AIdea и задайте вопрос в боковой панели.",
-      ],
-      note: "Если хотите изучить реализацию, сообщить о проблеме или помочь проекту, всё это можно сделать прямо в репозитории GitHub.",
-    },
-    footer: {
-      summary:
-        "AIdea — это бесплатный плагин Zotero с открытым кодом для исследователей, студентов и специалистов по знаниям, которые хотят использовать ИИ рядом с поверхностью чтения.",
-      releaseLabel: "Установить плагин",
-      docsLabel: "Документация",
-      githubLabel: "Репозиторий GitHub",
-      issuesLabel: "Сообщить о проблеме",
-      licenseLabel: "Лицензия AGPL-3.0",
-      projectTitle: "Ссылки проекта",
-      communityTitle: "Участвовать",
-      communityBody:
-        "Следите за релизами, сообщайте о проблемах и смотрите реализацию прямо в репозитории.",
-    },
-  },
-  pt: {
-    locale: "pt",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea é um assistente de IA gratuito e de código aberto para Zotero: converse com artigos, traduza o texto selecionado e traduza PDFs inteiros. Use sua assinatura existente do ChatGPT ou GitHub Copilot (OAuth, sem chave de API), qualquer API compatível com OpenAI ou modelos locais via Ollama e LM Studio.",
-    badge: "Gratuito e de código aberto",
-    hero: {
-      eyebrow: "Para quem lê artigos, faz anotações e escreve revisões",
-      heading: "Leia, pergunte e organize notas dentro do Zotero.",
-      subheading:
-        "Faça perguntas sobre PDFs e EPUBs na barra lateral do Zotero. Siga uma referência até a página ou o capítulo original e salve a resposta em uma nota. Conecte o ChatGPT, o GitHub Copilot, uma API compatível ou um modelo local.",
-      primaryCta: "Instalar via Releases",
-      secondaryCta: "Ver o código",
-      tertiaryCta: "Ler a documentação",
-      metrics: [
-        { label: "Preço", value: "Gratuito e aberto" },
-        { label: "Armazenamento", value: "Local primeiro" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "Casos de uso",
-      features: "Recursos",
-      install: "Instalação",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "Código aberto",
-      heading: "Um plugin de pesquisa pensado para uso contínuo.",
-      items: [
-        {
-          title: "Gratuito, aberto e fácil de inspecionar",
-          body: "Código, documentação e releases ficam em um repositório público, o que facilita instalar, verificar, relatar problemas e melhorar o projeto ao longo do tempo.",
-        },
-        {
-          title: "Feito para não interromper o fluxo de leitura",
-          body: "Perguntas, resumos, tradução e exportação de notas permanecem no painel lateral do Zotero em vez de depender de abas externas.",
-        },
-        {
-          title: "Dados e memória primeiro no local",
-          body: "Histórico, memória e estado de autenticação são armazenados primeiro localmente; o projeto não foi construído em torno da coleta de dados de plataforma.",
-        },
-      ],
-    },
-    story: {
-      kicker: "Casos de uso",
-      heading:
-        "Projetado para o trabalho real de leitura, extração e organização.",
-      body: "AIdea foi feito para quem lê com cuidado, extrai trechos, compara fontes e mantém notas ao longo do processo. Pergunte no painel lateral, anexe passagens exatas do PDF, devolva resultados úteis para as notas e siga para a tradução completa quando necessário.",
-      bullets: [
-        "O mesmo painel lateral funciona tanto na biblioteca quanto no leitor de PDF.",
-        "O texto selecionado no PDF pode entrar diretamente no contexto para manter a resposta próxima da fonte.",
-        "Resultados úteis podem ser salvos de volta no Zotero em vez de desaparecerem em um chat temporário.",
-      ],
-      panelLabel: "Fluxo no painel lateral",
-      panelCaption:
-        "Pergunte, anexe contexto e mantenha as notas ligadas ao item atual.",
-      secondaryPanelLabel: "Modelos e provedores",
-      secondaryPanelCaption:
-        "Login, troca de modelo e configuração de endpoints compatíveis no mesmo lugar.",
-    },
-    featureSection: {
-      kicker: "Tarefas comuns",
-      heading:
-        "Cobre as tarefas que aparecem com mais frequência na leitura de artigos.",
-      body: "AIdea foca nas partes do fluxo às quais usuários de Zotero sempre retornam: perguntar sobre o texto-fonte, alternar modelos, traduzir artigos completos e salvar saídas úteis de volta nas notas.",
-      cards: [
-        {
-          title: "Comece a usar antes da configuração pesada",
-          body: "Entre via OAuth com sua assinatura existente do ChatGPT ou GitHub Copilot. Nenhuma chave de API é necessária para começar.",
-          meta: "Início rápido",
-        },
-        {
-          title: "Pergunte sobre o próprio artigo",
-          body: "Trechos selecionados do PDF podem ser anexados diretamente ao contexto para que as respostas permaneçam próximas do texto original.",
-          meta: "Perto da fonte",
-        },
-        {
-          title: "Continue quando a tarefa virar tradução completa",
-          body: "Exporte PDFs bilíngues ou monolíngues quando precisar ler um artigo inteiro sem perder a estrutura do layout.",
-          meta: "Útil para textos longos",
-        },
-        {
-          title: "Conexão com vários provedores",
-          body: "Qualquer API compatível com OpenAI funciona, incluindo OpenAI, DeepSeek e OpenRouter, assim como modelos locais via Ollama, LM Studio e vLLM, para que seus dados fiquem na sua máquina.",
-          meta: "Manter liberdade de escolha",
-        },
-        {
-          title: "Histórico e memória locais",
-          body: "Conversas e memória de longo prazo ficam no banco de dados local do Zotero, o que combina melhor com projetos de pesquisa contínuos.",
-          meta: "Melhor para continuidade",
-        },
-        {
-          title: "Guarde resultados úteis no Zotero",
-          body: "Markdown, blocos de código, tabelas e fórmulas LaTeX podem voltar ao Zotero preservando boa parte da estrutura.",
-          meta: "Conservar resultados",
-        },
-      ],
-    },
-    translation: {
-      kicker: "Tradução",
-      heading: "A tradução integral também pode permanecer dentro do Zotero.",
-      body: "Selecione vários artigos e confira os formatos e destinos antes de iniciar a fila. Salve PDFs traduzidos ou bilíngues como anexos do Zotero ou em uma pasta. Por padrão, só são gerados os arquivos que faltam.",
-      tableCaption: "A tabela 1 em inglês e chinês simplificado permite comparar a complexidade computacional de cada camada nas duas páginas.",
-      diagramCaption: "A tradução do documento completo também pode traduzir os rótulos de diagramas de arquitetura. Na figura 1 do FactorMiner, siga as setas azuis entre “Memory Retrieval” e “Library Update” no original em inglês, à esquerda. À direita, as mesmas etapas aparecem em chinês simplificado como “记忆检索” e “库更新”.",
-      panelAlt: "Painel de tradução integral",
-    },
-    install: {
-      kicker: "Instalação",
-      heading: "Bastam alguns passos para começar.",
-      body: "AIdea é distribuído pelo GitHub Releases como arquivo .xpi. Basta baixar, instalar a partir de um arquivo no Zotero e começar a usar. O projeto é gratuito e de código aberto.",
-      steps: [
-        "Baixe o arquivo .xpi mais recente em GitHub Releases.",
-        "Escolha 'Instalar complemento a partir de arquivo' na interface de complementos do Zotero.",
-        "Reinicie o Zotero, conecte um modelo nas configurações do AIdea e faça uma pergunta na barra lateral.",
-      ],
-      note: "Se quiser revisar a implementação, relatar um problema ou contribuir, tudo isso pode ser feito diretamente no repositório do GitHub.",
-    },
-    footer: {
-      summary:
-        "AIdea é um plugin Zotero gratuito e de código aberto para pesquisadores, estudantes e trabalhadores do conhecimento que querem manter a IA perto da superfície de leitura.",
-      releaseLabel: "Instalar plugin",
-      docsLabel: "Documentação",
-      githubLabel: "Repositório GitHub",
-      issuesLabel: "Relatar problema",
-      licenseLabel: "Licença AGPL-3.0",
-      projectTitle: "Links do projeto",
-      communityTitle: "Contribuir",
-      communityBody:
-        "Acompanhe releases, relate problemas e examine a implementação diretamente no repositório.",
-    },
-  },
-  ar: {
-    locale: "ar",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea مساعد ذكاء اصطناعي مجاني ومفتوح المصدر لبرنامج Zotero: الدردشة مع المقالات، وترجمة النص المحدد، وترجمة ملفات PDF كاملة. استخدم اشتراكك الحالي في ChatGPT أو GitHub Copilot (عبر OAuth، بلا مفتاح API)، أو أي واجهة API متوافقة مع OpenAI، أو النماذج المحلية عبر Ollama وLM Studio.",
-    badge: "مجاني ومفتوح المصدر",
-    hero: {
-      eyebrow: "لمن يقرؤون الأوراق العلمية ويكتبون الملاحظات والمراجعات",
-      heading: "اقرأ واسأل ونظّم ملاحظاتك داخل Zotero.",
-      subheading:
-        "اطرح أسئلة حول ملفات PDF وEPUB من الشريط الجانبي في Zotero. اتبع الإحالة إلى الصفحة أو الفصل ثم احفظ الإجابة في ملاحظة. يمكنك الاتصال عبر ChatGPT أو GitHub Copilot أو واجهة API متوافقة أو نموذج محلي.",
-      primaryCta: "التثبيت من Releases",
-      secondaryCta: "عرض الشفرة المصدرية",
-      tertiaryCta: "قراءة التوثيق",
-      metrics: [
-        { label: "السعر", value: "مجاني ومفتوح" },
-        { label: "التخزين", value: "محلي أولاً" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "حالات الاستخدام",
-      features: "القدرات",
-      install: "التثبيت",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "مفتوح المصدر",
-      heading: "إضافة بحثية مناسبة للاستخدام المستمر.",
-      items: [
-        {
-          title: "مجانية ومفتوحة وسهلة الفحص",
-          body: "الشفرة والتوثيق والإصدارات موجودة في مستودع عام، لذلك يمكن تثبيتها وفحصها والإبلاغ عن المشاكل وتحسينها مع الوقت.",
-        },
-        {
-          title: "مصممة حتى لا تقطع تدفق القراءة",
-          body: "الأسئلة والملخصات والترجمة وتصدير الملاحظات تبقى داخل اللوحة الجانبية في Zotero بدلاً من التنقل بين نوافذ دردشة خارجية.",
-        },
-        {
-          title: "البيانات والذاكرة محلياً أولاً",
-          body: "سجل المحادثات والذاكرة وحالة المصادقة تُحفظ محلياً أولاً، والمشروع لا يعتمد على جمع بيانات المستخدمين كمنصة.",
-        },
-      ],
-    },
-    story: {
-      kicker: "حالات الاستخدام",
-      heading: "مصمم لسير العمل الحقيقي في القراءة والاقتباس والتنظيم.",
-      body: "AIdea موجه لمن يقرأون بتمعن ويقتبسون المقاطع ويقارنون المصادر ويحافظون على ملاحظاتهم أثناء العمل. يمكنك طرح السؤال من اللوحة الجانبية، وإدخال مقاطع PDF الدقيقة في السياق، وإعادة النتائج المفيدة إلى الملاحظات، ثم الانتقال إلى ترجمة المقال كاملاً عند الحاجة.",
-      bullets: [
-        "اللوحة الجانبية نفسها تعمل في عرض المكتبة وفي قارئ PDF.",
-        "يمكن جعل النص المحدد من PDF جزءاً مباشراً من السياق حتى تبقى الإجابات قريبة من المصدر.",
-        "يمكن حفظ النتائج المفيدة مرة أخرى في Zotero بدلاً من ضياعها في محادثة مؤقتة.",
-      ],
-      panelLabel: "سير العمل في اللوحة الجانبية",
-      panelCaption: "اسأل، وأضف السياق، وأبقِ الملاحظات متصلة بالمصدر الحالي.",
-      secondaryPanelLabel: "النماذج والمزودون",
-      secondaryPanelCaption:
-        "تسجيل الدخول وتبديل النماذج وضبط نقاط النهاية المتوافقة في مكان واحد.",
-    },
-    featureSection: {
-      kicker: "المهام الشائعة",
-      heading: "يغطي المهام التي تتكرر كثيراً أثناء قراءة الأوراق العلمية.",
-      body: "يركز AIdea على الأجزاء التي يعود إليها مستخدمو Zotero باستمرار: السؤال عن النص الأصلي، وتبديل النماذج، وترجمة المقال كاملاً، وحفظ النتائج المفيدة داخل الملاحظات.",
-      cards: [
-        {
-          title: "ابدأ باستخدامه قبل الضبط المعقد",
-          body: "سجّل الدخول عبر OAuth باشتراكك الحالي في ChatGPT أو GitHub Copilot. لا حاجة إلى مفتاح API للبدء.",
-          meta: "بداية سريعة",
-        },
-        {
-          title: "اسأل انطلاقاً من المقال نفسه",
-          body: "يمكن إرفاق المقاطع المحددة من PDF مباشرة بالسياق حتى تبقى الإجابات مرتبطة بالنص الأصلي.",
-          meta: "أقرب إلى المصدر",
-        },
-        {
-          title: "استمر عندما تتحول المهمة إلى ترجمة كاملة",
-          body: "يمكن تصدير ملفات PDF ثنائية اللغة أو أحادية اللغة عندما تحتاج إلى قراءة المقال كاملاً مع الحفاظ على بنية التنسيق.",
-          meta: "مفيد للمقالات الطويلة",
-        },
-        {
-          title: "اتصال بعدة مزودين",
-          body: "تعمل أي واجهة API متوافقة مع OpenAI، بما في ذلك OpenAI وDeepSeek وOpenRouter، وكذلك النماذج المحلية عبر Ollama وLM Studio وvLLM، لتبقى بياناتك على جهازك.",
-          meta: "الحفاظ على حرية الاختيار",
-        },
-        {
-          title: "سجل محلي وذاكرة محلية",
-          body: "المحادثات والذاكرة طويلة المدى تبقى في قاعدة بيانات Zotero المحلية، وهو ما يناسب المشاريع البحثية المستمرة بشكل أفضل.",
-          meta: "أفضل للاستمرارية",
-        },
-        {
-          title: "أعد النتائج المفيدة إلى Zotero",
-          body: "يمكن إرجاع Markdown وكتل الشفرة والجداول وصيغ LaTeX إلى Zotero مع الحفاظ قدر الإمكان على بنيتها.",
-          meta: "الاحتفاظ بالنتائج",
-        },
-      ],
-    },
-    translation: {
-      kicker: "الترجمة",
-      heading: "حتى ترجمة المقال كاملاً يمكن أن تبقى داخل Zotero.",
-      body: "حدد عدة أوراق وراجع صيغ الإخراج ووجهات الحفظ قبل بدء قائمة الانتظار. يمكنك إرفاق ملفات PDF المترجمة أو الثنائية اللغة بعناصر Zotero أو حفظها في مجلد. تُنشأ الملفات الناقصة فقط بشكل افتراضي.",
-      tableCaption: "الجدول 1 بالإنجليزية والصينية المبسطة جنبًا إلى جنب لمقارنة التعقيد الحسابي لكل طبقة.",
-      diagramCaption: "يمكن لترجمة النص الكامل أن تترجم أيضًا تسميات مخططات البنية. تتبّع الأسهم الزرقاء في الشكل 1 من ورقة FactorMiner. تظهر المرحلتان «Memory Retrieval» و«Library Update» في الأصل الإنجليزي على اليسار، وتقابلهما «记忆检索» و«库更新» في الترجمة الصينية المبسطة على اليمين.",
-      panelAlt: "لوحة الترجمة الكاملة",
-    },
-    install: {
-      kicker: "التثبيت",
-      heading: "بضع خطوات فقط للبدء.",
-      body: "يتم توزيع AIdea عبر GitHub Releases كملف .xpi. قم بتنزيله، وثبّته من ملف داخل Zotero، وابدأ الاستخدام مباشرة. المشروع مجاني ومفتوح المصدر.",
-      steps: [
-        "نزّل أحدث ملف .xpi من GitHub Releases.",
-        "اختر 'تثبيت إضافة من ملف' من واجهة إضافات Zotero.",
-        "أعد تشغيل Zotero واربط نموذجاً في إعدادات AIdea ثم اطرح سؤالاً من الشريط الجانبي.",
-      ],
-      note: "إذا أردت مراجعة التنفيذ أو الإبلاغ عن مشكلة أو المساهمة في التطوير، فيمكنك فعل ذلك مباشرة من مستودع GitHub.",
-    },
-    footer: {
-      summary:
-        "AIdea إضافة Zotero مجانية ومفتوحة المصدر للباحثين والطلاب والعاملين في المعرفة الذين يريدون إبقاء الذكاء الاصطناعي قريباً من سطح القراءة.",
-      releaseLabel: "تثبيت الإضافة",
-      docsLabel: "التوثيق",
-      githubLabel: "مستودع GitHub",
-      issuesLabel: "الإبلاغ عن مشكلة",
-      licenseLabel: "رخصة AGPL-3.0",
-      projectTitle: "روابط المشروع",
-      communityTitle: "المساهمة",
-      communityBody:
-        "تابع الإصدارات، وأبلغ عن المشاكل، وافحص التنفيذ مباشرة من المستودع.",
-    },
-  },
-  hi: {
-    locale: "hi",
-    title: "AIdea for Zotero",
-    description:
-      "AIdea Zotero के लिए एक मुफ्त और मुक्त-स्रोत AI सहायक है: शोध-पत्रों से चैट करें, चुने हुए टेक्स्ट का अनुवाद करें, पूरी PDF का अनुवाद करें। अपनी मौजूदा ChatGPT या GitHub Copilot सदस्यता (OAuth, API कुंजी की ज़रूरत नहीं), कोई भी OpenAI-संगत API, या Ollama और LM Studio जैसे स्थानीय मॉडल इस्तेमाल करें।",
-    badge: "मुफ्त और मुक्त-स्रोत",
-    hero: {
-      eyebrow: "उन लोगों के लिए जो शोध-पत्र पढ़ते हैं, नोट्स बनाते हैं और समीक्षाएँ लिखते हैं",
-      heading: "Zotero के भीतर पढ़ें, पूछें और नोट्स व्यवस्थित करें।",
-      subheading:
-        "Zotero के साइड पैनल में PDF और EPUB के बारे में सवाल पूछें। उत्तर में दिए पृष्ठ या अध्याय के संदर्भ से मूल पाठ खोलें और उत्तर को नोट में सहेजें। ChatGPT, GitHub Copilot, संगत API या स्थानीय मॉडल से जुड़ें।",
-      primaryCta: "Releases से इंस्टॉल करें",
-      secondaryCta: "सोर्स कोड देखें",
-      tertiaryCta: "दस्तावेज़ पढ़ें",
-      metrics: [
-        { label: "कीमत", value: "मुफ्त और खुला" },
-        { label: "संग्रहण", value: "लोकल-फर्स्ट" },
-        { label: "Zotero", value: "7–10" },
-      ],
-    },
-    nav: {
-      story: "उपयोग के दृश्य",
-      features: "मुख्य क्षमताएँ",
-      install: "इंस्टॉल करें",
-      github: "GitHub",
-    },
-    trust: {
-      kicker: "मुक्त-स्रोत",
-      heading: "लंबे समय की शोध-प्रक्रिया के लिए बना प्लगइन।",
-      items: [
-        {
-          title: "मुफ्त, खुला और आसानी से जाँचने योग्य",
-          body: "कोड, दस्तावेज़ और रिलीज़ सार्वजनिक रिपॉज़िटरी में हैं, इसलिए इसे इंस्टॉल करना, जाँचना, समस्या बताना और बेहतर बनाना आसान है।",
-        },
-        {
-          title: "पढ़ने का प्रवाह टूटने नहीं देता",
-          body: "सवाल, सारांश, अनुवाद और नोट निर्यात सब Zotero के साइड पैनल में रहते हैं, अलग चैट टैब में नहीं।",
-        },
-        {
-          title: "डेटा और मेमोरी लोकल-फर्स्ट",
-          body: "चैट इतिहास, मेमोरी और प्रमाणीकरण की स्थिति पहले लोकल रूप से संग्रहीत होती है; यह परियोजना प्लेटफ़ॉर्म-आधारित उपयोगकर्ता डेटा संग्रह पर नहीं बनी है।",
-        },
-      ],
-    },
-    story: {
-      kicker: "उपयोग के दृश्य",
-      heading: "पढ़ने, अंश निकालने और व्यवस्थित करने के असली प्रवाह के लिए बना।",
-      body: "AIdea उन लोगों के लिए है जो ध्यान से पढ़ते हैं, अंश निकालते हैं, स्रोतों की तुलना करते हैं और साथ-साथ नोट्स सँभालते हैं। साइड पैनल में पूछिए, सटीक PDF अंश को संदर्भ में जोड़िए, उपयोगी परिणामों को नोट्स में वापस भेजिए और ज़रूरत पड़ने पर पूरे दस्तावेज़ के अनुवाद तक जाइए।",
-      bullets: [
-        "वही साइड पैनल लाइब्रेरी व्यू और PDF रीडर दोनों में काम करता है।",
-        "चुना हुआ PDF पाठ सीधे संदर्भ का हिस्सा बन सकता है ताकि जवाब स्रोत के करीब रहे।",
-        "उपयोगी परिणाम Zotero में वापस सहेजे जा सकते हैं, वे केवल अस्थायी चैट में नहीं खोते।",
-      ],
-      panelLabel: "साइड-पैनल कार्यप्रवाह",
-      panelCaption: "सवाल पूछिए, संदर्भ जोड़िए और मौजूदा आइटम से जुड़े नोट्स बनाए रखिए।",
-      secondaryPanelLabel: "मॉडल और प्रदाता",
-      secondaryPanelCaption:
-        "साइन इन, मॉडल बदलना और संगत एंडपॉइंट की सेटिंग एक ही जगह पर।",
-    },
-    featureSection: {
-      kicker: "मुख्य क्षमताएँ",
-      heading: "शोध-पत्र पढ़ते समय बार-बार आने वाले काम सँभालता है।",
-      body: "AIdea उन हिस्सों पर ध्यान देता है जहाँ Zotero उपयोगकर्ता सबसे ज़्यादा लौटते हैं: स्रोत-पाठ पर सवाल पूछना, मॉडल बदलना, पूरे शोध-पत्र का अनुवाद करना और उपयोगी परिणामों को नोट्स में सहेजना।",
-      cards: [
-        {
-          title: "भारी सेटअप से पहले भी इस्तेमाल शुरू करें",
-          body: "अपनी मौजूदा ChatGPT या GitHub Copilot सदस्यता से OAuth के ज़रिए साइन इन करें। शुरू करने के लिए API कुंजी की ज़रूरत नहीं है।",
-          meta: "तेज़ शुरुआत",
-        },
-        {
-          title: "शोध-पत्र के पाठ पर आधारित सवाल",
-          body: "चुने हुए PDF अंश सीधे संदर्भ में जोड़े जा सकते हैं ताकि जवाब मूल पाठ से दूर न जाए।",
-          meta: "स्रोत के करीब",
-        },
-        {
-          title: "काम पूरे अनुवाद में बदल जाए तब भी जारी रखें",
-          body: "द्विभाषी या एक-भाषी PDF निर्यात किए जा सकते हैं जब आपको पूरा शोध-पत्र पढ़ना हो और लेआउट बचाए रखना हो।",
-          meta: "लंबे पाठ के लिए उपयोगी",
-        },
-        {
-          title: "कई प्रदाताओं तक पहुँच",
-          body: "OpenAI, DeepSeek और OpenRouter सहित कोई भी OpenAI-संगत API चलती है, साथ ही Ollama, LM Studio और vLLM के ज़रिए स्थानीय मॉडल भी, ताकि आपका डेटा आपकी मशीन पर ही रहे।",
-          meta: "चयन बनाए रखें",
-        },
-        {
-          title: "लोकल चैट इतिहास और मेमोरी",
-          body: "बातचीत और दीर्घकालिक मेमोरी Zotero के लोकल डेटाबेस में रहती है, जो चलती शोध-परियोजनाओं के लिए अधिक उपयुक्त है।",
-          meta: "लंबे प्रोजेक्ट के लिए बेहतर",
-        },
-        {
-          title: "उपयोगी परिणाम Zotero में वापस सहेजें",
-          body: "Markdown, कोड ब्लॉक, तालिकाएँ और LaTeX गणित को उनकी काफी संरचना के साथ Zotero में वापस लिखा जा सकता है।",
-          meta: "नतीजा सँभालें",
-        },
-      ],
-    },
-    translation: {
-      kicker: "अनुवाद",
-      heading: "पूरे शोध-पत्र का अनुवाद भी Zotero के भीतर रह सकता है।",
-      body: "लाइब्रेरी में कई शोध-पत्र चुनें और कतार शुरू करने से पहले आउटपुट का प्रारूप और स्थान जाँचें। केवल अनुवाद वाले या द्विभाषी PDF को Zotero में संलग्न करें या फ़ोल्डर में सहेजें। डिफ़ॉल्ट रूप से केवल छूटी हुई फ़ाइलें बनती हैं।",
-      tableCaption: "तालिका 1 में अंग्रेज़ी और सरलीकृत चीनी साथ-साथ हैं। दोनों पन्नों पर हर परत की गणनात्मक जटिलता की तुलना करें।",
-      diagramCaption: "पूरे दस्तावेज़ का अनुवाद करते समय संरचना आरेख के लेबल भी अनूदित हो सकते हैं। FactorMiner के चित्र 1 में नीले तीरों को देखें। बाईं ओर अंग्रेज़ी मूल में “Memory Retrieval” और “Library Update” हैं। दाईं ओर सरलीकृत चीनी में इन्हीं चरणों के नाम “记忆检索” और “库更新” हैं।",
-      panelAlt: "पूर्ण-दस्तावेज़ अनुवाद पैनल",
-    },
-    install: {
-      kicker: "इंस्टॉल करें",
-      heading: "कुछ ही चरणों में शुरू करें।",
-      body: "AIdea GitHub Releases के ज़रिए .xpi के रूप में मिलता है। फ़ाइल डाउनलोड कीजिए, Zotero में फ़ाइल से इंस्टॉल कीजिए और उपयोग शुरू कीजिए। परियोजना मुफ्त और मुक्त-स्रोत है।",
-      steps: [
-        "GitHub Releases से नवीनतम .xpi फ़ाइल डाउनलोड कीजिए।",
-        "Zotero के ऐड-ऑन इंटरफ़ेस में 'Install Plugin From File' चुनिए।",
-        "Zotero फिर से खोलें, AIdea की सेटिंग में मॉडल जोड़ें और साइड पैनल में सवाल पूछें।",
-      ],
-      note: "अगर आप कार्यान्वयन देखना, समस्या रिपोर्ट करना या योगदान देना चाहते हैं, तो GitHub रिपॉज़िटरी में कोड, issues और releases सब मिल जाएँगे।",
-    },
-    footer: {
-      summary:
-        "AIdea शोधकर्ताओं, छात्रों और ज्ञान-कर्मियों के लिए एक मुफ्त मुक्त-स्रोत Zotero प्लगइन है, जो पढ़ने की सतह के पास ही AI रखना चाहते हैं।",
-      releaseLabel: "प्लगइन इंस्टॉल करें",
-      docsLabel: "दस्तावेज़",
-      githubLabel: "GitHub रिपॉज़िटरी",
-      issuesLabel: "समस्या रिपोर्ट करें",
-      licenseLabel: "AGPL-3.0 लाइसेंस",
-      projectTitle: "परियोजना लिंक",
-      communityTitle: "योगदान दें",
-      communityBody:
-        "Releases देखें, समस्याएँ रिपोर्ट करें और कार्यान्वयन को सीधे रिपॉज़िटरी में देखिए।",
-    },
-  },
-};
+} satisfies Record<Locale, Record<string, string>>;

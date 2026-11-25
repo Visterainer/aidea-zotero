@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://visterainer.github.io/aidea-zotero/ko/">프로젝트 웹사이트</a> · <a href="../../doc/user-guide/ko.md">사용 설명서</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">다운로드</a>
+  <a href="https://visterainer.github.io/aidea-zotero/">프로젝트 웹사이트</a> · <a href="https://visterainer.github.io/aidea-zotero/guide/">사용 설명서</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">다운로드</a>
 </p>
 
 **AIdea는 Zotero 7–10용 무료 오픈 소스 읽기 도우미입니다.** PDF나 EPUB의 한 구절에 관해 질문하고, 인용된 원문을 확인한 뒤, 필요한 설명을 문헌 노트로 남길 수 있습니다.

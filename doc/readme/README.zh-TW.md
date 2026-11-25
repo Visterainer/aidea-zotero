@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://visterainer.github.io/aidea-zotero/zh-tw/">專案網站</a> · <a href="../../doc/user-guide/zh-TW.md">使用手冊</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">下載</a>
+  <a href="https://visterainer.github.io/aidea-zotero/">專案網站</a> · <a href="https://visterainer.github.io/aidea-zotero/guide/">使用手冊</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">下載</a>
 </p>
 
 **AIdea 是適用於 Zotero 7–10 的免費開源 AI 閱讀助手。** 閱讀 PDF 或 EPUB 時，可以針對段落提問，從回答中的引用回到原文，再把解釋存為文獻筆記。

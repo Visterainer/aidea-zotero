@@ -2,6 +2,8 @@
 
 AIdea 4.0.2 · Zotero 7–10
 
+[网页版使用手册 · Online user guide](https://visterainer.github.io/aidea-zotero/guide/)
+
 - [简体中文](./zh-CN.md)
 - [繁體中文](./zh-TW.md)
 - [English](./en.md)

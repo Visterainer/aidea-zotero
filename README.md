@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://visterainer.github.io/aidea-zotero/en/">Project website</a> · <a href="doc/user-guide/en.md">User guide</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">Download</a>
+  <a href="https://visterainer.github.io/aidea-zotero/">Project website</a> · <a href="https://visterainer.github.io/aidea-zotero/guide/">User guide</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">Download</a>
 </p>
 
 **AIdea is a free, open-source reading assistant for Zotero 7–10.** Ask about a passage in a PDF or EPUB, follow a citation back to the source, and keep the explanation in a note attached to the paper.

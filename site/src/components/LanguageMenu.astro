@@ -1,0 +1,45 @@
+---
+import { entryPath, languageOptions, getLocaleDefinition, type Locale, type Surface } from "../i18n";
+import { pageContent } from "../content";
+const { lang, surface } = Astro.props as { lang: Locale; surface: Surface };
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const copy = pageContent[lang];
+---
+<details class="language-menu">
+  <summary aria-label={copy.language + " · " + getLocaleDefinition(lang).label}>
+    <span aria-hidden="true">◎</span> {getLocaleDefinition(lang).label} <span aria-hidden="true">▾</span>
+  </summary>
+  <nav aria-label={copy.language}>
+    {languageOptions(surface).map(({code, label, href}) => (
+      <a href={base + href} lang={code} hreflang={code} data-language-choice={code} aria-current={code === lang ? "page" : undefined}>
+        {label}{code === lang && <span aria-hidden="true">✓</span>}
+      </a>
+    ))}
+    <a class="follow-browser" data-language-choice="auto" href={base + entryPath(surface)}>{copy.auto}</a>
+  </nav>
+</details>
+<script is:inline>
+  document.querySelectorAll(".language-menu").forEach(menu => {
+    menu.addEventListener("click", event => {
+      const choice = event.target.closest("[data-language-choice]")?.dataset.languageChoice;
+      if (!choice) return;
+      try {
+        if (choice === "auto") localStorage.removeItem("aidea-zotero.language");
+        else localStorage.setItem("aidea-zotero.language", choice);
+      } catch {}
+    });
+    document.addEventListener("click", event => { if (!menu.contains(event.target)) menu.open = false; });
+    menu.addEventListener("keydown", event => {
+      if (event.key === "Escape") { menu.open = false; menu.querySelector("summary").focus(); }
+    });
+  });
+</script>
+<style>
+  .language-menu {position:relative;z-index:6;font:500 .9rem/1.4 var(--body-font);color:#243733}
+  summary {list-style:none;cursor:pointer;display:flex;align-items:center;gap:.45rem;padding:.5rem .65rem;border:1px solid #d4ded8;border-radius:.45rem;background:#fff}
+  summary::-webkit-details-marker {display:none}
+  nav {position:absolute;inset-inline-end:0;top:calc(100% + .4rem);min-width:11rem;max-height:65vh;overflow:auto;padding:.3rem;background:white;border:1px solid #d4ded8;border-radius:.5rem;box-shadow:0 12px 30px #14362d1a}
+  a {display:flex;justify-content:space-between;gap:1rem;padding:.45rem .65rem;text-decoration:none;color:inherit}
+  a:hover,a[aria-current] {background:#eaf4ef}
+  .follow-browser {border-top:1px solid #d4ded8}
+</style>

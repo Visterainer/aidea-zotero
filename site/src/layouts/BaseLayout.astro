@@ -18,7 +18,7 @@ const withBase = (value: string) => `${baseRoot}${value.replace(/^\//, "")}`;
 const normalize = (value: string) =>
   `${siteUrl}${withBase(value)}`.replace(/([^:]\/)\/+/g, "$1");
 const canonical = normalize(path);
-const themeColor = "#f3efe7";
+const themeColor = "#fafbf7";
 const keywords = [
   "Zotero",
   "Zotero plugin",
@@ -42,12 +42,12 @@ const keywords = [
 ].join(", ");
 const locale = getLocaleDefinition(lang);
 const socialImage = normalize(
-  locale.usesChineseMedia ? "/media/reader/chat-zh-CN.jpg" : "/media/reader/chat-en-US.jpg",
+  locale.usesChineseMedia ? "/media/reader/chat-zh-CN.jpg" : "/media/reader/window-chat-en-US.jpg",
 );
 ---
 
 <!doctype html>
-<html lang={lang}>
+<html lang={lang} dir={locale.dir}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

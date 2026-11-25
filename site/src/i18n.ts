@@ -16,7 +16,7 @@ export type LocaleDefinition = {
   code: Locale;
   label: string;
   href: string;
-  routeSegment: string | null;
+  routeSegment: string;
   ogLocale: string;
   usesChineseMedia: boolean;
   dir: "ltr" | "rtl";
@@ -35,8 +35,8 @@ export const localeDefinitions: LocaleDefinition[] = [
   {
     code: "zh-CN",
     label: "简体中文",
-    href: "/",
-    routeSegment: null,
+    href: "/zh-cn/",
+    routeSegment: "zh-cn",
     ogLocale: "zh_CN",
     usesChineseMedia: true,
     dir: "ltr",
@@ -133,11 +133,13 @@ export const localeDefinitions: LocaleDefinition[] = [
   },
 ];
 
-export const localeOptions = localeDefinitions.map(({ code, label, href }) => ({
-  code,
-  label,
-  href,
-}));
+export const guideLocales: readonly Locale[] = ["zh-CN", "zh-TW", "en", "ja", "ko", "fr"];
+
+export type Surface = "home" | "guide";
+export const entryPath = (surface: Surface) => surface === "home" ? "/" : "/guide/";
+export const languageOptions = (surface: Surface) => localeDefinitions
+  .filter(({ code }) => surface === "home" || guideLocales.includes(code))
+  .map(({ code, label, href }) => ({ code, label, href: surface === "home" ? href : `/guide/${code}/` }));
 
 export const getLocaleDefinition = (code: Locale) => {
   const locale = localeDefinitions.find((item) => item.code === code);

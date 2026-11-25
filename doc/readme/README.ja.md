@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://visterainer.github.io/aidea-zotero/ja/">プロジェクトサイト</a> · <a href="../../doc/user-guide/ja.md">使い方</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">ダウンロード</a>
+  <a href="https://visterainer.github.io/aidea-zotero/">プロジェクトサイト</a> · <a href="https://visterainer.github.io/aidea-zotero/guide/">使い方</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">ダウンロード</a>
 </p>
 
 **AIdea は Zotero 7–10 対応の無料オープンソース読書アシスタントです。** PDF や EPUB の一節について質問し、引用から原文に戻り、役立つ説明を文献のノートに残せます。

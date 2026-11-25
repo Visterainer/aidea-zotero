@@ -1,6 +1,7 @@
 ---
 import { createMarkdownProcessor } from "@astrojs/markdown-remark";
 import { getLocaleDefinition, type Locale } from "../../i18n";
+import LanguageMenu from "../../components/LanguageMenu.astro";
 import "../../styles/global.css";
 
 export function getStaticPaths() {
@@ -27,12 +28,11 @@ const source = Astro.props.source
   .replace(/\(\.\/([\w-]+)\.md\)/g, `(${base}/guide/$1/)`);
 // The Markdown edition keeps its own language row and contents for GitHub.
 const [opening, contents, ...chapters] = source.split(/(?=^## )/m);
-const [titleLine, languages, ...introduction] = opening.trim().split(/\n\s*\n/);
+const [titleLine, , ...introduction] = opening.trim().split(/\n\s*\n/);
 const title = titleLine.replace(/^# /, "");
 const processor = await createMarkdownProcessor({ syntaxHighlight: false });
-const [titleBlock, languageRow, lead, directory, article] = await Promise.all([
+const [titleBlock, lead, directory, article] = await Promise.all([
   processor.render(titleLine),
-  processor.render(languages),
   processor.render(introduction.join("\n\n")),
   processor.render(contents),
   processor.render(chapters.join("")),
@@ -59,7 +59,7 @@ for (const heading of article.metadata.headings) {
         <a class="guide-brand" href={`${base}${locale.href}`}>
           <img src={`${base}/media/icon-96.png`} width="32" height="32" alt="" /> AIdea
         </a>
-        <nav class="guide-languages" aria-label="简体中文 · 繁體中文 · English · 日本語 · 한국어 · Français" set:html={languageRow.code} />
+        <LanguageMenu lang={locale.code} surface="guide" />
       </div>
     </header>
     <div class="guide-layout">
@@ -145,10 +145,6 @@ for (const heading of article.metadata.headings) {
   .guide-header { background: #faf8f4; border-bottom: 1px solid #e3ddd5; }
   .guide-bar { min-height: 4.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
   .guide-brand { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.35rem; font-weight: 700; }
-  .guide-languages p { margin: 0; color: #62584f; font-size: .9rem; line-height: 2; }
-  .guide-languages a { padding: .25rem .15rem; }
-  .guide-languages strong { color: #47372d; }
-  .guide-languages a:hover, .guide-brand:hover { text-decoration: underline; }
   .guide-layout { display: grid; grid-template-columns: clamp(14rem, 18vw, 18rem) minmax(0, 1fr); gap: clamp(1.5rem, 3vw, 3.5rem); align-items: start; }
   .guide-sidebar { position: sticky; top: 0; padding-block: 2rem; max-height: 100vh; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
   .guide-sidebar summary { cursor: pointer; font-weight: 700; color: #44372d; padding: .4rem .6rem; }

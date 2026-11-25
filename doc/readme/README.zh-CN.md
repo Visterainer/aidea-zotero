@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://visterainer.github.io/aidea-zotero/">项目网站</a> · <a href="../../doc/user-guide/zh-CN.md">使用手册</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">下载</a>
+  <a href="https://visterainer.github.io/aidea-zotero/">项目网站</a> · <a href="https://visterainer.github.io/aidea-zotero/guide/">使用手册</a> · <a href="https://github.com/Visterainer/aidea-zotero/releases/latest">下载</a>
 </p>
 
 **AIdea 是适用于 Zotero 7–10 的免费开源 AI 阅读助手。** 在同一个阅读器里，你可以针对 PDF 或 EPUB 中的段落提问，核对回答引用的原文，再把有用的解释留在文献笔记里。
