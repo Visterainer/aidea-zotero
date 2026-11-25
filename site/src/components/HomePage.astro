@@ -1,12 +1,12 @@
 ---
 import { pageContent } from "../content";
-import { getLocaleDefinition, guideLocales, type Locale } from "../i18n";
+import { getLocaleDefinition, type Locale } from "../i18n";
 import LanguageMenu from "./LanguageMenu.astro";
 const { lang } = Astro.props as { lang: Locale };
 const page = pageContent[lang];
 const locale = getLocaleDefinition(lang);
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-const docs = guideLocales.includes(lang) ? base + "/guide/" + lang + "/" : base + "/guide/";
+const docs = base + "/guide/" + lang + "/";
 const repo = "https://github.com/Visterainer/aidea-zotero";
 const release = repo + "/releases/latest";
 const demos = [

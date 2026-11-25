@@ -1,6 +1,6 @@
 # AIdea 使用手册
 
-**简体中文** · [繁體中文](./zh-TW.md) · [English](./en.md) · [日本語](./ja.md) · [한국어](./ko.md) · [Français](./fr.md)
+**简体中文** · [繁體中文](./zh-TW.md) · [English](./en.md) · [日本語](./ja.md) · [한국어](./ko.md) · [Français](./fr.md) · [Deutsch](./de.md) · [Español](./es.md) · [Русский](./ru.md) · [Português](./pt.md) · [العربية](./ar.md) · [हिन्दी](./hi.md)
 
 使用 AIdea 4.0.2 在 Zotero 7–10 中阅读《[Attention Is All You Need](https://arxiv.org/html/1706.03762v7#S3.SS2.SSS1)》。先连接一个模型，再用论文第 3.2.1 节验证对话，最后生成英中双语 PDF。下面的授权示例只使用占位地址，不需要提供个人账号或密钥。
 

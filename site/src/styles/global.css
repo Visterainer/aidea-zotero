@@ -12,7 +12,7 @@ a:focus-visible,summary:focus-visible {outline:3px solid #25877b;outline-offset:
 img {max-width:100%;height:auto}
 .wrap :is(figure,h1,h2,p) {margin:0}
 .wrap {width:min(86rem, calc(100% - clamp(2rem,9vw,10rem)));margin-inline:auto}
-.topbar {background:#fff;border-bottom:1px solid var(--line);position:relative;z-index:5}
+.topbar {background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
 .topbar-inner,.brand,.toplinks,.actions,.foot {display:flex;align-items:center}
 .topbar-inner {min-height:4.5rem;gap:clamp(.6rem,2vw,2rem)}
 .brand {gap:.65rem;letter-spacing:-.04em;font-weight:750;font-size:1.48rem;margin-inline-end:auto}
@@ -62,3 +62,5 @@ img {max-width:100%;height:auto}
   .intro h1 {font-size:clamp(2.15rem,8vw,2.8rem)}
   .foot {gap:.8rem}
 }
+
+html:has(.topbar) {scroll-padding-top:5rem}

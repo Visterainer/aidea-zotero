@@ -1,6 +1,6 @@
 # AIdea user guide
 
-[简体中文](./zh-CN.md) · [繁體中文](./zh-TW.md) · **English** · [日本語](./ja.md) · [한국어](./ko.md) · [Français](./fr.md)
+[简体中文](./zh-CN.md) · [繁體中文](./zh-TW.md) · **English** · [日本語](./ja.md) · [한국어](./ko.md) · [Français](./fr.md) · [Deutsch](./de.md) · [Español](./es.md) · [Русский](./ru.md) · [Português](./pt.md) · [العربية](./ar.md) · [हिन्दी](./hi.md)
 
 For AIdea 4.0.2 on Zotero 7–10. Connect a model, test it on §3.2.1 of *[Attention Is All You Need](https://arxiv.org/html/1706.03762v7#S3.SS2.SSS1)*, then produce an English–Simplified Chinese PDF. The connection examples use placeholder addresses.
 

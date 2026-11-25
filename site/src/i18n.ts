@@ -133,12 +133,9 @@ export const localeDefinitions: LocaleDefinition[] = [
   },
 ];
 
-export const guideLocales: readonly Locale[] = ["zh-CN", "zh-TW", "en", "ja", "ko", "fr"];
-
 export type Surface = "home" | "guide";
 export const entryPath = (surface: Surface) => surface === "home" ? "/" : "/guide/";
 export const languageOptions = (surface: Surface) => localeDefinitions
-  .filter(({ code }) => surface === "home" || guideLocales.includes(code))
   .map(({ code, label, href }) => ({ code, label, href: surface === "home" ? href : `/guide/${code}/` }));
 
 export const getLocaleDefinition = (code: Locale) => {

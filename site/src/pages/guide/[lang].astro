@@ -1,17 +1,18 @@
 ---
 import { createMarkdownProcessor } from "@astrojs/markdown-remark";
-import { getLocaleDefinition, type Locale } from "../../i18n";
+import { getLocaleDefinition, localeDefinitions, type Locale } from "../../i18n";
 import LanguageMenu from "../../components/LanguageMenu.astro";
 import "../../styles/global.css";
 
 export function getStaticPaths() {
-  const sources = import.meta.glob<string>("../../../../doc/user-guide/{en,fr,ja,ko,zh-CN,zh-TW}.md", {
+  const sources = import.meta.glob<string>(["../../../../doc/user-guide/*.md", "!../../../../doc/user-guide/README.md"], {
     eager: true, query: "?raw", import: "default",
   });
-  return Object.entries(sources).map(([file, source]) => ({
-    params: { lang: file.split("/").pop()!.replace(/\.md$/, "") },
-    props: { source },
-  }));
+  return localeDefinitions.map(({ code }) => {
+    const source = sources[`../../../../doc/user-guide/${code}.md`];
+    if (!source) throw new Error(`Missing guide for ${code}`);
+    return { params: { lang: code }, props: { source } };
+  });
 }
 const locale = getLocaleDefinition(Astro.params.lang as Locale);
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -93,12 +94,19 @@ for (const heading of article.metadata.headings) {
       const compact = window.matchMedia("(max-width: 800px)");
       const links = [...menu.querySelectorAll("nav a")];
       const headings = links.map(link => document.getElementById(decodeURIComponent(link.hash.slice(1))));
+      const header = document.querySelector(".guide-header");
+      const summary = menu.querySelector("summary");
+      const measure = () => {
+        document.documentElement.style.setProperty("--guide-head", header.offsetHeight + "px");
+        document.documentElement.style.setProperty("--guide-menu-height", summary.offsetHeight + "px");
+        scheduleUpdate();
+      };
       let current = -1;
       let scheduled = false;
 
       function updateCurrent() {
         scheduled = false;
-        const top = compact.matches ? menu.querySelector("summary").offsetHeight + 24 : 32;
+        const top = header.offsetHeight + (compact.matches ? summary.offsetHeight : 0) + 24;
         let index = headings.length - 1;
         while (index >= 0 && headings[index].getBoundingClientRect().top > top) index--;
         if (index === current) return;
@@ -131,32 +139,36 @@ for (const heading of article.metadata.headings) {
       window.addEventListener("resize", scheduleUpdate);
       window.addEventListener("load", scheduleUpdate);
       syncLayout();
+      measure();
+      const observer = new ResizeObserver(measure);
+      observer.observe(header);
+      observer.observe(summary);
     </script>
   </body>
 </html>
 <style is:global>
-  html { scroll-behavior: auto; }
+  html { scroll-behavior: auto; --guide-head: 4.3125rem; --guide-menu-height: 3rem; scroll-padding-top: var(--guide-head); }
   body { background: #fff; }
   .guide-bar, .guide-layout {
     max-width: 108rem;
     margin-inline: auto;
     padding-inline: clamp(1rem, 3.2vw, 3.5rem);
   }
-  .guide-header { background: #faf8f4; border-bottom: 1px solid #e3ddd5; }
+  .guide-header { position: sticky; top: 0; z-index: 5; background: #faf8f4; border-bottom: 1px solid #e3ddd5; }
   .guide-bar { min-height: 4.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
   .guide-brand { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.35rem; font-weight: 700; }
   .guide-layout { display: grid; grid-template-columns: clamp(14rem, 18vw, 18rem) minmax(0, 1fr); gap: clamp(1.5rem, 3vw, 3.5rem); align-items: start; }
-  .guide-sidebar { position: sticky; top: 0; padding-block: 2rem; max-height: 100vh; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .guide-sidebar { position: sticky; top: var(--guide-head); padding-block: 2rem; max-height: calc(100vh - var(--guide-head)); max-height: calc(100dvh - var(--guide-head)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
   .guide-sidebar summary { cursor: pointer; font-weight: 700; color: #44372d; padding: .4rem .6rem; }
   .guide-toc ol, .guide-toc ul { list-style: none; margin: 0; padding: 0; }
   .guide-toc ol { margin-top: .6rem; }
-  .guide-toc ul { margin: .1rem 0 .5rem .8rem; padding-left: .55rem; border-left: 1px solid #ded8d0; }
+  .guide-toc ul { margin-block: .1rem .5rem; margin-inline-start: .8rem; padding-inline-start: .55rem; border-inline-start: 1px solid #ded8d0; }
   .guide-toc a { display: block; padding: .32rem .6rem; border-radius: .3rem; line-height: 1.5; overflow-wrap: anywhere; }
   .guide-toc ol > li > a { font-weight: 600; }
   .guide-toc ul a { font-size: .88rem; color: #5e574e; }
   .guide-toc a:hover { background: #f7f4ef; }
   .guide-toc a[aria-current] { background: #f4ebe2; color: #763e21; box-shadow: inset 3px 0 #96532d; }
-  .guide-article { min-width: 0; padding: 2rem 0 5rem clamp(1rem, 2.7vw, 3rem); border-left: 1px solid #e3ddd5; }
+  .guide-article { min-width: 0; padding-block: 2rem 5rem; padding-inline-start: clamp(1rem, 2.7vw, 3rem); border-inline-start: 1px solid #e3ddd5; }
   .guide-article h1, .guide-article h2 { max-width: none; }
   .guide-intro h1 { font-size: clamp(2.15rem, 3.7vw, 3.6rem); margin: .25rem 0 .75rem; line-height: 1.16; }
   .guide-intro p { color: #585048; }
@@ -178,13 +190,14 @@ for (const heading of article.metadata.headings) {
   .guide-article th, .guide-article td { border-bottom: 1px solid #ddd; padding: .65rem; text-align: start; vertical-align: top; overflow-wrap: anywhere; }
   .guide-article blockquote { margin: 1rem 0; padding: .2rem 1.2rem; border-inline-start: .2rem solid #947159; background: #faf8f5; }
   @media (max-width: 800px) {
+    html { scroll-padding-top: calc(var(--guide-head) + var(--guide-menu-height)); }
     .guide-bar { flex-wrap: wrap; gap: .25rem 1rem; padding-block: .65rem; }
     .guide-layout { display: block; }
     .guide-sidebar { z-index: 2; overflow: visible; margin-inline: -1rem; padding: 0 1rem; background: #fff; border-bottom: 1px solid #e3ddd5; }
     .guide-sidebar summary { padding: .7rem 0; }
-    .guide-toc { position: absolute; inset: 100% 0 auto; max-height: 65vh; max-height: 65dvh; overflow: auto; overscroll-behavior: contain; padding: .25rem 1rem .8rem; border-bottom: 1px solid #ded8d0; background: #fff; box-shadow: 0 .6rem 1rem #3b291215; }
+    .guide-toc { position: absolute; inset: 100% 0 auto; max-height: 65vh; max-height: min(65dvh, calc(100dvh - var(--guide-head) - var(--guide-menu-height))); overflow: auto; overscroll-behavior: contain; padding: .25rem 1rem .8rem; border-bottom: 1px solid #ded8d0; background: #fff; box-shadow: 0 .6rem 1rem #3b291215; }
     .guide-article { border: 0; padding: 1.4rem 0 3rem; }
-    .guide-article :is(h1, h2, h3) { scroll-margin-top: 3.4rem; }
+    .guide-article :is(h1, h2, h3) { scroll-margin-top: 1rem; }
   }
   @media print {
     .guide-header, .guide-sidebar { display: none; }

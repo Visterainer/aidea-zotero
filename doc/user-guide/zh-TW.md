@@ -1,6 +1,6 @@
 # AIdea 使用手冊
 
-[简体中文](./zh-CN.md) · **繁體中文** · [English](./en.md) · [日本語](./ja.md) · [한국어](./ko.md) · [Français](./fr.md)
+[简体中文](./zh-CN.md) · **繁體中文** · [English](./en.md) · [日本語](./ja.md) · [한국어](./ko.md) · [Français](./fr.md) · [Deutsch](./de.md) · [Español](./es.md) · [Русский](./ru.md) · [Português](./pt.md) · [العربية](./ar.md) · [हिन्दी](./hi.md)
 
 適用於 AIdea 4.0.2 與 Zotero 7–10。用《[Attention Is All You Need](https://arxiv.org/html/1706.03762v7#S3.SS2.SSS1)》第 3.2.1 節測試模型連線，再產生英文與簡體中文對照的 PDF。授權範例採用示意網址。
 

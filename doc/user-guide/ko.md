@@ -1,6 +1,6 @@
 # AIdea 사용 설명서
 
-[简体中文](./zh-CN.md) · [繁體中文](./zh-TW.md) · [English](./en.md) · [日本語](./ja.md) · **한국어** · [Français](./fr.md)
+[简体中文](./zh-CN.md) · [繁體中文](./zh-TW.md) · [English](./en.md) · [日本語](./ja.md) · **한국어** · [Français](./fr.md) · [Deutsch](./de.md) · [Español](./es.md) · [Русский](./ru.md) · [Português](./pt.md) · [العربية](./ar.md) · [हिन्दी](./hi.md)
 
 AIdea 4.0.2와 Zotero 7–10용 안내서입니다. 모델을 연결하고 *[Attention Is All You Need](https://arxiv.org/html/1706.03762v7#S3.SS2.SSS1)* 3.2.1절에서 응답을 확인한 다음 영어·중국어 간체 대조 PDF를 만들어 봅니다. 연결 예시에는 예시 주소를 사용합니다.
 
