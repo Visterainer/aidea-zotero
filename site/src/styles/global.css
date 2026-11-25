@@ -1,6 +1,7 @@
 :root {
   color-scheme: light;
   --body-font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --topbar-height: 2.75rem;
   --ink: #182c2a;
   --teal: #166354;
   --line: #d4dfd9;
@@ -14,8 +15,8 @@ img {max-width:100%;height:auto}
 .wrap {width:min(86rem, calc(100% - clamp(2rem,9vw,10rem)));margin-inline:auto}
 .topbar {background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
 .topbar-inner,.brand,.toplinks,.actions,.foot {display:flex;align-items:center}
-.topbar-inner {min-height:4.5rem;gap:clamp(.6rem,2vw,2rem)}
-.brand {gap:.65rem;letter-spacing:-.04em;font-weight:750;font-size:1.48rem;margin-inline-end:auto}
+.topbar-inner {min-height:var(--topbar-height);gap:clamp(.6rem,2vw,2rem)}
+.brand {gap:.65rem;letter-spacing:-.04em;font-weight:750;font-size:1.16rem;margin-inline-end:auto}
 .toplinks {gap:1.6rem;font-size:.94rem;font-weight:550}
 .toplinks a:hover,.foot a:hover,.text-link:hover {text-decoration:underline;text-underline-offset:.24em}
 .intro {display:grid;grid-template-columns:1.25fr 1fr;align-items:end;gap:4vw;padding-block:clamp(2.4rem,5.1vw,5rem) clamp(2rem,4vw,4rem)}
@@ -53,14 +54,12 @@ img {max-width:100%;height:auto}
   .setup {grid-template-columns:1fr;gap:.25rem}
 }
 @media(max-width:570px){
-  .topbar-inner {min-height:3.8rem}
   .toplinks .repo {display:none}
   .toplinks {font-size:.88rem}
-  .brand {font-size:1.2rem;gap:.35rem}
-  .brand img {width:28px}
+  .brand {gap:.35rem}
   .demo-tabs {gap:.75rem;font-size:.86rem}
   .intro h1 {font-size:clamp(2.15rem,8vw,2.8rem)}
   .foot {gap:.8rem}
 }
 
-html:has(.topbar) {scroll-padding-top:5rem}
+html:has(.topbar) {scroll-padding-top:calc(var(--topbar-height) + .5rem)}

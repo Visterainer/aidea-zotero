@@ -58,7 +58,7 @@ for (const heading of article.metadata.headings) {
     <header class="guide-header">
       <div class="guide-bar">
         <a class="guide-brand" href={`${base}${locale.href}`}>
-          <img src={`${base}/media/icon-96.png`} width="32" height="32" alt="" /> AIdea
+          <img src={`${base}/media/icon-96.png`} width="26" height="26" alt="" /> AIdea
         </a>
         <LanguageMenu lang={locale.code} surface="guide" />
       </div>
@@ -147,7 +147,7 @@ for (const heading of article.metadata.headings) {
   </body>
 </html>
 <style is:global>
-  html { scroll-behavior: auto; --guide-head: 4.3125rem; --guide-menu-height: 3rem; scroll-padding-top: var(--guide-head); }
+  html { scroll-behavior: auto; --guide-head: calc(var(--topbar-height) + 1px); --guide-menu-height: 2.4rem; scroll-padding-top: var(--guide-head); }
   body { background: #fff; }
   .guide-bar, .guide-layout {
     max-width: 108rem;
@@ -155,8 +155,8 @@ for (const heading of article.metadata.headings) {
     padding-inline: clamp(1rem, 3.2vw, 3.5rem);
   }
   .guide-header { position: sticky; top: 0; z-index: 5; background: #faf8f4; border-bottom: 1px solid #e3ddd5; }
-  .guide-bar { min-height: 4.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
-  .guide-brand { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.35rem; font-weight: 700; }
+  .guide-bar { min-height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+  .guide-brand { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.16rem; font-weight: 700; }
   .guide-layout { display: grid; grid-template-columns: clamp(14rem, 18vw, 18rem) minmax(0, 1fr); gap: clamp(1.5rem, 3vw, 3.5rem); align-items: start; }
   .guide-sidebar { position: sticky; top: var(--guide-head); padding-block: 2rem; max-height: calc(100vh - var(--guide-head)); max-height: calc(100dvh - var(--guide-head)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
   .guide-sidebar summary { cursor: pointer; font-weight: 700; color: #44372d; padding: .4rem .6rem; }
@@ -191,10 +191,10 @@ for (const heading of article.metadata.headings) {
   .guide-article blockquote { margin: 1rem 0; padding: .2rem 1.2rem; border-inline-start: .2rem solid #947159; background: #faf8f5; }
   @media (max-width: 800px) {
     html { scroll-padding-top: calc(var(--guide-head) + var(--guide-menu-height)); }
-    .guide-bar { flex-wrap: wrap; gap: .25rem 1rem; padding-block: .65rem; }
+    .guide-bar { flex-wrap: wrap; gap: .25rem 1rem; }
     .guide-layout { display: block; }
     .guide-sidebar { z-index: 2; overflow: visible; margin-inline: -1rem; padding: 0 1rem; background: #fff; border-bottom: 1px solid #e3ddd5; }
-    .guide-sidebar summary { padding: .7rem 0; }
+    .guide-sidebar summary { padding: .4rem 0; }
     .guide-toc { position: absolute; inset: 100% 0 auto; max-height: 65vh; max-height: min(65dvh, calc(100dvh - var(--guide-head) - var(--guide-menu-height))); overflow: auto; overscroll-behavior: contain; padding: .25rem 1rem .8rem; border-bottom: 1px solid #ded8d0; background: #fff; box-shadow: 0 .6rem 1rem #3b291215; }
     .guide-article { border: 0; padding: 1.4rem 0 3rem; }
     .guide-article :is(h1, h2, h3) { scroll-margin-top: 1rem; }
